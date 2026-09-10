@@ -1,3 +1,4 @@
+
 package com.sakyna.app;
 
 import android.app.Activity;
@@ -6,13 +7,19 @@ import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.view.Gravity;
+import android.view.View;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.widget.Toast;
 
 public class MainActivity extends Activity {
 
     private final int GREEN = Color.rgb(20, 110, 60);
+    private EditText pickupInput;
+    private EditText destinationInput;
+    private TextView fareText;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -44,13 +51,12 @@ public class MainActivity extends Activity {
         GradientDrawable background = new GradientDrawable();
         background.setColor(color);
         background.setCornerRadius(24);
-
         button.setBackground(background);
 
         LinearLayout.LayoutParams params =
                 new LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.MATCH_PARENT,
-                        70
+                        65
                 );
 
         params.setMargins(0, 8, 0, 8);
@@ -59,11 +65,36 @@ public class MainActivity extends Activity {
         return button;
     }
 
+    private EditText input(String hint) {
+        EditText editText = new EditText(this);
+        editText.setHint(hint);
+        editText.setTextSize(17);
+        editText.setSingleLine(true);
+        editText.setPadding(20, 10, 20, 10);
+
+        GradientDrawable background = new GradientDrawable();
+        background.setColor(Color.rgb(245, 245, 245));
+        background.setCornerRadius(18);
+        background.setStroke(1, Color.LTGRAY);
+
+        editText.setBackground(background);
+
+        LinearLayout.LayoutParams params =
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        60
+                );
+
+        params.setMargins(0, 5, 0, 15);
+        editText.setLayoutParams(params);
+
+        return editText;
+    }
+
     private LinearLayout baseScreen() {
         LinearLayout screen = new LinearLayout(this);
         screen.setOrientation(LinearLayout.VERTICAL);
-        screen.setGravity(Gravity.CENTER_HORIZONTAL);
-        screen.setPadding(30, 40, 30, 30);
+        screen.setPadding(25, 30, 25, 25);
         screen.setBackgroundColor(Color.WHITE);
         return screen;
     }
@@ -71,8 +102,9 @@ public class MainActivity extends Activity {
     private void showHome() {
 
         LinearLayout screen = baseScreen();
+        screen.setGravity(Gravity.CENTER_HORIZONTAL);
 
-        screen.addView(label("🛺", 58, Color.BLACK, false));
+        screen.addView(label("🛺", 55, Color.BLACK, false));
         screen.addView(label("Sakay Na", 36, GREEN, true));
         screen.addView(
                 label(
@@ -85,17 +117,20 @@ public class MainActivity extends Activity {
 
         TextView choose =
                 label(
-                        "How would you like to use Sakay Na?",
-                        19,
+                        "Choose your mode",
+                        20,
                         Color.BLACK,
                         true
                 );
 
-        choose.setPadding(0, 45, 0, 20);
+        choose.setPadding(0, 40, 0, 15);
         screen.addView(choose);
 
         Button passenger =
-                menuButton("🧍  PASSENGER", GREEN);
+                menuButton(
+                        "🧍  PASSENGER",
+                        GREEN
+                );
 
         Button driver =
                 menuButton(
@@ -109,17 +144,9 @@ public class MainActivity extends Activity {
                         Color.rgb(170, 60, 50)
                 );
 
-        passenger.setOnClickListener(
-                view -> showPassenger()
-        );
-
-        driver.setOnClickListener(
-                view -> showDriver()
-        );
-
-        admin.setOnClickListener(
-                view -> showAdmin()
-        );
+        passenger.setOnClickListener(v -> showPassenger());
+        driver.setOnClickListener(v -> showDriver());
+        admin.setOnClickListener(v -> showAdmin());
 
         screen.addView(passenger);
         screen.addView(driver);
@@ -134,102 +161,93 @@ public class MainActivity extends Activity {
 
         screen.addView(
                 label(
-                        "PASSENGER",
-                        30,
+                        "BOOK A RIDE",
+                        28,
                         GREEN,
                         true
                 )
         );
 
+        TextView instruction =
+                label(
+                        "Tell us where you're going.",
+                        17,
+                        Color.DKGRAY,
+                        false
+                );
+
+        instruction.setPadding(0, 5, 0, 25);
+        screen.addView(instruction);
+
         screen.addView(
                 label(
-                        "Where do you want to go?",
+                        "PICKUP LOCATION",
+                        15,
+                        Color.BLACK,
+                        true
+                )
+        );
+
+        pickupInput =
+                input("Example: Sariaya Public Market");
+
+        screen.addView(pickupInput);
+
+        screen.addView(
+                label(
+                        "DESTINATION",
+                        15,
+                        Color.BLACK,
+                        true
+                )
+        );
+
+        destinationInput =
+                input("Example: Sariaya Municipal Hall");
+
+        screen.addView(destinationInput);
+
+        screen.addView(
+                label(
+                        "RIDE TYPE",
+                        15,
+                        Color.BLACK,
+                        true
+                )
+        );
+
+        TextView rideType =
+                label(
+                        "🛺  Tricycle",
+                        18,
+                        GREEN,
+                        true
+                );
+
+        rideType.setGravity(Gravity.LEFT);
+        rideType.setPadding(15, 15, 15, 15);
+        screen.addView(rideType);
+
+        fareText =
+                label(
+                        "Estimated fare: ₱0",
                         20,
-                        Color.BLACK,
-                        true
-                )
-        );
-
-        Button book =
-                menuButton(
-                        "BOOK A RIDE",
-                        GREEN
-                );
-
-        book.setOnClickListener(
-                view -> showBooking()
-        );
-
-        Button back =
-                menuButton(
-                        "BACK",
-                        Color.GRAY
-                );
-
-        back.setOnClickListener(
-                view -> showHome()
-        );
-
-        screen.addView(book);
-        screen.addView(back);
-
-        setContentView(screen);
-    }
-
-    private void showBooking() {
-
-        LinearLayout screen = baseScreen();
-
-        screen.addView(
-                label(
-                        "BOOK A RIDE",
-                        30,
                         GREEN,
                         true
-                )
-        );
-
-        screen.addView(
-                label(
-                        "Pickup",
-                        18,
-                        Color.BLACK,
-                        true
-                )
-        );
-
-        TextView pickup =
-                label(
-                        "Set your pickup location",
-                        17,
-                        Color.DKGRAY,
-                        false
                 );
 
-        pickup.setPadding(0, 15, 0, 25);
+        fareText.setPadding(0, 20, 0, 10);
+        screen.addView(fareText);
 
-        screen.addView(pickup);
-
-        screen.addView(
-                label(
-                        "Destination",
-                        18,
-                        Color.BLACK,
-                        true
-                )
-        );
-
-        TextView destination =
-                label(
-                        "Set your destination",
-                        17,
-                        Color.DKGRAY,
-                        false
+        Button estimate =
+                menuButton(
+                        "CALCULATE FARE",
+                        Color.rgb(40, 120, 70)
                 );
 
-        destination.setPadding(0, 15, 0, 25);
-
-        screen.addView(destination);
+        estimate.setOnClickListener(
+                v -> calculateFare()
+        );
 
         Button request =
                 menuButton(
@@ -238,7 +256,7 @@ public class MainActivity extends Activity {
                 );
 
         request.setOnClickListener(
-                view -> showRideRequested()
+                v -> requestRide()
         );
 
         Button back =
@@ -248,18 +266,74 @@ public class MainActivity extends Activity {
                 );
 
         back.setOnClickListener(
-                view -> showPassenger()
+                v -> showHome()
         );
 
+        screen.addView(estimate);
         screen.addView(request);
         screen.addView(back);
 
         setContentView(screen);
     }
 
-    private void showRideRequested() {
+    private void calculateFare() {
+
+        String pickup = pickupInput.getText().toString().trim();
+        String destination =
+                destinationInput.getText().toString().trim();
+
+        if (pickup.isEmpty() || destination.isEmpty()) {
+            Toast.makeText(
+                    this,
+                    "Please enter pickup and destination.",
+                    Toast.LENGTH_SHORT
+            ).show();
+            return;
+        }
+
+        /*
+         * Initial Sakay Na fare model.
+         * This is only a temporary local calculation.
+         * Later it will be controlled by the Admin/Firebase.
+         */
+        int baseFare = 50;
+
+        fareText.setText(
+                "Estimated fare: ₱" + baseFare
+        );
+
+        Toast.makeText(
+                this,
+                "Fare calculated.",
+                Toast.LENGTH_SHORT
+        ).show();
+    }
+
+    private void requestRide() {
+
+        String pickup = pickupInput.getText().toString().trim();
+        String destination =
+                destinationInput.getText().toString().trim();
+
+        if (pickup.isEmpty() || destination.isEmpty()) {
+            Toast.makeText(
+                    this,
+                    "Please enter pickup and destination.",
+                    Toast.LENGTH_SHORT
+            ).show();
+            return;
+        }
+
+        showRideRequested(pickup, destination);
+    }
+
+    private void showRideRequested(
+            String pickup,
+            String destination
+    ) {
 
         LinearLayout screen = baseScreen();
+        screen.setGravity(Gravity.CENTER_HORIZONTAL);
 
         screen.addView(
                 label(
@@ -272,18 +346,33 @@ public class MainActivity extends Activity {
 
         screen.addView(
                 label(
-                        "Looking for an available driver...",
-                        18,
-                        Color.DKGRAY,
+                        "🛺",
+                        55,
+                        Color.BLACK,
                         false
                 )
         );
 
+        TextView details =
+                label(
+                        "Pickup:\n" + pickup +
+                        "\n\nDestination:\n" +
+                        destination,
+                        18,
+                        Color.DKGRAY,
+                        false
+                );
+
+        details.setGravity(Gravity.CENTER);
+        details.setPadding(0, 25, 0, 25);
+
+        screen.addView(details);
+
         screen.addView(
                 label(
-                        "Please wait.",
-                        18,
-                        Color.BLACK,
+                        "Searching for an available driver...",
+                        17,
+                        Color.DKGRAY,
                         false
                 )
         );
@@ -295,7 +384,7 @@ public class MainActivity extends Activity {
                 );
 
         cancel.setOnClickListener(
-                view -> showPassenger()
+                v -> showPassenger()
         );
 
         screen.addView(cancel);
@@ -310,7 +399,7 @@ public class MainActivity extends Activity {
         screen.addView(
                 label(
                         "DRIVER MODE",
-                        30,
+                        28,
                         Color.rgb(35, 95, 170),
                         true
                 )
@@ -318,10 +407,10 @@ public class MainActivity extends Activity {
 
         screen.addView(
                 label(
-                        "Driver dashboard",
-                        19,
-                        Color.BLACK,
-                        true
+                        "Ready to receive ride requests",
+                        17,
+                        Color.DKGRAY,
+                        false
                 )
         );
 
@@ -332,7 +421,7 @@ public class MainActivity extends Activity {
                 );
 
         online.setOnClickListener(
-                view -> showDriverOnline()
+                v -> showDriverOnline()
         );
 
         Button back =
@@ -342,7 +431,7 @@ public class MainActivity extends Activity {
                 );
 
         back.setOnClickListener(
-                view -> showHome()
+                v -> showHome()
         );
 
         screen.addView(online);
@@ -357,8 +446,8 @@ public class MainActivity extends Activity {
 
         screen.addView(
                 label(
-                        "DRIVER ONLINE",
-                        28,
+                        "🟢 DRIVER ONLINE",
+                        26,
                         Color.rgb(35, 95, 170),
                         true
                 )
@@ -380,7 +469,7 @@ public class MainActivity extends Activity {
                 );
 
         offline.setOnClickListener(
-                view -> showDriver()
+                v -> showDriver()
         );
 
         screen.addView(offline);
@@ -394,8 +483,8 @@ public class MainActivity extends Activity {
 
         screen.addView(
                 label(
-                        "ADMIN",
-                        30,
+                        "ADMIN DASHBOARD",
+                        28,
                         Color.rgb(170, 60, 50),
                         true
                 )
@@ -403,36 +492,18 @@ public class MainActivity extends Activity {
 
         screen.addView(
                 label(
-                        "Sakay Na Administration",
-                        19,
+                        "Sakay Na Management",
+                        18,
+                        Color.DKGRAY,
+                        false
+                )
+        );
+
+        screen.addView(
+                label(
+                        "\nPassengers: 0\n\nDrivers: 0\n\nActive Rides: 0\n\nCompleted Rides: 0",
+                        18,
                         Color.BLACK,
-                        true
-                )
-        );
-
-        screen.addView(
-                label(
-                        "Users: 0",
-                        17,
-                        Color.DKGRAY,
-                        false
-                )
-        );
-
-        screen.addView(
-                label(
-                        "Drivers: 0",
-                        17,
-                        Color.DKGRAY,
-                        false
-                )
-        );
-
-        screen.addView(
-                label(
-                        "Active rides: 0",
-                        17,
-                        Color.DKGRAY,
                         false
                 )
         );
@@ -444,11 +515,11 @@ public class MainActivity extends Activity {
                 );
 
         back.setOnClickListener(
-                view -> showHome()
+                v -> showHome()
         );
 
         screen.addView(back);
 
         setContentView(screen);
     }
-  }
+}
