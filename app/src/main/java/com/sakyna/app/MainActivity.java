@@ -7,7 +7,6 @@ import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.view.Gravity;
-import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -17,9 +16,21 @@ import android.widget.Toast;
 public class MainActivity extends Activity {
 
     private final int GREEN = Color.rgb(20, 110, 60);
+    private final int BLUE = Color.rgb(35, 95, 170);
+    private final int RED = Color.rgb(170, 60, 50);
+
     private EditText pickupInput;
     private EditText destinationInput;
     private TextView fareText;
+
+    // Temporary local ride request.
+    // Firebase will replace this later so different phones can communicate.
+    private static boolean rideRequested = false;
+    private static boolean rideAccepted = false;
+
+    private static String requestedPickup = "";
+    private static String requestedDestination = "";
+    private static int requestedFare = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -127,22 +138,13 @@ public class MainActivity extends Activity {
         screen.addView(choose);
 
         Button passenger =
-                menuButton(
-                        "🧍  PASSENGER",
-                        GREEN
-                );
+                menuButton("🧍  PASSENGER", GREEN);
 
         Button driver =
-                menuButton(
-                        "🛺  DRIVER",
-                        Color.rgb(35, 95, 170)
-                );
+                menuButton("🛺  DRIVER", BLUE);
 
         Button admin =
-                menuButton(
-                        "🛡  ADMIN",
-                        Color.rgb(170, 60, 50)
-                );
+                menuButton("🛡  ADMIN", RED);
 
         passenger.setOnClickListener(v -> showPassenger());
         driver.setOnClickListener(v -> showDriver());
@@ -160,12 +162,7 @@ public class MainActivity extends Activity {
         LinearLayout screen = baseScreen();
 
         screen.addView(
-                label(
-                        "BOOK A RIDE",
-                        28,
-                        GREEN,
-                        true
-                )
+                label("BOOK A RIDE", 28, GREEN, true)
         );
 
         TextView instruction =
@@ -188,9 +185,7 @@ public class MainActivity extends Activity {
                 )
         );
 
-        pickupInput =
-                input("Example: Sariaya Public Market");
-
+        pickupInput = input("Example: Sariaya Public Market");
         screen.addView(pickupInput);
 
         screen.addView(
@@ -245,32 +240,29 @@ public class MainActivity extends Activity {
                         Color.rgb(40, 120, 70)
                 );
 
-        estimate.setOnClickListener(
-                v -> calculateFare()
-        );
+        estimate.setOnClickListener(v -> calculateFare());
 
         Button request =
+                menuButton("REQUEST RIDE", GREEN);
+
+        request.setOnClickListener(v -> requestRide());
+
+        Button status =
                 menuButton(
-                        "REQUEST RIDE",
-                        GREEN
+                        "CHECK RIDE STATUS",
+                        BLUE
                 );
 
-        request.setOnClickListener(
-                v -> requestRide()
-        );
+        status.setOnClickListener(v -> showPassengerStatus());
 
         Button back =
-                menuButton(
-                        "BACK",
-                        Color.GRAY
-                );
+                menuButton("BACK", Color.GRAY);
 
-        back.setOnClickListener(
-                v -> showHome()
-        );
+        back.setOnClickListener(v -> showHome());
 
         screen.addView(estimate);
         screen.addView(request);
+        screen.addView(status);
         screen.addView(back);
 
         setContentView(screen);
@@ -278,7 +270,9 @@ public class MainActivity extends Activity {
 
     private void calculateFare() {
 
-        String pickup = pickupInput.getText().toString().trim();
+        String pickup =
+                pickupInput.getText().toString().trim();
+
         String destination =
                 destinationInput.getText().toString().trim();
 
@@ -291,27 +285,18 @@ public class MainActivity extends Activity {
             return;
         }
 
-        /*
-         * Initial Sakay Na fare model.
-         * This is only a temporary local calculation.
-         * Later it will be controlled by the Admin/Firebase.
-         */
-        int baseFare = 50;
+        requestedFare = 50;
 
         fareText.setText(
-                "Estimated fare: ₱" + baseFare
+                "Estimated fare: ₱" + requestedFare
         );
-
-        Toast.makeText(
-                this,
-                "Fare calculated.",
-                Toast.LENGTH_SHORT
-        ).show();
     }
 
     private void requestRide() {
 
-        String pickup = pickupInput.getText().toString().trim();
+        String pickup =
+                pickupInput.getText().toString().trim();
+
         String destination =
                 destinationInput.getText().toString().trim();
 
@@ -324,13 +309,20 @@ public class MainActivity extends Activity {
             return;
         }
 
-        showRideRequested(pickup, destination);
+        requestedPickup = pickup;
+        requestedDestination = destination;
+
+        if (requestedFare == 0) {
+            requestedFare = 50;
+        }
+
+        rideRequested = true;
+        rideAccepted = false;
+
+        showRideRequested();
     }
 
-    private void showRideRequested(
-            String pickup,
-            String destination
-    ) {
+    private void showRideRequested() {
 
         LinearLayout screen = baseScreen();
         screen.setGravity(Gravity.CENTER_HORIZONTAL);
@@ -345,28 +337,8 @@ public class MainActivity extends Activity {
         );
 
         screen.addView(
-                label(
-                        "🛺",
-                        55,
-                        Color.BLACK,
-                        false
-                )
+                label("🛺", 55, Color.BLACK, false)
         );
-
-        TextView details =
-                label(
-                        "Pickup:\n" + pickup +
-                        "\n\nDestination:\n" +
-                        destination,
-                        18,
-                        Color.DKGRAY,
-                        false
-                );
-
-        details.setGravity(Gravity.CENTER);
-        details.setPadding(0, 25, 0, 25);
-
-        screen.addView(details);
 
         screen.addView(
                 label(
@@ -377,17 +349,112 @@ public class MainActivity extends Activity {
                 )
         );
 
+        TextView details =
+                label(
+                        "\nPickup:\n" +
+                        requestedPickup +
+                        "\n\nDestination:\n" +
+                        requestedDestination +
+                        "\n\nFare: ₱" +
+                        requestedFare,
+                        18,
+                        Color.DKGRAY,
+                        false
+                );
+
+        details.setGravity(Gravity.CENTER);
+        screen.addView(details);
+
+        Button status =
+                menuButton(
+                        "CHECK RIDE STATUS",
+                        BLUE
+                );
+
+        status.setOnClickListener(
+                v -> showPassengerStatus()
+        );
+
         Button cancel =
                 menuButton(
                         "CANCEL RIDE",
-                        Color.rgb(170, 60, 50)
+                        RED
                 );
 
-        cancel.setOnClickListener(
-                v -> showPassenger()
+        cancel.setOnClickListener(v -> {
+            rideRequested = false;
+            rideAccepted = false;
+            showPassenger();
+        });
+
+        screen.addView(status);
+        screen.addView(cancel);
+
+        setContentView(screen);
+    }
+
+    private void showPassengerStatus() {
+
+        LinearLayout screen = baseScreen();
+        screen.setGravity(Gravity.CENTER_HORIZONTAL);
+
+        screen.addView(
+                label(
+                        "RIDE STATUS",
+                        28,
+                        GREEN,
+                        true
+                )
         );
 
-        screen.addView(cancel);
+        if (!rideRequested) {
+
+            screen.addView(
+                    label(
+                            "\nNo active ride.\n\nBook a ride first.",
+                            19,
+                            Color.DKGRAY,
+                            false
+                    )
+            );
+
+        } else if (!rideAccepted) {
+
+            screen.addView(
+                    label(
+                            "\n🟡 DRIVER SEARCHING\n\n" +
+                            "Your ride request is waiting for a driver.",
+                            19,
+                            Color.DKGRAY,
+                            false
+                    )
+            );
+
+        } else {
+
+            screen.addView(
+                    label(
+                            "\n🟢 DRIVER ACCEPTED\n\n" +
+                            "Your driver has accepted the ride!\n\n" +
+                            "Pickup:\n" +
+                            requestedPickup +
+                            "\n\nDestination:\n" +
+                            requestedDestination +
+                            "\n\nFare: ₱" +
+                            requestedFare,
+                            19,
+                            GREEN,
+                            true
+                    )
+            );
+        }
+
+        Button back =
+                menuButton("BACK", Color.GRAY);
+
+        back.setOnClickListener(v -> showPassenger());
+
+        screen.addView(back);
 
         setContentView(screen);
     }
@@ -400,14 +467,14 @@ public class MainActivity extends Activity {
                 label(
                         "DRIVER MODE",
                         28,
-                        Color.rgb(35, 95, 170),
+                        BLUE,
                         true
                 )
         );
 
         screen.addView(
                 label(
-                        "Ready to receive ride requests",
+                        "Manage incoming ride requests",
                         17,
                         Color.DKGRAY,
                         false
@@ -417,11 +484,11 @@ public class MainActivity extends Activity {
         Button online =
                 menuButton(
                         "GO ONLINE",
-                        Color.rgb(35, 95, 170)
+                        BLUE
                 );
 
         online.setOnClickListener(
-                v -> showDriverOnline()
+                v -> showDriverRequests()
         );
 
         Button back =
@@ -440,7 +507,7 @@ public class MainActivity extends Activity {
         setContentView(screen);
     }
 
-    private void showDriverOnline() {
+    private void showDriverRequests() {
 
         LinearLayout screen = baseScreen();
 
@@ -448,19 +515,97 @@ public class MainActivity extends Activity {
                 label(
                         "🟢 DRIVER ONLINE",
                         26,
-                        Color.rgb(35, 95, 170),
+                        BLUE,
                         true
                 )
         );
 
-        screen.addView(
-                label(
-                        "Waiting for ride requests...",
-                        18,
-                        Color.DKGRAY,
-                        false
-                )
-        );
+        if (!rideRequested) {
+
+            screen.addView(
+                    label(
+                            "\nNo ride requests yet.\n\n" +
+                            "Waiting for passengers...",
+                            19,
+                            Color.DKGRAY,
+                            false
+                    )
+            );
+
+        } else if (rideAccepted) {
+
+            screen.addView(
+                    label(
+                            "\nRIDE ACCEPTED\n\n" +
+                            "Passenger pickup:\n" +
+                            requestedPickup +
+                            "\n\nDestination:\n" +
+                            requestedDestination +
+                            "\n\nFare: ₱" +
+                            requestedFare,
+                            19,
+                            GREEN,
+                            true
+                    )
+            );
+
+            Button start =
+                    menuButton(
+                            "START RIDE",
+                            BLUE
+                    );
+
+            start.setOnClickListener(
+                    v -> showRideStarted()
+            );
+
+            screen.addView(start);
+
+        } else {
+
+            screen.addView(
+                    label(
+                            "\n🔔 NEW RIDE REQUEST",
+                            23,
+                            BLUE,
+                            true
+                    )
+            );
+
+            screen.addView(
+                    label(
+                            "\nPickup:\n" +
+                            requestedPickup +
+                            "\n\nDestination:\n" +
+                            requestedDestination +
+                            "\n\nFare: ₱" +
+                            requestedFare,
+                            19,
+                            Color.DKGRAY,
+                            false
+                    )
+            );
+
+            Button accept =
+                    menuButton(
+                            "ACCEPT RIDE",
+                            BLUE
+                    );
+
+            accept.setOnClickListener(v -> {
+                rideAccepted = true;
+
+                Toast.makeText(
+                        this,
+                        "Ride accepted!",
+                        Toast.LENGTH_SHORT
+                ).show();
+
+                showDriverRequests();
+            });
+
+            screen.addView(accept);
+        }
 
         Button offline =
                 menuButton(
@@ -477,6 +622,63 @@ public class MainActivity extends Activity {
         setContentView(screen);
     }
 
+    private void showRideStarted() {
+
+        LinearLayout screen = baseScreen();
+        screen.setGravity(Gravity.CENTER_HORIZONTAL);
+
+        screen.addView(
+                label(
+                        "🚕 RIDE IN PROGRESS",
+                        27,
+                        BLUE,
+                        true
+                )
+        );
+
+        screen.addView(
+                label(
+                        "\nPickup:\n" +
+                        requestedPickup +
+                        "\n\nDestination:\n" +
+                        requestedDestination +
+                        "\n\nFare: ₱" +
+                        requestedFare,
+                        19,
+                        Color.DKGRAY,
+                        false
+                )
+        );
+
+        Button complete =
+                menuButton(
+                        "COMPLETE RIDE",
+                        GREEN
+                );
+
+        complete.setOnClickListener(
+                v -> completeRide()
+        );
+
+        screen.addView(complete);
+
+        setContentView(screen);
+    }
+
+    private void completeRide() {
+
+        rideRequested = false;
+        rideAccepted = false;
+
+        Toast.makeText(
+                this,
+                "Ride completed!",
+                Toast.LENGTH_SHORT
+        ).show();
+
+        showHome();
+    }
+
     private void showAdmin() {
 
         LinearLayout screen = baseScreen();
@@ -485,7 +687,7 @@ public class MainActivity extends Activity {
                 label(
                         "ADMIN DASHBOARD",
                         28,
-                        Color.rgb(170, 60, 50),
+                        RED,
                         true
                 )
         );
@@ -499,13 +701,36 @@ public class MainActivity extends Activity {
                 )
         );
 
+        String status;
+
+        if (rideRequested && !rideAccepted) {
+            status = "🟡 Ride Waiting for Driver";
+        } else if (rideRequested) {
+            status = "🟢 Ride Accepted";
+        } else {
+            status = "⚪ No Active Ride";
+        }
+
         screen.addView(
                 label(
-                        "\nPassengers: 0\n\nDrivers: 0\n\nActive Rides: 0\n\nCompleted Rides: 0",
+                        "\nPassengers: 1\n\n" +
+                        "Drivers: 1\n\n" +
+                        "Active Ride:\n" +
+                        status,
                         18,
                         Color.BLACK,
                         false
                 )
+        );
+
+        Button refresh =
+                menuButton(
+                        "REFRESH",
+                        RED
+                );
+
+        refresh.setOnClickListener(
+                v -> showAdmin()
         );
 
         Button back =
@@ -518,6 +743,7 @@ public class MainActivity extends Activity {
                 v -> showHome()
         );
 
+        screen.addView(refresh);
         screen.addView(back);
 
         setContentView(screen);
