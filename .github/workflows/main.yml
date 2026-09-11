@@ -11,41 +11,27 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout main branch
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           ref: main
-          clean: true
 
-            - name: Verify project
+      - name: Check files
         run: |
-          echo "===== CURRENT DIRECTORY ====="
           pwd
-          echo "===== ROOT FILES ====="
-          ls -lab
-          echo "===== FIND SETTINGS ====="
-          find . -maxdepth 3 -type f -name 'settings.gradle.kts' -print
-        
-          
-          
-          
-          
-          
-        
-        
-          echo "===== APP ====="
+          ls -la
+          echo "SETTINGS:"
+          ls -l settings.gradle.kts
+          echo "APP:"
           ls -la app
-          echo "===== GRADLE WRAPPER ====="
-          ls -la gradle
-          ls -la gradlew
 
-      - name: Set up Java
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Build APK
+      - name: Build
         run: |
           chmod +x gradlew
           ./gradlew :app:assembleDebug --stacktrace
