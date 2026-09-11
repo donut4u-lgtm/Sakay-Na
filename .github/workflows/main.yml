@@ -11,15 +11,27 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout main branch
         uses: actions/checkout@v4
+        with:
+          ref: main
+          clean: true
 
-      - name: Find project
+      - name: Verify project
         run: |
-          echo "===== CURRENT DIRECTORY ====="
-          pwd
-          echo "===== ALL FILES ====="
-          find . -maxdepth 5 -type f | sort
+          echo "===== BRANCH ====="
+          git branch --show-current
+          echo "===== COMMIT ====="
+          git rev-parse HEAD
+          echo "===== ROOT FILES ====="
+          ls -la
+          echo "===== SETTINGS ====="
+          cat settings.gradle.kts
+          echo "===== APP ====="
+          ls -la app
+          echo "===== GRADLE WRAPPER ====="
+          ls -la gradle
+          ls -la gradlew
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -27,51 +39,13 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Find Gradle project
-        run: |
-          SETTINGS=$(find . -name settings.gradle.kts -type f | head -1)
-
-          if [ -z "$SETTINGS" ]; then
-            echo "ERROR: settings.gradle.kts was not found."
-            exit 1
-          fi
-
-          PROJECT_DIR=$(dirname "$SETTINGS")
-
-          echo "===== GRADLE PROJECT ====="
-          echo "$PROJECT_DIR"
-
-          cd "$PROJECT_DIR"
-
-          echo "===== SETTINGS ====="
-          cat settings.gradle.kts
-
-          echo "===== PROJECT FILES ====="
-          find . -maxdepth 3 -type f | sort
-
-          echo "===== GRADLE PROJECTS ====="
-          gradle projects
-
       - name: Build APK
         run: |
-          SETTINGS=$(find . -name settings.gradle.kts -type f | head -1)
-
-          if [ -z "$SETTINGS" ]; then
-            echo "ERROR: settings.gradle.kts was not found."
-            exit 1
-          fi
-
-          PROJECT_DIR=$(dirname "$SETTINGS")
-
-          cd "$PROJECT_DIR"
-
-          echo "Building from:"
-          pwd
-
-          gradle :app:assembleDebug --stacktrace
+          chmod +x gradlew
+          ./gradlew :app:assembleDebug --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Sakay-Na-debug
-          path: '**/app/build/outputs/apk/debug/app-debug.apk'
+          path: app/build/outputs/apk/debug/app-debug.apk
