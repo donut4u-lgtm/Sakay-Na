@@ -20,16 +20,13 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
-
-      - name: Create Android project
-        shell: bash
+      - name: Create project folders
         run: |
-          set -e
-
           mkdir -p app/src/main/java/com/sakyna/app
+          mkdir -p app/src/main/res/values
 
+      - name: Create settings.gradle.kts
+        run: |
           cat > settings.gradle.kts <<'EOF'
           pluginManagement {
               repositories {
@@ -51,17 +48,23 @@ jobs:
           include(":app")
           EOF
 
+      - name: Create root build.gradle.kts
+        run: |
           cat > build.gradle.kts <<'EOF'
           plugins {
               id("com.android.application") version "8.7.3" apply false
           }
           EOF
 
+      - name: Create gradle.properties
+        run: |
           cat > gradle.properties <<'EOF'
           org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
           android.useAndroidX=true
           EOF
 
+      - name: Create app build.gradle.kts
+        run: |
           cat > app/build.gradle.kts <<'EOF'
           plugins {
               id("com.android.application")
@@ -92,6 +95,8 @@ jobs:
           }
           EOF
 
+      - name: Create AndroidManifest.xml
+        run: |
           cat > app/src/main/AndroidManifest.xml <<'EOF'
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
@@ -116,15 +121,17 @@ jobs:
           </manifest>
           EOF
 
+      - name: Create MainActivity.java
+        run: |
           cat > app/src/main/java/com/sakyna/app/MainActivity.java <<'EOF'
           package com.sakyna.app;
 
           import android.app.Activity;
           import android.os.Bundle;
           import android.graphics.Color;
-          import android.graphics.Typeface;
-          import android.graphics.drawable.GradientDrawable;
+          import android.text.InputType;
           import android.view.Gravity;
+          import android.view.View;
           import android.widget.Button;
           import android.widget.EditText;
           import android.widget.LinearLayout;
@@ -134,34 +141,16 @@ jobs:
 
           public class MainActivity extends Activity {
 
-              private static final int GREEN = Color.rgb(20, 110, 60);
-              private static final int BLUE = Color.rgb(35, 95, 170);
-              private static final int RED = Color.rgb(170, 60, 50);
-              private static final int GRAY = Color.GRAY;
-
-              private EditText pickupInput;
-              private EditText destinationInput;
-              private TextView fareText;
-
-              private EditText nameInput;
-              private EditText emailInput;
-              private EditText passwordInput;
-
               private static String registeredName = "";
-              private static String registeredEmail = "";
+              private static String registeredMobile = "";
               private static String registeredPassword = "";
               private static String registeredRole = "";
 
               private static String loggedInName = "";
               private static String loggedInRole = "";
 
-              private static boolean rideRequested = false;
-
-              private static String requestedPickup = "";
-              private static String requestedDestination = "";
-              private static int requestedFare = 0;
-
               /*
+               * Ride status:
                * 0 = No ride
                * 1 = Searching
                * 2 = Accepted
@@ -170,8 +159,14 @@ jobs:
                * 5 = In trip
                * 6 = Completed
                */
-
               private static int rideStatus = 0;
+
+              private static boolean rideRequested = false;
+              private static String requestedPickup = "";
+              private static String requestedDestination = "";
+              private static int requestedFare = 0;
+
+              private LinearLayout content;
 
               @Override
               protected void onCreate(Bundle savedInstanceState) {
@@ -179,503 +174,302 @@ jobs:
                   showHome();
               }
 
-              private LinearLayout baseScreen() {
-                  LinearLayout screen = new LinearLayout(this);
-                  screen.setOrientation(LinearLayout.VERTICAL);
-                  screen.setPadding(25, 30, 25, 30);
-                  screen.setBackgroundColor(Color.WHITE);
-                  return screen;
+              private void setupScreen(String title) {
+                  ScrollView scrollView = new ScrollView(this);
+
+                  content = new LinearLayout(this);
+                  content.setOrientation(LinearLayout.VERTICAL);
+                  content.setPadding(32, 32, 32, 32);
+
+                  scrollView.addView(content);
+                  setContentView(scrollView);
+
+                  TextView titleView = new TextView(this);
+                  titleView.setText(title);
+                  titleView.setTextSize(28);
+                  titleView.setTextColor(Color.BLACK);
+                  titleView.setGravity(Gravity.CENTER);
+                  titleView.setPadding(0, 10, 0, 30);
+
+                  content.addView(titleView);
               }
 
-              private void showScreen(LinearLayout screen) {
-                  ScrollView scroll = new ScrollView(this);
-                  scroll.setFillViewport(true);
-                  scroll.addView(screen);
-                  setContentView(scroll);
+              private TextView text(String value, int size) {
+                  TextView tv = new TextView(this);
+                  tv.setText(value);
+                  tv.setTextSize(size);
+                  tv.setTextColor(Color.DKGRAY);
+                  tv.setPadding(0, 10, 0, 10);
+                  return tv;
               }
 
-              private TextView label(
-                      String text,
-                      float size,
-                      int color,
-                      boolean bold) {
+              private EditText input(String hint) {
+                  EditText edit = new EditText(this);
+                  edit.setHint(hint);
+                  edit.setTextSize(18);
+                  edit.setSingleLine(true);
+                  edit.setPadding(20, 15, 20, 15);
 
-                  TextView view = new TextView(this);
-                  view.setText(text);
-                  view.setTextSize(size);
-                  view.setTextColor(color);
-                  view.setGravity(Gravity.CENTER);
-
-                  if (bold) {
-                      view.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-                  }
-
-                  LinearLayout.LayoutParams p =
+                  LinearLayout.LayoutParams params =
                           new LinearLayout.LayoutParams(
                                   LinearLayout.LayoutParams.MATCH_PARENT,
                                   LinearLayout.LayoutParams.WRAP_CONTENT);
 
-                  p.setMargins(0, 10, 0, 10);
-                  view.setLayoutParams(p);
+                  params.setMargins(0, 8, 0, 8);
+                  edit.setLayoutParams(params);
 
-                  return view;
-              }
-
-              private Button menuButton(String text, int color) {
-
-                  Button button = new Button(this);
-                  button.setText(text);
-                  button.setTextSize(17);
-                  button.setTextColor(Color.WHITE);
-                  button.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-
-                  GradientDrawable bg = new GradientDrawable();
-                  bg.setColor(color);
-                  bg.setCornerRadius(24);
-                  button.setBackground(bg);
-
-                  LinearLayout.LayoutParams p =
-                          new LinearLayout.LayoutParams(
-                                  LinearLayout.LayoutParams.MATCH_PARENT,
-                                  70);
-
-                  p.setMargins(0, 10, 0, 10);
-                  button.setLayoutParams(p);
-
-                  return button;
-              }
-
-              private EditText input(String hint) {
-
-                  EditText edit = new EditText(this);
-                  edit.setHint(hint);
-                  edit.setTextSize(17);
-                  edit.setSingleLine(true);
-                  edit.setPadding(20, 10, 20, 10);
-
-                  GradientDrawable bg = new GradientDrawable();
-                  bg.setColor(Color.rgb(245, 245, 245));
-                  bg.setCornerRadius(18);
-                  bg.setStroke(1, Color.LTGRAY);
-
-                  edit.setBackground(bg);
-
-                  LinearLayout.LayoutParams p =
-                          new LinearLayout.LayoutParams(
-                                  LinearLayout.LayoutParams.MATCH_PARENT,
-                                  65);
-
-                  p.setMargins(0, 5, 0, 15);
-                  edit.setLayoutParams(p);
-
+                  content.addView(edit);
                   return edit;
               }
 
+              private EditText passwordInput(String hint) {
+                  EditText edit = input(hint);
+                  edit.setInputType(
+                          InputType.TYPE_CLASS_TEXT |
+                          InputType.TYPE_TEXT_VARIATION_PASSWORD);
+                  return edit;
+              }
+
+              private Button button(String label) {
+                  Button b = new Button(this);
+                  b.setText(label);
+                  b.setTextSize(17);
+
+                  LinearLayout.LayoutParams params =
+                          new LinearLayout.LayoutParams(
+                                  LinearLayout.LayoutParams.MATCH_PARENT,
+                                  LinearLayout.LayoutParams.WRAP_CONTENT);
+
+                  params.setMargins(0, 8, 0, 8);
+                  b.setLayoutParams(params);
+
+                  content.addView(b);
+                  return b;
+              }
+
+              private boolean validMobile(String mobile) {
+                  return mobile != null
+                          && mobile.matches("09[0-9]{9}");
+              }
+
               private void showHome() {
+                  setupScreen("🛺 Sakay Na");
 
-                  LinearLayout screen = baseScreen();
-                  screen.setGravity(Gravity.CENTER_HORIZONTAL);
+                  content.addView(text(
+                          "Tricycle ride-hailing app",
+                          18));
 
-                  screen.addView(label("🛺", 55, Color.BLACK, false));
-
-                  screen.addView(
-                          label("Sakay Na", 36, GREEN, true));
-
-                  screen.addView(
-                          label(
-                                  "Your local ride, made easy",
-                                  17,
-                                  Color.DKGRAY,
-                                  false));
-
-                  if (!loggedInRole.isEmpty()) {
-
-                      screen.addView(
-                              label(
-                                      "Logged in as: " +
-                                              loggedInName +
-                                              "\nRole: " +
-                                              loggedInRole,
-                                      17,
-                                      GREEN,
-                                      true));
+                  if (!loggedInName.isEmpty()) {
+                      content.addView(text(
+                              "Logged in as: " + loggedInName +
+                              "\nRole: " + loggedInRole +
+                              "\nMobile: " + registeredMobile,
+                              17));
                   }
 
-                  Button login =
-                          menuButton("LOGIN", BLUE);
+                  Button login = button("LOGIN");
+                  login.setOnClickListener(v -> showLogin());
 
-                  Button register =
-                          menuButton("REGISTER", GREEN);
+                  Button register = button("REGISTER");
+                  register.setOnClickListener(v -> showRegister());
 
-                  Button passenger =
-                          menuButton("PASSENGER", GREEN);
+                  Button passenger = button("PASSENGER");
+                  passenger.setOnClickListener(v -> checkRoleAndPassenger());
 
-                  Button driver =
-                          menuButton("DRIVER", BLUE);
+                  Button driver = button("DRIVER");
+                  driver.setOnClickListener(v -> checkRoleAndDriver());
 
-                  Button admin =
-                          menuButton("ADMIN", RED);
+                  Button admin = button("ADMIN");
+                  admin.setOnClickListener(v -> checkRoleAndAdmin());
 
-                  login.setOnClickListener(
-                          v -> showLogin());
-
-                  register.setOnClickListener(
-                          v -> showRegister());
-
-                  passenger.setOnClickListener(
-                          v -> checkRoleAndPassenger());
-
-                  driver.setOnClickListener(
-                          v -> checkRoleAndDriver());
-
-                  admin.setOnClickListener(
-                          v -> checkRoleAndAdmin());
-
-                  screen.addView(login);
-                  screen.addView(register);
-                  screen.addView(passenger);
-                  screen.addView(driver);
-                  screen.addView(admin);
-
-                  if (!loggedInRole.isEmpty()) {
-
-                      Button logout =
-                              menuButton("LOGOUT", GRAY);
-
-                      logout.setOnClickListener(
-                              v -> {
-                                  loggedInName = "";
-                                  loggedInRole = "";
-                                  Toast.makeText(
-                                          this,
-                                          "Logged out.",
-                                          Toast.LENGTH_SHORT).show();
-                                  showHome();
-                              });
-
-                      screen.addView(logout);
+                  if (!loggedInName.isEmpty()) {
+                      Button logout = button("LOGOUT");
+                      logout.setOnClickListener(v -> {
+                          loggedInName = "";
+                          loggedInRole = "";
+                          Toast.makeText(
+                                  this,
+                                  "Logged out",
+                                  Toast.LENGTH_SHORT
+                          ).show();
+                          showHome();
+                      });
                   }
-
-                  showScreen(screen);
               }
 
               private void showRegister() {
+                  setupScreen("Create Account");
 
-                  LinearLayout screen = baseScreen();
+                  content.addView(text(
+                          "Choose your account type:",
+                          19));
 
-                  screen.addView(
-                          label(
-                                  "CREATE ACCOUNT",
-                                  28,
-                                  GREEN,
-                                  true));
-
-                  screen.addView(
-                          label(
-                                  "Choose your account type.",
-                                  17,
-                                  Color.DKGRAY,
-                                  false));
-
-                  Button passenger =
-                          menuButton(
-                                  "REGISTER AS PASSENGER",
-                                  GREEN);
-
-                  Button driver =
-                          menuButton(
-                                  "REGISTER AS DRIVER",
-                                  BLUE);
-
-                  Button admin =
-                          menuButton(
-                                  "REGISTER AS ADMIN",
-                                  RED);
-
+                  Button passenger = button("REGISTER AS PASSENGER");
                   passenger.setOnClickListener(
                           v -> showRegistrationForm("Passenger"));
 
+                  Button driver = button("REGISTER AS DRIVER");
                   driver.setOnClickListener(
                           v -> showRegistrationForm("Driver"));
 
+                  Button admin = button("REGISTER AS ADMIN");
                   admin.setOnClickListener(
                           v -> showRegistrationForm("Admin"));
 
-                  screen.addView(passenger);
-                  screen.addView(driver);
-                  screen.addView(admin);
-
-                  Button back =
-                          menuButton("BACK", GRAY);
-
-                  back.setOnClickListener(
-                          v -> showHome());
-
-                  screen.addView(back);
-
-                  showScreen(screen);
+                  Button back = button("BACK");
+                  back.setOnClickListener(v -> showHome());
               }
 
               private void showRegistrationForm(String role) {
+                  setupScreen("Register - " + role);
 
-                  LinearLayout screen = baseScreen();
+                  content.addView(text(
+                          "Account type: " + role,
+                          18));
 
-                  screen.addView(
-                          label(
-                                  "REGISTER",
-                                  28,
-                                  GREEN,
-                                  true));
+                  EditText name = input("Full name");
 
-                  screen.addView(
-                          label(
-                                  "Account type: " + role,
-                                  19,
-                                  Color.DKGRAY,
-                                  true));
-
-                  screen.addView(
-                          label(
-                                  "FULL NAME",
-                                  15,
-                                  Color.BLACK,
-                                  true));
-
-                  nameInput =
-                          input("Enter your name");
-
-                  screen.addView(nameInput);
-
-                  screen.addView(
-                          label(
-                                  "EMAIL",
-                                  15,
-                                  Color.BLACK,
-                                  true));
-
-                  emailInput =
-                          input("Enter email");
-
-                  screen.addView(emailInput);
-
-                  screen.addView(
-                          label(
-                                  "PASSWORD",
-                                  15,
-                                  Color.BLACK,
-                                  true));
-
-                  passwordInput =
-                          input("Create password");
-
-                  passwordInput.setInputType(
-                          0x00000081);
-
-                  screen.addView(passwordInput);
-
-                  Button create =
-                          menuButton(
-                                  "CREATE ACCOUNT",
-                                  GREEN);
-
-                  create.setOnClickListener(
-                          v -> {
-
-                              String name =
-                                      nameInput.getText()
-                                              .toString()
-                                              .trim();
-
-                              String email =
-                                      emailInput.getText()
-                                              .toString()
-                                              .trim();
-
-                              String password =
-                                      passwordInput.getText()
-                                              .toString()
-                                              .trim();
-
-                              if (name.isEmpty() ||
-                                      email.isEmpty() ||
-                                      password.isEmpty()) {
-
-                                  Toast.makeText(
-                                          this,
-                                          "Please complete all fields.",
-                                          Toast.LENGTH_SHORT).show();
-
-                                  return;
-                              }
-
-                              registeredName = name;
-                              registeredEmail = email;
-                              registeredPassword = password;
-                              registeredRole = role;
-
-                              Toast.makeText(
-                                      this,
-                                      "Account created!",
-                                      Toast.LENGTH_SHORT).show();
-
-                              showLogin();
-                          });
-
-                  screen.addView(create);
-
-                  Button back =
-                          menuButton("BACK", GRAY);
-
-                  back.setOnClickListener(
-                          v -> showRegister());
-
-                  screen.addView(back);
-
-                  showScreen(screen);
-              }
-
-              private void showLogin() {
-
-                  LinearLayout screen = baseScreen();
-
-                  screen.addView(
-                          label(
-                                  "LOGIN",
-                                  28,
-                                  BLUE,
-                                  true));
-
-                  screen.addView(
-                          label(
-                                  "Enter your registered account.",
-                                  17,
-                                  Color.DKGRAY,
-                                  false));
-
-                  screen.addView(
-                          label(
-                                  "EMAIL",
-                                  15,
-                                  Color.BLACK,
-                                  true));
-
-                  EditText email =
-                          input("Enter email");
-
-                  screen.addView(email);
-
-                  screen.addView(
-                          label(
-                                  "PASSWORD",
-                                  15,
-                                  Color.BLACK,
-                                  true));
+                  EditText mobile = input("Mobile number (09XXXXXXXXX)");
+                  mobile.setInputType(InputType.TYPE_CLASS_PHONE);
 
                   EditText password =
-                          input("Enter password");
+                          passwordInput("Password");
 
-                  password.setInputType(0x00000081);
+                  Button register = button("CREATE ACCOUNT");
 
-                  screen.addView(password);
+                  register.setOnClickListener(v -> {
 
-                  Button login =
-                          menuButton(
-                                  "LOGIN",
-                                  BLUE);
+                      String nameValue =
+                              name.getText().toString().trim();
 
-                  login.setOnClickListener(
-                          v -> {
+                      String mobileValue =
+                              mobile.getText().toString().trim();
 
-                              String enteredEmail =
-                                      email.getText()
-                                              .toString()
-                                              .trim();
+                      String passwordValue =
+                              password.getText().toString();
 
-                              String enteredPassword =
-                                      password.getText()
-                                              .toString()
-                                              .trim();
+                      if (nameValue.isEmpty()) {
+                          Toast.makeText(
+                                  this,
+                                  "Please enter your full name",
+                                  Toast.LENGTH_SHORT
+                          ).show();
+                          return;
+                      }
 
-                              if (registeredEmail.isEmpty()) {
+                      if (!validMobile(mobileValue)) {
+                          Toast.makeText(
+                                  this,
+                                  "Enter a valid Philippine mobile number: 09XXXXXXXXX",
+                                  Toast.LENGTH_LONG
+                          ).show();
+                          return;
+                      }
 
-                                  Toast.makeText(
-                                          this,
-                                          "No account found. Register first.",
-                                          Toast.LENGTH_SHORT).show();
+                      if (passwordValue.length() < 4) {
+                          Toast.makeText(
+                                  this,
+                                  "Password must be at least 4 characters",
+                                  Toast.LENGTH_SHORT
+                          ).show();
+                          return;
+                      }
 
-                                  return;
-                              }
-
-                              if (enteredEmail.equals(
-                                      registeredEmail) &&
-                                      enteredPassword.equals(
-                                              registeredPassword)) {
-
-                                  loggedInName =
-                                          registeredName;
-
-                                  loggedInRole =
-                                          registeredRole;
-
-                                  Toast.makeText(
-                                          this,
-                                          "Login successful!",
-                                          Toast.LENGTH_SHORT).show();
-
-                                  showHome();
-
-                              } else {
-
-                                  Toast.makeText(
-                                          this,
-                                          "Incorrect email or password.",
-                                          Toast.LENGTH_SHORT).show();
-                              }
-                          });
-
-                  screen.addView(login);
-
-                  Button register =
-                          menuButton(
-                                  "CREATE NEW ACCOUNT",
-                                  GREEN);
-
-                  register.setOnClickListener(
-                          v -> showRegister());
-
-                  screen.addView(register);
-
-                  Button back =
-                          menuButton("BACK", GRAY);
-
-                  back.setOnClickListener(
-                          v -> showHome());
-
-                  screen.addView(back);
-
-                  showScreen(screen);
-              }
-
-              private void checkRoleAndPassenger() {
-
-                  if (loggedInRole.isEmpty()) {
+                      registeredName = nameValue;
+                      registeredMobile = mobileValue;
+                      registeredPassword = passwordValue;
+                      registeredRole = role;
 
                       Toast.makeText(
                               this,
-                              "Please login as Passenger first.",
-                              Toast.LENGTH_SHORT).show();
+                              "Account created successfully",
+                              Toast.LENGTH_SHORT
+                      ).show();
 
+                      showLogin();
+                  });
+
+                  Button back = button("BACK");
+                  back.setOnClickListener(v -> showRegister());
+              }
+
+              private void showLogin() {
+                  setupScreen("Login");
+
+                  content.addView(text(
+                          "Login using your mobile number",
+                          18));
+
+                  EditText mobile =
+                          input("Mobile number (09XXXXXXXXX)");
+                  mobile.setInputType(InputType.TYPE_CLASS_PHONE);
+
+                  EditText password =
+                          passwordInput("Password");
+
+                  Button login = button("LOGIN");
+
+                  login.setOnClickListener(v -> {
+
+                      String mobileValue =
+                              mobile.getText().toString().trim();
+
+                      String passwordValue =
+                              password.getText().toString();
+
+                      if (registeredMobile.isEmpty()) {
+                          Toast.makeText(
+                                  this,
+                                  "No account registered yet",
+                                  Toast.LENGTH_SHORT
+                          ).show();
+                          return;
+                      }
+
+                      if (!mobileValue.equals(registeredMobile)
+                              || !passwordValue.equals(registeredPassword)) {
+
+                          Toast.makeText(
+                                  this,
+                                  "Incorrect mobile number or password",
+                                  Toast.LENGTH_SHORT
+                          ).show();
+                          return;
+                      }
+
+                      loggedInName = registeredName;
+                      loggedInRole = registeredRole;
+
+                      Toast.makeText(
+                              this,
+                              "Login successful",
+                              Toast.LENGTH_SHORT
+                      ).show();
+
+                      showHome();
+                  });
+
+                  Button back = button("BACK");
+                  back.setOnClickListener(v -> showHome());
+              }
+
+              private void checkRoleAndPassenger() {
+                  if (loggedInName.isEmpty()) {
+                      Toast.makeText(
+                              this,
+                              "Please login first",
+                              Toast.LENGTH_SHORT
+                      ).show();
                       showLogin();
                       return;
                   }
 
                   if (!loggedInRole.equals("Passenger")) {
-
                       Toast.makeText(
                               this,
-                              "This account is not a Passenger account.",
-                              Toast.LENGTH_SHORT).show();
-
+                              "Passenger account required",
+                              Toast.LENGTH_SHORT
+                      ).show();
                       return;
                   }
 
@@ -683,25 +477,22 @@ jobs:
               }
 
               private void checkRoleAndDriver() {
-
-                  if (loggedInRole.isEmpty()) {
-
+                  if (loggedInName.isEmpty()) {
                       Toast.makeText(
                               this,
-                              "Please login as Driver first.",
-                              Toast.LENGTH_SHORT).show();
-
+                              "Please login first",
+                              Toast.LENGTH_SHORT
+                      ).show();
                       showLogin();
                       return;
                   }
 
                   if (!loggedInRole.equals("Driver")) {
-
                       Toast.makeText(
                               this,
-                              "This account is not a Driver account.",
-                              Toast.LENGTH_SHORT).show();
-
+                              "Driver account required",
+                              Toast.LENGTH_SHORT
+                      ).show();
                       return;
                   }
 
@@ -709,25 +500,22 @@ jobs:
               }
 
               private void checkRoleAndAdmin() {
-
-                  if (loggedInRole.isEmpty()) {
-
+                  if (loggedInName.isEmpty()) {
                       Toast.makeText(
                               this,
-                              "Please login as Admin first.",
-                              Toast.LENGTH_SHORT).show();
-
+                              "Please login first",
+                              Toast.LENGTH_SHORT
+                      ).show();
                       showLogin();
                       return;
                   }
 
                   if (!loggedInRole.equals("Admin")) {
-
                       Toast.makeText(
                               this,
-                              "This account is not an Admin account.",
-                              Toast.LENGTH_SHORT).show();
-
+                              "Admin account required",
+                              Toast.LENGTH_SHORT
+                      ).show();
                       return;
                   }
 
@@ -735,473 +523,301 @@ jobs:
               }
 
               private void showPassenger() {
+                  setupScreen("Passenger");
 
-                  LinearLayout screen = baseScreen();
+                  content.addView(text(
+                          "Welcome, " + loggedInName,
+                          20));
 
-                  screen.addView(
-                          label(
-                                  "BOOK A RIDE",
-                                  28,
-                                  GREEN,
-                                  true));
+                  EditText pickup =
+                          input("Pickup location");
 
-                  screen.addView(
-                          label(
-                                  "Passenger: " +
-                                          loggedInName,
-                                  17,
-                                  Color.DKGRAY,
-                                  false));
+                  EditText destination =
+                          input("Destination");
 
-                  screen.addView(
-                          label(
-                                  "PICKUP LOCATION",
-                                  15,
-                                  Color.BLACK,
-                                  true));
+                  Button fare = button("CALCULATE FARE");
 
-                  pickupInput =
-                          input("Example: Sariaya Public Market");
+                  TextView fareText = text(
+                          "Estimated fare: ₱0",
+                          19);
 
-                  screen.addView(pickupInput);
+                  content.addView(fareText);
 
-                  screen.addView(
-                          label(
-                                  "DESTINATION",
-                                  15,
-                                  Color.BLACK,
-                                  true));
+                  fare.setOnClickListener(v -> {
 
-                  destinationInput =
-                          input("Example: Sariaya Municipal Hall");
+                      String p =
+                              pickup.getText().toString().trim();
 
-                  screen.addView(destinationInput);
+                      String d =
+                              destination.getText().toString().trim();
 
-                  screen.addView(
-                          label(
-                                  "RIDE TYPE",
-                                  15,
-                                  Color.BLACK,
-                                  true));
+                      if (p.isEmpty() || d.isEmpty()) {
+                          Toast.makeText(
+                                  this,
+                                  "Enter pickup and destination",
+                                  Toast.LENGTH_SHORT
+                          ).show();
+                          return;
+                      }
 
-                  screen.addView(
-                          label(
-                                  "🛺 Tricycle",
-                                  18,
-                                  GREEN,
-                                  true));
+                      requestedPickup = p;
+                      requestedDestination = d;
+                      requestedFare = 50;
 
-                  fareText =
-                          label(
-                                  "Estimated fare: ₱0",
-                                  20,
-                                  GREEN,
-                                  true);
+                      fareText.setText(
+                              "Estimated fare: ₱" + requestedFare);
+                  });
 
-                  screen.addView(fareText);
+                  Button request = button("REQUEST RIDE");
 
-                  Button calculate =
-                          menuButton(
-                                  "CALCULATE FARE",
-                                  GREEN);
+                  request.setOnClickListener(v -> {
 
-                  calculate.setOnClickListener(
-                          v -> calculateFare());
+                      String p =
+                              pickup.getText().toString().trim();
 
-                  Button request =
-                          menuButton(
-                                  "REQUEST RIDE",
-                                  GREEN);
+                      String d =
+                              destination.getText().toString().trim();
 
-                  request.setOnClickListener(
-                          v -> requestRide());
+                      if (p.isEmpty() || d.isEmpty()) {
+                          Toast.makeText(
+                                  this,
+                                  "Enter pickup and destination",
+                                  Toast.LENGTH_SHORT
+                          ).show();
+                          return;
+                      }
 
-                  Button status =
-                          menuButton(
-                                  "CHECK RIDE STATUS",
-                                  BLUE);
+                      requestedPickup = p;
+                      requestedDestination = d;
+
+                      if (requestedFare == 0) {
+                          requestedFare = 50;
+                      }
+
+                      rideRequested = true;
+                      rideStatus = 1;
+
+                      Toast.makeText(
+                              this,
+                              "Ride requested",
+                              Toast.LENGTH_SHORT
+                      ).show();
+
+                      showPassenger();
+                  });
+
+                  Button status = button("CHECK RIDE STATUS");
 
                   status.setOnClickListener(
                           v -> showPassengerStatus());
 
-                  Button back =
-                          menuButton(
-                                  "BACK HOME",
-                                  GRAY);
-
-                  back.setOnClickListener(
-                          v -> showHome());
-
-                  screen.addView(calculate);
-                  screen.addView(request);
-                  screen.addView(status);
-                  screen.addView(back);
-
-                  showScreen(screen);
+                  Button back = button("BACK HOME");
+                  back.setOnClickListener(v -> showHome());
               }
 
-              private void calculateFare() {
+              private void showPassengerStatus() {
+                  setupScreen("Ride Status");
 
-                  String pickup =
-                          pickupInput.getText()
-                                  .toString().trim();
+                  if (!rideRequested) {
+                      content.addView(text(
+                              "No active ride.",
+                              20));
+                  } else {
 
-                  String destination =
-                          destinationInput.getText()
-                                  .toString().trim();
+                      content.addView(text(
+                              "Pickup:\n" + requestedPickup,
+                              18));
 
-                  if (pickup.isEmpty() ||
-                          destination.isEmpty()) {
+                      content.addView(text(
+                              "Destination:\n" +
+                              requestedDestination,
+                              18));
 
-                      Toast.makeText(
-                              this,
-                              "Please enter pickup and destination.",
-                              Toast.LENGTH_SHORT).show();
+                      content.addView(text(
+                              "Fare: ₱" + requestedFare,
+                              18));
 
-                      return;
+                      content.addView(text(
+                              "Status:\n" + statusText(),
+                              24));
                   }
 
-                  requestedFare = 50;
+                  Button refresh = button("REFRESH STATUS");
+                  refresh.setOnClickListener(
+                          v -> showPassengerStatus());
 
-                  fareText.setText(
-                          "Estimated fare: ₱50");
-              }
-
-              private void requestRide() {
-
-                  String pickup =
-                          pickupInput.getText()
-                                  .toString().trim();
-
-                  String destination =
-                          destinationInput.getText()
-                                  .toString().trim();
-
-                  if (pickup.isEmpty() ||
-                          destination.isEmpty()) {
-
-                      Toast.makeText(
-                              this,
-                              "Please enter pickup and destination.",
-                              Toast.LENGTH_SHORT).show();
-
-                      return;
-                  }
-
-                  requestedPickup = pickup;
-                  requestedDestination = destination;
-
-                  if (requestedFare == 0) {
-                      requestedFare = 50;
-                  }
-
-                  rideRequested = true;
-                  rideStatus = 1;
-
-                  showPassengerStatus();
+                  Button back = button("BACK TO PASSENGER");
+                  back.setOnClickListener(v -> showPassenger());
               }
 
               private String statusText() {
-
                   switch (rideStatus) {
-
                       case 1:
-                          return "🟡 DRIVER SEARCHING\n\n" +
-                                  "Waiting for an available driver.";
-
+                          return "Searching for a driver";
                       case 2:
-                          return "🟢 DRIVER ACCEPTED\n\n" +
-                                  "Your driver accepted the ride.";
-
+                          return "Driver accepted your ride";
                       case 3:
-                          return "🔵 DRIVER ON THE WAY\n\n" +
-                                  "Your driver is going to the pickup.";
-
+                          return "Driver is on the way";
                       case 4:
-                          return "🟣 DRIVER ARRIVED\n\n" +
-                                  "Your driver has arrived.";
-
+                          return "Driver has arrived";
                       case 5:
-                          return "🚕 IN TRIP\n\n" +
-                                  "You are traveling to your destination.";
-
+                          return "Trip in progress";
                       case 6:
-                          return "✅ RIDE COMPLETED\n\n" +
-                                  "Thank you for riding with Sakay Na.";
-
+                          return "Trip completed";
                       default:
-                          return "No active ride.";
+                          return "No active ride";
                   }
               }
 
               private String driverButtonText() {
-
                   switch (rideStatus) {
-
                       case 1:
                           return "ACCEPT RIDE";
-
                       case 2:
                           return "START DRIVING TO PASSENGER";
-
                       case 3:
                           return "MARK AS ARRIVED";
-
                       case 4:
                           return "START TRIP";
-
                       case 5:
                           return "COMPLETE TRIP";
-
                       default:
-                          return "";
+                          return "NO ACTION";
                   }
               }
 
               private void advanceRide() {
-
-                  if (rideStatus >= 1 &&
-                          rideStatus < 6) {
-
+                  if (rideStatus < 6) {
                       rideStatus++;
                   }
-
-                  Toast.makeText(
-                          this,
-                          "Ride status updated.",
-                          Toast.LENGTH_SHORT).show();
-
-                  showDriver();
-              }
-
-              private void showPassengerStatus() {
-
-                  LinearLayout screen = baseScreen();
-
-                  screen.addView(
-                          label(
-                                  "RIDE STATUS",
-                                  28,
-                                  GREEN,
-                                  true));
-
-                  if (!rideRequested) {
-
-                      screen.addView(
-                              label(
-                                      "No active ride.\n\nBook a ride first.",
-                                      19,
-                                      Color.DKGRAY,
-                                      false));
-
-                  } else {
-
-                      screen.addView(
-                              label(
-                                      statusText(),
-                                      21,
-                                      Color.DKGRAY,
-                                      false));
-
-                      screen.addView(
-                              label(
-                                      "Pickup:\n" +
-                                              requestedPickup +
-                                              "\n\nDestination:\n" +
-                                              requestedDestination +
-                                              "\n\nFare: ₱" +
-                                              requestedFare,
-                                      18,
-                                      Color.DKGRAY,
-                                      false));
-                  }
-
-                  Button refresh =
-                          menuButton(
-                                  "REFRESH STATUS",
-                                  BLUE);
-
-                  refresh.setOnClickListener(
-                          v -> showPassengerStatus());
-
-                  screen.addView(refresh);
-
-                  Button back =
-                          menuButton(
-                                  "BACK HOME",
-                                  GRAY);
-
-                  back.setOnClickListener(
-                          v -> showHome());
-
-                  screen.addView(back);
-
-                  showScreen(screen);
               }
 
               private void showDriver() {
+                  setupScreen("Driver");
 
-                  LinearLayout screen = baseScreen();
-
-                  screen.addView(
-                          label(
-                                  "DRIVER",
-                                  30,
-                                  BLUE,
-                                  true));
-
-                  screen.addView(
-                          label(
-                                  "Driver: " +
-                                          loggedInName,
-                                  17,
-                                  Color.DKGRAY,
-                                  false));
+                  content.addView(text(
+                          "Welcome, " + loggedInName,
+                          20));
 
                   if (!rideRequested) {
 
-                      screen.addView(
-                              label(
-                                      "NO RIDE REQUESTS",
-                                      21,
-                                      Color.DKGRAY,
-                                      true));
+                      content.addView(text(
+                              "No ride requests available.",
+                              20));
 
                   } else {
 
-                      screen.addView(
-                              label(
-                                      "CURRENT RIDE",
-                                      22,
-                                      BLUE,
-                                      true));
+                      content.addView(text(
+                              "Passenger ride request",
+                              22));
 
-                      screen.addView(
-                              label(
+                      content.addView(text(
+                              "Pickup:\n" + requestedPickup,
+                              18));
+
+                      content.addView(text(
+                              "Destination:\n" +
+                              requestedDestination,
+                              18));
+
+                      content.addView(text(
+                              "Fare: ₱" + requestedFare,
+                              18));
+
+                      content.addView(text(
+                              "Current status:\n" +
+                              statusText(),
+                              20));
+
+                      if (rideStatus >= 1 && rideStatus < 6) {
+
+                          Button action =
+                                  button(driverButtonText());
+
+                          action.setOnClickListener(v -> {
+                              advanceRide();
+
+                              Toast.makeText(
+                                      this,
                                       statusText(),
-                                      21,
-                                      Color.DKGRAY,
-                                      false));
+                                      Toast.LENGTH_SHORT
+                              ).show();
 
-                      screen.addView(
-                              label(
-                                      "Pickup:\n" +
-                                              requestedPickup +
-                                              "\n\nDestination:\n" +
-                                              requestedDestination +
-                                              "\n\nFare: ₱" +
-                                              requestedFare,
-                                      18,
-                                      Color.DKGRAY,
-                                      false));
-
-                      if (rideStatus >= 1 &&
-                              rideStatus < 6) {
-
-                          Button next =
-                                  menuButton(
-                                          driverButtonText(),
-                                          GREEN);
-
-                          next.setOnClickListener(
-                                  v -> advanceRide());
-
-                          screen.addView(next);
-
-                      } else {
-
-                          screen.addView(
-                                  label(
-                                          "RIDE COMPLETED",
-                                          22,
-                                          GREEN,
-                                          true));
+                              showDriver();
+                          });
                       }
                   }
 
-                  Button refresh =
-                          menuButton(
-                                  "REFRESH DRIVER SCREEN",
-                                  BLUE);
-
-                  refresh.setOnClickListener(
-                          v -> showDriver());
-
-                  screen.addView(refresh);
-
-                  Button back =
-                          menuButton(
-                                  "BACK HOME",
-                                  GRAY);
-
-                  back.setOnClickListener(
-                          v -> showHome());
-
-                  screen.addView(back);
-
-                  showScreen(screen);
+                  Button back = button("BACK HOME");
+                  back.setOnClickListener(v -> showHome());
               }
 
               private void showAdmin() {
+                  setupScreen("Admin");
 
-                  LinearLayout screen = baseScreen();
+                  content.addView(text(
+                          "Welcome, " + loggedInName,
+                          20));
 
-                  screen.addView(
-                          label(
-                                  "ADMIN",
-                                  30,
-                                  RED,
-                                  true));
+                  content.addView(text(
+                          "Admin Dashboard",
+                          24));
 
-                  screen.addView(
-                          label(
-                                  "Administrator: " +
-                                          loggedInName,
-                                  17,
-                                  Color.DKGRAY,
-                                  false));
+                  content.addView(text(
+                          "Registered account:\n" +
+                          registeredName +
+                          "\nMobile: " +
+                          registeredMobile +
+                          "\nRole: " +
+                          registeredRole,
+                          18));
 
-                  screen.addView(
-                          label(
-                                  "SYSTEM STATUS: ONLINE\n\n" +
-                                          "Ride request: " +
-                                          (rideRequested ? "YES" : "NO") +
-                                          "\n\nCURRENT RIDE:\n" +
-                                          statusText(),
-                                  19,
-                                  Color.DKGRAY,
-                                  false));
+                  content.addView(text(
+                          "Ride status:\n" +
+                          statusText(),
+                          20));
 
-                  Button refresh =
-                          menuButton(
-                                  "REFRESH ADMIN",
-                                  RED);
+                  Button resetRide =
+                          button("RESET CURRENT RIDE");
 
-                  refresh.setOnClickListener(
-                          v -> showAdmin());
+                  resetRide.setOnClickListener(v -> {
+                      rideRequested = false;
+                      requestedPickup = "";
+                      requestedDestination = "";
+                      requestedFare = 0;
+                      rideStatus = 0;
 
-                  screen.addView(refresh);
+                      Toast.makeText(
+                              this,
+                              "Ride reset",
+                              Toast.LENGTH_SHORT
+                      ).show();
 
-                  Button back =
-                          menuButton(
-                                  "BACK HOME",
-                                  GRAY);
+                      showAdmin();
+                  });
 
-                  back.setOnClickListener(
-                          v -> showHome());
-
-                  screen.addView(back);
-
-                  showScreen(screen);
+                  Button back = button("BACK HOME");
+                  back.setOnClickListener(v -> showHome());
               }
           }
           EOF
 
+      - name: Download Gradle
+        run: |
+          wget -q https://services.gradle.org/distributions/gradle-8.10.2-bin.zip
+          unzip -q gradle-8.10.2-bin.zip
+          export GRADLE_HOME="$PWD/gradle-8.10.2"
+          export PATH="$GRADLE_HOME/bin:$PATH"
+          gradle --version
+
       - name: Build APK
-        run: gradle :app:assembleDebug
+        run: |
+          export GRADLE_HOME="$PWD/gradle-8.10.2"
+          export PATH="$GRADLE_HOME/bin:$PATH"
+          gradle :app:assembleDebug --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: SakayNa-debug-apk
+          name: Sakay-Na-debug
           path: app/build/outputs/apk/debug/app-debug.apk
