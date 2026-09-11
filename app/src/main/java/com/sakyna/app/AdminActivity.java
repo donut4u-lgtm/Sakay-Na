@@ -31,21 +31,34 @@ public class AdminActivity extends Activity {
         showAdminHome();
     }
 
-    private TextView makeText(String text, int size) {
+    private TextView makeText(
+            String text,
+            int size
+    ) {
 
-        TextView view = new TextView(this);
+        TextView view =
+                new TextView(this);
 
         view.setText(text);
         view.setTextSize(size);
         view.setTextColor(Color.DKGRAY);
-        view.setPadding(20, 20, 20, 20);
+
+        view.setPadding(
+                20,
+                20,
+                20,
+                20
+        );
 
         return view;
     }
 
-    private Button makeButton(String text) {
+    private Button makeButton(
+            String text
+    ) {
 
-        Button button = new Button(this);
+        Button button =
+                new Button(this);
 
         button.setText(text);
         button.setTextSize(17);
@@ -56,7 +69,8 @@ public class AdminActivity extends Activity {
 
     private void showAdminHome() {
 
-        LinearLayout layout = new LinearLayout(this);
+        LinearLayout layout =
+                new LinearLayout(this);
 
         layout.setOrientation(
                 LinearLayout.VERTICAL
@@ -74,7 +88,10 @@ public class AdminActivity extends Activity {
         );
 
         TextView title =
-                makeText("SAKAY NA", 30);
+                makeText(
+                        "SAKAY NA",
+                        30
+                );
 
         title.setTypeface(
                 null,
@@ -82,7 +99,11 @@ public class AdminActivity extends Activity {
         );
 
         title.setTextColor(
-                Color.rgb(130, 60, 180)
+                Color.rgb(
+                        130,
+                        60,
+                        180
+                )
         );
 
         title.setGravity(
@@ -104,7 +125,9 @@ public class AdminActivity extends Activity {
         layout.addView(subtitle);
 
         Button users =
-                makeButton("👥 All Users");
+                makeButton(
+                        "👥 Manage Users"
+                );
 
         users.setOnClickListener(
                 v -> showUsers()
@@ -113,7 +136,9 @@ public class AdminActivity extends Activity {
         layout.addView(users);
 
         Button drivers =
-                makeButton("🚗 Drivers");
+                makeButton(
+                        "🚗 Drivers"
+                );
 
         drivers.setOnClickListener(
                 v -> showDrivers()
@@ -122,7 +147,9 @@ public class AdminActivity extends Activity {
         layout.addView(drivers);
 
         Button passengers =
-                makeButton("🧑‍🤝‍🧑 Passengers");
+                makeButton(
+                        "🧑‍🤝‍🧑 Passengers"
+                );
 
         passengers.setOnClickListener(
                 v -> showPassengers()
@@ -131,7 +158,9 @@ public class AdminActivity extends Activity {
         layout.addView(passengers);
 
         Button rides =
-                makeButton("🚕 Current Ride");
+                makeButton(
+                        "🚕 Current Ride"
+                );
 
         rides.setOnClickListener(
                 v -> showCurrentRide()
@@ -140,7 +169,9 @@ public class AdminActivity extends Activity {
         layout.addView(rides);
 
         Button reset =
-                makeButton("🔄 Reset Ride");
+                makeButton(
+                        "🔄 Reset Ride"
+                );
 
         reset.setOnClickListener(
                 v -> resetRide()
@@ -149,7 +180,9 @@ public class AdminActivity extends Activity {
         layout.addView(reset);
 
         Button reports =
-                makeButton("📊 Reports");
+                makeButton(
+                        "📊 Reports"
+                );
 
         reports.setOnClickListener(
                 v -> showReports()
@@ -158,7 +191,9 @@ public class AdminActivity extends Activity {
         layout.addView(reports);
 
         Button logout =
-                makeButton("Logout");
+                makeButton(
+                        "Logout"
+                );
 
         logout.setOnClickListener(
                 v -> logout()
@@ -172,7 +207,9 @@ public class AdminActivity extends Activity {
     private void showUsers() {
 
         LinearLayout layout =
-                createPage("ALL USERS");
+                createPage(
+                        "MANAGE USERS"
+                );
 
         Map<String, ?> all =
                 prefs.getAll();
@@ -185,45 +222,118 @@ public class AdminActivity extends Activity {
             String key =
                     entry.getKey();
 
-            if (key.startsWith("phone_")) {
+            if (!key.startsWith("phone_")) {
+                continue;
+            }
 
-                String phone =
-                        key.substring(6);
+            String phone =
+                    key.substring(6);
 
-                String name =
-                        prefs.getString(
-                                "name_" + phone,
-                                "Unknown"
-                        );
+            String name =
+                    prefs.getString(
+                            "name_" + phone,
+                            "Unknown"
+                    );
 
-                String role =
-                        prefs.getString(
-                                "role_" + phone,
-                                "Unknown"
-                        );
+            String role =
+                    prefs.getString(
+                            "role_" + phone,
+                            "Unknown"
+                    );
 
-                TextView user =
-                        makeText(
-                                "Name: " +
-                                name +
-                                "\nPhone: " +
-                                phone +
-                                "\nRole: " +
-                                role,
-                                18
-                        );
+            boolean suspended =
+                    prefs.getBoolean(
+                            "suspended_" + phone,
+                            false
+                    );
 
-                user.setPadding(
-                        20,
-                        25,
-                        20,
-                        25
+            LinearLayout card =
+                    new LinearLayout(this);
+
+            card.setOrientation(
+                    LinearLayout.VERTICAL
+            );
+
+            card.setPadding(
+                    10,
+                    10,
+                    10,
+                    10
+            );
+
+            TextView user =
+                    makeText(
+                            "Name: " +
+                            name +
+                            "\nPhone: " +
+                            phone +
+                            "\nRole: " +
+                            role +
+                            "\nAccount Status: " +
+                            (
+                                suspended
+                                ? "SUSPENDED"
+                                : "ACTIVE"
+                            ),
+                            18
+                    );
+
+            user.setTypeface(
+                    null,
+                    Typeface.BOLD
+            );
+
+            if (suspended) {
+
+                user.setTextColor(
+                        Color.rgb(
+                                200,
+                                40,
+                                40
+                        )
                 );
 
-                layout.addView(user);
+            } else {
 
-                count++;
+                user.setTextColor(
+                        Color.rgb(
+                                0,
+                                120,
+                                70
+                        )
+                );
             }
+
+            card.addView(user);
+
+            Button control;
+
+            if (suspended) {
+
+                control =
+                        makeButton(
+                                "RESTORE ACCOUNT"
+                        );
+
+            } else {
+
+                control =
+                        makeButton(
+                                "SUSPEND ACCOUNT"
+                        );
+            }
+
+            control.setOnClickListener(
+                    v -> toggleSuspension(
+                            phone
+                    )
+            );
+
+            card.addView(control);
+
+            layout.addView(card);
+
+            count++;
         }
 
         if (count == 0) {
@@ -246,10 +356,49 @@ public class AdminActivity extends Activity {
         setContentView(layout);
     }
 
+    private void toggleSuspension(
+            String phone
+    ) {
+
+        boolean suspended =
+                prefs.getBoolean(
+                        "suspended_" + phone,
+                        false
+                );
+
+        prefs.edit()
+                .putBoolean(
+                        "suspended_" + phone,
+                        !suspended
+                )
+                .apply();
+
+        if (suspended) {
+
+            Toast.makeText(
+                    this,
+                    "Account restored.",
+                    Toast.LENGTH_LONG
+            ).show();
+
+        } else {
+
+            Toast.makeText(
+                    this,
+                    "Account suspended.",
+                    Toast.LENGTH_LONG
+            ).show();
+        }
+
+        showUsers();
+    }
+
     private void showDrivers() {
 
         LinearLayout layout =
-                createPage("DRIVERS");
+                createPage(
+                        "DRIVERS"
+                );
 
         Map<String, ?> all =
                 prefs.getAll();
@@ -262,40 +411,54 @@ public class AdminActivity extends Activity {
             String key =
                     entry.getKey();
 
-            if (key.startsWith("role_")) {
-
-                String phone =
-                        key.substring(5);
-
-                String role =
-                        prefs.getString(
-                                key,
-                                ""
-                        );
-
-                if (role.equals("Driver")) {
-
-                    String name =
-                            prefs.getString(
-                                    "name_" + phone,
-                                    "Unknown"
-                            );
-
-                    TextView driver =
-                            makeText(
-                                    "Driver\n\n" +
-                                    "Name: " +
-                                    name +
-                                    "\nPhone: " +
-                                    phone,
-                                    18
-                            );
-
-                    layout.addView(driver);
-
-                    count++;
-                }
+            if (!key.startsWith("role_")) {
+                continue;
             }
+
+            String phone =
+                    key.substring(5);
+
+            String role =
+                    prefs.getString(
+                            key,
+                            ""
+                    );
+
+            if (!role.equals("Driver")) {
+                continue;
+            }
+
+            String name =
+                    prefs.getString(
+                            "name_" + phone,
+                            "Unknown"
+                    );
+
+            boolean suspended =
+                    prefs.getBoolean(
+                            "suspended_" + phone,
+                            false
+                    );
+
+            TextView driver =
+                    makeText(
+                            "Driver\n\n" +
+                            "Name: " +
+                            name +
+                            "\nPhone: " +
+                            phone +
+                            "\nStatus: " +
+                            (
+                                suspended
+                                ? "SUSPENDED"
+                                : "ACTIVE"
+                            ),
+                            18
+                    );
+
+            layout.addView(driver);
+
+            count++;
         }
 
         if (count == 0) {
@@ -321,7 +484,9 @@ public class AdminActivity extends Activity {
     private void showPassengers() {
 
         LinearLayout layout =
-                createPage("PASSENGERS");
+                createPage(
+                        "PASSENGERS"
+                );
 
         Map<String, ?> all =
                 prefs.getAll();
@@ -334,42 +499,56 @@ public class AdminActivity extends Activity {
             String key =
                     entry.getKey();
 
-            if (key.startsWith("role_")) {
+            if (!key.startsWith("role_")) {
+                continue;
+            }
 
-                String phone =
-                        key.substring(5);
+            String phone =
+                    key.substring(5);
 
-                String role =
-                        prefs.getString(
-                                key,
-                                ""
-                        );
-
-                if (role.equals("Passenger")) {
-
-                    String name =
-                            prefs.getString(
-                                    "name_" + phone,
-                                    "Unknown"
-                            );
-
-                    TextView passenger =
-                            makeText(
-                                    "Passenger\n\n" +
-                                    "Name: " +
-                                    name +
-                                    "\nPhone: " +
-                                    phone,
-                                    18
-                            );
-
-                    layout.addView(
-                            passenger
+            String role =
+                    prefs.getString(
+                            key,
+                            ""
                     );
 
-                    count++;
-                }
+            if (!role.equals("Passenger")) {
+                continue;
             }
+
+            String name =
+                    prefs.getString(
+                            "name_" + phone,
+                            "Unknown"
+                    );
+
+            boolean suspended =
+                    prefs.getBoolean(
+                            "suspended_" + phone,
+                            false
+                    );
+
+            TextView passenger =
+                    makeText(
+                            "Passenger\n\n" +
+                            "Name: " +
+                            name +
+                            "\nPhone: " +
+                            phone +
+                            "\nStatus: " +
+                            (
+                                suspended
+                                ? "SUSPENDED"
+                                : "ACTIVE"
+                            ),
+                            18
+                    );
+
+            layout.addView(
+                    passenger
+            );
+
+            count++;
         }
 
         if (count == 0) {
@@ -395,7 +574,9 @@ public class AdminActivity extends Activity {
     private void showCurrentRide() {
 
         LinearLayout layout =
-                createPage("CURRENT RIDE");
+                createPage(
+                        "CURRENT RIDE"
+                );
 
         String pickup =
                 prefs.getString(
@@ -458,12 +639,16 @@ public class AdminActivity extends Activity {
                             fare +
                             "\n\n" +
                             "Status:\n" +
-                            getReadableStatus(status) +
+                            getReadableStatus(
+                                    status
+                            ) +
                             "\n\n" +
                             "Driver:\n" +
-                            (driver.isEmpty()
-                                    ? "Not assigned"
-                                    : driver),
+                            (
+                                driver.isEmpty()
+                                ? "Not assigned"
+                                : driver
+                            ),
                             19
                     );
 
@@ -477,7 +662,9 @@ public class AdminActivity extends Activity {
             TextView statusView =
                     makeText(
                             "STATUS: " +
-                            getReadableStatus(status),
+                            getReadableStatus(
+                                    status
+                            ),
                             21
                     );
 
@@ -491,7 +678,9 @@ public class AdminActivity extends Activity {
             );
 
             statusView.setTextColor(
-                    getStatusColor(status)
+                    getStatusColor(
+                            status
+                    )
             );
 
             layout.addView(
@@ -507,18 +696,6 @@ public class AdminActivity extends Activity {
     private String getReadableStatus(
             String status
     ) {
-
-        if (status.equals(
-                "REQUESTED"
-        )) {
-            return "REQUESTED";
-        }
-
-        if (status.equals(
-                "ACCEPTED"
-        )) {
-            return "ACCEPTED";
-        }
 
         if (status.equals(
                 "DRIVER_ON_THE_WAY"
@@ -538,24 +715,6 @@ public class AdminActivity extends Activity {
             return "TRIP IN PROGRESS";
         }
 
-        if (status.equals(
-                "COMPLETED"
-        )) {
-            return "COMPLETED";
-        }
-
-        if (status.equals(
-                "CANCELLED"
-        )) {
-            return "CANCELLED";
-        }
-
-        if (status.equals(
-                "DECLINED"
-        )) {
-            return "DECLINED";
-        }
-
         return status;
     }
 
@@ -566,6 +725,7 @@ public class AdminActivity extends Activity {
         if (status.equals(
                 "COMPLETED"
         )) {
+
             return Color.rgb(
                     0,
                     150,
@@ -617,7 +777,9 @@ public class AdminActivity extends Activity {
     private void showReports() {
 
         LinearLayout layout =
-                createPage("REPORTS");
+                createPage(
+                        "REPORTS"
+                );
 
         Map<String, ?> all =
                 prefs.getAll();
@@ -625,6 +787,7 @@ public class AdminActivity extends Activity {
         int totalUsers = 0;
         int drivers = 0;
         int passengers = 0;
+        int suspended = 0;
 
         for (Map.Entry<String, ?> entry :
                 all.entrySet()) {
@@ -637,6 +800,17 @@ public class AdminActivity extends Activity {
             )) {
 
                 totalUsers++;
+
+                String phone =
+                        key.substring(6);
+
+                if (prefs.getBoolean(
+                        "suspended_" + phone,
+                        false
+                )) {
+
+                    suspended++;
+                }
             }
 
             if (key.startsWith(
@@ -704,6 +878,9 @@ public class AdminActivity extends Activity {
                         "\n\n" +
                         "Passengers: " +
                         passengers +
+                        "\n\n" +
+                        "Suspended Accounts: " +
+                        suspended +
                         "\n\n" +
                         "Completed Rides: " +
                         completed +
