@@ -107,10 +107,7 @@ public class MainActivity extends Activity {
 
         main.addView(
                 text("SAKAY NA", 32, Color.rgb(0, 140, 70), true),
-                new LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT,
-                        dp(55)
-                )
+                titleParams()
         );
 
         main.addView(
@@ -123,21 +120,26 @@ public class MainActivity extends Activity {
                 titleParams()
         );
 
-        Button login =
-                button("🔐  LOGIN", Color.rgb(0, 150, 80));
+        Button login = button(
+                "🔐  LOGIN",
+                Color.rgb(0, 150, 80)
+        );
 
         login.setOnClickListener(v -> showLogin());
         main.addView(login);
 
-        Button register =
-                button("📝  REGISTER", Color.rgb(255, 140, 0));
+        Button register = button(
+                "📝  REGISTER",
+                Color.rgb(255, 140, 0)
+        );
 
         register.setOnClickListener(v -> showRegisterRole());
         main.addView(register);
 
-        Button about =
-                button("ℹ️  ABOUT SAKAY NA",
-                        Color.rgb(120, 80, 180));
+        Button about = button(
+                "ℹ️  ABOUT SAKAY NA",
+                Color.rgb(120, 80, 180)
+        );
 
         about.setOnClickListener(v ->
                 Toast.makeText(
@@ -163,7 +165,7 @@ public class MainActivity extends Activity {
     }
 
     // ============================================================
-    // ROLE SELECTION
+    // REGISTER ROLE
     // ============================================================
 
     private void showRegisterRole() {
@@ -189,11 +191,10 @@ public class MainActivity extends Activity {
                 titleParams()
         );
 
-        Button passenger =
-                button(
-                        "🟠  PASSENGER",
-                        Color.rgb(255, 140, 0)
-                );
+        Button passenger = button(
+                "🟠  PASSENGER",
+                Color.rgb(255, 140, 0)
+        );
 
         passenger.setOnClickListener(
                 v -> showRegistration("PASSENGER")
@@ -201,11 +202,10 @@ public class MainActivity extends Activity {
 
         layout.addView(passenger);
 
-        Button driver =
-                button(
-                        "🔵  DRIVER",
-                        Color.rgb(30, 110, 220)
-                );
+        Button driver = button(
+                "🔵  DRIVER",
+                Color.rgb(30, 110, 220)
+        );
 
         driver.setOnClickListener(
                 v -> showRegistration("DRIVER")
@@ -213,11 +213,10 @@ public class MainActivity extends Activity {
 
         layout.addView(driver);
 
-        Button admin =
-                button(
-                        "🟣  ADMIN",
-                        Color.rgb(125, 70, 180)
-                );
+        Button admin = button(
+                "🟣  ADMIN",
+                Color.rgb(125, 70, 180)
+        );
 
         admin.setOnClickListener(
                 v -> showRegistration("ADMIN")
@@ -225,8 +224,10 @@ public class MainActivity extends Activity {
 
         layout.addView(admin);
 
-        Button back =
-                button("← BACK", Color.DKGRAY);
+        Button back = button(
+                "← BACK",
+                Color.DKGRAY
+        );
 
         back.setOnClickListener(v -> showHome());
         layout.addView(back);
@@ -270,36 +271,27 @@ public class MainActivity extends Activity {
         layout.addView(name);
 
         EditText phone = field("Phone Number");
-
-        phone.setInputType(
-                InputType.TYPE_CLASS_PHONE
-        );
-
+        phone.setInputType(InputType.TYPE_CLASS_PHONE);
         layout.addView(phone);
 
         EditText password = field("Password");
-
         password.setInputType(
                 InputType.TYPE_CLASS_TEXT |
                 InputType.TYPE_TEXT_VARIATION_PASSWORD
         );
-
         layout.addView(password);
 
         EditText confirm = field("Confirm Password");
-
         confirm.setInputType(
                 InputType.TYPE_CLASS_TEXT |
                 InputType.TYPE_TEXT_VARIATION_PASSWORD
         );
-
         layout.addView(confirm);
 
-        Button continueButton =
-                button(
-                        "CONTINUE TO OTP →",
-                        roleColor
-                );
+        Button continueButton = button(
+                "CONTINUE TO OTP →",
+                roleColor
+        );
 
         continueButton.setOnClickListener(v -> {
 
@@ -372,8 +364,10 @@ public class MainActivity extends Activity {
 
         layout.addView(continueButton);
 
-        Button back =
-                button("← BACK", Color.DKGRAY);
+        Button back = button(
+                "← BACK",
+                Color.DKGRAY
+        );
 
         back.setOnClickListener(
                 v -> showRegisterRole()
@@ -416,8 +410,9 @@ public class MainActivity extends Activity {
                 titleParams()
         );
 
-        EditText otp =
-                field("Enter 6-digit OTP");
+        EditText otp = field(
+                "Enter 6-digit OTP"
+        );
 
         otp.setInputType(
                 InputType.TYPE_CLASS_NUMBER
@@ -435,11 +430,10 @@ public class MainActivity extends Activity {
                 titleParams()
         );
 
-        Button verify =
-                button(
-                        "✅ VERIFY & CREATE ACCOUNT",
-                        Color.rgb(0, 150, 80)
-                );
+        Button verify = button(
+                "✅ VERIFY & CREATE ACCOUNT",
+                Color.rgb(0, 150, 80)
+        );
 
         verify.setOnClickListener(v -> {
 
@@ -457,7 +451,6 @@ public class MainActivity extends Activity {
                 return;
             }
 
-            // Save account locally.
             prefs.edit()
                     .putString(
                             "phone_" + phoneNumber,
@@ -484,8 +477,10 @@ public class MainActivity extends Activity {
 
         layout.addView(verify);
 
-        Button back =
-                button("← BACK", Color.DKGRAY);
+        Button back = button(
+                "← BACK",
+                Color.DKGRAY
+        );
 
         back.setOnClickListener(
                 v -> showRegistration(role)
@@ -524,30 +519,23 @@ public class MainActivity extends Activity {
                 titleParams()
         );
 
-        EditText phone =
-                field("Phone Number");
-
+        EditText phone = field("Phone Number");
         phone.setInputType(
                 InputType.TYPE_CLASS_PHONE
         );
-
         layout.addView(phone);
 
-        EditText password =
-                field("Password");
-
+        EditText password = field("Password");
         password.setInputType(
                 InputType.TYPE_CLASS_TEXT |
                 InputType.TYPE_TEXT_VARIATION_PASSWORD
         );
-
         layout.addView(password);
 
-        Button login =
-                button(
-                        "LOGIN",
-                        Color.rgb(0, 150, 80)
-                );
+        Button login = button(
+                "LOGIN",
+                Color.rgb(0, 150, 80)
+        );
 
         login.setOnClickListener(v -> {
 
@@ -609,18 +597,20 @@ public class MainActivity extends Activity {
                             "PASSENGER"
                     );
 
-            // Save current logged-in user.
             prefs.edit()
-                    .putString("current_phone", phoneNumber)
-                    .putString("current_name", name)
-                    .putString("current_role", role)
+                    .putString(
+                            "current_phone",
+                            phoneNumber
+                    )
+                    .putString(
+                            "current_name",
+                            name
+                    )
+                    .putString(
+                            "current_role",
+                            role
+                    )
                     .apply();
-
-            Toast.makeText(
-                    this,
-                    "Welcome, " + name + "!",
-                    Toast.LENGTH_SHORT
-            ).show();
 
             if (role.equals("PASSENGER")) {
                 showPassengerHome(name);
@@ -628,18 +618,15 @@ public class MainActivity extends Activity {
                 showDriverHome(name);
             } else if (role.equals("ADMIN")) {
                 showAdminHome(name);
-            } else {
-                showHome();
             }
         });
 
         layout.addView(login);
 
-        Button register =
-                button(
-                        "CREATE NEW ACCOUNT",
-                        Color.rgb(255, 140, 0)
-                );
+        Button register = button(
+                "CREATE NEW ACCOUNT",
+                Color.rgb(255, 140, 0)
+        );
 
         register.setOnClickListener(
                 v -> showRegisterRole()
@@ -647,8 +634,10 @@ public class MainActivity extends Activity {
 
         layout.addView(register);
 
-        Button back =
-                button("← BACK", Color.DKGRAY);
+        Button back = button(
+                "← BACK",
+                Color.DKGRAY
+        );
 
         back.setOnClickListener(
                 v -> showHome()
@@ -687,11 +676,10 @@ public class MainActivity extends Activity {
                 titleParams()
         );
 
-        Button book =
-                button(
-                        "🛺  BOOK A RIDE",
-                        Color.rgb(255, 140, 0)
-                );
+        Button book = button(
+                "🛺  BOOK A RIDE",
+                Color.rgb(255, 140, 0)
+        );
 
         book.setOnClickListener(
                 v -> showPassengerBooking(name)
@@ -699,11 +687,10 @@ public class MainActivity extends Activity {
 
         layout.addView(book);
 
-        Button history =
-                button(
-                        "📋  RIDE HISTORY",
-                        Color.rgb(0, 140, 180)
-                );
+        Button history = button(
+                "📋  RIDE HISTORY",
+                Color.rgb(0, 140, 180)
+        );
 
         history.setOnClickListener(v ->
                 Toast.makeText(
@@ -715,24 +702,25 @@ public class MainActivity extends Activity {
 
         layout.addView(history);
 
-        Button help =
-                button(
-                        "🆘  HELP / EMERGENCY",
-                        Color.rgb(220, 60, 60)
-                );
+        Button help = button(
+                "🆘  HELP / EMERGENCY",
+                Color.rgb(220, 60, 60)
+        );
 
         help.setOnClickListener(v ->
                 Toast.makeText(
                         this,
-                        "Emergency and support will be connected next.",
+                        "Emergency and support will be added next.",
                         Toast.LENGTH_LONG
                 ).show()
         );
 
         layout.addView(help);
 
-        Button logout =
-                button("LOG OUT", Color.DKGRAY);
+        Button logout = button(
+                "LOG OUT",
+                Color.DKGRAY
+        );
 
         logout.setOnClickListener(v -> logout());
 
@@ -779,11 +767,10 @@ public class MainActivity extends Activity {
 
         layout.addView(fare);
 
-        Button request =
-                button(
-                        "REQUEST RIDE",
-                        Color.rgb(255, 140, 0)
-                );
+        Button request = button(
+                "🚕 REQUEST RIDE",
+                Color.rgb(255, 140, 0)
+        );
 
         request.setOnClickListener(v -> {
 
@@ -809,11 +796,11 @@ public class MainActivity extends Activity {
                 return;
             }
 
-            Toast.makeText(
-                    this,
-                    "Ride requested!",
-                    Toast.LENGTH_LONG
-            ).show();
+            saveRide(
+                    p,
+                    d,
+                    f
+            );
 
             showPassengerRideStatus(
                     name,
@@ -825,8 +812,10 @@ public class MainActivity extends Activity {
 
         layout.addView(request);
 
-        Button back =
-                button("← BACK", Color.DKGRAY);
+        Button back = button(
+                "← BACK",
+                Color.DKGRAY
+        );
 
         back.setOnClickListener(
                 v -> showPassengerHome(name)
@@ -835,6 +824,24 @@ public class MainActivity extends Activity {
         layout.addView(back);
 
         setContentView(layout);
+    }
+
+    // ============================================================
+    // SAVE RIDE
+    // ============================================================
+
+    private void saveRide(
+            String pickup,
+            String destination,
+            String fare) {
+
+        prefs.edit()
+                .putString("ride_pickup", pickup)
+                .putString("ride_destination", destination)
+                .putString("ride_fare", fare)
+                .putString("ride_status", "REQUESTED")
+                .putString("ride_driver", "Waiting for driver")
+                .apply();
     }
 
     // ============================================================
@@ -851,8 +858,8 @@ public class MainActivity extends Activity {
 
         layout.addView(
                 text(
-                        "🚕 RIDE REQUESTED",
-                        26,
+                        "🚕 YOUR RIDE",
+                        27,
                         Color.rgb(0, 150, 80),
                         true
                 ),
@@ -861,7 +868,7 @@ public class MainActivity extends Activity {
 
         layout.addView(
                 text(
-                        "Pickup:\n" + pickup,
+                        "Pickup\n" + pickup,
                         17,
                         Color.DKGRAY,
                         true
@@ -871,7 +878,7 @@ public class MainActivity extends Activity {
 
         layout.addView(
                 text(
-                        "Destination:\n" + destination,
+                        "Destination\n" + destination,
                         17,
                         Color.DKGRAY,
                         true
@@ -881,31 +888,59 @@ public class MainActivity extends Activity {
 
         layout.addView(
                 text(
-                        "Estimated Fare: ₱" + fare,
-                        20,
+                        "Fare: ₱" + fare,
+                        21,
                         Color.rgb(0, 140, 70),
                         true
                 ),
                 titleParams()
         );
 
+        String status =
+                prefs.getString(
+                        "ride_status",
+                        "REQUESTED"
+                );
+
+        String driver =
+                prefs.getString(
+                        "ride_driver",
+                        "Waiting for driver"
+                );
+
         layout.addView(
                 text(
-                        "Status: REQUESTED",
-                        19,
+                        "STATUS\n" + status,
+                        20,
                         Color.rgb(255, 140, 0),
                         true
                 ),
                 titleParams()
         );
 
-        Button cancel =
-                button(
-                        "❌ CANCEL RIDE",
-                        Color.rgb(210, 60, 60)
-                );
+        layout.addView(
+                text(
+                        "DRIVER\n" + driver,
+                        17,
+                        Color.DKGRAY,
+                        true
+                ),
+                titleParams()
+        );
+
+        Button cancel = button(
+                "❌ CANCEL RIDE",
+                Color.rgb(210, 60, 60)
+        );
 
         cancel.setOnClickListener(v -> {
+
+            prefs.edit()
+                    .putString(
+                            "ride_status",
+                            "CANCELLED"
+                    )
+                    .apply();
 
             Toast.makeText(
                     this,
@@ -918,11 +953,26 @@ public class MainActivity extends Activity {
 
         layout.addView(cancel);
 
-        Button back =
-                button(
-                        "← PASSENGER HOME",
-                        Color.DKGRAY
-                );
+        Button receipt = button(
+                "🧾 VIEW RECEIPT",
+                Color.rgb(0, 140, 180)
+        );
+
+        receipt.setOnClickListener(v ->
+                showReceipt(
+                        name,
+                        pickup,
+                        destination,
+                        fare
+                )
+        );
+
+        layout.addView(receipt);
+
+        Button back = button(
+                "← PASSENGER HOME",
+                Color.DKGRAY
+        );
 
         back.setOnClickListener(
                 v -> showPassengerHome(name)
@@ -931,6 +981,178 @@ public class MainActivity extends Activity {
         layout.addView(back);
 
         setContentView(layout);
+    }
+
+    // ============================================================
+    // RECEIPT
+    // ============================================================
+
+    private void showReceipt(
+            String name,
+            String pickup,
+            String destination,
+            String fare) {
+
+        LinearLayout layout = baseLayout();
+
+        layout.addView(
+                text(
+                        "🧾 RIDE RECEIPT",
+                        27,
+                        Color.rgb(0, 140, 180),
+                        true
+                ),
+                titleParams()
+        );
+
+        layout.addView(
+                text(
+                        "Passenger: " + name +
+                        "\n\nPickup: " + pickup +
+                        "\n\nDestination: " + destination +
+                        "\n\nFare: ₱" + fare +
+                        "\n\nStatus: COMPLETED",
+                        18,
+                        Color.DKGRAY,
+                        true
+                ),
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        dp(260)
+                )
+        );
+
+        Button rating = button(
+                "⭐ RATE YOUR DRIVER",
+                Color.rgb(255, 170, 0)
+        );
+
+        rating.setOnClickListener(
+                v -> showRating(name)
+        );
+
+        layout.addView(rating);
+
+        Button back = button(
+                "← PASSENGER HOME",
+                Color.DKGRAY
+        );
+
+        back.setOnClickListener(
+                v -> showPassengerHome(name)
+        );
+
+        layout.addView(back);
+
+        setContentView(layout);
+    }
+
+    // ============================================================
+    // RATING
+    // ============================================================
+
+    private void showRating(String name) {
+
+        LinearLayout layout = baseLayout();
+
+        layout.addView(
+                text(
+                        "⭐ RATE YOUR DRIVER",
+                        27,
+                        Color.rgb(255, 170, 0),
+                        true
+                ),
+                titleParams()
+        );
+
+        layout.addView(
+                text(
+                        "How was your ride?",
+                        18,
+                        Color.DKGRAY,
+                        true
+                ),
+                titleParams()
+        );
+
+        Button five = button(
+                "⭐⭐⭐⭐⭐  Excellent",
+                Color.rgb(0, 150, 80)
+        );
+
+        five.setOnClickListener(v ->
+                ratingSaved(name, 5)
+        );
+
+        layout.addView(five);
+
+        Button four = button(
+                "⭐⭐⭐⭐  Good",
+                Color.rgb(30, 130, 220)
+        );
+
+        four.setOnClickListener(v ->
+                ratingSaved(name, 4)
+        );
+
+        layout.addView(four);
+
+        Button three = button(
+                "⭐⭐⭐  Okay",
+                Color.rgb(255, 170, 0)
+        );
+
+        three.setOnClickListener(v ->
+                ratingSaved(name, 3)
+        );
+
+        layout.addView(three);
+
+        Button two = button(
+                "⭐⭐  Poor",
+                Color.rgb(220, 100, 60)
+        );
+
+        two.setOnClickListener(v ->
+                ratingSaved(name, 2)
+        );
+
+        layout.addView(two);
+
+        Button one = button(
+                "⭐  Very Poor",
+                Color.rgb(210, 60, 60)
+        );
+
+        one.setOnClickListener(v ->
+                ratingSaved(name, 1)
+        );
+
+        layout.addView(one);
+
+        setContentView(layout);
+    }
+
+    private void ratingSaved(
+            String name,
+            int rating) {
+
+        prefs.edit()
+                .putInt(
+                        "last_rating",
+                        rating
+                )
+                .apply();
+
+        Toast.makeText(
+                this,
+                "Thank you for your " +
+                        rating +
+                        "-star rating!",
+                Toast.LENGTH_LONG
+        ).show();
+
+        showPassengerHome(name);
     }
 
     // ============================================================
@@ -961,68 +1183,82 @@ public class MainActivity extends Activity {
                 titleParams()
         );
 
-        Button online =
-                button(
-                        "🟢  GO ONLINE",
-                        Color.rgb(0, 150, 80)
-                );
-
-        online.setOnClickListener(v ->
-                Toast.makeText(
-                        this,
-                        "Driver is now ONLINE",
-                        Toast.LENGTH_LONG
-                ).show()
+        Button online = button(
+                "🟢 GO ONLINE",
+                Color.rgb(0, 150, 80)
         );
+
+        online.setOnClickListener(v -> {
+
+            prefs.edit()
+                    .putBoolean(
+                            "driver_online",
+                            true
+                    )
+                    .apply();
+
+            Toast.makeText(
+                    this,
+                    "Driver is now ONLINE",
+                    Toast.LENGTH_LONG
+            ).show();
+        });
 
         layout.addView(online);
 
-        Button bookings =
-                button(
-                        "📥  BOOKING REQUESTS",
-                        Color.rgb(30, 110, 220)
-                );
+        Button offline = button(
+                "⚫ GO OFFLINE",
+                Color.DKGRAY
+        );
 
-        bookings.setOnClickListener(v ->
-                showDriverBooking(name)
+        offline.setOnClickListener(v -> {
+
+            prefs.edit()
+                    .putBoolean(
+                            "driver_online",
+                            false
+                    )
+                    .apply();
+
+            Toast.makeText(
+                    this,
+                    "Driver is now OFFLINE",
+                    Toast.LENGTH_LONG
+            ).show();
+        });
+
+        layout.addView(offline);
+
+        Button bookings = button(
+                "📥 BOOKING REQUESTS",
+                Color.rgb(30, 110, 220)
+        );
+
+        bookings.setOnClickListener(
+                v -> showDriverBooking(name)
         );
 
         layout.addView(bookings);
 
-        Button earnings =
-                button(
-                        "💰  EARNINGS",
-                        Color.rgb(0, 150, 80)
-                );
+        Button earnings = button(
+                "💰 EARNINGS",
+                Color.rgb(0, 150, 80)
+        );
 
         earnings.setOnClickListener(v ->
                 Toast.makeText(
                         this,
-                        "Earnings will be added next.",
+                        "Earnings will be connected to completed rides.",
                         Toast.LENGTH_SHORT
                 ).show()
         );
 
         layout.addView(earnings);
 
-        Button history =
-                button(
-                        "📋  RIDE HISTORY",
-                        Color.rgb(0, 140, 180)
-                );
-
-        history.setOnClickListener(v ->
-                Toast.makeText(
-                        this,
-                        "Driver ride history will be added next.",
-                        Toast.LENGTH_SHORT
-                ).show()
+        Button logout = button(
+                "LOG OUT",
+                Color.DKGRAY
         );
-
-        layout.addView(history);
-
-        Button logout =
-                button("LOG OUT", Color.DKGRAY);
 
         logout.setOnClickListener(v -> logout());
 
@@ -1049,48 +1285,85 @@ public class MainActivity extends Activity {
                 titleParams()
         );
 
+        String pickup =
+                prefs.getString(
+                        "ride_pickup",
+                        "No active ride"
+                );
+
+        String destination =
+                prefs.getString(
+                        "ride_destination",
+                        "No active ride"
+                );
+
+        String fare =
+                prefs.getString(
+                        "ride_fare",
+                        "0"
+                );
+
         layout.addView(
                 text(
-                        "Passenger: Demo Passenger\n\n" +
-                        "Pickup: Barangay Hall\n\n" +
-                        "Destination: Town Center\n\n" +
-                        "Estimated Fare: ₱100",
+                        "Passenger Ride Request\n\n" +
+                        "Pickup: " + pickup +
+                        "\n\nDestination: " + destination +
+                        "\n\nFare: ₱" + fare,
                         18,
                         Color.DKGRAY,
                         true
                 ),
                 new LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.MATCH_PARENT,
-                        dp(180)
+                        dp(230)
                 )
         );
 
-        Button accept =
-                button(
-                        "✅ ACCEPT RIDE",
-                        Color.rgb(0, 150, 80)
-                );
-
-        accept.setOnClickListener(v ->
-                showDriverTrip(name)
+        Button accept = button(
+                "✅ ACCEPT RIDE",
+                Color.rgb(0, 150, 80)
         );
+
+        accept.setOnClickListener(v -> {
+
+            prefs.edit()
+                    .putString(
+                            "ride_status",
+                            "ACCEPTED"
+                    )
+                    .putString(
+                            "ride_driver",
+                            name
+                    )
+                    .apply();
+
+            showDriverTrip(name);
+        });
 
         layout.addView(accept);
 
-        Button decline =
-                button(
-                        "❌ DECLINE",
-                        Color.rgb(210, 60, 60)
-                );
-
-        decline.setOnClickListener(v ->
-                showDriverHome(name)
+        Button decline = button(
+                "❌ DECLINE",
+                Color.rgb(210, 60, 60)
         );
+
+        decline.setOnClickListener(v -> {
+            prefs.edit()
+                    .putString(
+                            "ride_status",
+                            "REQUESTED"
+                    )
+                    .apply();
+
+            showDriverHome(name);
+        });
 
         layout.addView(decline);
 
-        Button back =
-                button("← BACK", Color.DKGRAY);
+        Button back = button(
+                "← BACK",
+                Color.DKGRAY
+        );
 
         back.setOnClickListener(
                 v -> showDriverHome(name)
@@ -1119,78 +1392,102 @@ public class MainActivity extends Activity {
                 titleParams()
         );
 
-        TextView status =
-                text(
-                        "Status: ACCEPTED",
-                        20,
-                        Color.rgb(0, 150, 80),
-                        true
-                );
+        TextView status = text(
+                "Status: " +
+                prefs.getString(
+                        "ride_status",
+                        "ACCEPTED"
+                ),
+                20,
+                Color.rgb(0, 150, 80),
+                true
+        );
 
-        layout.addView(status, titleParams());
+        layout.addView(
+                status,
+                titleParams()
+        );
 
-        Button onWay =
-                button(
-                        "🚗 DRIVER ON THE WAY",
-                        Color.rgb(30, 110, 220)
-                );
+        Button onWay = button(
+                "🚗 DRIVER ON THE WAY",
+                Color.rgb(30, 110, 220)
+        );
 
         onWay.setOnClickListener(v -> {
-            status.setText("Status: DRIVER_ON_THE_WAY");
-            Toast.makeText(
-                    this,
-                    "Passenger notified: driver is on the way",
-                    Toast.LENGTH_SHORT
-            ).show();
+
+            prefs.edit()
+                    .putString(
+                            "ride_status",
+                            "DRIVER_ON_THE_WAY"
+                    )
+                    .apply();
+
+            status.setText(
+                    "Status: DRIVER_ON_THE_WAY"
+            );
         });
 
         layout.addView(onWay);
 
-        Button arrived =
-                button(
-                        "📍 ARRIVED",
-                        Color.rgb(255, 170, 0)
-                );
+        Button arrived = button(
+                "📍 ARRIVED",
+                Color.rgb(255, 170, 0)
+        );
 
         arrived.setOnClickListener(v -> {
-            status.setText("Status: DRIVER_ARRIVED");
-            Toast.makeText(
-                    this,
-                    "Driver has arrived",
-                    Toast.LENGTH_SHORT
-            ).show();
+
+            prefs.edit()
+                    .putString(
+                            "ride_status",
+                            "DRIVER_ARRIVED"
+                    )
+                    .apply();
+
+            status.setText(
+                    "Status: DRIVER_ARRIVED"
+            );
         });
 
         layout.addView(arrived);
 
-        Button start =
-                button(
-                        "▶ START TRIP",
-                        Color.rgb(0, 150, 80)
-                );
+        Button start = button(
+                "▶ START TRIP",
+                Color.rgb(0, 150, 80)
+        );
 
         start.setOnClickListener(v -> {
-            status.setText("Status: IN_PROGRESS");
-            Toast.makeText(
-                    this,
-                    "Trip started",
-                    Toast.LENGTH_SHORT
-            ).show();
+
+            prefs.edit()
+                    .putString(
+                            "ride_status",
+                            "IN_PROGRESS"
+                    )
+                    .apply();
+
+            status.setText(
+                    "Status: IN_PROGRESS"
+            );
         });
 
         layout.addView(start);
 
-        Button finish =
-                button(
-                        "🏁 FINISH TRIP",
-                        Color.rgb(125, 70, 180)
-                );
+        Button finish = button(
+                "🏁 FINISH TRIP",
+                Color.rgb(125, 70, 180)
+        );
 
         finish.setOnClickListener(v -> {
 
+            prefs.edit()
+                    .putString(
+                            "ride_status",
+                            "COMPLETED"
+                    )
+                    .apply();
+
             Toast.makeText(
                     this,
-                    "Trip finished successfully!",
+                    "Trip completed!",
                     Toast.LENGTH_LONG
             ).show();
 
@@ -1199,8 +1496,10 @@ public class MainActivity extends Activity {
 
         layout.addView(finish);
 
-        Button back =
-                button("← DRIVER HOME", Color.DKGRAY);
+        Button back = button(
+                "← DRIVER HOME",
+                Color.DKGRAY
+        );
 
         back.setOnClickListener(
                 v -> showDriverHome(name)
@@ -1212,7 +1511,7 @@ public class MainActivity extends Activity {
     }
 
     // ============================================================
-    // ADMIN HOME
+    // ADMIN
     // ============================================================
 
     private void showAdminHome(String name) {
@@ -1239,11 +1538,10 @@ public class MainActivity extends Activity {
                 titleParams()
         );
 
-        Button users =
-                button(
-                        "👥  USERS",
-                        Color.rgb(125, 70, 180)
-                );
+        Button users = button(
+                "👥 USERS",
+                Color.rgb(125, 70, 180)
+        );
 
         users.setOnClickListener(v ->
                 Toast.makeText(
@@ -1255,11 +1553,10 @@ public class MainActivity extends Activity {
 
         layout.addView(users);
 
-        Button drivers =
-                button(
-                        "🚕  DRIVERS",
-                        Color.rgb(30, 110, 220)
-                );
+        Button drivers = button(
+                "🚕 DRIVERS",
+                Color.rgb(30, 110, 220)
+        );
 
         drivers.setOnClickListener(v ->
                 Toast.makeText(
@@ -1271,11 +1568,10 @@ public class MainActivity extends Activity {
 
         layout.addView(drivers);
 
-        Button rides =
-                button(
-                        "🛺  ALL RIDES",
-                        Color.rgb(0, 150, 80)
-                );
+        Button rides = button(
+                "🛺 ALL RIDES",
+                Color.rgb(0, 150, 80)
+        );
 
         rides.setOnClickListener(v ->
                 Toast.makeText(
@@ -1287,11 +1583,10 @@ public class MainActivity extends Activity {
 
         layout.addView(rides);
 
-        Button reports =
-                button(
-                        "📊  REPORTS",
-                        Color.rgb(0, 140, 180)
-                );
+        Button reports = button(
+                "📊 REPORTS",
+                Color.rgb(0, 140, 180)
+        );
 
         reports.setOnClickListener(v ->
                 Toast.makeText(
@@ -1303,8 +1598,10 @@ public class MainActivity extends Activity {
 
         layout.addView(reports);
 
-        Button logout =
-                button("LOG OUT", Color.DKGRAY);
+        Button logout = button(
+                "LOG OUT",
+                Color.DKGRAY
+        );
 
         logout.setOnClickListener(v -> logout());
 
@@ -1329,7 +1626,7 @@ public class MainActivity extends Activity {
     }
 
     // ============================================================
-    // COMMON UI
+    // COMMON LAYOUT
     // ============================================================
 
     private LinearLayout baseLayout() {
