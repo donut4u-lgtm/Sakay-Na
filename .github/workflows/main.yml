@@ -17,16 +17,22 @@ jobs:
           ref: main
           clean: true
 
-      - name: Verify project
+            - name: Verify project
         run: |
-          echo "===== BRANCH ====="
-          git branch --show-current
-          echo "===== COMMIT ====="
-          git rev-parse HEAD
+          echo "===== CURRENT DIRECTORY ====="
+          pwd
           echo "===== ROOT FILES ====="
-          ls -la
-          echo "===== SETTINGS ====="
-          cat settings.gradle.kts
+          ls -lab
+          echo "===== FIND SETTINGS ====="
+          find . -maxdepth 3 -type f -name 'settings.gradle.kts' -print
+        
+          
+          
+          
+          
+          
+        
+        
           echo "===== APP ====="
           ls -la app
           echo "===== GRADLE WRAPPER ====="
