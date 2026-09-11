@@ -1,8 +1,10 @@
 
+
 package com.sakyna.app;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.os.Bundle;
@@ -14,117 +16,239 @@ import android.widget.Toast;
 
 public class DriverActivity extends Activity {
 
-    private boolean online = false;
+    private SharedPreferences prefs;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        showDriverHome();
+
+        prefs = getSharedPreferences(
+                "SakayNa",
+                MODE_PRIVATE
+        );
+
+        showDashboard();
     }
 
-    private TextView makeText(String text, int size) {
-        TextView view = new TextView(this);
+    private TextView makeText(
+            String text,
+            int size
+    ) {
+
+        TextView view =
+                new TextView(this);
+
         view.setText(text);
         view.setTextSize(size);
         view.setTextColor(Color.DKGRAY);
-        view.setPadding(20, 20, 20, 20);
+
+        view.setPadding(
+                20,
+                20,
+                20,
+                20
+        );
+
         return view;
     }
 
-    private Button makeButton(String text) {
-        Button button = new Button(this);
+    private Button makeButton(
+            String text
+    ) {
+
+        Button button =
+                new Button(this);
+
         button.setText(text);
         button.setTextSize(17);
         button.setAllCaps(false);
+
         return button;
     }
 
-    private void showDriverHome() {
+    private LinearLayout createPage(
+            String titleText
+    ) {
 
-        LinearLayout layout = new LinearLayout(this);
-        layout.setOrientation(LinearLayout.VERTICAL);
-        layout.setPadding(25, 25, 25, 25);
-        layout.setGravity(Gravity.CENTER_HORIZONTAL);
+        LinearLayout layout =
+                new LinearLayout(this);
 
-        TextView title = makeText("SAKAY NA", 30);
-        title.setTypeface(null, Typeface.BOLD);
-        title.setTextColor(Color.rgb(30, 100, 200));
-        title.setGravity(Gravity.CENTER);
+        layout.setOrientation(
+                LinearLayout.VERTICAL
+        );
+
+        layout.setPadding(
+                25,
+                25,
+                25,
+                25
+        );
+
+        TextView title =
+                makeText(
+                        titleText,
+                        28
+                );
+
+        title.setTypeface(
+                null,
+                Typeface.BOLD
+        );
+
+        title.setTextColor(
+                Color.rgb(
+                        30,
+                        100,
+                        200
+                )
+        );
+
+        title.setGravity(
+                Gravity.CENTER
+        );
+
         layout.addView(title);
 
-        TextView subtitle =
-                makeText("Driver Dashboard", 20);
-        subtitle.setGravity(Gravity.CENTER);
-        layout.addView(subtitle);
+        return layout;
+    }
+
+    private void addBackButton(
+            LinearLayout layout
+    ) {
+
+        Button back =
+                makeButton(
+                        "Back to Dashboard"
+                );
+
+        back.setOnClickListener(
+                v -> showDashboard()
+        );
+
+        layout.addView(back);
+    }
+
+    private void showDashboard() {
+
+        LinearLayout layout =
+                createPage(
+                        "SAKAY NA"
+                );
+
+        TextView title =
+                makeText(
+                        "Driver Dashboard",
+                        21
+                );
+
+        title.setGravity(
+                Gravity.CENTER
+        );
+
+        layout.addView(title);
+
+        boolean online =
+                prefs.getBoolean(
+                        "driver_online",
+                        false
+                );
 
         TextView status =
                 makeText(
-                        online ? "Status: ONLINE" : "Status: OFFLINE",
-                        20
+                        online
+                        ? "● DRIVER IS ONLINE"
+                        : "● DRIVER IS OFFLINE",
+                        21
                 );
 
-        status.setGravity(Gravity.CENTER);
-        status.setTypeface(null, Typeface.BOLD);
+        status.setGravity(
+                Gravity.CENTER
+        );
+
+        status.setTypeface(
+                null,
+                Typeface.BOLD
+        );
+
+        status.setTextColor(
+                online
+                ? Color.rgb(
+                        0,
+                        150,
+                        80
+                )
+                : Color.rgb(
+                        180,
+                        80,
+                        80
+                )
+        );
+
         layout.addView(status);
 
-        Button onlineButton =
-                makeButton(
-                        online ? "Go Offline" : "Go Online"
-                );
+        Button onlineButton;
 
-        onlineButton.setOnClickListener(v -> {
+        if (online) {
 
-            online = !online;
+            onlineButton =
+                    makeButton(
+                            "🔴 Go Offline"
+                    );
 
-            if (online) {
+        } else {
 
-                status.setText("Status: ONLINE");
-                onlineButton.setText("Go Offline");
+            onlineButton =
+                    makeButton(
+                            "🟢 Go Online"
+                    );
+        }
 
-                Toast.makeText(
-                        this,
-                        "You are now accepting rides",
-                        Toast.LENGTH_SHORT
-                ).show();
-
-            } else {
-
-                status.setText("Status: OFFLINE");
-                onlineButton.setText("Go Online");
-
-                Toast.makeText(
-                        this,
-                        "You are now offline",
-                        Toast.LENGTH_SHORT
-                ).show();
-            }
-        });
+        onlineButton.setOnClickListener(
+                v -> toggleOnline()
+        );
 
         layout.addView(onlineButton);
 
         Button requests =
-                makeButton("Booking Requests");
+                makeButton(
+                        "📥 Booking Requests"
+                );
 
-        requests.setOnClickListener(v ->
-                showBookingRequests()
+        requests.setOnClickListener(
+                v -> showBookingRequest()
         );
 
         layout.addView(requests);
 
-        Button earnings =
-                makeButton("Earnings & History");
+        Button current =
+                makeButton(
+                        "🚕 Current Trip"
+                );
 
-        earnings.setOnClickListener(v ->
-                showEarnings()
+        current.setOnClickListener(
+                v -> showCurrentTrip()
+        );
+
+        layout.addView(current);
+
+        Button earnings =
+                makeButton(
+                        "💰 Earnings & History"
+                );
+
+        earnings.setOnClickListener(
+                v -> showEarnings()
         );
 
         layout.addView(earnings);
 
         Button logout =
-                makeButton("Logout");
+                makeButton(
+                        "Logout"
+                );
 
-        logout.setOnClickListener(v ->
-                logout()
+        logout.setOnClickListener(
+                v -> logout()
         );
 
         layout.addView(logout);
@@ -132,137 +256,180 @@ public class DriverActivity extends Activity {
         setContentView(layout);
     }
 
-    private void showBookingRequests() {
+    private void toggleOnline() {
 
-        LinearLayout layout = new LinearLayout(this);
-        layout.setOrientation(LinearLayout.VERTICAL);
-        layout.setPadding(25, 25, 25, 25);
+        boolean online =
+                prefs.getBoolean(
+                        "driver_online",
+                        false
+                );
 
-        TextView title =
-                makeText("BOOKING REQUESTS", 27);
+        prefs.edit()
+                .putBoolean(
+                        "driver_online",
+                        !online
+                )
+                .apply();
 
-        title.setTypeface(null, Typeface.BOLD);
-        title.setTextColor(Color.rgb(30, 100, 200));
-        title.setGravity(Gravity.CENTER);
+        Toast.makeText(
+                this,
+                online
+                ? "You are now OFFLINE."
+                : "You are now ONLINE.",
+                Toast.LENGTH_LONG
+        ).show();
 
-        layout.addView(title);
+        showDashboard();
+    }
+
+    private void showBookingRequest() {
+
+        LinearLayout layout =
+                createPage(
+                        "BOOKING REQUEST"
+                );
+
+        boolean online =
+                prefs.getBoolean(
+                        "driver_online",
+                        false
+                );
 
         String pickup =
-                getSharedPreferences(
-                        "SakayNa",
-                        MODE_PRIVATE
-                ).getString(
+                prefs.getString(
                         "ride_pickup",
                         ""
                 );
 
         String destination =
-                getSharedPreferences(
-                        "SakayNa",
-                        MODE_PRIVATE
-                ).getString(
+                prefs.getString(
                         "ride_destination",
                         ""
                 );
 
         String status =
-                getSharedPreferences(
-                        "SakayNa",
-                        MODE_PRIVATE
-                ).getString(
+                prefs.getString(
                         "ride_status",
                         ""
                 );
 
         int fare =
-                getSharedPreferences(
-                        "SakayNa",
-                        MODE_PRIVATE
-                ).getInt(
+                prefs.getInt(
                         "ride_fare",
                         0
                 );
 
+        if (!online) {
+
+            TextView offline =
+                    makeText(
+                            "You are offline.\n\nGo ONLINE to receive booking requests.",
+                            20
+                    );
+
+            offline.setGravity(
+                    Gravity.CENTER
+            );
+
+            layout.addView(offline);
+
+            addBackButton(layout);
+
+            setContentView(layout);
+
+            return;
+        }
+
         if (pickup.isEmpty() ||
                 destination.isEmpty() ||
-                !status.equals("REQUESTED")) {
+                !status.equals(
+                        "REQUESTED"
+                )) {
 
-            TextView noRide =
+            TextView none =
                     makeText(
                             "No new booking requests.",
                             20
                     );
 
-            noRide.setGravity(Gravity.CENTER);
-
-            layout.addView(noRide);
-
-        } else {
-
-            TextView request =
-                    makeText(
-                            "NEW RIDE REQUEST\n\n" +
-                            "Pickup:\n" +
-                            pickup +
-                            "\n\nDestination:\n" +
-                            destination +
-                            "\n\nEstimated Fare: ₱" +
-                            fare,
-                            19
-                    );
-
-            request.setTypeface(
-                    null,
-                    Typeface.BOLD
+            none.setGravity(
+                    Gravity.CENTER
             );
 
-            layout.addView(request);
+            layout.addView(none);
 
-            Button accept =
-                    makeButton("ACCEPT RIDE");
+            addBackButton(layout);
 
-            accept.setOnClickListener(v ->
-                    acceptRide()
-            );
+            setContentView(layout);
 
-            layout.addView(accept);
-
-            Button decline =
-                    makeButton("DECLINE RIDE");
-
-            decline.setOnClickListener(v ->
-                    declineRide()
-            );
-
-            layout.addView(decline);
+            return;
         }
 
-        Button back =
-                makeButton("Back to Dashboard");
+        TextView request =
+                makeText(
+                        "NEW RIDE REQUEST\n\n" +
+                        "Pickup:\n" +
+                        pickup +
+                        "\n\n" +
+                        "Destination:\n" +
+                        destination +
+                        "\n\n" +
+                        "Estimated Fare:\n" +
+                        "₱" +
+                        fare,
+                        19
+                );
 
-        back.setOnClickListener(v ->
-                showDriverHome()
+        request.setTypeface(
+                null,
+                Typeface.BOLD
         );
 
-        layout.addView(back);
+        layout.addView(request);
+
+        Button accept =
+                makeButton(
+                        "✅ ACCEPT RIDE"
+                );
+
+        accept.setOnClickListener(
+                v -> acceptRide()
+        );
+
+        layout.addView(accept);
+
+        Button decline =
+                makeButton(
+                        "❌ DECLINE RIDE"
+                );
+
+        decline.setOnClickListener(
+                v -> declineRide()
+        );
+
+        layout.addView(decline);
+
+        addBackButton(layout);
 
         setContentView(layout);
     }
 
     private void acceptRide() {
 
-        getSharedPreferences(
-                "SakayNa",
-                MODE_PRIVATE
-        )
-                .edit()
+        String driverName =
+                prefs.getString(
+                        "current_name",
+                        "Sakay Na Driver"
+                );
+
+        prefs.edit()
                 .putString(
                         "ride_status",
                         "ACCEPTED"
                 )
                 .putString(
                         "ride_driver",
-                        getDriverName()
+                        driverName
                 )
                 .apply();
 
@@ -272,16 +439,12 @@ public class DriverActivity extends Activity {
                 Toast.LENGTH_LONG
         ).show();
 
-        showDriverTrip();
+        showCurrentTrip();
     }
 
     private void declineRide() {
 
-        getSharedPreferences(
-                "SakayNa",
-                MODE_PRIVATE
-        )
-                .edit()
+        prefs.edit()
                 .putString(
                         "ride_status",
                         "DECLINED"
@@ -291,187 +454,246 @@ public class DriverActivity extends Activity {
         Toast.makeText(
                 this,
                 "Ride declined.",
-                Toast.LENGTH_SHORT
+                Toast.LENGTH_LONG
         ).show();
 
-        showBookingRequests();
+        showBookingRequest();
     }
 
-    private String getDriverName() {
+    private void showCurrentTrip() {
 
-        return getSharedPreferences(
-                "SakayNa",
-                MODE_PRIVATE
-        ).getString(
-                "current_name",
-                "Sakay Na Driver"
-        );
-    }
-
-    private void showDriverTrip() {
-
-        LinearLayout layout = new LinearLayout(this);
-        layout.setOrientation(LinearLayout.VERTICAL);
-        layout.setPadding(25, 25, 25, 25);
-
-        TextView title =
-                makeText("CURRENT TRIP", 28);
-
-        title.setTypeface(null, Typeface.BOLD);
-        title.setTextColor(Color.rgb(30, 100, 200));
-        title.setGravity(Gravity.CENTER);
-
-        layout.addView(title);
+        LinearLayout layout =
+                createPage(
+                        "CURRENT TRIP"
+                );
 
         String pickup =
-                getSharedPreferences(
-                        "SakayNa",
-                        MODE_PRIVATE
-                ).getString(
+                prefs.getString(
                         "ride_pickup",
                         ""
                 );
 
         String destination =
-                getSharedPreferences(
-                        "SakayNa",
-                        MODE_PRIVATE
-                ).getString(
+                prefs.getString(
                         "ride_destination",
                         ""
                 );
 
         String status =
-                getSharedPreferences(
-                        "SakayNa",
-                        MODE_PRIVATE
-                ).getString(
+                prefs.getString(
                         "ride_status",
                         ""
                 );
 
+        String passenger =
+                prefs.getString(
+                        "current_passenger",
+                        "Passenger"
+                );
+
+        String driver =
+                prefs.getString(
+                        "ride_driver",
+                        ""
+                );
+
         int fare =
-                getSharedPreferences(
-                        "SakayNa",
-                        MODE_PRIVATE
-                ).getInt(
+                prefs.getInt(
                         "ride_fare",
                         0
                 );
 
-        TextView route =
-                makeText(
-                        "Pickup:\n" +
-                        pickup +
-                        "\n\nDestination:\n" +
-                        destination +
-                        "\n\nFare: ₱" +
-                        fare +
-                        "\n\nStatus:\n" +
-                        status,
-                        19
-                );
+        if (pickup.isEmpty() ||
+                destination.isEmpty() ||
+                status.isEmpty()) {
 
-        layout.addView(route);
-
-        if (status.equals("ACCEPTED")) {
-
-            Button onTheWay =
-                    makeButton("DRIVER ON THE WAY");
-
-            onTheWay.setOnClickListener(v -> {
-
-                updateRideStatus(
-                        "DRIVER_ON_THE_WAY"
-                );
-
-                showDriverTrip();
-            });
-
-            layout.addView(onTheWay);
-
-        } else if (status.equals("DRIVER_ON_THE_WAY")) {
-
-            Button arrived =
-                    makeButton("DRIVER ARRIVED");
-
-            arrived.setOnClickListener(v -> {
-
-                updateRideStatus(
-                        "DRIVER_ARRIVED"
-                );
-
-                showDriverTrip();
-            });
-
-            layout.addView(arrived);
-
-        } else if (status.equals("DRIVER_ARRIVED")) {
-
-            Button start =
-                    makeButton("START TRIP");
-
-            start.setOnClickListener(v -> {
-
-                updateRideStatus(
-                        "IN_PROGRESS"
-                );
-
-                showDriverTrip();
-            });
-
-            layout.addView(start);
-
-        } else if (status.equals("IN_PROGRESS")) {
-
-            Button finish =
-                    makeButton("FINISH TRIP");
-
-            finish.setOnClickListener(v ->
-                    finishTrip()
-            );
-
-            layout.addView(finish);
-
-        } else if (status.equals("COMPLETED")) {
-
-            TextView completed =
+            TextView none =
                     makeText(
-                            "TRIP COMPLETED\n\n" +
-                            "Fare collected: ₱" +
-                            fare,
+                            "No current trip.",
                             20
                     );
 
-            completed.setTypeface(
-                    null,
-                    Typeface.BOLD
+            none.setGravity(
+                    Gravity.CENTER
             );
 
-            completed.setGravity(Gravity.CENTER);
+            layout.addView(none);
 
-            layout.addView(completed);
+            addBackButton(layout);
+
+            setContentView(layout);
+
+            return;
         }
 
-        Button back =
-                makeButton("Back to Dashboard");
+        TextView trip =
+                makeText(
+                        "PASSENGER\n" +
+                        passenger +
+                        "\n\n" +
+                        "PICKUP\n" +
+                        pickup +
+                        "\n\n" +
+                        "DESTINATION\n" +
+                        destination +
+                        "\n\n" +
+                        "FARE\n₱" +
+                        fare +
+                        "\n\n" +
+                        "DRIVER\n" +
+                        (
+                            driver.isEmpty()
+                            ? "Not assigned"
+                            : driver
+                        ) +
+                        "\n\n" +
+                        "STATUS\n" +
+                        getReadableStatus(
+                                status
+                        ),
+                        18
+                );
 
-        back.setOnClickListener(v ->
-                showDriverHome()
+        trip.setTypeface(
+                null,
+                Typeface.BOLD
         );
 
-        layout.addView(back);
+        layout.addView(trip);
+
+        TextView statusText =
+                makeText(
+                        getReadableStatus(
+                                status
+                        ),
+                        22
+                );
+
+        statusText.setGravity(
+                Gravity.CENTER
+        );
+
+        statusText.setTypeface(
+                null,
+                Typeface.BOLD
+        );
+
+        statusText.setTextColor(
+                getStatusColor(
+                        status
+                )
+        );
+
+        layout.addView(statusText);
+
+        addTripAction(
+                layout,
+                status
+        );
+
+        Button refresh =
+                makeButton(
+                        "🔄 Refresh Status"
+                );
+
+        refresh.setOnClickListener(
+                v -> showCurrentTrip()
+        );
+
+        layout.addView(refresh);
+
+        addBackButton(layout);
 
         setContentView(layout);
     }
 
-    private void updateRideStatus(String newStatus) {
+    private void addTripAction(
+            LinearLayout layout,
+            String status
+    ) {
 
-        getSharedPreferences(
-                "SakayNa",
-                MODE_PRIVATE
-        )
-                .edit()
+        if (status.equals(
+                "ACCEPTED"
+        )) {
+
+            Button button =
+                    makeButton(
+                            "🛣️ DRIVER ON THE WAY"
+                    );
+
+            button.setOnClickListener(
+                    v -> updateTrip(
+                            "DRIVER_ON_THE_WAY"
+                    )
+            );
+
+            layout.addView(button);
+
+            return;
+        }
+
+        if (status.equals(
+                "DRIVER_ON_THE_WAY"
+        )) {
+
+            Button button =
+                    makeButton(
+                            "📍 ARRIVED"
+                    );
+
+            button.setOnClickListener(
+                    v -> updateTrip(
+                            "DRIVER_ARRIVED"
+                    )
+            );
+
+            layout.addView(button);
+
+            return;
+        }
+
+        if (status.equals(
+                "DRIVER_ARRIVED"
+        )) {
+
+            Button button =
+                    makeButton(
+                            "▶️ START TRIP"
+                    );
+
+            button.setOnClickListener(
+                    v -> updateTrip(
+                            "IN_PROGRESS"
+                    )
+            );
+
+            layout.addView(button);
+
+            return;
+        }
+
+        if (status.equals(
+                "IN_PROGRESS"
+        )) {
+
+            Button button =
+                    makeButton(
+                            "🏁 FINISH TRIP"
+                    );
+
+            button.setOnClickListener(
+                    v -> finishTrip()
+            );
+
+            layout.addView(button);
+        }
+    }
+
+    private void updateTrip(
+            String newStatus
+    ) {
+
+        prefs.edit()
                 .putString(
                         "ride_status",
                         newStatus
@@ -480,115 +702,434 @@ public class DriverActivity extends Activity {
 
         Toast.makeText(
                 this,
-                "Ride status: " + newStatus,
-                Toast.LENGTH_SHORT
+                getReadableStatus(
+                        newStatus
+                ),
+                Toast.LENGTH_LONG
         ).show();
+
+        showCurrentTrip();
     }
 
     private void finishTrip() {
 
-        getSharedPreferences(
-                "SakayNa",
-                MODE_PRIVATE
-        )
-                .edit()
+        int fare =
+                prefs.getInt(
+                        "ride_fare",
+                        50
+                );
+
+        prefs.edit()
                 .putString(
                         "ride_status",
                         "COMPLETED"
+                )
+                .putInt(
+                        "ride_final_fare",
+                        fare
                 )
                 .apply();
 
         Toast.makeText(
                 this,
-                "Trip completed successfully!",
+                "Trip finished successfully!\nFare: ₱" +
+                fare,
                 Toast.LENGTH_LONG
         ).show();
 
-        showDriverTrip();
+        showCompletedTrip();
+    }
+
+    private void showCompletedTrip() {
+
+        LinearLayout layout =
+                createPage(
+                        "TRIP COMPLETED"
+                );
+
+        String pickup =
+                prefs.getString(
+                        "ride_pickup",
+                        "Unknown"
+                );
+
+        String destination =
+                prefs.getString(
+                        "ride_destination",
+                        "Unknown"
+                );
+
+        String driver =
+                prefs.getString(
+                        "ride_driver",
+                        "Sakay Na Driver"
+                );
+
+        int fare =
+                prefs.getInt(
+                        "ride_final_fare",
+                        prefs.getInt(
+                                "ride_fare",
+                                0
+                        )
+                );
+
+        String rating =
+                prefs.getString(
+                        "ride_rating",
+                        ""
+                );
+
+        TextView completed =
+                makeText(
+                        "✅ RIDE COMPLETED\n\n" +
+                        "Pickup:\n" +
+                        pickup +
+                        "\n\n" +
+                        "Destination:\n" +
+                        destination +
+                        "\n\n" +
+                        "Driver:\n" +
+                        driver +
+                        "\n\n" +
+                        "FINAL FARE\n" +
+                        "₱" +
+                        fare +
+                        "\n\n" +
+                        (
+                            rating.isEmpty()
+                            ? "Passenger Rating: Not yet rated"
+                            : "Passenger Rating: " +
+                              rating +
+                              " / 5"
+                        ),
+                        19
+                );
+
+        completed.setGravity(
+                Gravity.CENTER
+        );
+
+        completed.setTypeface(
+                null,
+                Typeface.BOLD
+        );
+
+        completed.setTextColor(
+                Color.rgb(
+                        0,
+                        130,
+                        70
+                )
+        );
+
+        layout.addView(completed);
+
+        Button receipt =
+                makeButton(
+                        "🧾 View Trip Receipt"
+                );
+
+        receipt.setOnClickListener(
+                v -> showDriverReceipt()
+        );
+
+        layout.addView(receipt);
+
+        addBackButton(layout);
+
+        setContentView(layout);
+    }
+
+    private void showDriverReceipt() {
+
+        LinearLayout layout =
+                createPage(
+                        "TRIP RECEIPT"
+                );
+
+        String pickup =
+                prefs.getString(
+                        "ride_pickup",
+                        "Unknown"
+                );
+
+        String destination =
+                prefs.getString(
+                        "ride_destination",
+                        "Unknown"
+                );
+
+        String driver =
+                prefs.getString(
+                        "ride_driver",
+                        "Sakay Na Driver"
+                );
+
+        int fare =
+                prefs.getInt(
+                        "ride_final_fare",
+                        prefs.getInt(
+                                "ride_fare",
+                                0
+                        )
+                );
+
+        String rating =
+                prefs.getString(
+                        "ride_rating",
+                        ""
+                );
+
+        TextView receipt =
+                makeText(
+                        "SAKAY NA\n\n" +
+                        "COMPLETED TRIP\n\n" +
+                        "Pickup:\n" +
+                        pickup +
+                        "\n\n" +
+                        "Destination:\n" +
+                        destination +
+                        "\n\n" +
+                        "Driver:\n" +
+                        driver +
+                        "\n\n" +
+                        "Final Fare:\n" +
+                        "₱" +
+                        fare +
+                        "\n\n" +
+                        "Driver Earnings:\n" +
+                        "₱" +
+                        fare +
+                        "\n\n" +
+                        (
+                            rating.isEmpty()
+                            ? "Passenger Rating: Not yet rated"
+                            : "Passenger Rating: " +
+                              rating +
+                              " / 5"
+                        ),
+                        19
+                );
+
+        receipt.setGravity(
+                Gravity.CENTER
+        );
+
+        receipt.setTypeface(
+                null,
+                Typeface.BOLD
+        );
+
+        layout.addView(receipt);
+
+        addBackButton(layout);
+
+        setContentView(layout);
     }
 
     private void showEarnings() {
 
-        LinearLayout layout = new LinearLayout(this);
-        layout.setOrientation(LinearLayout.VERTICAL);
-        layout.setPadding(25, 25, 25, 25);
-        layout.setGravity(Gravity.CENTER_HORIZONTAL);
-
-        TextView title =
-                makeText("EARNINGS & HISTORY", 27);
-
-        title.setTypeface(null, Typeface.BOLD);
-        title.setTextColor(Color.rgb(30, 100, 200));
-        title.setGravity(Gravity.CENTER);
-
-        layout.addView(title);
+        LinearLayout layout =
+                createPage(
+                        "EARNINGS & HISTORY"
+                );
 
         String status =
-                getSharedPreferences(
-                        "SakayNa",
-                        MODE_PRIVATE
-                ).getString(
+                prefs.getString(
                         "ride_status",
                         ""
                 );
 
         int fare =
-                getSharedPreferences(
-                        "SakayNa",
-                        MODE_PRIVATE
-                ).getInt(
-                        "ride_fare",
-                        0
+                prefs.getInt(
+                        "ride_final_fare",
+                        prefs.getInt(
+                                "ride_fare",
+                                0
+                        )
                 );
 
-        String earningsText;
+        String rating =
+                prefs.getString(
+                        "ride_rating",
+                        ""
+                );
 
-        if (status.equals("COMPLETED")) {
+        if (!status.equals(
+                "COMPLETED"
+        )) {
 
-            earningsText =
-                    "Completed Rides: 1\n\n" +
-                    "Total Earnings: ₱" +
-                    fare;
+            TextView none =
+                    makeText(
+                            "No completed trips yet.\n\nComplete a trip to see your earnings.",
+                            20
+                    );
+
+            none.setGravity(
+                    Gravity.CENTER
+            );
+
+            layout.addView(none);
 
         } else {
 
-            earningsText =
-                    "Completed Rides: 0\n\n" +
-                    "Total Earnings: ₱0";
+            TextView earnings =
+                    makeText(
+                            "COMPLETED TRIPS\n\n" +
+                            "Trips Completed: 1\n\n" +
+                            "Total Fare:\n" +
+                            "₱" +
+                            fare +
+                            "\n\n" +
+                            "Driver Earnings:\n" +
+                            "₱" +
+                            fare +
+                            "\n\n" +
+                            (
+                                rating.isEmpty()
+                                ? "Latest Passenger Rating: Not rated"
+                                : "Latest Passenger Rating: " +
+                                  rating +
+                                  " / 5"
+                            ),
+                            20
+                    );
+
+            earnings.setGravity(
+                    Gravity.CENTER
+            );
+
+            earnings.setTypeface(
+                    null,
+                    Typeface.BOLD
+            );
+
+            earnings.setTextColor(
+                    Color.rgb(
+                            0,
+                            130,
+                            70
+                    )
+            );
+
+            layout.addView(earnings);
         }
 
-        TextView earnings =
-                makeText(
-                        earningsText,
-                        21
-                );
-
-        earnings.setGravity(Gravity.CENTER);
-
-        layout.addView(earnings);
-
-        Button back =
-                makeButton("Back to Dashboard");
-
-        back.setOnClickListener(v ->
-                showDriverHome()
-        );
-
-        layout.addView(back);
+        addBackButton(layout);
 
         setContentView(layout);
     }
 
+    private String getReadableStatus(
+            String status
+    ) {
+
+        if (status.equals(
+                "REQUESTED"
+        )) {
+            return "WAITING FOR DRIVER";
+        }
+
+        if (status.equals(
+                "ACCEPTED"
+        )) {
+            return "RIDE ACCEPTED";
+        }
+
+        if (status.equals(
+                "DRIVER_ON_THE_WAY"
+        )) {
+            return "DRIVER ON THE WAY";
+        }
+
+        if (status.equals(
+                "DRIVER_ARRIVED"
+        )) {
+            return "DRIVER ARRIVED";
+        }
+
+        if (status.equals(
+                "IN_PROGRESS"
+        )) {
+            return "TRIP IN PROGRESS";
+        }
+
+        if (status.equals(
+                "COMPLETED"
+        )) {
+            return "RIDE COMPLETED";
+        }
+
+        if (status.equals(
+                "CANCELLED"
+        )) {
+            return "RIDE CANCELLED";
+        }
+
+        if (status.equals(
+                "DECLINED"
+        )) {
+            return "RIDE DECLINED";
+        }
+
+        return status;
+    }
+
+    private int getStatusColor(
+            String status
+    ) {
+
+        if (status.equals(
+                "COMPLETED"
+        )) {
+
+            return Color.rgb(
+                    0,
+                    150,
+                    80
+            );
+        }
+
+        if (status.equals(
+                "CANCELLED"
+        ) ||
+                status.equals(
+                        "DECLINED"
+                )) {
+
+            return Color.rgb(
+                    200,
+                    40,
+                    40
+            );
+        }
+
+        if (status.equals(
+                "DRIVER_ARRIVED"
+        )) {
+
+            return Color.rgb(
+                    220,
+                    150,
+                    0
+            );
+        }
+
+        return Color.rgb(
+                30,
+                100,
+                200
+        );
+    }
+
     private void logout() {
 
-        getSharedPreferences(
-                "SakayNa",
-                MODE_PRIVATE
-        )
-                .edit()
+        prefs.edit()
                 .remove("current_phone")
                 .remove("current_name")
                 .remove("current_role")
+                .remove("driver_online")
                 .apply();
 
         Intent intent =
@@ -603,6 +1144,7 @@ public class DriverActivity extends Activity {
         );
 
         startActivity(intent);
+
         finish();
     }
 }
