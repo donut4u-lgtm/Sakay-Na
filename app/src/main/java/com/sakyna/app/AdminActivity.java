@@ -31,13 +31,9 @@ public class AdminActivity extends Activity {
         showAdminHome();
     }
 
-    private TextView makeText(
-            String text,
-            int size
-    ) {
+    private TextView makeText(String text, int size) {
 
-        TextView view =
-                new TextView(this);
+        TextView view = new TextView(this);
 
         view.setText(text);
         view.setTextSize(size);
@@ -53,12 +49,9 @@ public class AdminActivity extends Activity {
         return view;
     }
 
-    private Button makeButton(
-            String text
-    ) {
+    private Button makeButton(String text) {
 
-        Button button =
-                new Button(this);
+        Button button = new Button(this);
 
         button.setText(text);
         button.setTextSize(17);
@@ -67,7 +60,7 @@ public class AdminActivity extends Activity {
         return button;
     }
 
-    private void showAdminHome() {
+    private LinearLayout createPage(String titleText) {
 
         LinearLayout layout =
                 new LinearLayout(this);
@@ -83,14 +76,10 @@ public class AdminActivity extends Activity {
                 25
         );
 
-        layout.setGravity(
-                Gravity.CENTER_HORIZONTAL
-        );
-
         TextView title =
                 makeText(
-                        "SAKAY NA",
-                        30
+                        titleText,
+                        27
                 );
 
         title.setTypeface(
@@ -112,10 +101,36 @@ public class AdminActivity extends Activity {
 
         layout.addView(title);
 
+        return layout;
+    }
+
+    private void addBackButton(
+            LinearLayout layout
+    ) {
+
+        Button back =
+                makeButton(
+                        "Back to Dashboard"
+                );
+
+        back.setOnClickListener(
+                v -> showAdminHome()
+        );
+
+        layout.addView(back);
+    }
+
+    private void showAdminHome() {
+
+        LinearLayout layout =
+                createPage(
+                        "SAKAY NA"
+                );
+
         TextView subtitle =
                 makeText(
-                        "Admin Dashboard",
-                        20
+                        "ADMIN DASHBOARD",
+                        21
                 );
 
         subtitle.setGravity(
@@ -157,16 +172,16 @@ public class AdminActivity extends Activity {
 
         layout.addView(passengers);
 
-        Button rides =
+        Button currentRide =
                 makeButton(
                         "🚕 Current Ride"
                 );
 
-        rides.setOnClickListener(
+        currentRide.setOnClickListener(
                 v -> showCurrentRide()
         );
 
-        layout.addView(rides);
+        layout.addView(currentRide);
 
         Button reset =
                 makeButton(
@@ -189,6 +204,17 @@ public class AdminActivity extends Activity {
         );
 
         layout.addView(reports);
+
+        Button transactions =
+                makeButton(
+                        "💰 Transactions"
+                );
+
+        transactions.setOnClickListener(
+                v -> showTransactions()
+        );
+
+        layout.addView(transactions);
 
         Button logout =
                 makeButton(
@@ -247,20 +273,6 @@ public class AdminActivity extends Activity {
                             false
                     );
 
-            LinearLayout card =
-                    new LinearLayout(this);
-
-            card.setOrientation(
-                    LinearLayout.VERTICAL
-            );
-
-            card.setPadding(
-                    10,
-                    10,
-                    10,
-                    10
-            );
-
             TextView user =
                     makeText(
                             "Name: " +
@@ -269,7 +281,7 @@ public class AdminActivity extends Activity {
                             phone +
                             "\nRole: " +
                             role +
-                            "\nAccount Status: " +
+                            "\nStatus: " +
                             (
                                 suspended
                                 ? "SUSPENDED"
@@ -283,28 +295,21 @@ public class AdminActivity extends Activity {
                     Typeface.BOLD
             );
 
-            if (suspended) {
+            user.setTextColor(
+                    suspended
+                    ? Color.rgb(
+                            200,
+                            40,
+                            40
+                    )
+                    : Color.rgb(
+                            0,
+                            120,
+                            70
+                    )
+            );
 
-                user.setTextColor(
-                        Color.rgb(
-                                200,
-                                40,
-                                40
-                        )
-                );
-
-            } else {
-
-                user.setTextColor(
-                        Color.rgb(
-                                0,
-                                120,
-                                70
-                        )
-                );
-            }
-
-            card.addView(user);
+            layout.addView(user);
 
             Button control;
 
@@ -329,9 +334,7 @@ public class AdminActivity extends Activity {
                     )
             );
 
-            card.addView(control);
-
-            layout.addView(card);
+            layout.addView(control);
 
             count++;
         }
@@ -373,22 +376,13 @@ public class AdminActivity extends Activity {
                 )
                 .apply();
 
-        if (suspended) {
-
-            Toast.makeText(
-                    this,
-                    "Account restored.",
-                    Toast.LENGTH_LONG
-            ).show();
-
-        } else {
-
-            Toast.makeText(
-                    this,
-                    "Account suspended.",
-                    Toast.LENGTH_LONG
-            ).show();
-        }
+        Toast.makeText(
+                this,
+                suspended
+                ? "Account restored."
+                : "Account suspended.",
+                Toast.LENGTH_LONG
+        ).show();
 
         showUsers();
     }
@@ -442,7 +436,7 @@ public class AdminActivity extends Activity {
 
             TextView driver =
                     makeText(
-                            "Driver\n\n" +
+                            "DRIVER\n\n" +
                             "Name: " +
                             name +
                             "\nPhone: " +
@@ -530,7 +524,7 @@ public class AdminActivity extends Activity {
 
             TextView passenger =
                     makeText(
-                            "Passenger\n\n" +
+                            "PASSENGER\n\n" +
                             "Name: " +
                             name +
                             "\nPhone: " +
@@ -604,8 +598,11 @@ public class AdminActivity extends Activity {
 
         int fare =
                 prefs.getInt(
-                        "ride_fare",
-                        0
+                        "ride_final_fare",
+                        prefs.getInt(
+                                "ride_fare",
+                                0
+                        )
                 );
 
         if (pickup.isEmpty() ||
@@ -658,100 +655,11 @@ public class AdminActivity extends Activity {
             );
 
             layout.addView(ride);
-
-            TextView statusView =
-                    makeText(
-                            "STATUS: " +
-                            getReadableStatus(
-                                    status
-                            ),
-                            21
-                    );
-
-            statusView.setGravity(
-                    Gravity.CENTER
-            );
-
-            statusView.setTypeface(
-                    null,
-                    Typeface.BOLD
-            );
-
-            statusView.setTextColor(
-                    getStatusColor(
-                            status
-                    )
-            );
-
-            layout.addView(
-                    statusView
-            );
         }
 
         addBackButton(layout);
 
         setContentView(layout);
-    }
-
-    private String getReadableStatus(
-            String status
-    ) {
-
-        if (status.equals(
-                "DRIVER_ON_THE_WAY"
-        )) {
-            return "DRIVER ON THE WAY";
-        }
-
-        if (status.equals(
-                "DRIVER_ARRIVED"
-        )) {
-            return "DRIVER ARRIVED";
-        }
-
-        if (status.equals(
-                "IN_PROGRESS"
-        )) {
-            return "TRIP IN PROGRESS";
-        }
-
-        return status;
-    }
-
-    private int getStatusColor(
-            String status
-    ) {
-
-        if (status.equals(
-                "COMPLETED"
-        )) {
-
-            return Color.rgb(
-                    0,
-                    150,
-                    80
-            );
-        }
-
-        if (status.equals(
-                "CANCELLED"
-        ) ||
-                status.equals(
-                        "DECLINED"
-                )) {
-
-            return Color.rgb(
-                    200,
-                    40,
-                    40
-            );
-        }
-
-        return Color.rgb(
-                30,
-                100,
-                200
-        );
     }
 
     private void resetRide() {
@@ -760,6 +668,7 @@ public class AdminActivity extends Activity {
                 .remove("ride_pickup")
                 .remove("ride_destination")
                 .remove("ride_fare")
+                .remove("ride_final_fare")
                 .remove("ride_status")
                 .remove("ride_driver")
                 .remove("ride_rating")
@@ -846,26 +755,26 @@ public class AdminActivity extends Activity {
 
         int fare =
                 prefs.getInt(
-                        "ride_fare",
-                        0
+                        "ride_final_fare",
+                        prefs.getInt(
+                                "ride_fare",
+                                0
+                        )
                 );
 
-        int completed = 0;
-        int cancelled = 0;
+        int completed =
+                status.equals(
+                        "COMPLETED"
+                )
+                ? 1
+                : 0;
 
-        if (status.equals(
-                "COMPLETED"
-        )) {
-
-            completed = 1;
-        }
-
-        if (status.equals(
-                "CANCELLED"
-        )) {
-
-            cancelled = 1;
-        }
+        int cancelled =
+                status.equals(
+                        "CANCELLED"
+                )
+                ? 1
+                : 0;
 
         TextView report =
                 makeText(
@@ -893,10 +802,6 @@ public class AdminActivity extends Activity {
                         20
                 );
 
-        report.setGravity(
-                Gravity.CENTER
-        );
-
         layout.addView(report);
 
         addBackButton(layout);
@@ -904,66 +809,165 @@ public class AdminActivity extends Activity {
         setContentView(layout);
     }
 
-    private LinearLayout createPage(
-            String titleText
-    ) {
+    private void showTransactions() {
 
         LinearLayout layout =
-                new LinearLayout(this);
-
-        layout.setOrientation(
-                LinearLayout.VERTICAL
-        );
-
-        layout.setPadding(
-                25,
-                25,
-                25,
-                25
-        );
-
-        TextView title =
-                makeText(
-                        titleText,
-                        27
+                createPage(
+                        "TRANSACTIONS"
                 );
 
-        title.setTypeface(
-                null,
-                Typeface.BOLD
-        );
+        String status =
+                prefs.getString(
+                        "ride_status",
+                        ""
+                );
 
-        title.setTextColor(
-                Color.rgb(
-                        130,
-                        60,
-                        180
-                )
-        );
+        String pickup =
+                prefs.getString(
+                        "ride_pickup",
+                        ""
+                );
 
-        title.setGravity(
-                Gravity.CENTER
-        );
+        String destination =
+                prefs.getString(
+                        "ride_destination",
+                        ""
+                );
 
-        layout.addView(title);
+        String driver =
+                prefs.getString(
+                        "ride_driver",
+                        ""
+                );
 
-        return layout;
+        int fare =
+                prefs.getInt(
+                        "ride_final_fare",
+                        prefs.getInt(
+                                "ride_fare",
+                                0
+                        )
+                );
+
+        if (pickup.isEmpty() ||
+                destination.isEmpty()) {
+
+            TextView none =
+                    makeText(
+                            "No transactions yet.",
+                            20
+                    );
+
+            none.setGravity(
+                    Gravity.CENTER
+            );
+
+            layout.addView(none);
+
+        } else {
+
+            TextView transaction =
+                    makeText(
+                            "LATEST TRANSACTION\n\n" +
+                            "Pickup:\n" +
+                            pickup +
+                            "\n\n" +
+                            "Destination:\n" +
+                            destination +
+                            "\n\n" +
+                            "Driver:\n" +
+                            (
+                                driver.isEmpty()
+                                ? "Not assigned"
+                                : driver
+                            ) +
+                            "\n\n" +
+                            "Ride Status:\n" +
+                            getReadableStatus(
+                                    status
+                            ) +
+                            "\n\n" +
+                            "Final Fare:\n" +
+                            "₱" +
+                            fare +
+                            "\n\n" +
+                            "Transaction Status:\n" +
+                            (
+                                status.equals(
+                                        "COMPLETED"
+                                )
+                                ? "PAID / COMPLETED"
+                                : "PENDING"
+                            ),
+                            19
+                    );
+
+            transaction.setTypeface(
+                    null,
+                    Typeface.BOLD
+            );
+
+            layout.addView(transaction);
+        }
+
+        addBackButton(layout);
+
+        setContentView(layout);
     }
 
-    private void addBackButton(
-            LinearLayout layout
+    private String getReadableStatus(
+            String status
     ) {
 
-        Button back =
-                makeButton(
-                        "Back to Dashboard"
-                );
+        if (status.equals(
+                "REQUESTED"
+        )) {
+            return "WAITING FOR DRIVER";
+        }
 
-        back.setOnClickListener(
-                v -> showAdminHome()
-        );
+        if (status.equals(
+                "ACCEPTED"
+        )) {
+            return "DRIVER ACCEPTED";
+        }
 
-        layout.addView(back);
+        if (status.equals(
+                "DRIVER_ON_THE_WAY"
+        )) {
+            return "DRIVER ON THE WAY";
+        }
+
+        if (status.equals(
+                "DRIVER_ARRIVED"
+        )) {
+            return "DRIVER ARRIVED";
+        }
+
+        if (status.equals(
+                "IN_PROGRESS"
+        )) {
+            return "TRIP IN PROGRESS";
+        }
+
+        if (status.equals(
+                "COMPLETED"
+        )) {
+            return "COMPLETED";
+        }
+
+        if (status.equals(
+                "CANCELLED"
+        )) {
+            return "CANCELLED";
+        }
+
+        if (status.equals(
+                "DECLINED"
+        )) {
+            return "DECLINED";
+        }
+
+        return status;
     }
 
     private void logout() {
