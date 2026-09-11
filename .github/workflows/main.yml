@@ -29,7 +29,6 @@ jobs:
           set -e
 
           mkdir -p app/src/main/java/com/sakyna/app
-          mkdir -p app/src/main/res
 
           cat > settings.gradle.kts <<'EOF'
           pluginManagement {
@@ -138,17 +137,29 @@ jobs:
               private static final int GREEN = Color.rgb(20, 110, 60);
               private static final int BLUE = Color.rgb(35, 95, 170);
               private static final int RED = Color.rgb(170, 60, 50);
+              private static final int GRAY = Color.GRAY;
 
               private EditText pickupInput;
               private EditText destinationInput;
               private TextView fareText;
 
               private static boolean rideRequested = false;
-              private static boolean rideAccepted = false;
 
               private static String requestedPickup = "";
               private static String requestedDestination = "";
               private static int requestedFare = 0;
+
+              private static int rideStatus = 0;
+
+              /*
+               * 0 = No ride
+               * 1 = Searching for driver
+               * 2 = Driver accepted
+               * 3 = Driver on the way
+               * 4 = Driver arrived
+               * 5 = In trip
+               * 6 = Completed
+               */
 
               @Override
               protected void onCreate(Bundle savedInstanceState) {
@@ -256,11 +267,7 @@ jobs:
                   screen.addView(label("🛺", 55, Color.BLACK, false));
 
                   screen.addView(
-                          label(
-                                  "Sakay Na",
-                                  36,
-                                  GREEN,
-                                  true));
+                          label("Sakay Na", 36, GREEN, true));
 
                   screen.addView(
                           label(
@@ -309,7 +316,7 @@ jobs:
 
                   screen.addView(
                           label(
-                                  "Tell us where you're going.",
+                                  "Enter your pickup and destination.",
                                   17,
                                   Color.DKGRAY,
                                   false));
@@ -387,8 +394,8 @@ jobs:
 
                   Button back =
                           menuButton(
-                                  "BACK",
-                                  Color.GRAY);
+                                  "BACK HOME",
+                                  GRAY);
 
                   back.setOnClickListener(
                           v -> showHome());
@@ -454,9 +461,42 @@ jobs:
                   }
 
                   rideRequested = true;
-                  rideAccepted = false;
+                  rideStatus = 1;
 
                   showRideRequested();
+              }
+
+              private String getStatusText() {
+
+                  switch (rideStatus) {
+
+                      case 1:
+                          return "🟡 DRIVER SEARCHING\n\n" +
+                                  "Looking for an available driver...";
+
+                      case 2:
+                          return "🟢 DRIVER ACCEPTED\n\n" +
+                                  "Your driver accepted the ride.";
+
+                      case 3:
+                          return "🔵 DRIVER ON THE WAY\n\n" +
+                                  "Your driver is traveling to the pickup location.";
+
+                      case 4:
+                          return "🟣 DRIVER ARRIVED\n\n" +
+                                  "Your driver has arrived at the pickup location.";
+
+                      case 5:
+                          return "🚕 IN TRIP\n\n" +
+                                  "You are now traveling to your destination.";
+
+                      case 6:
+                          return "✅ RIDE COMPLETED\n\n" +
+                                  "Thank you for riding with Sakay Na.";
+
+                      default:
+                          return "No active ride.";
+                  }
               }
 
               private void showRideRequested() {
@@ -481,7 +521,7 @@ jobs:
 
                   screen.addView(
                           label(
-                                  "Looking for an available driver...",
+                                  getStatusText(),
                                   19,
                                   Color.DKGRAY,
                                   false));
@@ -489,11 +529,11 @@ jobs:
                   screen.addView(
                           label(
                                   "Pickup:\n" +
-                                  requestedPickup +
-                                  "\n\nDestination:\n" +
-                                  requestedDestination +
-                                  "\n\nFare: ₱" +
-                                  requestedFare,
+                                          requestedPickup +
+                                          "\n\nDestination:\n" +
+                                          requestedDestination +
+                                          "\n\nFare: ₱" +
+                                          requestedFare,
                                   18,
                                   Color.DKGRAY,
                                   false));
@@ -509,7 +549,7 @@ jobs:
                   Button back =
                           menuButton(
                                   "BACK HOME",
-                                  Color.GRAY);
+                                  GRAY);
 
                   back.setOnClickListener(
                           v -> showHome());
@@ -542,29 +582,24 @@ jobs:
                                       Color.DKGRAY,
                                       false));
 
-                  } else if (!rideAccepted) {
-
-                      screen.addView(
-                              label(
-                                      "🟡 DRIVER SEARCHING\n\n" +
-                                      "Your ride request is waiting for a driver.",
-                                      19,
-                                      Color.DKGRAY,
-                                      false));
-
                   } else {
 
                       screen.addView(
                               label(
-                                      "🟢 DRIVER ACCEPTED\n\n" +
-                                      "Your driver has accepted the ride!\n\n" +
+                                      getStatusText(),
+                                      20,
+                                      Color.DKGRAY,
+                                      false));
+
+                      screen.addView(
+                              label(
                                       "Pickup:\n" +
-                                      requestedPickup +
-                                      "\n\nDestination:\n" +
-                                      requestedDestination +
-                                      "\n\nFare: ₱" +
-                                      requestedFare,
-                                      19,
+                                              requestedPickup +
+                                              "\n\nDestination:\n" +
+                                              requestedDestination +
+                                              "\n\nFare: ₱" +
+                                              requestedFare,
+                                      18,
                                       Color.DKGRAY,
                                       false));
                   }
@@ -572,7 +607,7 @@ jobs:
                   Button back =
                           menuButton(
                                   "BACK HOME",
-                                  Color.GRAY);
+                                  GRAY);
 
                   back.setOnClickListener(
                           v -> showHome());
@@ -606,7 +641,7 @@ jobs:
 
                       screen.addView(
                               label(
-                                      "NEW RIDE REQUEST",
+                                      "PASSENGER RIDE REQUEST",
                                       22,
                                       BLUE,
                                       true));
@@ -614,25 +649,23 @@ jobs:
                       screen.addView(
                               label(
                                       "Pickup:\n" +
-                                      requestedPickup +
-                                      "\n\nDestination:\n" +
-                                      requestedDestination +
-                                      "\n\nFare: ₱" +
-                                      requestedFare,
+                                              requestedPickup +
+                                              "\n\nDestination:\n" +
+                                              requestedDestination +
+                                              "\n\nFare: ₱" +
+                                              requestedFare,
                                       19,
                                       Color.DKGRAY,
                                       false));
 
-                      if (rideAccepted) {
+                      screen.addView(
+                              label(
+                                      getStatusText(),
+                                      19,
+                                      Color.DKGRAY,
+                                      false));
 
-                          screen.addView(
-                                  label(
-                                          "🟢 RIDE ACCEPTED",
-                                          21,
-                                          GREEN,
-                                          true));
-
-                      } else {
+                      if (rideStatus == 1) {
 
                           Button accept =
                                   menuButton(
@@ -642,7 +675,7 @@ jobs:
                           accept.setOnClickListener(
                                   v -> {
 
-                                      rideAccepted = true;
+                                      rideStatus = 2;
 
                                       Toast.makeText(
                                               this,
@@ -653,13 +686,77 @@ jobs:
                                   });
 
                           screen.addView(accept);
+
+                      } else if (rideStatus == 2) {
+
+                          Button onWay =
+                                  menuButton(
+                                          "START DRIVING TO PASSENGER",
+                                          BLUE);
+
+                          onWay.setOnClickListener(
+                                  v -> {
+
+                                      rideStatus = 3;
+                                      showDriver();
+                                  });
+
+                          screen.addView(onWay);
+
+                      } else if (rideStatus == 3) {
+
+                          Button arrived =
+                                  menuButton(
+                                          "MARK AS ARRIVED",
+                                          BLUE);
+
+                          arrived.setOnClickListener(
+                                  v -> {
+
+                                      rideStatus = 4;
+                                      showDriver();
+                                  });
+
+                          screen.addView(arrived);
+
+                      } else if (rideStatus == 4) {
+
+                          Button startTrip =
+                                  menuButton(
+                                          "START TRIP",
+                                          GREEN);
+
+                          startTrip.setOnClickListener(
+                                  v -> {
+
+                                      rideStatus = 5;
+                                      showDriver();
+                                  });
+
+                          screen.addView(startTrip);
+
+                      } else if (rideStatus == 5) {
+
+                          Button complete =
+                                  menuButton(
+                                          "COMPLETE TRIP",
+                                          GREEN);
+
+                          complete.setOnClickListener(
+                                  v -> {
+
+                                      rideStatus = 6;
+                                      showDriver();
+                                  });
+
+                          screen.addView(complete);
                       }
                   }
 
                   Button back =
                           menuButton(
                                   "BACK HOME",
-                                  Color.GRAY);
+                                  GRAY);
 
                   back.setOnClickListener(
                           v -> showHome());
@@ -684,12 +781,18 @@ jobs:
 
                   screen.addView(
                           label(
-                                  "Sakay Na Administration\n\n" +
-                                  "System status: ONLINE\n\n" +
-                                  "Passenger request: " +
-                                  (rideRequested ? "YES" : "NO") +
-                                  "\nDriver accepted: " +
-                                  (rideAccepted ? "YES" : "NO"),
+                                  "Sakay Na Administration",
+                                  21,
+                                  Color.DKGRAY,
+                                  true));
+
+                  screen.addView(
+                          label(
+                                  "SYSTEM STATUS: ONLINE\n\n" +
+                                          "Ride request: " +
+                                          (rideRequested ? "YES" : "NO") +
+                                          "\n\nCurrent ride status:\n" +
+                                          getStatusText(),
                                   19,
                                   Color.DKGRAY,
                                   false));
@@ -697,7 +800,7 @@ jobs:
                   Button back =
                           menuButton(
                                   "BACK HOME",
-                                  Color.GRAY);
+                                  GRAY);
 
                   back.setOnClickListener(
                           v -> showHome());
