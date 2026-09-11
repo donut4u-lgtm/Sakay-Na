@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "852036033847",
+    "project_id": "sakay-na-1cafa",
+    "storage_bucket": "sakay-na-1cafa.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:852036033847:android:05398516e6223c49b34eb2",
+        "android_client_info": {
+          "package_name": "com.sakyna.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCnoDs8C3SaP0ApQZRuHtT5fMceHp1VDz0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:852036033847:android:0d412496ad6a2da4b34eb2",
+        "android_client_info": {
+          "package_name": "com.sakyna.appl"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCnoDs8C3SaP0ApQZRuHtT5fMceHp1VDz0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
