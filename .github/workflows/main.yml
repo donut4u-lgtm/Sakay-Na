@@ -149,17 +149,19 @@ jobs:
               private static String requestedDestination = "";
               private static int requestedFare = 0;
 
-              private static int rideStatus = 0;
-
               /*
+               * Ride status:
+               *
                * 0 = No ride
-               * 1 = Searching for driver
-               * 2 = Driver accepted
+               * 1 = Searching
+               * 2 = Accepted
                * 3 = Driver on the way
                * 4 = Driver arrived
                * 5 = In trip
                * 6 = Completed
                */
+
+              private static int rideStatus = 0;
 
               @Override
               protected void onCreate(Bundle savedInstanceState) {
@@ -170,7 +172,7 @@ jobs:
               private LinearLayout baseScreen() {
                   LinearLayout screen = new LinearLayout(this);
                   screen.setOrientation(LinearLayout.VERTICAL);
-                  screen.setPadding(25, 30, 25, 25);
+                  screen.setPadding(25, 30, 25, 30);
                   screen.setBackgroundColor(Color.WHITE);
                   return screen;
               }
@@ -203,7 +205,7 @@ jobs:
                                   LinearLayout.LayoutParams.MATCH_PARENT,
                                   LinearLayout.LayoutParams.WRAP_CONTENT);
 
-                  params.setMargins(0, 8, 0, 8);
+                  params.setMargins(0, 10, 0, 10);
                   view.setLayoutParams(params);
 
                   return view;
@@ -225,9 +227,9 @@ jobs:
                   LinearLayout.LayoutParams params =
                           new LinearLayout.LayoutParams(
                                   LinearLayout.LayoutParams.MATCH_PARENT,
-                                  65);
+                                  70);
 
-                  params.setMargins(0, 8, 0, 8);
+                  params.setMargins(0, 10, 0, 10);
                   button.setLayoutParams(params);
 
                   return button;
@@ -251,7 +253,7 @@ jobs:
                   LinearLayout.LayoutParams params =
                           new LinearLayout.LayoutParams(
                                   LinearLayout.LayoutParams.MATCH_PARENT,
-                                  60);
+                                  65);
 
                   params.setMargins(0, 5, 0, 15);
                   editText.setLayoutParams(params);
@@ -259,15 +261,137 @@ jobs:
                   return editText;
               }
 
+              private String statusText() {
+
+                  switch (rideStatus) {
+
+                      case 1:
+                          return "🟡 DRIVER SEARCHING\n\n" +
+                                  "Waiting for an available driver.";
+
+                      case 2:
+                          return "🟢 DRIVER ACCEPTED\n\n" +
+                                  "Your driver accepted the ride.";
+
+                      case 3:
+                          return "🔵 DRIVER ON THE WAY\n\n" +
+                                  "Your driver is going to the pickup location.";
+
+                      case 4:
+                          return "🟣 DRIVER ARRIVED\n\n" +
+                                  "Your driver has arrived.";
+
+                      case 5:
+                          return "🚕 IN TRIP\n\n" +
+                                  "You are traveling to your destination.";
+
+                      case 6:
+                          return "✅ RIDE COMPLETED\n\n" +
+                                  "Thank you for riding with Sakay Na.";
+
+                      default:
+                          return "No active ride.";
+                  }
+              }
+
+              private String driverButtonText() {
+
+                  switch (rideStatus) {
+
+                      case 1:
+                          return "ACCEPT RIDE";
+
+                      case 2:
+                          return "START DRIVING TO PASSENGER";
+
+                      case 3:
+                          return "MARK AS ARRIVED";
+
+                      case 4:
+                          return "START TRIP";
+
+                      case 5:
+                          return "COMPLETE TRIP";
+
+                      case 6:
+                          return "RIDE COMPLETED";
+
+                      default:
+                          return "";
+                  }
+              }
+
+              private void advanceRide() {
+
+                  if (rideStatus == 1) {
+
+                      rideStatus = 2;
+
+                  } else if (rideStatus == 2) {
+
+                      rideStatus = 3;
+
+                  } else if (rideStatus == 3) {
+
+                      rideStatus = 4;
+
+                  } else if (rideStatus == 4) {
+
+                      rideStatus = 5;
+
+                  } else if (rideStatus == 5) {
+
+                      rideStatus = 6;
+
+                  }
+
+                  Toast.makeText(
+                          this,
+                          statusShortText(),
+                          Toast.LENGTH_SHORT).show();
+
+                  showDriver();
+              }
+
+              private String statusShortText() {
+
+                  switch (rideStatus) {
+
+                      case 2:
+                          return "Ride accepted!";
+
+                      case 3:
+                          return "Driver is on the way.";
+
+                      case 4:
+                          return "Driver has arrived.";
+
+                      case 5:
+                          return "Trip started.";
+
+                      case 6:
+                          return "Trip completed!";
+
+                      default:
+                          return "Status updated.";
+                  }
+              }
+
               private void showHome() {
 
                   LinearLayout screen = baseScreen();
+
                   screen.setGravity(Gravity.CENTER_HORIZONTAL);
 
-                  screen.addView(label("🛺", 55, Color.BLACK, false));
+                  screen.addView(
+                          label("🛺", 55, Color.BLACK, false));
 
                   screen.addView(
-                          label("Sakay Na", 36, GREEN, true));
+                          label(
+                                  "Sakay Na",
+                                  36,
+                                  GREEN,
+                                  true));
 
                   screen.addView(
                           label(
@@ -292,9 +416,14 @@ jobs:
                   Button admin =
                           menuButton("ADMIN", RED);
 
-                  passenger.setOnClickListener(v -> showPassenger());
-                  driver.setOnClickListener(v -> showDriver());
-                  admin.setOnClickListener(v -> showAdmin());
+                  passenger.setOnClickListener(
+                          v -> showPassenger());
+
+                  driver.setOnClickListener(
+                          v -> showDriver());
+
+                  admin.setOnClickListener(
+                          v -> showAdmin());
 
                   screen.addView(passenger);
                   screen.addView(driver);
@@ -354,7 +483,7 @@ jobs:
 
                   screen.addView(
                           label(
-                                  "🛺  Tricycle",
+                                  "🛺 Tricycle",
                                   18,
                                   GREEN,
                                   true));
@@ -430,8 +559,7 @@ jobs:
                   requestedFare = 50;
 
                   fareText.setText(
-                          "Estimated fare: ₱" +
-                          requestedFare);
+                          "Estimated fare: ₱50");
               }
 
               private void requestRide() {
@@ -463,101 +591,7 @@ jobs:
                   rideRequested = true;
                   rideStatus = 1;
 
-                  showRideRequested();
-              }
-
-              private String getStatusText() {
-
-                  switch (rideStatus) {
-
-                      case 1:
-                          return "🟡 DRIVER SEARCHING\n\n" +
-                                  "Looking for an available driver...";
-
-                      case 2:
-                          return "🟢 DRIVER ACCEPTED\n\n" +
-                                  "Your driver accepted the ride.";
-
-                      case 3:
-                          return "🔵 DRIVER ON THE WAY\n\n" +
-                                  "Your driver is traveling to the pickup location.";
-
-                      case 4:
-                          return "🟣 DRIVER ARRIVED\n\n" +
-                                  "Your driver has arrived at the pickup location.";
-
-                      case 5:
-                          return "🚕 IN TRIP\n\n" +
-                                  "You are now traveling to your destination.";
-
-                      case 6:
-                          return "✅ RIDE COMPLETED\n\n" +
-                                  "Thank you for riding with Sakay Na.";
-
-                      default:
-                          return "No active ride.";
-                  }
-              }
-
-              private void showRideRequested() {
-
-                  LinearLayout screen = baseScreen();
-
-                  screen.setGravity(Gravity.CENTER_HORIZONTAL);
-
-                  screen.addView(
-                          label(
-                                  "RIDE REQUESTED",
-                                  28,
-                                  GREEN,
-                                  true));
-
-                  screen.addView(
-                          label(
-                                  "🛺",
-                                  55,
-                                  Color.BLACK,
-                                  false));
-
-                  screen.addView(
-                          label(
-                                  getStatusText(),
-                                  19,
-                                  Color.DKGRAY,
-                                  false));
-
-                  screen.addView(
-                          label(
-                                  "Pickup:\n" +
-                                          requestedPickup +
-                                          "\n\nDestination:\n" +
-                                          requestedDestination +
-                                          "\n\nFare: ₱" +
-                                          requestedFare,
-                                  18,
-                                  Color.DKGRAY,
-                                  false));
-
-                  Button status =
-                          menuButton(
-                                  "CHECK RIDE STATUS",
-                                  BLUE);
-
-                  status.setOnClickListener(
-                          v -> showPassengerStatus());
-
-                  Button back =
-                          menuButton(
-                                  "BACK HOME",
-                                  GRAY);
-
-                  back.setOnClickListener(
-                          v -> showHome());
-
-                  screen.addView(status);
-                  screen.addView(back);
-
-                  showScreen(screen);
+                  showPassengerStatus();
               }
 
               private void showPassengerStatus() {
@@ -586,8 +620,8 @@ jobs:
 
                       screen.addView(
                               label(
-                                      getStatusText(),
-                                      20,
+                                      statusText(),
+                                      21,
                                       Color.DKGRAY,
                                       false));
 
@@ -603,6 +637,16 @@ jobs:
                                       Color.DKGRAY,
                                       false));
                   }
+
+                  Button refresh =
+                          menuButton(
+                                  "REFRESH RIDE STATUS",
+                                  BLUE);
+
+                  refresh.setOnClickListener(
+                          v -> showPassengerStatus());
+
+                  screen.addView(refresh);
 
                   Button back =
                           menuButton(
@@ -621,6 +665,8 @@ jobs:
 
                   LinearLayout screen = baseScreen();
 
+                  screen.setGravity(Gravity.CENTER_HORIZONTAL);
+
                   screen.addView(
                           label(
                                   "DRIVER",
@@ -632,8 +678,15 @@ jobs:
 
                       screen.addView(
                               label(
-                                      "No passenger ride requests yet.",
-                                      19,
+                                      "NO RIDE REQUESTS",
+                                      21,
+                                      Color.DKGRAY,
+                                      true));
+
+                      screen.addView(
+                              label(
+                                      "There is currently no passenger ride request.",
+                                      18,
                                       Color.DKGRAY,
                                       false));
 
@@ -641,10 +694,17 @@ jobs:
 
                       screen.addView(
                               label(
-                                      "PASSENGER RIDE REQUEST",
+                                      "CURRENT RIDE",
                                       22,
                                       BLUE,
                                       true));
+
+                      screen.addView(
+                              label(
+                                      statusText(),
+                                      21,
+                                      Color.DKGRAY,
+                                      false));
 
                       screen.addView(
                               label(
@@ -654,104 +714,43 @@ jobs:
                                               requestedDestination +
                                               "\n\nFare: ₱" +
                                               requestedFare,
-                                      19,
+                                      18,
                                       Color.DKGRAY,
                                       false));
 
-                      screen.addView(
-                              label(
-                                      getStatusText(),
-                                      19,
-                                      Color.DKGRAY,
-                                      false));
+                      if (rideStatus >= 1 &&
+                              rideStatus < 6) {
 
-                      if (rideStatus == 1) {
-
-                          Button accept =
+                          Button next =
                                   menuButton(
-                                          "ACCEPT RIDE",
+                                          driverButtonText(),
                                           GREEN);
 
-                          accept.setOnClickListener(
-                                  v -> {
+                          next.setOnClickListener(
+                                  v -> advanceRide());
 
-                                      rideStatus = 2;
+                          screen.addView(next);
 
-                                      Toast.makeText(
-                                              this,
-                                              "Ride accepted!",
-                                              Toast.LENGTH_SHORT).show();
+                      } else if (rideStatus == 6) {
 
-                                      showDriver();
-                                  });
-
-                          screen.addView(accept);
-
-                      } else if (rideStatus == 2) {
-
-                          Button onWay =
-                                  menuButton(
-                                          "START DRIVING TO PASSENGER",
-                                          BLUE);
-
-                          onWay.setOnClickListener(
-                                  v -> {
-
-                                      rideStatus = 3;
-                                      showDriver();
-                                  });
-
-                          screen.addView(onWay);
-
-                      } else if (rideStatus == 3) {
-
-                          Button arrived =
-                                  menuButton(
-                                          "MARK AS ARRIVED",
-                                          BLUE);
-
-                          arrived.setOnClickListener(
-                                  v -> {
-
-                                      rideStatus = 4;
-                                      showDriver();
-                                  });
-
-                          screen.addView(arrived);
-
-                      } else if (rideStatus == 4) {
-
-                          Button startTrip =
-                                  menuButton(
-                                          "START TRIP",
-                                          GREEN);
-
-                          startTrip.setOnClickListener(
-                                  v -> {
-
-                                      rideStatus = 5;
-                                      showDriver();
-                                  });
-
-                          screen.addView(startTrip);
-
-                      } else if (rideStatus == 5) {
-
-                          Button complete =
-                                  menuButton(
-                                          "COMPLETE TRIP",
-                                          GREEN);
-
-                          complete.setOnClickListener(
-                                  v -> {
-
-                                      rideStatus = 6;
-                                      showDriver();
-                                  });
-
-                          screen.addView(complete);
+                          screen.addView(
+                                  label(
+                                          "RIDE COMPLETED",
+                                          22,
+                                          GREEN,
+                                          true));
                       }
                   }
+
+                  Button refresh =
+                          menuButton(
+                                  "REFRESH DRIVER SCREEN",
+                                  BLUE);
+
+                  refresh.setOnClickListener(
+                          v -> showDriver());
+
+                  screen.addView(refresh);
 
                   Button back =
                           menuButton(
@@ -781,7 +780,7 @@ jobs:
 
                   screen.addView(
                           label(
-                                  "Sakay Na Administration",
+                                  "SAKAY NA ADMINISTRATION",
                                   21,
                                   Color.DKGRAY,
                                   true));
@@ -791,11 +790,21 @@ jobs:
                                   "SYSTEM STATUS: ONLINE\n\n" +
                                           "Ride request: " +
                                           (rideRequested ? "YES" : "NO") +
-                                          "\n\nCurrent ride status:\n" +
-                                          getStatusText(),
+                                          "\n\nCURRENT RIDE STATUS:\n\n" +
+                                          statusText(),
                                   19,
                                   Color.DKGRAY,
                                   false));
+
+                  Button refresh =
+                          menuButton(
+                                  "REFRESH ADMIN",
+                                  RED);
+
+                  refresh.setOnClickListener(
+                          v -> showAdmin());
+
+                  screen.addView(refresh);
 
                   Button back =
                           menuButton(
