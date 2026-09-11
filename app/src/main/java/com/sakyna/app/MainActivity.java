@@ -6,8 +6,8 @@ import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.os.Bundle;
+import android.text.InputType;
 import android.view.Gravity;
-import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -25,38 +25,96 @@ public class MainActivity extends Activity {
     }
 
     private LinearLayout baseLayout() {
-        LinearLayout layout = new LinearLayout(this);
-        layout.setOrientation(LinearLayout.VERTICAL);
-        layout.setPadding(30, 30, 30, 30);
-        layout.setGravity(Gravity.CENTER_HORIZONTAL);
+
+        LinearLayout layout =
+                new LinearLayout(this);
+
+        layout.setOrientation(
+                LinearLayout.VERTICAL
+        );
+
+        layout.setPadding(
+                30,
+                30,
+                30,
+                30
+        );
+
+        layout.setGravity(
+                Gravity.CENTER_HORIZONTAL
+        );
+
         return layout;
     }
 
     private TextView makeTitle(String text) {
-        TextView title = new TextView(this);
+
+        TextView title =
+                new TextView(this);
+
         title.setText(text);
         title.setTextSize(32);
-        title.setTypeface(null, Typeface.BOLD);
-        title.setTextColor(Color.rgb(0, 150, 80));
-        title.setGravity(Gravity.CENTER);
-        title.setPadding(10, 20, 10, 20);
+        title.setTypeface(
+                null,
+                Typeface.BOLD
+        );
+
+        title.setTextColor(
+                Color.rgb(0, 150, 80)
+        );
+
+        title.setGravity(
+                Gravity.CENTER
+        );
+
+        title.setPadding(
+                10,
+                20,
+                10,
+                20
+        );
+
         return title;
     }
 
-    private TextView makeText(String text, int size) {
-        TextView view = new TextView(this);
+    private TextView makeText(
+            String text,
+            int size
+    ) {
+
+        TextView view =
+                new TextView(this);
+
         view.setText(text);
         view.setTextSize(size);
         view.setTextColor(Color.DKGRAY);
-        view.setPadding(10, 15, 10, 15);
+
+        view.setPadding(
+                10,
+                15,
+                10,
+                15
+        );
+
         return view;
     }
 
-    private EditText makeInput(String hint) {
-        EditText input = new EditText(this);
+    private EditText makeInput(
+            String hint
+    ) {
+
+        EditText input =
+                new EditText(this);
+
         input.setHint(hint);
         input.setTextSize(17);
-        input.setPadding(20, 15, 20, 15);
+
+        input.setPadding(
+                20,
+                15,
+                20,
+                15
+        );
 
         LinearLayout.LayoutParams params =
                 new LinearLayout.LayoutParams(
@@ -64,14 +122,25 @@ public class MainActivity extends Activity {
                         LinearLayout.LayoutParams.WRAP_CONTENT
                 );
 
-        params.setMargins(0, 8, 0, 8);
+        params.setMargins(
+                0,
+                8,
+                0,
+                8
+        );
+
         input.setLayoutParams(params);
 
         return input;
     }
 
-    private Button makeButton(String text) {
-        Button button = new Button(this);
+    private Button makeButton(
+            String text
+    ) {
+
+        Button button =
+                new Button(this);
+
         button.setText(text);
         button.setTextSize(17);
         button.setAllCaps(false);
@@ -82,7 +151,13 @@ public class MainActivity extends Activity {
                         LinearLayout.LayoutParams.WRAP_CONTENT
                 );
 
-        params.setMargins(0, 8, 0, 8);
+        params.setMargins(
+                0,
+                8,
+                0,
+                8
+        );
+
         button.setLayoutParams(params);
 
         return button;
@@ -90,37 +165,67 @@ public class MainActivity extends Activity {
 
     private void showHome() {
 
-        LinearLayout layout = baseLayout();
+        LinearLayout layout =
+                baseLayout();
 
-        TextView title = makeTitle("SAKAY NA");
+        TextView title =
+                makeTitle("SAKAY NA");
+
         layout.addView(title);
 
         TextView subtitle =
-                makeText("Tricycle Ride Booking", 20);
-        subtitle.setGravity(Gravity.CENTER);
+                makeText(
+                        "Tricycle Ride Booking",
+                        20
+                );
+
+        subtitle.setGravity(
+                Gravity.CENTER
+        );
+
         layout.addView(subtitle);
 
         TextView welcome =
-                makeText("Your local ride, made easy.", 17);
-        welcome.setGravity(Gravity.CENTER);
+                makeText(
+                        "Your local ride, made easy.",
+                        17
+                );
+
+        welcome.setGravity(
+                Gravity.CENTER
+        );
+
         layout.addView(welcome);
 
-        Button login = makeButton("LOGIN");
-        login.setOnClickListener(v -> showLogin());
+        Button login =
+                makeButton("LOGIN");
+
+        login.setOnClickListener(
+                v -> showLogin()
+        );
+
         layout.addView(login);
 
-        Button register = makeButton("REGISTER");
-        register.setOnClickListener(v -> showRegisterRole());
+        Button register =
+                makeButton("REGISTER");
+
+        register.setOnClickListener(
+                v -> showRegisterRole()
+        );
+
         layout.addView(register);
 
-        Button about = makeButton("About Sakay Na");
-        about.setOnClickListener(v ->
-                Toast.makeText(
+        Button about =
+                makeButton("About Sakay Na");
+
+        about.setOnClickListener(
+                v -> Toast.makeText(
                         this,
                         "Sakay Na - Tricycle Ride Booking",
                         Toast.LENGTH_LONG
                 ).show()
         );
+
         layout.addView(about);
 
         setContentView(layout);
@@ -128,39 +233,69 @@ public class MainActivity extends Activity {
 
     private void showRegisterRole() {
 
-        LinearLayout layout = baseLayout();
+        LinearLayout layout =
+                baseLayout();
 
-        TextView title = makeTitle("REGISTER");
+        TextView title =
+                makeTitle("REGISTER");
+
         layout.addView(title);
 
         TextView text =
-                makeText("Choose your account type", 19);
-        text.setGravity(Gravity.CENTER);
+                makeText(
+                        "Choose your account type",
+                        19
+                );
+
+        text.setGravity(
+                Gravity.CENTER
+        );
+
         layout.addView(text);
 
-        Button passenger = makeButton("Passenger");
+        Button passenger =
+                makeButton("Passenger");
+
         passenger.setOnClickListener(v -> {
+
             selectedRole = "Passenger";
+
             showRegistration();
         });
+
         layout.addView(passenger);
 
-        Button driver = makeButton("Driver");
+        Button driver =
+                makeButton("Driver");
+
         driver.setOnClickListener(v -> {
+
             selectedRole = "Driver";
+
             showRegistration();
         });
+
         layout.addView(driver);
 
-        Button admin = makeButton("Admin");
+        Button admin =
+                makeButton("Admin");
+
         admin.setOnClickListener(v -> {
+
             selectedRole = "Admin";
+
             showRegistration();
         });
+
         layout.addView(admin);
 
-        Button back = makeButton("Back");
-        back.setOnClickListener(v -> showHome());
+        Button back =
+                makeButton("Back");
+
+        back.setOnClickListener(
+                v -> showHome()
+        );
+
         layout.addView(back);
 
         setContentView(layout);
@@ -168,92 +303,169 @@ public class MainActivity extends Activity {
 
     private void showRegistration() {
 
-        LinearLayout layout = baseLayout();
+        LinearLayout layout =
+                baseLayout();
 
-        TextView title = makeTitle("REGISTER");
+        TextView title =
+                makeTitle("REGISTER");
+
         layout.addView(title);
 
         TextView role =
-                makeText("Account type: " + selectedRole, 18);
-        role.setGravity(Gravity.CENTER);
+                makeText(
+                        "Account type: " +
+                        selectedRole,
+                        18
+                );
+
+        role.setGravity(
+                Gravity.CENTER
+        );
+
         layout.addView(role);
 
-        EditText name = makeInput("Full Name");
+        EditText name =
+                makeInput("Full Name");
+
         layout.addView(name);
 
-        EditText phone = makeInput("Phone Number");
+        EditText phone =
+                makeInput("Phone Number");
+
         phone.setInputType(
-                android.text.InputType.TYPE_CLASS_PHONE
+                InputType.TYPE_CLASS_PHONE
         );
+
         layout.addView(phone);
 
-        EditText password = makeInput("Password");
+        EditText password =
+                makeInput("Password");
+
         password.setInputType(
-                android.text.InputType.TYPE_CLASS_TEXT |
-                android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+                InputType.TYPE_CLASS_TEXT |
+                InputType.TYPE_TEXT_VARIATION_PASSWORD
         );
+
         layout.addView(password);
 
         EditText confirmPassword =
                 makeInput("Confirm Password");
 
         confirmPassword.setInputType(
-                android.text.InputType.TYPE_CLASS_TEXT |
-                android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+                InputType.TYPE_CLASS_TEXT |
+                InputType.TYPE_TEXT_VARIATION_PASSWORD
         );
 
         layout.addView(confirmPassword);
 
         Button continueButton =
-                makeButton("Continue to OTP");
+                makeButton(
+                        "Continue to OTP"
+                );
 
         continueButton.setOnClickListener(v -> {
 
             String fullName =
-                    name.getText().toString().trim();
+                    name.getText()
+                            .toString()
+                            .trim();
 
             String phoneNumber =
-                    phone.getText().toString().trim();
+                    phone.getText()
+                            .toString()
+                            .trim();
 
             String pass =
-                    password.getText().toString();
+                    password.getText()
+                            .toString();
 
             String confirm =
-                    confirmPassword.getText().toString();
+                    confirmPassword.getText()
+                            .toString();
 
             if (fullName.isEmpty()) {
+
                 Toast.makeText(
                         this,
                         "Please enter your full name",
                         Toast.LENGTH_SHORT
                 ).show();
+
                 return;
             }
 
             if (phoneNumber.isEmpty()) {
+
                 Toast.makeText(
                         this,
                         "Please enter your phone number",
                         Toast.LENGTH_SHORT
                 ).show();
+
+                return;
+            }
+
+            if (phoneNumber.length() < 7) {
+
+                Toast.makeText(
+                        this,
+                        "Please enter a valid phone number",
+                        Toast.LENGTH_SHORT
+                ).show();
+
+                return;
+            }
+
+            String existingAccount =
+                    getSharedPreferences(
+                            "SakayNa",
+                            MODE_PRIVATE
+                    ).getString(
+                            "phone_" + phoneNumber,
+                            null
+                    );
+
+            if (existingAccount != null) {
+
+                Toast.makeText(
+                        this,
+                        "This phone number is already registered.",
+                        Toast.LENGTH_LONG
+                ).show();
+
                 return;
             }
 
             if (pass.isEmpty()) {
+
                 Toast.makeText(
                         this,
                         "Please enter a password",
                         Toast.LENGTH_SHORT
                 ).show();
+
+                return;
+            }
+
+            if (pass.length() < 4) {
+
+                Toast.makeText(
+                        this,
+                        "Password must be at least 4 characters.",
+                        Toast.LENGTH_SHORT
+                ).show();
+
                 return;
             }
 
             if (!pass.equals(confirm)) {
+
                 Toast.makeText(
                         this,
                         "Passwords do not match",
                         Toast.LENGTH_SHORT
                 ).show();
+
                 return;
             }
 
@@ -264,10 +476,17 @@ public class MainActivity extends Activity {
             );
         });
 
-        layout.addView(continueButton);
+        layout.addView(
+                continueButton
+        );
 
-        Button back = makeButton("Back");
-        back.setOnClickListener(v -> showRegisterRole());
+        Button back =
+                makeButton("Back");
+
+        back.setOnClickListener(
+                v -> showRegisterRole()
+        );
+
         layout.addView(back);
 
         setContentView(layout);
@@ -279,47 +498,82 @@ public class MainActivity extends Activity {
             String password
     ) {
 
-        LinearLayout layout = baseLayout();
+        LinearLayout layout =
+                baseLayout();
 
-        TextView title = makeTitle("VERIFY PHONE");
+        TextView title =
+                makeTitle("VERIFY PHONE");
+
         layout.addView(title);
 
         TextView info =
                 makeText(
-                        "Demo OTP: 123456\n\nEnter the OTP sent to your phone.",
+                        "Demo OTP: 123456\n\n" +
+                        "Enter the OTP sent to your phone.",
                         18
                 );
 
-        info.setGravity(Gravity.CENTER);
+        info.setGravity(
+                Gravity.CENTER
+        );
+
         layout.addView(info);
 
-        EditText otp = makeInput("Enter OTP");
+        EditText otp =
+                makeInput("Enter OTP");
+
         otp.setInputType(
-                android.text.InputType.TYPE_CLASS_NUMBER
+                InputType.TYPE_CLASS_NUMBER
         );
+
         layout.addView(otp);
 
-        Button verify = makeButton("VERIFY & CREATE ACCOUNT");
+        Button verify =
+                makeButton(
+                        "VERIFY & CREATE ACCOUNT"
+                );
 
         verify.setOnClickListener(v -> {
 
             String enteredOtp =
-                    otp.getText().toString().trim();
+                    otp.getText()
+                            .toString()
+                            .trim();
 
-            if (!enteredOtp.equals("123456")) {
+            if (!enteredOtp.equals(
+                    "123456"
+            )) {
+
                 Toast.makeText(
                         this,
                         "Invalid OTP. Use 123456 for this demo.",
                         Toast.LENGTH_LONG
                 ).show();
+
                 return;
             }
 
-            getSharedPreferences("SakayNa", MODE_PRIVATE)
+            getSharedPreferences(
+                    "SakayNa",
+                    MODE_PRIVATE
+            )
                     .edit()
-                    .putString("phone_" + phone, password)
-                    .putString("name_" + phone, fullName)
-                    .putString("role_" + phone, selectedRole)
+                    .putString(
+                            "phone_" + phone,
+                            password
+                    )
+                    .putString(
+                            "name_" + phone,
+                            fullName
+                    )
+                    .putString(
+                            "role_" + phone,
+                            selectedRole
+                    )
+                    .putBoolean(
+                            "suspended_" + phone,
+                            false
+                    )
                     .apply();
 
             Toast.makeText(
@@ -333,8 +587,13 @@ public class MainActivity extends Activity {
 
         layout.addView(verify);
 
-        Button back = makeButton("Back");
-        back.setOnClickListener(v -> showRegistration());
+        Button back =
+                makeButton("Back");
+
+        back.setOnClickListener(
+                v -> showRegistration()
+        );
+
         layout.addView(back);
 
         setContentView(layout);
@@ -342,33 +601,46 @@ public class MainActivity extends Activity {
 
     private void showLogin() {
 
-        LinearLayout layout = baseLayout();
+        LinearLayout layout =
+                baseLayout();
 
-        TextView title = makeTitle("LOGIN");
+        TextView title =
+                makeTitle("LOGIN");
+
         layout.addView(title);
 
-        EditText phone = makeInput("Phone Number");
+        EditText phone =
+                makeInput("Phone Number");
+
         phone.setInputType(
-                android.text.InputType.TYPE_CLASS_PHONE
+                InputType.TYPE_CLASS_PHONE
         );
+
         layout.addView(phone);
 
-        EditText password = makeInput("Password");
+        EditText password =
+                makeInput("Password");
+
         password.setInputType(
-                android.text.InputType.TYPE_CLASS_TEXT |
-                android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+                InputType.TYPE_CLASS_TEXT |
+                InputType.TYPE_TEXT_VARIATION_PASSWORD
         );
+
         layout.addView(password);
 
-        Button login = makeButton("LOGIN");
+        Button login =
+                makeButton("LOGIN");
 
         login.setOnClickListener(v -> {
 
             String phoneNumber =
-                    phone.getText().toString().trim();
+                    phone.getText()
+                            .toString()
+                            .trim();
 
             String pass =
-                    password.getText().toString();
+                    password.getText()
+                            .toString();
 
             if (phoneNumber.isEmpty() ||
                     pass.isEmpty()) {
@@ -396,6 +668,26 @@ public class MainActivity extends Activity {
                 Toast.makeText(
                         this,
                         "Account not found. Please register first.",
+                        Toast.LENGTH_LONG
+                ).show();
+
+                return;
+            }
+
+            boolean suspended =
+                    getSharedPreferences(
+                            "SakayNa",
+                            MODE_PRIVATE
+                    ).getBoolean(
+                            "suspended_" + phoneNumber,
+                            false
+                    );
+
+            if (suspended) {
+
+                Toast.makeText(
+                        this,
+                        "This account has been suspended by an administrator.",
                         Toast.LENGTH_LONG
                 ).show();
 
@@ -436,10 +728,25 @@ public class MainActivity extends Activity {
                     MODE_PRIVATE
             )
                     .edit()
-                    .putString("current_phone", phoneNumber)
-                    .putString("current_name", name)
-                    .putString("current_role", role)
+                    .putString(
+                            "current_phone",
+                            phoneNumber
+                    )
+                    .putString(
+                            "current_name",
+                            name
+                    )
+                    .putString(
+                            "current_role",
+                            role
+                    )
                     .apply();
+
+            Toast.makeText(
+                    this,
+                    "Welcome, " + name + "!",
+                    Toast.LENGTH_SHORT
+            ).show();
 
             openRoleActivity(role);
         });
@@ -447,7 +754,9 @@ public class MainActivity extends Activity {
         layout.addView(login);
 
         Button register =
-                makeButton("Create New Account");
+                makeButton(
+                        "Create New Account"
+                );
 
         register.setOnClickListener(
                 v -> showRegisterRole()
@@ -455,16 +764,25 @@ public class MainActivity extends Activity {
 
         layout.addView(register);
 
-        Button back = makeButton("Back");
-        back.setOnClickListener(v -> showHome());
+        Button back =
+                makeButton("Back");
+
+        back.setOnClickListener(
+                v -> showHome()
+        );
+
         layout.addView(back);
 
         setContentView(layout);
     }
 
-    private void openRoleActivity(String role) {
+    private void openRoleActivity(
+            String role
+    ) {
 
-        if (role.equals("Passenger")) {
+        if (role.equals(
+                "Passenger"
+        )) {
 
             Intent intent =
                     new Intent(
@@ -475,7 +793,9 @@ public class MainActivity extends Activity {
             startActivity(intent);
             finish();
 
-        } else if (role.equals("Driver")) {
+        } else if (role.equals(
+                "Driver"
+        )) {
 
             Intent intent =
                     new Intent(
@@ -486,7 +806,9 @@ public class MainActivity extends Activity {
             startActivity(intent);
             finish();
 
-        } else if (role.equals("Admin")) {
+        } else if (role.equals(
+                "Admin"
+        )) {
 
             Intent intent =
                     new Intent(
@@ -511,6 +833,7 @@ public class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
+
         showHome();
     }
 }
