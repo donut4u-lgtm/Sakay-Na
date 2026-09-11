@@ -1,7 +1,9 @@
+
 package com.sakyna.app;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.os.Bundle;
@@ -11,105 +13,795 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.util.Map;
+
 public class AdminActivity extends Activity {
+
+    private SharedPreferences prefs;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        prefs = getSharedPreferences(
+                "SakayNa",
+                MODE_PRIVATE
+        );
+
         showAdminHome();
     }
 
     private TextView makeText(String text, int size) {
+
         TextView view = new TextView(this);
+
         view.setText(text);
         view.setTextSize(size);
         view.setTextColor(Color.DKGRAY);
         view.setPadding(20, 20, 20, 20);
+
         return view;
     }
 
     private Button makeButton(String text) {
+
         Button button = new Button(this);
+
         button.setText(text);
         button.setTextSize(17);
         button.setAllCaps(false);
+
         return button;
     }
 
     private void showAdminHome() {
 
         LinearLayout layout = new LinearLayout(this);
-        layout.setOrientation(LinearLayout.VERTICAL);
-        layout.setPadding(25, 25, 25, 25);
-        layout.setGravity(Gravity.CENTER_HORIZONTAL);
 
-        TextView title = makeText("SAKAY NA", 30);
-        title.setTypeface(null, Typeface.BOLD);
-        title.setTextColor(Color.rgb(130, 60, 180));
-        title.setGravity(Gravity.CENTER);
+        layout.setOrientation(
+                LinearLayout.VERTICAL
+        );
+
+        layout.setPadding(
+                25,
+                25,
+                25,
+                25
+        );
+
+        layout.setGravity(
+                Gravity.CENTER_HORIZONTAL
+        );
+
+        TextView title =
+                makeText("SAKAY NA", 30);
+
+        title.setTypeface(
+                null,
+                Typeface.BOLD
+        );
+
+        title.setTextColor(
+                Color.rgb(130, 60, 180)
+        );
+
+        title.setGravity(
+                Gravity.CENTER
+        );
+
         layout.addView(title);
 
-        TextView subtitle = makeText("Admin Dashboard", 20);
-        subtitle.setGravity(Gravity.CENTER);
+        TextView subtitle =
+                makeText(
+                        "Admin Dashboard",
+                        20
+                );
+
+        subtitle.setGravity(
+                Gravity.CENTER
+        );
+
         layout.addView(subtitle);
 
-        Button users = makeButton("Users");
-        users.setOnClickListener(v ->
-                Toast.makeText(
-                        this,
-                        "User management coming next",
-                        Toast.LENGTH_SHORT
-                ).show()
+        Button users =
+                makeButton("👥 All Users");
+
+        users.setOnClickListener(
+                v -> showUsers()
         );
+
         layout.addView(users);
 
-        Button drivers = makeButton("Drivers");
-        drivers.setOnClickListener(v ->
-                Toast.makeText(
-                        this,
-                        "Driver management coming next",
-                        Toast.LENGTH_SHORT
-                ).show()
+        Button drivers =
+                makeButton("🚗 Drivers");
+
+        drivers.setOnClickListener(
+                v -> showDrivers()
         );
+
         layout.addView(drivers);
 
-        Button rides = makeButton("All Rides");
-        rides.setOnClickListener(v ->
-                Toast.makeText(
-                        this,
-                        "Ride monitoring coming next",
-                        Toast.LENGTH_SHORT
-                ).show()
+        Button passengers =
+                makeButton("🧑‍🤝‍🧑 Passengers");
+
+        passengers.setOnClickListener(
+                v -> showPassengers()
         );
+
+        layout.addView(passengers);
+
+        Button rides =
+                makeButton("🚕 Current Ride");
+
+        rides.setOnClickListener(
+                v -> showCurrentRide()
+        );
+
         layout.addView(rides);
 
-        Button reports = makeButton("Reports");
-        reports.setOnClickListener(v ->
-                Toast.makeText(
-                        this,
-                        "Reports coming next",
-                        Toast.LENGTH_SHORT
-                ).show()
+        Button reset =
+                makeButton("🔄 Reset Ride");
+
+        reset.setOnClickListener(
+                v -> resetRide()
         );
+
+        layout.addView(reset);
+
+        Button reports =
+                makeButton("📊 Reports");
+
+        reports.setOnClickListener(
+                v -> showReports()
+        );
+
         layout.addView(reports);
 
-        Button logout = makeButton("Logout");
-        logout.setOnClickListener(v -> logout());
+        Button logout =
+                makeButton("Logout");
+
+        logout.setOnClickListener(
+                v -> logout()
+        );
+
         layout.addView(logout);
 
         setContentView(layout);
     }
 
+    private void showUsers() {
+
+        LinearLayout layout =
+                createPage("ALL USERS");
+
+        Map<String, ?> all =
+                prefs.getAll();
+
+        int count = 0;
+
+        for (Map.Entry<String, ?> entry :
+                all.entrySet()) {
+
+            String key =
+                    entry.getKey();
+
+            if (key.startsWith("phone_")) {
+
+                String phone =
+                        key.substring(6);
+
+                String name =
+                        prefs.getString(
+                                "name_" + phone,
+                                "Unknown"
+                        );
+
+                String role =
+                        prefs.getString(
+                                "role_" + phone,
+                                "Unknown"
+                        );
+
+                TextView user =
+                        makeText(
+                                "Name: " +
+                                name +
+                                "\nPhone: " +
+                                phone +
+                                "\nRole: " +
+                                role,
+                                18
+                        );
+
+                user.setPadding(
+                        20,
+                        25,
+                        20,
+                        25
+                );
+
+                layout.addView(user);
+
+                count++;
+            }
+        }
+
+        if (count == 0) {
+
+            TextView none =
+                    makeText(
+                            "No registered users yet.",
+                            19
+                    );
+
+            none.setGravity(
+                    Gravity.CENTER
+            );
+
+            layout.addView(none);
+        }
+
+        addBackButton(layout);
+
+        setContentView(layout);
+    }
+
+    private void showDrivers() {
+
+        LinearLayout layout =
+                createPage("DRIVERS");
+
+        Map<String, ?> all =
+                prefs.getAll();
+
+        int count = 0;
+
+        for (Map.Entry<String, ?> entry :
+                all.entrySet()) {
+
+            String key =
+                    entry.getKey();
+
+            if (key.startsWith("role_")) {
+
+                String phone =
+                        key.substring(5);
+
+                String role =
+                        prefs.getString(
+                                key,
+                                ""
+                        );
+
+                if (role.equals("Driver")) {
+
+                    String name =
+                            prefs.getString(
+                                    "name_" + phone,
+                                    "Unknown"
+                            );
+
+                    TextView driver =
+                            makeText(
+                                    "Driver\n\n" +
+                                    "Name: " +
+                                    name +
+                                    "\nPhone: " +
+                                    phone,
+                                    18
+                            );
+
+                    layout.addView(driver);
+
+                    count++;
+                }
+            }
+        }
+
+        if (count == 0) {
+
+            TextView none =
+                    makeText(
+                            "No registered drivers yet.",
+                            19
+                    );
+
+            none.setGravity(
+                    Gravity.CENTER
+            );
+
+            layout.addView(none);
+        }
+
+        addBackButton(layout);
+
+        setContentView(layout);
+    }
+
+    private void showPassengers() {
+
+        LinearLayout layout =
+                createPage("PASSENGERS");
+
+        Map<String, ?> all =
+                prefs.getAll();
+
+        int count = 0;
+
+        for (Map.Entry<String, ?> entry :
+                all.entrySet()) {
+
+            String key =
+                    entry.getKey();
+
+            if (key.startsWith("role_")) {
+
+                String phone =
+                        key.substring(5);
+
+                String role =
+                        prefs.getString(
+                                key,
+                                ""
+                        );
+
+                if (role.equals("Passenger")) {
+
+                    String name =
+                            prefs.getString(
+                                    "name_" + phone,
+                                    "Unknown"
+                            );
+
+                    TextView passenger =
+                            makeText(
+                                    "Passenger\n\n" +
+                                    "Name: " +
+                                    name +
+                                    "\nPhone: " +
+                                    phone,
+                                    18
+                            );
+
+                    layout.addView(
+                            passenger
+                    );
+
+                    count++;
+                }
+            }
+        }
+
+        if (count == 0) {
+
+            TextView none =
+                    makeText(
+                            "No registered passengers yet.",
+                            19
+                    );
+
+            none.setGravity(
+                    Gravity.CENTER
+            );
+
+            layout.addView(none);
+        }
+
+        addBackButton(layout);
+
+        setContentView(layout);
+    }
+
+    private void showCurrentRide() {
+
+        LinearLayout layout =
+                createPage("CURRENT RIDE");
+
+        String pickup =
+                prefs.getString(
+                        "ride_pickup",
+                        ""
+                );
+
+        String destination =
+                prefs.getString(
+                        "ride_destination",
+                        ""
+                );
+
+        String status =
+                prefs.getString(
+                        "ride_status",
+                        ""
+                );
+
+        String driver =
+                prefs.getString(
+                        "ride_driver",
+                        ""
+                );
+
+        int fare =
+                prefs.getInt(
+                        "ride_fare",
+                        0
+                );
+
+        if (pickup.isEmpty() ||
+                destination.isEmpty() ||
+                status.isEmpty()) {
+
+            TextView none =
+                    makeText(
+                            "No current ride.",
+                            20
+                    );
+
+            none.setGravity(
+                    Gravity.CENTER
+            );
+
+            layout.addView(none);
+
+        } else {
+
+            TextView ride =
+                    makeText(
+                            "RIDE INFORMATION\n\n" +
+                            "Pickup:\n" +
+                            pickup +
+                            "\n\n" +
+                            "Destination:\n" +
+                            destination +
+                            "\n\n" +
+                            "Fare: ₱" +
+                            fare +
+                            "\n\n" +
+                            "Status:\n" +
+                            getReadableStatus(status) +
+                            "\n\n" +
+                            "Driver:\n" +
+                            (driver.isEmpty()
+                                    ? "Not assigned"
+                                    : driver),
+                            19
+                    );
+
+            ride.setTypeface(
+                    null,
+                    Typeface.BOLD
+            );
+
+            layout.addView(ride);
+
+            TextView statusView =
+                    makeText(
+                            "STATUS: " +
+                            getReadableStatus(status),
+                            21
+                    );
+
+            statusView.setGravity(
+                    Gravity.CENTER
+            );
+
+            statusView.setTypeface(
+                    null,
+                    Typeface.BOLD
+            );
+
+            statusView.setTextColor(
+                    getStatusColor(status)
+            );
+
+            layout.addView(
+                    statusView
+            );
+        }
+
+        addBackButton(layout);
+
+        setContentView(layout);
+    }
+
+    private String getReadableStatus(
+            String status
+    ) {
+
+        if (status.equals(
+                "REQUESTED"
+        )) {
+            return "REQUESTED";
+        }
+
+        if (status.equals(
+                "ACCEPTED"
+        )) {
+            return "ACCEPTED";
+        }
+
+        if (status.equals(
+                "DRIVER_ON_THE_WAY"
+        )) {
+            return "DRIVER ON THE WAY";
+        }
+
+        if (status.equals(
+                "DRIVER_ARRIVED"
+        )) {
+            return "DRIVER ARRIVED";
+        }
+
+        if (status.equals(
+                "IN_PROGRESS"
+        )) {
+            return "TRIP IN PROGRESS";
+        }
+
+        if (status.equals(
+                "COMPLETED"
+        )) {
+            return "COMPLETED";
+        }
+
+        if (status.equals(
+                "CANCELLED"
+        )) {
+            return "CANCELLED";
+        }
+
+        if (status.equals(
+                "DECLINED"
+        )) {
+            return "DECLINED";
+        }
+
+        return status;
+    }
+
+    private int getStatusColor(
+            String status
+    ) {
+
+        if (status.equals(
+                "COMPLETED"
+        )) {
+            return Color.rgb(
+                    0,
+                    150,
+                    80
+            );
+        }
+
+        if (status.equals(
+                "CANCELLED"
+        ) ||
+                status.equals(
+                        "DECLINED"
+                )) {
+
+            return Color.rgb(
+                    200,
+                    40,
+                    40
+            );
+        }
+
+        return Color.rgb(
+                30,
+                100,
+                200
+        );
+    }
+
+    private void resetRide() {
+
+        prefs.edit()
+                .remove("ride_pickup")
+                .remove("ride_destination")
+                .remove("ride_fare")
+                .remove("ride_status")
+                .remove("ride_driver")
+                .remove("ride_rating")
+                .apply();
+
+        Toast.makeText(
+                this,
+                "Current ride has been reset.",
+                Toast.LENGTH_LONG
+        ).show();
+
+        showAdminHome();
+    }
+
+    private void showReports() {
+
+        LinearLayout layout =
+                createPage("REPORTS");
+
+        Map<String, ?> all =
+                prefs.getAll();
+
+        int totalUsers = 0;
+        int drivers = 0;
+        int passengers = 0;
+
+        for (Map.Entry<String, ?> entry :
+                all.entrySet()) {
+
+            String key =
+                    entry.getKey();
+
+            if (key.startsWith(
+                    "phone_"
+            )) {
+
+                totalUsers++;
+            }
+
+            if (key.startsWith(
+                    "role_"
+            )) {
+
+                String role =
+                        prefs.getString(
+                                key,
+                                ""
+                        );
+
+                if (role.equals(
+                        "Driver"
+                )) {
+
+                    drivers++;
+
+                } else if (role.equals(
+                        "Passenger"
+                )) {
+
+                    passengers++;
+                }
+            }
+        }
+
+        String status =
+                prefs.getString(
+                        "ride_status",
+                        ""
+                );
+
+        int fare =
+                prefs.getInt(
+                        "ride_fare",
+                        0
+                );
+
+        int completed = 0;
+        int cancelled = 0;
+
+        if (status.equals(
+                "COMPLETED"
+        )) {
+
+            completed = 1;
+        }
+
+        if (status.equals(
+                "CANCELLED"
+        )) {
+
+            cancelled = 1;
+        }
+
+        TextView report =
+                makeText(
+                        "SAKAY NA REPORT\n\n" +
+                        "Total Users: " +
+                        totalUsers +
+                        "\n\n" +
+                        "Drivers: " +
+                        drivers +
+                        "\n\n" +
+                        "Passengers: " +
+                        passengers +
+                        "\n\n" +
+                        "Completed Rides: " +
+                        completed +
+                        "\n\n" +
+                        "Cancelled Rides: " +
+                        cancelled +
+                        "\n\n" +
+                        "Current Ride Fare: ₱" +
+                        fare,
+                        20
+                );
+
+        report.setGravity(
+                Gravity.CENTER
+        );
+
+        layout.addView(report);
+
+        addBackButton(layout);
+
+        setContentView(layout);
+    }
+
+    private LinearLayout createPage(
+            String titleText
+    ) {
+
+        LinearLayout layout =
+                new LinearLayout(this);
+
+        layout.setOrientation(
+                LinearLayout.VERTICAL
+        );
+
+        layout.setPadding(
+                25,
+                25,
+                25,
+                25
+        );
+
+        TextView title =
+                makeText(
+                        titleText,
+                        27
+                );
+
+        title.setTypeface(
+                null,
+                Typeface.BOLD
+        );
+
+        title.setTextColor(
+                Color.rgb(
+                        130,
+                        60,
+                        180
+                )
+        );
+
+        title.setGravity(
+                Gravity.CENTER
+        );
+
+        layout.addView(title);
+
+        return layout;
+    }
+
+    private void addBackButton(
+            LinearLayout layout
+    ) {
+
+        Button back =
+                makeButton(
+                        "Back to Dashboard"
+                );
+
+        back.setOnClickListener(
+                v -> showAdminHome()
+        );
+
+        layout.addView(back);
+    }
+
     private void logout() {
 
-        getSharedPreferences("SakayNa", MODE_PRIVATE)
-                .edit()
+        prefs.edit()
                 .remove("current_phone")
                 .remove("current_name")
                 .remove("current_role")
                 .apply();
 
-        Intent intent = new Intent(this, MainActivity.class);
+        Intent intent =
+                new Intent(
+                        this,
+                        MainActivity.class
+                );
 
         intent.setFlags(
                 Intent.FLAG_ACTIVITY_CLEAR_TOP |
@@ -117,6 +809,7 @@ public class AdminActivity extends Activity {
         );
 
         startActivity(intent);
+
         finish();
     }
 }
