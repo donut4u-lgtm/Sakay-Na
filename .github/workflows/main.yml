@@ -16,13 +16,15 @@ jobs:
         with:
           ref: main
 
-      - name: Check files
+      - name: Check project
         run: |
+          echo "===== CURRENT DIRECTORY ====="
           pwd
+          echo "===== ROOT FILES ====="
           ls -la
-          echo "SETTINGS:"
+          echo "===== SETTINGS FILE ====="
           ls -l settings.gradle.kts
-          echo "APP:"
+          echo "===== APP ====="
           ls -la app
 
       - name: Setup Java
@@ -31,10 +33,15 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Build
+      - name: Install Gradle
         run: |
-          chmod +x gradlew
-          ./gradlew :app:assembleDebug --stacktrace
+          wget -q https://services.gradle.org/distributions/gradle-8.10.2-bin.zip
+          unzip -q gradle-8.10.2-bin.zip -d "$RUNNER_TEMP/gradle"
+          echo "$RUNNER_TEMP/gradle/gradle-8.10.2/bin" >> "$GITHUB_PATH"
+
+      - name: Build APK
+        run: |
+          gradle :app:assembleDebug --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
