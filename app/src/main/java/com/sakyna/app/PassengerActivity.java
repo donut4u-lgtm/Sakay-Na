@@ -1,9 +1,14 @@
 
 package com.sakyna.app;
 
+import android.Manifest;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.location.Location;
+import android.location.LocationListener;
+import android.location.LocationManager;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.widget.Button;
@@ -13,9 +18,12 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.DocumentSnapshot;
+import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
 
@@ -28,9 +36,21 @@ public class PassengerActivity extends AppCompatActivity {
     private FirebaseAuth auth;
 
     private LinearLayout root;
+
     private ListenerRegistration rideListener;
+    private ListenerRegistration driverLocationListener;
+
+    private LocationManager locationManager;
+
+    private double passengerLatitude = 0.0;
+    private double passengerLongitude = 0.0;
+
+    private double driverLatitude = 0.0;
+    private double driverLongitude = 0.0;
 
     private String rideId = "";
+
+    private final int LOCATION_PERMISSION_REQUEST = 2001;
 
     private final int GREEN = Color.rgb(25, 135, 84);
     private final int ORANGE = Color.rgb(245, 145, 30);
@@ -45,8 +65,11 @@ public class PassengerActivity extends AppCompatActivity {
 
         db = FirebaseFirestore.getInstance();
         auth = FirebaseAuth.getInstance();
+        locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
 
         loadSavedRide();
+        startPassengerLocation();
+
         showDashboard();
     }
 
@@ -161,11 +184,17 @@ public class PassengerActivity extends AppCompatActivity {
 
         root.addView(welcome);
 
+        Button gps = button("📍  MY GPS LOCATION", GREEN);
+        gps.setOnClickListener(v -> showPassengerLocation());
+
         Button book = button("🟠  BOOK A RIDE", ORANGE);
         book.setOnClickListener(v -> showBooking());
 
         Button current = button("🚕  CURRENT RIDE", GREEN);
         current.setOnClickListener(v -> showCurrentRide());
+
+        Button driverLocation = button("📍  DRIVER LOCATION", BLUE);
+        driverLocation.setOnClickListener(v -> showDriverLocation());
 
         Button history = button("📋  RIDE HISTORY", BLUE);
         history.setOnClickListener(v -> showHistory());
@@ -184,7 +213,11 @@ public class PassengerActivity extends AppCompatActivity {
         setupScreen("Book a Ride");
 
         TextView info =
-                text("Enter your pickup and destination.", 17);
+                text(
+                        "GPS will record your pickup location.\n"
+                                + "Enter your pickup and destination.",
+                        17
+                );
 
         info.setPadding(0, 0, 0, 18);
         root.addView(info);
@@ -192,6 +225,14 @@ public class PassengerActivity extends AppCompatActivity {
         EditText pickup = input("Pickup location");
 
         EditText destination = input("Destination");
+
+        TextView gpsStatus =
+                text("📍 Getting your GPS location...", 16);
+
+        gpsStatus.setTextColor(GREEN);
+        root.addView(gpsStatus);
+
+        updatePassengerGpsStatus(gpsStatus);
 
         TextView fareText =
                 text("Fare: Not calculated", 20);
@@ -236,6 +277,14 @@ public class PassengerActivity extends AppCompatActivity {
 
             if (p.isEmpty() || d.isEmpty()) {
                 toast("Enter pickup and destination.");
+                return;
+            }
+
+            if (passengerLatitude == 0.0
+                    && passengerLongitude == 0.0) {
+
+                toast("Waiting for GPS location. Please try again.");
+                startPassengerLocation();
                 return;
             }
 
@@ -317,6 +366,9 @@ public class PassengerActivity extends AppCompatActivity {
         ride.put("pickup", pickup);
         ride.put("destination", destination);
 
+        ride.put("pickupLatitude", passengerLatitude);
+        ride.put("pickupLongitude", passengerLongitude);
+
         ride.put("fare", fare);
         ride.put("finalFare", 0);
 
@@ -327,10 +379,7 @@ public class PassengerActivity extends AppCompatActivity {
 
         ride.put("rating", 0);
 
-        ride.put(
-                "createdAt",
-                com.google.firebase.firestore.FieldValue.serverTimestamp()
-        );
+        ride.put("createdAt", FieldValue.serverTimestamp());
 
         db.collection("rides")
                 .add(ride)
@@ -400,6 +449,13 @@ public class PassengerActivity extends AppCompatActivity {
 
         listenToRide(status);
 
+        Button driverLocation =
+                button("📍  VIEW DRIVER LOCATION", BLUE);
+
+        driverLocation.setOnClickListener(v ->
+                showDriverLocation()
+        );
+
         Button refresh =
                 button("REFRESH STATUS", BLUE);
 
@@ -420,6 +476,7 @@ public class PassengerActivity extends AppCompatActivity {
         back.setOnClickListener(v -> {
 
             removeRideListener();
+            removeDriverLocationListener();
             showDashboard();
         });
 
@@ -486,6 +543,8 @@ public class PassengerActivity extends AppCompatActivity {
                                             snapshot,
                                             statusView
                                     );
+
+                                    startDriverLocationListener(snapshot);
                                 }
                         );
     }
@@ -557,6 +616,387 @@ public class PassengerActivity extends AppCompatActivity {
 
         statusView.setTextSize(17);
         statusView.setTextColor(DARK);
+    }
+
+    private void startDriverLocationListener(
+            DocumentSnapshot rideDocument) {
+
+        String driverId =
+                rideDocument.getString("driverId");
+
+        String status =
+                rideDocument.getString("status");
+
+        if (driverId == null
+                || driverId.isEmpty()
+                || status == null) {
+
+            removeDriverLocationListener();
+            return;
+        }
+
+        if (status.equals("REQUESTED")
+                || status.equals("CANCELLED")
+                || status.equals("DECLINED")
+                || status.equals("COMPLETED")) {
+
+            removeDriverLocationListener();
+            return;
+        }
+
+        final String currentDriverId = driverId;
+
+        removeDriverLocationListener();
+
+        driverLocationListener =
+                db.collection("driverLocations")
+                        .document(currentDriverId)
+                        .addSnapshotListener(
+                                (snapshot, error) -> {
+
+                                    if (error != null) {
+                                        return;
+                                    }
+
+                                    if (snapshot == null
+                                            || !snapshot.exists()) {
+                                        return;
+                                    }
+
+                                    Double lat =
+                                            snapshot.getDouble("latitude");
+
+                                    Double lng =
+                                            snapshot.getDouble("longitude");
+
+                                    Boolean online =
+                                            snapshot.getBoolean("online");
+
+                                    if (lat != null && lng != null) {
+
+                                        driverLatitude = lat;
+                                        driverLongitude = lng;
+
+                                        saveDriverLocationLocally(
+                                                lat,
+                                                lng
+                                        );
+                                    }
+
+                                    if (online != null && !online) {
+                                        return;
+                                    }
+                                }
+                        );
+    }
+
+    private void showDriverLocation() {
+
+        setupScreen("Driver Location");
+
+        TextView locationText =
+                text(
+                        "Waiting for driver location...",
+                        18
+                );
+
+        root.addView(locationText);
+
+        if (rideId.isEmpty()) {
+
+            locationText.setText(
+                    "No active ride.\n\n"
+                            + "Book a ride first."
+            );
+
+        } else {
+
+            loadDriverLocationForScreen(locationText);
+        }
+
+        Button refresh =
+                button("REFRESH LOCATION", BLUE);
+
+        refresh.setOnClickListener(v ->
+                loadDriverLocationForScreen(locationText)
+        );
+
+        Button back =
+                button("BACK", GRAY);
+
+        back.setOnClickListener(v -> {
+            removeDriverLocationListener();
+            showDashboard();
+        });
+    }
+
+    private void loadDriverLocationForScreen(
+            TextView locationText) {
+
+        if (rideId.isEmpty()) {
+
+            locationText.setText(
+                    "No active ride."
+            );
+
+            return;
+        }
+
+        db.collection("rides")
+                .document(rideId)
+                .get()
+                .addOnSuccessListener(ride -> {
+
+                    if (!ride.exists()) {
+
+                        locationText.setText(
+                                "Ride not found."
+                        );
+
+                        return;
+                    }
+
+                    String driverId =
+                            ride.getString("driverId");
+
+                    if (driverId == null
+                            || driverId.isEmpty()) {
+
+                        locationText.setText(
+                                "No driver has accepted the ride yet.\n\n"
+                                        + "Driver GPS will appear here after "
+                                        + "a driver accepts your ride."
+                        );
+
+                        return;
+                    }
+
+                    db.collection("driverLocations")
+                            .document(driverId)
+                            .get()
+                            .addOnSuccessListener(location -> {
+
+                                if (!location.exists()) {
+
+                                    locationText.setText(
+                                            "Driver location is not available yet."
+                                    );
+
+                                    return;
+                                }
+
+                                Double lat =
+                                        location.getDouble("latitude");
+
+                                Double lng =
+                                        location.getDouble("longitude");
+
+                                Boolean online =
+                                        location.getBoolean("online");
+
+                                if (lat == null || lng == null) {
+
+                                    locationText.setText(
+                                            "Driver GPS coordinates are not available yet."
+                                    );
+
+                                    return;
+                                }
+
+                                driverLatitude = lat;
+                                driverLongitude = lng;
+
+                                String onlineText =
+                                        Boolean.TRUE.equals(online)
+                                                ? "ONLINE"
+                                                : "OFFLINE";
+
+                                locationText.setText(
+                                        "🚕 DRIVER GPS\n\n"
+                                                + "Status: "
+                                                + onlineText
+                                                + "\n\n"
+                                                + "Latitude:\n"
+                                                + lat
+                                                + "\n\n"
+                                                + "Longitude:\n"
+                                                + lng
+                                                + "\n\n"
+                                                + "Location updates are received "
+                                                + "from the driver's phone."
+                                );
+
+                                locationText.setTextSize(17);
+                            });
+                })
+                .addOnFailureListener(e ->
+                        locationText.setText(
+                                "Could not load driver location."
+                        )
+                );
+    }
+
+    private void showPassengerLocation() {
+
+        setupScreen("My GPS Location");
+
+        TextView gps =
+                text(
+                        "Getting your real GPS location...",
+                        18
+                );
+
+        root.addView(gps);
+
+        updatePassengerGpsStatus(gps);
+
+        Button refresh =
+                button("REFRESH GPS", GREEN);
+
+        refresh.setOnClickListener(v -> {
+
+            startPassengerLocation();
+            updatePassengerGpsStatus(gps);
+        });
+
+        Button back =
+                button("BACK", GRAY);
+
+        back.setOnClickListener(v ->
+                showDashboard()
+        );
+    }
+
+    private void updatePassengerGpsStatus(
+            TextView view) {
+
+        if (passengerLatitude == 0.0
+                && passengerLongitude == 0.0) {
+
+            view.setText(
+                    "📍 Waiting for GPS...\n\n"
+                            + "Make sure Location is ON."
+            );
+
+            return;
+        }
+
+        view.setText(
+                "📍 GPS ACTIVE\n\n"
+                        + "Latitude:\n"
+                        + passengerLatitude
+                        + "\n\n"
+                        + "Longitude:\n"
+                        + passengerLongitude
+        );
+    }
+
+    private void startPassengerLocation() {
+
+        if (ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_FINE_LOCATION
+        ) != PackageManager.PERMISSION_GRANTED
+                && ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_COARSE_LOCATION
+        ) != PackageManager.PERMISSION_GRANTED) {
+
+            ActivityCompat.requestPermissions(
+                    this,
+                    new String[]{
+                            Manifest.permission.ACCESS_FINE_LOCATION,
+                            Manifest.permission.ACCESS_COARSE_LOCATION
+                    },
+                    LOCATION_PERMISSION_REQUEST
+            );
+
+            return;
+        }
+
+        try {
+
+            locationManager.requestLocationUpdates(
+                    LocationManager.GPS_PROVIDER,
+                    3000,
+                    5,
+                    passengerLocationListener
+            );
+
+            locationManager.requestLocationUpdates(
+                    LocationManager.NETWORK_PROVIDER,
+                    5000,
+                    10,
+                    passengerLocationListener
+            );
+
+            Location lastGps =
+                    locationManager.getLastKnownLocation(
+                            LocationManager.GPS_PROVIDER
+                    );
+
+            if (lastGps != null) {
+                updatePassengerCoordinates(lastGps);
+            }
+
+            Location lastNetwork =
+                    locationManager.getLastKnownLocation(
+                            LocationManager.NETWORK_PROVIDER
+                    );
+
+            if (lastNetwork != null) {
+                updatePassengerCoordinates(lastNetwork);
+            }
+
+        } catch (SecurityException e) {
+
+            toast("Location permission is required.");
+        }
+    }
+
+    private final LocationListener passengerLocationListener =
+            new LocationListener() {
+
+                @Override
+                public void onLocationChanged(
+                        Location location) {
+
+                    updatePassengerCoordinates(location);
+                }
+            };
+
+    private void updatePassengerCoordinates(
+            Location location) {
+
+        if (location == null) {
+            return;
+        }
+
+        passengerLatitude =
+                location.getLatitude();
+
+        passengerLongitude =
+                location.getLongitude();
+    }
+
+    private void saveDriverLocationLocally(
+            double latitude,
+            double longitude) {
+
+        getSharedPreferences(
+                "SakayNa",
+                MODE_PRIVATE
+        )
+                .edit()
+                .putString(
+                        "driver_latitude",
+                        String.valueOf(latitude)
+                )
+                .putString(
+                        "driver_longitude",
+                        String.valueOf(longitude)
+                )
+                .apply();
     }
 
     private String readableStatus(String status) {
@@ -802,9 +1242,20 @@ public class PassengerActivity extends AppCompatActivity {
         }
     }
 
+    private void removeDriverLocationListener() {
+
+        if (driverLocationListener != null) {
+            driverLocationListener.remove();
+            driverLocationListener = null;
+        }
+    }
+
     private void logout() {
 
         removeRideListener();
+        removeDriverLocationListener();
+
+        stopPassengerLocation();
 
         auth.signOut();
 
@@ -817,6 +1268,8 @@ public class PassengerActivity extends AppCompatActivity {
                 .remove("current_name")
                 .remove("current_role")
                 .remove("ride_id")
+                .remove("driver_latitude")
+                .remove("driver_longitude")
                 .apply();
 
         Intent intent =
@@ -835,6 +1288,21 @@ public class PassengerActivity extends AppCompatActivity {
         finish();
     }
 
+    private void stopPassengerLocation() {
+
+        if (locationManager != null) {
+
+            try {
+
+                locationManager.removeUpdates(
+                        passengerLocationListener
+                );
+
+            } catch (SecurityException ignored) {
+            }
+        }
+    }
+
     private void toast(String message) {
 
         Toast.makeText(
@@ -845,9 +1313,42 @@ public class PassengerActivity extends AppCompatActivity {
     }
 
     @Override
+    protected void onRequestPermissionsResult(
+            int requestCode,
+            String[] permissions,
+            int[] grantResults) {
+
+        super.onRequestPermissionsResult(
+                requestCode,
+                permissions,
+                grantResults
+        );
+
+        if (requestCode == LOCATION_PERMISSION_REQUEST) {
+
+            if (grantResults.length > 0
+                    && grantResults[0]
+                    == PackageManager.PERMISSION_GRANTED) {
+
+                startPassengerLocation();
+
+                toast("GPS permission granted.");
+
+            } else {
+
+                toast(
+                        "GPS permission is required for ride location."
+                );
+            }
+        }
+    }
+
+    @Override
     protected void onDestroy() {
 
         removeRideListener();
+        removeDriverLocationListener();
+        stopPassengerLocation();
 
         super.onDestroy();
     }
@@ -856,6 +1357,8 @@ public class PassengerActivity extends AppCompatActivity {
     public void onBackPressed() {
 
         removeRideListener();
+        removeDriverLocationListener();
+
         showDashboard();
     }
 }
