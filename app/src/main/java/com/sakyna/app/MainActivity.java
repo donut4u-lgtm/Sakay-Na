@@ -2,9 +2,12 @@
 package com.sakyna.app;
 
 import android.content.Intent;
+import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.text.InputType;
 import android.view.Gravity;
+import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -39,6 +42,12 @@ public class MainActivity extends AppCompatActivity {
 
     private LinearLayout root;
 
+    private final int GREEN = Color.rgb(25, 135, 84);
+    private final int DARK_GREEN = Color.rgb(16, 100, 62);
+    private final int ORANGE = Color.rgb(245, 145, 30);
+    private final int BLUE = Color.rgb(35, 105, 190);
+    private final int PURPLE = Color.rgb(125, 70, 170);
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -52,33 +61,52 @@ public class MainActivity extends AppCompatActivity {
     private void setupScreen(String title) {
         root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(32, 40, 32, 32);
         root.setGravity(Gravity.CENTER_HORIZONTAL);
+        root.setPadding(32, 40, 32, 32);
+        root.setBackgroundColor(Color.rgb(248, 250, 249));
 
         TextView titleView = new TextView(this);
         titleView.setText(title);
         titleView.setTextSize(28);
+        titleView.setTextColor(DARK_GREEN);
+        titleView.setTypeface(null, android.graphics.Typeface.BOLD);
         titleView.setGravity(Gravity.CENTER);
-        titleView.setPadding(0, 0, 0, 30);
+        titleView.setPadding(0, 0, 0, 25);
 
         root.addView(titleView);
 
         setContentView(root);
     }
 
-    private Button button(String text) {
+    private TextView text(String value, float size) {
+        TextView view = new TextView(this);
+        view.setText(value);
+        view.setTextSize(size);
+        view.setTextColor(Color.DKGRAY);
+        view.setGravity(Gravity.CENTER);
+        return view;
+    }
+
+    private Button button(String text, int color) {
         Button button = new Button(this);
         button.setText(text);
-        button.setTextSize(17);
+        button.setTextSize(18);
+        button.setTextColor(Color.WHITE);
         button.setAllCaps(false);
+        button.setGravity(Gravity.CENTER);
+
+        GradientDrawable background = new GradientDrawable();
+        background.setColor(color);
+        background.setCornerRadius(30);
+        button.setBackground(background);
 
         LinearLayout.LayoutParams params =
                 new LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.MATCH_PARENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT
+                        60
                 );
 
-        params.setMargins(0, 8, 0, 8);
+        params.setMargins(0, 10, 0, 10);
         root.addView(button, params);
 
         return button;
@@ -89,35 +117,50 @@ public class MainActivity extends AppCompatActivity {
         editText.setHint(hint);
         editText.setTextSize(17);
         editText.setSingleLine(true);
+        editText.setPadding(25, 5, 25, 5);
+
+        GradientDrawable background = new GradientDrawable();
+        background.setColor(Color.WHITE);
+        background.setCornerRadius(25);
+        background.setStroke(2, Color.LTGRAY);
+        editText.setBackground(background);
 
         LinearLayout.LayoutParams params =
                 new LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.MATCH_PARENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT
+                        60
                 );
 
-        params.setMargins(0, 5, 0, 5);
+        params.setMargins(0, 6, 0, 6);
         root.addView(editText, params);
 
         return editText;
     }
 
     private void showHome() {
-        setupScreen("🛺 SAKAY NA");
+        setupScreen("");
 
-        TextView welcome = new TextView(this);
-        welcome.setText("Tricycle Ride-Hailing");
-        welcome.setTextSize(20);
-        welcome.setGravity(Gravity.CENTER);
-        root.addView(welcome);
+        TextView logo = text("🛺", 64);
+        root.addView(logo);
 
-        Button login = button("LOGIN");
+        TextView title = text("SAKAY NA", 34);
+        title.setTextColor(GREEN);
+        title.setTypeface(null, android.graphics.Typeface.BOLD);
+        title.setPadding(0, 5, 0, 5);
+        root.addView(title);
+
+        TextView subtitle = text("Tricycle Ride-Hailing", 18);
+        subtitle.setTextColor(Color.DKGRAY);
+        subtitle.setPadding(0, 0, 0, 30);
+        root.addView(subtitle);
+
+        Button login = button("LOGIN", GREEN);
         login.setOnClickListener(v -> showLogin());
 
-        Button register = button("REGISTER");
+        Button register = button("REGISTER", ORANGE);
         register.setOnClickListener(v -> showRoleSelection());
 
-        Button about = button("ABOUT");
+        Button about = button("ABOUT", BLUE);
         about.setOnClickListener(v ->
                 Toast.makeText(
                         this,
@@ -125,30 +168,39 @@ public class MainActivity extends AppCompatActivity {
                         Toast.LENGTH_LONG
                 ).show()
         );
+
+        TextView footer = text("Safe • Simple • Local", 14);
+        footer.setTextColor(Color.GRAY);
+        footer.setPadding(0, 25, 0, 0);
+        root.addView(footer);
     }
 
     private void showRoleSelection() {
         setupScreen("Choose Account Type");
 
-        Button passenger = button("🟠 Passenger");
+        TextView info = text("How will you use Sakay Na?", 17);
+        info.setPadding(0, 0, 0, 20);
+        root.addView(info);
+
+        Button passenger = button("🟠  Passenger", ORANGE);
         passenger.setOnClickListener(v -> {
             selectedRole = "Passenger";
             showRegistration();
         });
 
-        Button driver = button("🔵 Driver");
+        Button driver = button("🔵  Driver", BLUE);
         driver.setOnClickListener(v -> {
             selectedRole = "Driver";
             showRegistration();
         });
 
-        Button admin = button("🟣 Admin");
+        Button admin = button("🟣  Admin", PURPLE);
         admin.setOnClickListener(v -> {
             selectedRole = "Admin";
             showRegistration();
         });
 
-        Button back = button("BACK");
+        Button back = button("BACK", Color.GRAY);
         back.setOnClickListener(v -> showHome());
     }
 
@@ -160,11 +212,11 @@ public class MainActivity extends AppCompatActivity {
         EditText phoneInput = input("Phone number");
         phoneInput.setInputType(InputType.TYPE_CLASS_PHONE);
 
-        TextView format = new TextView(this);
-        format.setText("Example: +639171234567");
+        TextView format = text("Example: +639171234567", 14);
+        format.setTextColor(Color.GRAY);
         root.addView(format);
 
-        Button continueButton = button("SEND OTP");
+        Button continueButton = button("SEND OTP", GREEN);
 
         continueButton.setOnClickListener(v -> {
             String name = nameInput.getText().toString().trim();
@@ -186,21 +238,24 @@ public class MainActivity extends AppCompatActivity {
             sendOtp(phone, true);
         });
 
-        Button back = button("BACK");
+        Button back = button("BACK", Color.GRAY);
         back.setOnClickListener(v -> showRoleSelection());
     }
 
     private void showLogin() {
-        setupScreen("Login");
+        setupScreen("LOGIN");
+
+        TextView info = text(
+                "Enter your registered phone number.\nWe'll send a one-time verification code.",
+                17
+        );
+        info.setPadding(0, 0, 0, 20);
+        root.addView(info);
 
         EditText phoneInput = input("Phone number");
         phoneInput.setInputType(InputType.TYPE_CLASS_PHONE);
 
-        TextView info = new TextView(this);
-        info.setText("We'll send a one-time verification code.");
-        root.addView(info);
-
-        Button login = button("SEND OTP");
+        Button login = button("SEND OTP", GREEN);
 
         login.setOnClickListener(v -> {
             String phone = phoneInput.getText().toString().trim();
@@ -214,65 +269,68 @@ public class MainActivity extends AppCompatActivity {
             sendOtp(phone, false);
         });
 
-        Button back = button("BACK");
+        Button back = button("BACK", Color.GRAY);
         back.setOnClickListener(v -> showHome());
     }
 
     private void sendOtp(String phone, boolean registration) {
 
-        Toast.makeText(this, "Sending OTP...", Toast.LENGTH_SHORT).show();
+        toast("Sending OTP...");
 
         PhoneAuthOptions options =
                 PhoneAuthOptions.newBuilder(auth)
                         .setPhoneNumber(phone)
                         .setTimeout(60L, TimeUnit.SECONDS)
                         .setActivity(this)
-                        .setCallbacks(new PhoneAuthProvider.OnVerificationStateChangedCallbacks() {
+                        .setCallbacks(
+                                new PhoneAuthProvider.OnVerificationStateChangedCallbacks() {
 
-                            @Override
-                            public void onVerificationCompleted(
-                                    @NonNull PhoneAuthCredential credential) {
+                                    @Override
+                                    public void onVerificationCompleted(
+                                            @NonNull PhoneAuthCredential credential) {
 
-                                verifyCredential(credential, registration);
-                            }
+                                        verifyCredential(credential, registration);
+                                    }
 
-                            @Override
-                            public void onVerificationFailed(
-                                    @NonNull FirebaseException e) {
+                                    @Override
+                                    public void onVerificationFailed(
+                                            @NonNull FirebaseException e) {
 
-                                toast("OTP failed: " + e.getMessage());
-                            }
+                                        toast("OTP failed: " + e.getMessage());
+                                    }
 
-                            @Override
-                            public void onCodeSent(
-                                    @NonNull String id,
-                                    @NonNull PhoneAuthProvider.ForceResendingToken token) {
+                                    @Override
+                                    public void onCodeSent(
+                                            @NonNull String id,
+                                            @NonNull PhoneAuthProvider.ForceResendingToken token) {
 
-                                verificationId = id;
-                                resendToken = token;
+                                        verificationId = id;
+                                        resendToken = token;
 
-                                showOtpScreen(registration);
-                            }
-                        })
+                                        showOtpScreen(registration);
+                                    }
+                                }
+                        )
                         .build();
 
         PhoneAuthProvider.verifyPhoneNumber(options);
     }
 
     private void showOtpScreen(boolean registration) {
-        setupScreen("Enter OTP");
+        setupScreen("VERIFY PHONE");
 
-        TextView info = new TextView(this);
-        info.setText("A verification code was sent to:\n" + pendingPhone);
-        info.setTextSize(17);
-        info.setGravity(Gravity.CENTER);
+        TextView info = text(
+                "OTP sent to:\n" + pendingPhone,
+                17
+        );
+        info.setPadding(0, 0, 0, 20);
         root.addView(info);
 
         EditText otpInput = input("6-digit OTP");
         otpInput.setInputType(InputType.TYPE_CLASS_NUMBER);
         otpInput.setGravity(Gravity.CENTER);
 
-        Button verify = button("VERIFY OTP");
+        Button verify = button("VERIFY OTP", GREEN);
 
         verify.setOnClickListener(v -> {
 
@@ -292,7 +350,7 @@ public class MainActivity extends AppCompatActivity {
             verifyCredential(credential, registration);
         });
 
-        Button resend = button("RESEND OTP");
+        Button resend = button("RESEND OTP", BLUE);
 
         resend.setOnClickListener(v -> {
             if (resendToken != null) {
@@ -302,7 +360,7 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        Button back = button("BACK");
+        Button back = button("BACK", Color.GRAY);
         back.setOnClickListener(v -> showHome());
     }
 
@@ -314,33 +372,35 @@ public class MainActivity extends AppCompatActivity {
                         .setTimeout(60L, TimeUnit.SECONDS)
                         .setActivity(this)
                         .setForceResendingToken(resendToken)
-                        .setCallbacks(new PhoneAuthProvider.OnVerificationStateChangedCallbacks() {
+                        .setCallbacks(
+                                new PhoneAuthProvider.OnVerificationStateChangedCallbacks() {
 
-                            @Override
-                            public void onVerificationCompleted(
-                                    @NonNull PhoneAuthCredential credential) {
+                                    @Override
+                                    public void onVerificationCompleted(
+                                            @NonNull PhoneAuthCredential credential) {
 
-                                verifyCredential(credential, registration);
-                            }
+                                        verifyCredential(credential, registration);
+                                    }
 
-                            @Override
-                            public void onVerificationFailed(
-                                    @NonNull FirebaseException e) {
+                                    @Override
+                                    public void onVerificationFailed(
+                                            @NonNull FirebaseException e) {
 
-                                toast("Resend failed: " + e.getMessage());
-                            }
+                                        toast("Resend failed: " + e.getMessage());
+                                    }
 
-                            @Override
-                            public void onCodeSent(
-                                    @NonNull String id,
-                                    @NonNull PhoneAuthProvider.ForceResendingToken token) {
+                                    @Override
+                                    public void onCodeSent(
+                                            @NonNull String id,
+                                            @NonNull PhoneAuthProvider.ForceResendingToken token) {
 
-                                verificationId = id;
-                                resendToken = token;
+                                        verificationId = id;
+                                        resendToken = token;
 
-                                toast("New OTP sent.");
-                            }
-                        })
+                                        toast("New OTP sent.");
+                                    }
+                                }
+                        )
                         .build();
 
         PhoneAuthProvider.verifyPhoneNumber(options);
@@ -422,8 +482,7 @@ public class MainActivity extends AppCompatActivity {
                         return;
                     }
 
-                    Boolean suspended =
-                            document.getBoolean("suspended");
+                    Boolean suspended = document.getBoolean("suspended");
 
                     if (Boolean.TRUE.equals(suspended)) {
                         toast("This account is suspended.");
