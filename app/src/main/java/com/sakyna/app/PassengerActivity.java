@@ -34,9 +34,7 @@ public class PassengerActivity extends AppCompatActivity {
 
     private FirebaseFirestore db;
     private FirebaseAuth auth;
-
     private LinearLayout root;
-
     private ListenerRegistration rideListener;
     private ListenerRegistration driverLocationListener;
 
@@ -44,7 +42,6 @@ public class PassengerActivity extends AppCompatActivity {
 
     private double passengerLatitude = 0.0;
     private double passengerLongitude = 0.0;
-
     private double driverLatitude = 0.0;
     private double driverLongitude = 0.0;
 
@@ -69,12 +66,10 @@ public class PassengerActivity extends AppCompatActivity {
 
         loadSavedRide();
         startPassengerLocation();
-
         showDashboard();
     }
 
     private void setupScreen(String title) {
-
         root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setGravity(Gravity.CENTER_HORIZONTAL);
@@ -90,26 +85,21 @@ public class PassengerActivity extends AppCompatActivity {
         titleView.setPadding(0, 0, 0, 25);
 
         root.addView(titleView);
-
         setContentView(root);
     }
 
     private TextView text(String value, float size) {
-
         TextView view = new TextView(this);
         view.setText(value);
         view.setTextSize(size);
         view.setTextColor(DARK);
         view.setGravity(Gravity.CENTER);
         view.setPadding(5, 8, 5, 8);
-
         return view;
     }
 
     private Button button(String value, int color) {
-
         Button button = new Button(this);
-
         button.setText(value);
         button.setTextSize(17);
         button.setTextColor(Color.WHITE);
@@ -118,10 +108,8 @@ public class PassengerActivity extends AppCompatActivity {
 
         android.graphics.drawable.GradientDrawable background =
                 new android.graphics.drawable.GradientDrawable();
-
         background.setColor(color);
         background.setCornerRadius(30);
-
         button.setBackground(background);
 
         LinearLayout.LayoutParams params =
@@ -131,16 +119,13 @@ public class PassengerActivity extends AppCompatActivity {
                 );
 
         params.setMargins(0, 8, 0, 8);
-
         root.addView(button, params);
 
         return button;
     }
 
     private EditText input(String hint) {
-
         EditText editText = new EditText(this);
-
         editText.setHint(hint);
         editText.setTextSize(17);
         editText.setSingleLine(true);
@@ -148,11 +133,9 @@ public class PassengerActivity extends AppCompatActivity {
 
         android.graphics.drawable.GradientDrawable background =
                 new android.graphics.drawable.GradientDrawable();
-
         background.setColor(Color.WHITE);
         background.setCornerRadius(25);
         background.setStroke(2, Color.LTGRAY);
-
         editText.setBackground(background);
 
         LinearLayout.LayoutParams params =
@@ -162,26 +145,21 @@ public class PassengerActivity extends AppCompatActivity {
                 );
 
         params.setMargins(0, 6, 0, 6);
-
         root.addView(editText, params);
 
         return editText;
     }
 
     private void showDashboard() {
-
         setupScreen("Passenger Dashboard");
 
         String name =
                 getSharedPreferences("SakayNa", MODE_PRIVATE)
                         .getString("current_name", "Passenger");
 
-        TextView welcome =
-                text("Welcome, " + name + "!", 20);
-
+        TextView welcome = text("Welcome, " + name + "!", 20);
         welcome.setTextColor(DARK);
         welcome.setTypeface(null, Typeface.BOLD);
-
         root.addView(welcome);
 
         Button gps = button("📍  MY GPS LOCATION", GREEN);
@@ -201,52 +179,40 @@ public class PassengerActivity extends AppCompatActivity {
 
         Button help = button("🆘  HELP / EMERGENCY", RED);
         help.setOnClickListener(v ->
-                toast("Emergency assistance feature will be connected later.")
-        );
+                toast("Emergency assistance feature will be connected later."));
 
         Button logout = button("LOGOUT", GRAY);
         logout.setOnClickListener(v -> logout());
     }
 
     private void showBooking() {
-
         setupScreen("Book a Ride");
 
-        TextView info =
-                text(
-                        "GPS will record your pickup location.\n"
-                                + "Enter your pickup and destination.",
-                        17
-                );
-
+        TextView info = text(
+                "GPS will record your pickup location.\nEnter your pickup and destination.",
+                17
+        );
         info.setPadding(0, 0, 0, 18);
         root.addView(info);
 
         EditText pickup = input("Pickup location");
-
         EditText destination = input("Destination");
 
         TextView gpsStatus =
                 text("📍 Getting your GPS location...", 16);
-
         gpsStatus.setTextColor(GREEN);
         root.addView(gpsStatus);
-
         updatePassengerGpsStatus(gpsStatus);
 
         TextView fareText =
                 text("Fare: Not calculated", 20);
-
         fareText.setTextColor(GREEN);
         fareText.setTypeface(null, Typeface.BOLD);
-
         root.addView(fareText);
 
-        Button calculate =
-                button("CALCULATE FARE", BLUE);
+        Button calculate = button("CALCULATE FARE", BLUE);
 
         calculate.setOnClickListener(v -> {
-
             String p = pickup.getText().toString().trim();
             String d = destination.getText().toString().trim();
 
@@ -255,9 +221,7 @@ public class PassengerActivity extends AppCompatActivity {
                 return;
             }
 
-            int difference =
-                    Math.abs(p.length() - d.length());
-
+            int difference = Math.abs(p.length() - d.length());
             int fare = 50 + (difference * 2);
 
             if (fare > 200) {
@@ -267,11 +231,9 @@ public class PassengerActivity extends AppCompatActivity {
             fareText.setText("Estimated Fare: ₱" + fare);
         });
 
-        Button request =
-                button("REQUEST RIDE", ORANGE);
+        Button request = button("REQUEST RIDE", ORANGE);
 
         request.setOnClickListener(v -> {
-
             String p = pickup.getText().toString().trim();
             String d = destination.getText().toString().trim();
 
@@ -282,7 +244,6 @@ public class PassengerActivity extends AppCompatActivity {
 
             if (passengerLatitude == 0.0
                     && passengerLongitude == 0.0) {
-
                 toast("Waiting for GPS location. Please try again.");
                 startPassengerLocation();
                 return;
@@ -291,30 +252,23 @@ public class PassengerActivity extends AppCompatActivity {
             requestRide(p, d);
         });
 
-        Button back =
-                button("BACK", GRAY);
-
+        Button back = button("BACK", GRAY);
         back.setOnClickListener(v -> showDashboard());
     }
 
     private void requestRide(String pickup, String destination) {
-
         if (auth.getCurrentUser() == null) {
             toast("Please login again.");
             return;
         }
 
         if (!rideId.isEmpty()) {
-
             db.collection("rides")
                     .document(rideId)
                     .get()
                     .addOnSuccessListener(document -> {
-
                         if (document.exists()) {
-
-                            String status =
-                                    document.getString("status");
+                            String status = document.getString("status");
 
                             if (isActiveStatus(status)) {
                                 toast("You already have an active ride.");
@@ -331,10 +285,7 @@ public class PassengerActivity extends AppCompatActivity {
         createRide(pickup, destination);
     }
 
-    private void createRide(
-            String pickup,
-            String destination) {
-
+    private void createRide(String pickup, String destination) {
         String uid = auth.getCurrentUser().getUid();
 
         String name =
@@ -345,9 +296,7 @@ public class PassengerActivity extends AppCompatActivity {
                 getSharedPreferences("SakayNa", MODE_PRIVATE)
                         .getString("current_phone", "");
 
-        int difference =
-                Math.abs(pickup.length() - destination.length());
-
+        int difference = Math.abs(pickup.length() - destination.length());
         int calculatedFare = 50 + (difference * 2);
 
         if (calculatedFare > 200) {
@@ -356,35 +305,26 @@ public class PassengerActivity extends AppCompatActivity {
 
         final int fare = calculatedFare;
 
-        Map<String, Object> ride =
-                new HashMap<>();
+        Map<String, Object> ride = new HashMap<>();
 
         ride.put("passengerId", uid);
         ride.put("passengerName", name);
         ride.put("passengerPhone", phone);
-
         ride.put("pickup", pickup);
         ride.put("destination", destination);
-
         ride.put("pickupLatitude", passengerLatitude);
         ride.put("pickupLongitude", passengerLongitude);
-
         ride.put("fare", fare);
         ride.put("finalFare", 0);
-
         ride.put("status", "REQUESTED");
-
         ride.put("driverId", "");
         ride.put("driverName", "");
-
         ride.put("rating", 0);
-
         ride.put("createdAt", FieldValue.serverTimestamp());
 
         db.collection("rides")
                 .add(ride)
                 .addOnSuccessListener(documentReference -> {
-
                     rideId = documentReference.getId();
 
                     getSharedPreferences(
@@ -400,81 +340,44 @@ public class PassengerActivity extends AppCompatActivity {
                             .apply();
 
                     toast("Ride requested successfully!");
-
                     showCurrentRide();
                 })
                 .addOnFailureListener(e ->
-                        toast(
-                                "Could not request ride: "
-                                        + e.getMessage()
-                        )
-                );
+                        toast("Could not request ride: " + e.getMessage()));
     }
 
     private void showCurrentRide() {
-
         setupScreen("Current Ride");
 
         if (rideId.isEmpty()) {
-
-            TextView none =
-                    text(
-                            "No current ride.",
-                            18
-                    );
-
+            TextView none = text("No current ride.", 18);
             root.addView(none);
 
-            Button book =
-                    button("BOOK A RIDE", ORANGE);
+            Button book = button("BOOK A RIDE", ORANGE);
+            book.setOnClickListener(v -> showBooking());
 
-            book.setOnClickListener(v ->
-                    showBooking()
-            );
-
-            Button back =
-                    button("BACK", GRAY);
-
-            back.setOnClickListener(v ->
-                    showDashboard()
-            );
-
+            Button back = button("BACK", GRAY);
+            back.setOnClickListener(v -> showDashboard());
             return;
         }
 
-        TextView status =
-                text("Loading ride...", 18);
-
+        TextView status = text("Loading ride...", 18);
         root.addView(status);
 
         listenToRide(status);
 
         Button driverLocation =
                 button("📍  VIEW DRIVER LOCATION", BLUE);
+        driverLocation.setOnClickListener(v -> showDriverLocation());
 
-        driverLocation.setOnClickListener(v ->
-                showDriverLocation()
-        );
+        Button refresh = button("REFRESH STATUS", BLUE);
+        refresh.setOnClickListener(v -> loadCurrentRide(status));
 
-        Button refresh =
-                button("REFRESH STATUS", BLUE);
+        Button cancel = button("CANCEL RIDE", RED);
+        cancel.setOnClickListener(v -> cancelRide());
 
-        refresh.setOnClickListener(v ->
-                loadCurrentRide(status)
-        );
-
-        Button cancel =
-                button("CANCEL RIDE", RED);
-
-        cancel.setOnClickListener(v ->
-                cancelRide()
-        );
-
-        Button back =
-                button("BACK", GRAY);
-
+        Button back = button("BACK", GRAY);
         back.setOnClickListener(v -> {
-
             removeRideListener();
             removeDriverLocationListener();
             showDashboard();
@@ -484,7 +387,6 @@ public class PassengerActivity extends AppCompatActivity {
     }
 
     private void loadCurrentRide(TextView statusView) {
-
         if (rideId.isEmpty()) {
             statusView.setText("No current ride.");
             return;
@@ -494,30 +396,18 @@ public class PassengerActivity extends AppCompatActivity {
                 .document(rideId)
                 .get()
                 .addOnSuccessListener(document -> {
-
                     if (!document.exists()) {
-
-                        statusView.setText(
-                                "Ride no longer exists."
-                        );
-
+                        statusView.setText("Ride no longer exists.");
                         return;
                     }
 
-                    updateRideDisplay(
-                            document,
-                            statusView
-                    );
+                    updateRideDisplay(document, statusView);
                 })
                 .addOnFailureListener(e ->
-                        statusView.setText(
-                                "Could not load ride."
-                        )
-                );
+                        statusView.setText("Could not load ride."));
     }
 
     private void listenToRide(TextView statusView) {
-
         removeRideListener();
 
         if (rideId.isEmpty()) {
@@ -527,91 +417,57 @@ public class PassengerActivity extends AppCompatActivity {
         rideListener =
                 db.collection("rides")
                         .document(rideId)
-                        .addSnapshotListener(
-                                (snapshot, error) -> {
+                        .addSnapshotListener((snapshot, error) -> {
+                            if (error != null) {
+                                return;
+                            }
 
-                                    if (error != null) {
-                                        return;
-                                    }
+                            if (snapshot == null || !snapshot.exists()) {
+                                return;
+                            }
 
-                                    if (snapshot == null
-                                            || !snapshot.exists()) {
-                                        return;
-                                    }
-
-                                    updateRideDisplay(
-                                            snapshot,
-                                            statusView
-                                    );
-
-                                    startDriverLocationListener(snapshot);
-                                }
-                        );
+                            updateRideDisplay(snapshot, statusView);
+                            startDriverLocationListener(snapshot);
+                        });
     }
 
     private void updateRideDisplay(
             DocumentSnapshot document,
             TextView statusView) {
 
-        String pickup =
-                document.getString("pickup");
+        String pickup = document.getString("pickup");
+        String destination = document.getString("destination");
+        String status = document.getString("status");
+        String driver = document.getString("driverName");
 
-        String destination =
-                document.getString("destination");
+        Long fare = document.getLong("fare");
+        Long finalFare = document.getLong("finalFare");
 
-        String status =
-                document.getString("status");
-
-        String driver =
-                document.getString("driverName");
-
-        Long fare =
-                document.getLong("fare");
-
-        Long finalFare =
-                document.getLong("finalFare");
-
-        if (pickup == null) {
-            pickup = "";
-        }
-
-        if (destination == null) {
-            destination = "";
-        }
-
-        if (status == null) {
-            status = "UNKNOWN";
-        }
+        if (pickup == null) pickup = "";
+        if (destination == null) destination = "";
+        if (status == null) status = "UNKNOWN";
 
         if (driver == null || driver.isEmpty()) {
             driver = "Waiting for driver";
         }
 
-        long displayFare =
-                fare == null ? 0 : fare;
+        long displayFare = fare == null ? 0 : fare;
 
         if (finalFare != null && finalFare > 0) {
             displayFare = finalFare;
         }
 
-        String readableStatus =
-                readableStatus(status);
-
         statusView.setText(
                 "PICKUP\n"
                         + pickup
-                        + "\n\n"
-                        + "DESTINATION\n"
+                        + "\n\nDESTINATION\n"
                         + destination
-                        + "\n\n"
-                        + "FARE\n₱"
+                        + "\n\nFARE\n₱"
                         + displayFare
-                        + "\n\n"
-                        + "DRIVER\n"
+                        + "\n\nDRIVER\n"
                         + driver
-                        + "\n\n"
-                        + "STATUS\n"
-                        + readableStatus
+                        + "\n\nSTATUS\n"
+                        + readableStatus(status)
         );
 
         statusView.setTextSize(17);
@@ -621,16 +477,12 @@ public class PassengerActivity extends AppCompatActivity {
     private void startDriverLocationListener(
             DocumentSnapshot rideDocument) {
 
-        String driverId =
-                rideDocument.getString("driverId");
-
-        String status =
-                rideDocument.getString("status");
+        String driverId = rideDocument.getString("driverId");
+        String status = rideDocument.getString("status");
 
         if (driverId == null
                 || driverId.isEmpty()
                 || status == null) {
-
             removeDriverLocationListener();
             return;
         }
@@ -639,78 +491,55 @@ public class PassengerActivity extends AppCompatActivity {
                 || status.equals("CANCELLED")
                 || status.equals("DECLINED")
                 || status.equals("COMPLETED")) {
-
             removeDriverLocationListener();
             return;
         }
-
-        final String currentDriverId = driverId;
 
         removeDriverLocationListener();
 
         driverLocationListener =
                 db.collection("driverLocations")
-                        .document(currentDriverId)
-                        .addSnapshotListener(
-                                (snapshot, error) -> {
+                        .document(driverId)
+                        .addSnapshotListener((snapshot, error) -> {
+                            if (error != null) {
+                                return;
+                            }
 
-                                    if (error != null) {
-                                        return;
-                                    }
+                            if (snapshot == null || !snapshot.exists()) {
+                                return;
+                            }
 
-                                    if (snapshot == null
-                                            || !snapshot.exists()) {
-                                        return;
-                                    }
+                            Double lat =
+                                    snapshot.getDouble("latitude");
 
-                                    Double lat =
-                                            snapshot.getDouble("latitude");
+                            Double lng =
+                                    snapshot.getDouble("longitude");
 
-                                    Double lng =
-                                            snapshot.getDouble("longitude");
+                            if (lat != null && lng != null) {
+                                driverLatitude = lat;
+                                driverLongitude = lng;
 
-                                    Boolean online =
-                                            snapshot.getBoolean("online");
-
-                                    if (lat != null && lng != null) {
-
-                                        driverLatitude = lat;
-                                        driverLongitude = lng;
-
-                                        saveDriverLocationLocally(
-                                                lat,
-                                                lng
-                                        );
-                                    }
-
-                                    if (online != null && !online) {
-                                        return;
-                                    }
-                                }
-                        );
+                                saveDriverLocationLocally(
+                                        lat,
+                                        lng
+                                );
+                            }
+                        });
     }
 
     private void showDriverLocation() {
-
         setupScreen("Driver Location");
 
         TextView locationText =
-                text(
-                        "Waiting for driver location...",
-                        18
-                );
+                text("Waiting for driver location...", 18);
 
         root.addView(locationText);
 
         if (rideId.isEmpty()) {
-
             locationText.setText(
-                    "No active ride.\n\n"
-                            + "Book a ride first."
+                    "No active ride.\n\nBook a ride first."
             );
-
         } else {
-
             loadDriverLocationForScreen(locationText);
         }
 
@@ -718,11 +547,9 @@ public class PassengerActivity extends AppCompatActivity {
                 button("REFRESH LOCATION", BLUE);
 
         refresh.setOnClickListener(v ->
-                loadDriverLocationForScreen(locationText)
-        );
+                loadDriverLocationForScreen(locationText));
 
-        Button back =
-                button("BACK", GRAY);
+        Button back = button("BACK", GRAY);
 
         back.setOnClickListener(v -> {
             removeDriverLocationListener();
@@ -734,11 +561,7 @@ public class PassengerActivity extends AppCompatActivity {
             TextView locationText) {
 
         if (rideId.isEmpty()) {
-
-            locationText.setText(
-                    "No active ride."
-            );
-
+            locationText.setText("No active ride.");
             return;
         }
 
@@ -748,26 +571,19 @@ public class PassengerActivity extends AppCompatActivity {
                 .addOnSuccessListener(ride -> {
 
                     if (!ride.exists()) {
-
-                        locationText.setText(
-                                "Ride not found."
-                        );
-
+                        locationText.setText("Ride not found.");
                         return;
                     }
 
                     String driverId =
                             ride.getString("driverId");
 
-                    if (driverId == null
-                            || driverId.isEmpty()) {
-
+                    if (driverId == null || driverId.isEmpty()) {
                         locationText.setText(
                                 "No driver has accepted the ride yet.\n\n"
                                         + "Driver GPS will appear here after "
                                         + "a driver accepts your ride."
                         );
-
                         return;
                     }
 
@@ -777,11 +593,9 @@ public class PassengerActivity extends AppCompatActivity {
                             .addOnSuccessListener(location -> {
 
                                 if (!location.exists()) {
-
                                     locationText.setText(
                                             "Driver location is not available yet."
                                     );
-
                                     return;
                                 }
 
@@ -791,39 +605,25 @@ public class PassengerActivity extends AppCompatActivity {
                                 Double lng =
                                         location.getDouble("longitude");
 
-                                Boolean online =
-                                        location.getBoolean("online");
-
                                 if (lat == null || lng == null) {
-
                                     locationText.setText(
                                             "Driver GPS coordinates are not available yet."
                                     );
-
                                     return;
                                 }
 
                                 driverLatitude = lat;
                                 driverLongitude = lng;
 
-                                String onlineText =
-                                        Boolean.TRUE.equals(online)
-                                                ? "ONLINE"
-                                                : "OFFLINE";
-
                                 locationText.setText(
                                         "🚕 DRIVER GPS\n\n"
-                                                + "Status: "
-                                                + onlineText
-                                                + "\n\n"
                                                 + "Latitude:\n"
                                                 + lat
-                                                + "\n\n"
-                                                + "Longitude:\n"
+                                                + "\n\nLongitude:\n"
                                                 + lng
                                                 + "\n\n"
-                                                + "Location updates are received "
-                                                + "from the driver's phone."
+                                                + "Live location received "
+                                                + "from driver's phone."
                                 );
 
                                 locationText.setTextSize(17);
@@ -832,44 +632,29 @@ public class PassengerActivity extends AppCompatActivity {
                 .addOnFailureListener(e ->
                         locationText.setText(
                                 "Could not load driver location."
-                        )
-                );
+                        ));
     }
 
     private void showPassengerLocation() {
-
         setupScreen("My GPS Location");
 
         TextView gps =
-                text(
-                        "Getting your real GPS location...",
-                        18
-                );
+                text("Getting your real GPS location...", 18);
 
         root.addView(gps);
-
         updatePassengerGpsStatus(gps);
 
-        Button refresh =
-                button("REFRESH GPS", GREEN);
-
+        Button refresh = button("REFRESH GPS", GREEN);
         refresh.setOnClickListener(v -> {
-
             startPassengerLocation();
             updatePassengerGpsStatus(gps);
         });
 
-        Button back =
-                button("BACK", GRAY);
-
-        back.setOnClickListener(v ->
-                showDashboard()
-        );
+        Button back = button("BACK", GRAY);
+        back.setOnClickListener(v -> showDashboard());
     }
 
-    private void updatePassengerGpsStatus(
-            TextView view) {
-
+    private void updatePassengerGpsStatus(TextView view) {
         if (passengerLatitude == 0.0
                 && passengerLongitude == 0.0) {
 
@@ -877,7 +662,6 @@ public class PassengerActivity extends AppCompatActivity {
                     "📍 Waiting for GPS...\n\n"
                             + "Make sure Location is ON."
             );
-
             return;
         }
 
@@ -885,8 +669,7 @@ public class PassengerActivity extends AppCompatActivity {
                 "📍 GPS ACTIVE\n\n"
                         + "Latitude:\n"
                         + passengerLatitude
-                        + "\n\n"
-                        + "Longitude:\n"
+                        + "\n\nLongitude:\n"
                         + passengerLongitude
         );
     }
@@ -915,7 +698,6 @@ public class PassengerActivity extends AppCompatActivity {
         }
 
         try {
-
             locationManager.requestLocationUpdates(
                     LocationManager.GPS_PROVIDER,
                     3000,
@@ -949,7 +731,6 @@ public class PassengerActivity extends AppCompatActivity {
             }
 
         } catch (SecurityException e) {
-
             toast("Location permission is required.");
         }
     }
@@ -958,25 +739,18 @@ public class PassengerActivity extends AppCompatActivity {
             new LocationListener() {
 
                 @Override
-                public void onLocationChanged(
-                        Location location) {
-
+                public void onLocationChanged(Location location) {
                     updatePassengerCoordinates(location);
                 }
             };
 
-    private void updatePassengerCoordinates(
-            Location location) {
-
+    private void updatePassengerCoordinates(Location location) {
         if (location == null) {
             return;
         }
 
-        passengerLatitude =
-                location.getLatitude();
-
-        passengerLongitude =
-                location.getLongitude();
+        passengerLatitude = location.getLatitude();
+        passengerLongitude = location.getLongitude();
     }
 
     private void saveDriverLocationLocally(
@@ -1000,43 +774,31 @@ public class PassengerActivity extends AppCompatActivity {
     }
 
     private String readableStatus(String status) {
-
         switch (status) {
-
             case "REQUESTED":
                 return "WAITING FOR DRIVER";
-
             case "ACCEPTED":
                 return "DRIVER ACCEPTED";
-
             case "DRIVER_ON_THE_WAY":
                 return "DRIVER ON THE WAY";
-
             case "DRIVER_ARRIVED":
                 return "DRIVER ARRIVED";
-
             case "IN_PROGRESS":
                 return "TRIP IN PROGRESS";
-
             case "FINISHED":
                 return "TRIP FINISHED";
-
             case "COMPLETED":
                 return "RIDE COMPLETED";
-
             case "CANCELLED":
                 return "RIDE CANCELLED";
-
             case "DECLINED":
                 return "RIDE DECLINED";
-
             default:
                 return status;
         }
     }
 
     private boolean isActiveStatus(String status) {
-
         if (status == null) {
             return false;
         }
@@ -1073,11 +835,9 @@ public class PassengerActivity extends AppCompatActivity {
                     }
 
                     if (!status.equals("REQUESTED")) {
-
                         toast(
                                 "This ride can no longer be cancelled here."
                         );
-
                         return;
                     }
 
@@ -1105,10 +865,7 @@ public class PassengerActivity extends AppCompatActivity {
                                 toast("Ride cancelled.");
                             })
                             .addOnFailureListener(e ->
-                                    toast(
-                                            "Could not cancel ride."
-                                    )
-                            );
+                                    toast("Could not cancel ride."));
                 });
     }
 
@@ -1117,14 +874,9 @@ public class PassengerActivity extends AppCompatActivity {
         setupScreen("Ride History");
 
         if (auth.getCurrentUser() == null) {
-
             root.addView(
-                    text(
-                            "Please login again.",
-                            18
-                    )
+                    text("Please login again.", 18)
             );
-
             return;
         }
 
@@ -1142,11 +894,7 @@ public class PassengerActivity extends AppCompatActivity {
                 .addOnSuccessListener(result -> {
 
                     if (result.isEmpty()) {
-
-                        history.setText(
-                                "No rides yet."
-                        );
-
+                        history.setText("No rides yet.");
                         return;
                     }
 
@@ -1168,21 +916,15 @@ public class PassengerActivity extends AppCompatActivity {
                         Long fare =
                                 document.getLong("fare");
 
-                        builder.append(
-                                "Pickup: "
-                        )
+                        builder.append("Pickup: ")
                                 .append(pickup)
                                 .append("\n");
 
-                        builder.append(
-                                "Destination: "
-                        )
+                        builder.append("Destination: ")
                                 .append(destination)
                                 .append("\n");
 
-                        builder.append(
-                                "Fare: ₱"
-                        )
+                        builder.append("Fare: ₱")
                                 .append(
                                         fare == null
                                                 ? 0
@@ -1190,17 +932,11 @@ public class PassengerActivity extends AppCompatActivity {
                                 )
                                 .append("\n");
 
-                        builder.append(
-                                "Status: "
-                        )
-                                .append(
-                                        readableStatus(status)
-                                )
+                        builder.append("Status: ")
+                                .append(readableStatus(status))
                                 .append("\n");
 
-                        builder.append(
-                                "--------------------\n"
-                        );
+                        builder.append("--------------------\n");
                     }
 
                     history.setText(builder.toString());
@@ -1210,19 +946,13 @@ public class PassengerActivity extends AppCompatActivity {
                 .addOnFailureListener(e ->
                         history.setText(
                                 "Could not load history."
-                        )
-                );
+                        ));
 
-        Button back =
-                button("BACK", GRAY);
-
-        back.setOnClickListener(v ->
-                showDashboard()
-        );
+        Button back = button("BACK", GRAY);
+        back.setOnClickListener(v -> showDashboard());
     }
 
     private void loadSavedRide() {
-
         rideId =
                 getSharedPreferences(
                         "SakayNa",
@@ -1235,7 +965,6 @@ public class PassengerActivity extends AppCompatActivity {
     }
 
     private void removeRideListener() {
-
         if (rideListener != null) {
             rideListener.remove();
             rideListener = null;
@@ -1243,7 +972,6 @@ public class PassengerActivity extends AppCompatActivity {
     }
 
     private void removeDriverLocationListener() {
-
         if (driverLocationListener != null) {
             driverLocationListener.remove();
             driverLocationListener = null;
@@ -1254,7 +982,6 @@ public class PassengerActivity extends AppCompatActivity {
 
         removeRideListener();
         removeDriverLocationListener();
-
         stopPassengerLocation();
 
         auth.signOut();
@@ -1284,7 +1011,6 @@ public class PassengerActivity extends AppCompatActivity {
         );
 
         startActivity(intent);
-
         finish();
     }
 
@@ -1293,18 +1019,15 @@ public class PassengerActivity extends AppCompatActivity {
         if (locationManager != null) {
 
             try {
-
                 locationManager.removeUpdates(
                         passengerLocationListener
                 );
-
             } catch (SecurityException ignored) {
             }
         }
     }
 
     private void toast(String message) {
-
         Toast.makeText(
                 this,
                 message,
@@ -1313,7 +1036,7 @@ public class PassengerActivity extends AppCompatActivity {
     }
 
     @Override
-    protected void onRequestPermissionsResult(
+    public void onRequestPermissionsResult(
             int requestCode,
             String[] permissions,
             int[] grantResults) {
@@ -1331,7 +1054,6 @@ public class PassengerActivity extends AppCompatActivity {
                     == PackageManager.PERMISSION_GRANTED) {
 
                 startPassengerLocation();
-
                 toast("GPS permission granted.");
 
             } else {
