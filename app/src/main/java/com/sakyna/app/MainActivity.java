@@ -11,17 +11,12 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
-import android.widget.RadioButton;
-import android.widget.RadioGroup;
-import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
-import com.google.firebase.Timestamp;
 import com.google.firebase.auth.FirebaseAuth;
-import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.FirebaseFirestore;
 
 import java.util.HashMap;
@@ -31,20 +26,14 @@ public class MainActivity extends AppCompatActivity {
 
     private FirebaseAuth auth;
     private FirebaseFirestore db;
+    private SharedPreferences prefs;
 
-    private LinearLayout root;
-    private EditText phoneInput;
-    private EditText passwordInput;
-    private EditText nameInput;
-    private EditText confirmPasswordInput;
-    private RadioGroup roleGroup;
-
-    private static final int GREEN = Color.rgb(0, 150, 80);
-    private static final int DARK = Color.rgb(30, 30, 30);
-    private static final int LIGHT = Color.rgb(245, 248, 246);
-    private static final int ORANGE = Color.rgb(245, 150, 30);
-    private static final int BLUE = Color.rgb(35, 110, 210);
-    private static final int PURPLE = Color.rgb(125, 70, 180);
+    private final int GREEN = Color.rgb(20, 150, 80);
+    private final int ORANGE = Color.rgb(245, 150, 30);
+    private final int BLUE = Color.rgb(40, 110, 220);
+    private final int PURPLE = Color.rgb(120, 70, 180);
+    private final int DARK = Color.rgb(35, 35, 35);
+    private final int LIGHT = Color.rgb(245, 248, 246);
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -52,36 +41,41 @@ public class MainActivity extends AppCompatActivity {
 
         auth = FirebaseAuth.getInstance();
         db = FirebaseFirestore.getInstance();
+        prefs = getSharedPreferences("SakayNa", MODE_PRIVATE);
 
         showHome();
     }
 
-    private void setupRoot() {
-        ScrollView scrollView = new ScrollView(this);
-
-        root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(35, 45, 35, 45);
-        root.setGravity(Gravity.CENTER_HORIZONTAL);
-        root.setBackgroundColor(LIGHT);
-
-        scrollView.addView(root);
-
-        setContentView(scrollView);
+    private LinearLayout baseLayout() {
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setGravity(Gravity.CENTER);
+        layout.setPadding(40, 40, 40, 40);
+        layout.setBackgroundColor(LIGHT);
+        return layout;
     }
 
-    private TextView title(String text, int size) {
-        TextView tv = new TextView(this);
-        tv.setText(text);
-        tv.setTextSize(size);
-        tv.setTextColor(DARK);
-        tv.setGravity(Gravity.CENTER);
-        tv.setPadding(10, 15, 10, 15);
-
-        return tv;
+    private TextView title(String text) {
+        TextView view = new TextView(this);
+        view.setText(text);
+        view.setTextColor(DARK);
+        view.setTextSize(30);
+        view.setGravity(Gravity.CENTER);
+        view.setPadding(10, 20, 10, 20);
+        return view;
     }
 
-    private EditText input(String hint) {
+    private TextView subtitle(String text) {
+        TextView view = new TextView(this);
+        view.setText(text);
+        view.setTextColor(Color.DKGRAY);
+        view.setTextSize(16);
+        view.setGravity(Gravity.CENTER);
+        view.setPadding(10, 5, 10, 25);
+        return view;
+    }
+
+    private EditText field(String hint) {
         EditText edit = new EditText(this);
         edit.setHint(hint);
         edit.setTextSize(17);
@@ -91,441 +85,408 @@ public class MainActivity extends AppCompatActivity {
         LinearLayout.LayoutParams params =
                 new LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.MATCH_PARENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT);
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                );
 
         params.setMargins(0, 8, 0, 8);
-
         edit.setLayoutParams(params);
 
         return edit;
     }
 
     private Button button(String text, int color) {
-        Button button = new Button(this);
-        button.setText(text);
-        button.setTextSize(17);
-        button.setTextColor(Color.WHITE);
-        button.setBackgroundColor(color);
-        button.setAllCaps(false);
+        Button b = new Button(this);
+        b.setText(text);
+        b.setTextSize(17);
+        b.setTextColor(Color.WHITE);
+        b.setAllCaps(false);
+        b.setBackgroundColor(color);
 
         LinearLayout.LayoutParams params =
                 new LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.MATCH_PARENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT);
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                );
 
         params.setMargins(0, 10, 0, 10);
+        b.setLayoutParams(params);
 
-        button.setLayoutParams(params);
-
-        return button;
+        return b;
     }
 
     private void showHome() {
 
-        setupRoot();
+        LinearLayout layout = baseLayout();
 
-        TextView logo = title("🛺", 60);
-        root.addView(logo);
+        TextView logo = title("🛺 SAKAY NA");
+        logo.setTextSize(34);
 
-        TextView appName = title("SAKAY NA", 34);
-        appName.setTextColor(GREEN);
-        appName.setTypeface(null, android.graphics.Typeface.BOLD);
-        root.addView(appName);
-
-        TextView subtitle =
-                title("TRICYCLE RIDE-HAILING", 18);
-        root.addView(subtitle);
-
-        TextView description =
-                title("Safe • Simple • Local", 16);
-        root.addView(description);
-
-        TextView loginInfo =
-                title("PHONE NUMBER + PASSWORD\nNO SMS • NO OTP", 14);
-        loginInfo.setTextColor(GREEN);
-        root.addView(loginInfo);
+        layout.addView(logo);
+        layout.addView(subtitle(
+                "TRICYCLE RIDE-HAILING\n\nSafe • Simple • Local"
+        ));
 
         Button login = button("LOGIN", GREEN);
-        root.addView(login);
+        Button register = button("REGISTER", BLUE);
+        Button about = button("ABOUT SAKAY NA", PURPLE);
+
+        layout.addView(login);
+        layout.addView(register);
+        layout.addView(about);
 
         login.setOnClickListener(v -> showLogin());
-
-        Button register = button("REGISTER", BLUE);
-        root.addView(register);
-
         register.setOnClickListener(v -> showRegister());
-
-        Button about = button("ABOUT SAKAY NA", Color.DKGRAY);
-        root.addView(about);
-
         about.setOnClickListener(v -> showAbout());
+
+        setContentView(layout);
     }
 
     private void showLogin() {
 
-        setupRoot();
+        LinearLayout layout = baseLayout();
 
-        TextView heading = title("LOGIN", 30);
-        heading.setTextColor(GREEN);
-        heading.setTypeface(null, android.graphics.Typeface.BOLD);
-        root.addView(heading);
+        layout.addView(title("LOGIN"));
+        layout.addView(subtitle("Phone number + password"));
 
-        TextView info =
-                title("Enter your registered phone number and password.\n\nNo OTP required.", 15);
-        info.setTextColor(DARK);
-        root.addView(info);
+        EditText phone = field("Phone Number");
+        phone.setInputType(InputType.TYPE_CLASS_PHONE);
 
-        phoneInput = input("Phone number");
-        phoneInput.setInputType(InputType.TYPE_CLASS_PHONE);
-        root.addView(phoneInput);
-
-        passwordInput = input("Password");
-        passwordInput.setInputType(
+        EditText password = field("Password");
+        password.setInputType(
                 InputType.TYPE_CLASS_TEXT |
-                        InputType.TYPE_TEXT_VARIATION_PASSWORD);
-        root.addView(passwordInput);
+                InputType.TYPE_TEXT_VARIATION_PASSWORD
+        );
 
         Button login = button("LOGIN", GREEN);
-        root.addView(login);
+        Button back = button("BACK", Color.GRAY);
 
-        login.setOnClickListener(v -> loginUser());
+        layout.addView(phone);
+        layout.addView(password);
+        layout.addView(login);
+        layout.addView(back);
 
-        Button register = button("CREATE NEW ACCOUNT", BLUE);
-        root.addView(register);
+        login.setOnClickListener(v -> {
 
-        register.setOnClickListener(v -> showRegister());
+            String phoneText = phone.getText().toString().trim();
+            String passText = password.getText().toString();
 
-        Button back = button("BACK", Color.DKGRAY);
-        root.addView(back);
+            if (phoneText.isEmpty()) {
+                phone.setError("Enter phone number");
+                return;
+            }
+
+            if (passText.isEmpty()) {
+                password.setError("Enter password");
+                return;
+            }
+
+            login.setEnabled(false);
+            login.setText("LOGGING IN...");
+
+            String email = makeFirebaseEmail(phoneText);
+
+            auth.signInWithEmailAndPassword(email, passText)
+                    .addOnCompleteListener(task -> {
+
+                        if (task.isSuccessful()) {
+
+                            String uid = auth.getCurrentUser().getUid();
+
+                            db.collection("users")
+                                    .document(uid)
+                                    .get()
+                                    .addOnSuccessListener(document -> {
+
+                                        if (!document.exists()) {
+                                            login.setEnabled(true);
+                                            login.setText("LOGIN");
+                                            Toast.makeText(
+                                                    this,
+                                                    "Account profile not found.",
+                                                    Toast.LENGTH_LONG
+                                            ).show();
+                                            return;
+                                        }
+
+                                        String role =
+                                                document.getString("role");
+
+                                        String name =
+                                                document.getString("name");
+
+                                        String savedPhone =
+                                                document.getString("phone");
+
+                                        saveUser(
+                                                uid,
+                                                name,
+                                                savedPhone,
+                                                role
+                                        );
+
+                                        openRole(role);
+
+                                    })
+                                    .addOnFailureListener(e -> {
+
+                                        login.setEnabled(true);
+                                        login.setText("LOGIN");
+
+                                        Toast.makeText(
+                                                this,
+                                                "Database error: " +
+                                                        e.getMessage(),
+                                                Toast.LENGTH_LONG
+                                        ).show();
+                                    });
+
+                        } else {
+
+                            login.setEnabled(true);
+                            login.setText("LOGIN");
+
+                            String message = "Login failed.";
+
+                            if (task.getException() != null) {
+                                message =
+                                        task.getException().getMessage();
+                            }
+
+                            Toast.makeText(
+                                    this,
+                                    message,
+                                    Toast.LENGTH_LONG
+                            ).show();
+                        }
+                    });
+        });
 
         back.setOnClickListener(v -> showHome());
+
+        setContentView(layout);
     }
 
     private void showRegister() {
 
-        setupRoot();
+        LinearLayout layout = baseLayout();
 
-        TextView heading = title("CREATE ACCOUNT", 28);
-        heading.setTextColor(BLUE);
-        heading.setTypeface(null, android.graphics.Typeface.BOLD);
-        root.addView(heading);
+        layout.addView(title("CREATE ACCOUNT"));
+        layout.addView(subtitle(
+                "Register using your phone number\nNo SMS • No OTP • No email required"
+        ));
 
-        TextView info =
-                title("Create your Sakay Na account.\n\nPhone number + password only.\nNO OTP.", 15);
-        root.addView(info);
+        EditText name = field("Full Name");
 
-        nameInput = input("Full name");
-        root.addView(nameInput);
+        EditText phone = field("Phone Number");
+        phone.setInputType(InputType.TYPE_CLASS_PHONE);
 
-        phoneInput = input("Phone number");
-        phoneInput.setInputType(InputType.TYPE_CLASS_PHONE);
-        root.addView(phoneInput);
-
-        passwordInput = input("Password");
-        passwordInput.setInputType(
+        EditText password = field("Password");
+        password.setInputType(
                 InputType.TYPE_CLASS_TEXT |
-                        InputType.TYPE_TEXT_VARIATION_PASSWORD);
-        root.addView(passwordInput);
+                InputType.TYPE_TEXT_VARIATION_PASSWORD
+        );
 
-        confirmPasswordInput = input("Confirm password");
-        confirmPasswordInput.setInputType(
+        EditText confirm = field("Confirm Password");
+        confirm.setInputType(
                 InputType.TYPE_CLASS_TEXT |
-                        InputType.TYPE_TEXT_VARIATION_PASSWORD);
-        root.addView(confirmPasswordInput);
+                InputType.TYPE_TEXT_VARIATION_PASSWORD
+        );
 
-        TextView roleTitle = title("SELECT ACCOUNT TYPE", 18);
+        layout.addView(name);
+        layout.addView(phone);
+        layout.addView(password);
+        layout.addView(confirm);
+
+        TextView roleTitle = new TextView(this);
+        roleTitle.setText("SELECT ACCOUNT TYPE");
+        roleTitle.setTextSize(18);
         roleTitle.setTextColor(DARK);
-        root.addView(roleTitle);
+        roleTitle.setGravity(Gravity.CENTER);
+        roleTitle.setPadding(0, 25, 0, 10);
 
-        roleGroup = new RadioGroup(this);
-        roleGroup.setOrientation(RadioGroup.VERTICAL);
+        layout.addView(roleTitle);
 
-        RadioButton passenger = new RadioButton(this);
-        passenger.setText("Passenger");
-        passenger.setTextSize(17);
-        passenger.setChecked(true);
+        final String[] selectedRole = {"PASSENGER"};
 
-        RadioButton driver = new RadioButton(this);
-        driver.setText("Driver");
-        driver.setTextSize(17);
+        Button passenger = button("🟧  PASSENGER", ORANGE);
+        Button driver = button("🟦  DRIVER", BLUE);
+        Button admin = button("🟪  ADMIN", PURPLE);
 
-        RadioButton admin = new RadioButton(this);
-        admin.setText("Admin");
-        admin.setTextSize(17);
+        layout.addView(passenger);
+        layout.addView(driver);
+        layout.addView(admin);
 
-        roleGroup.addView(passenger);
-        roleGroup.addView(driver);
-        roleGroup.addView(admin);
+        TextView selectedText = new TextView(this);
+        selectedText.setText(
+                "Selected: PASSENGER"
+        );
+        selectedText.setTextSize(16);
+        selectedText.setGravity(Gravity.CENTER);
+        selectedText.setTextColor(GREEN);
+        selectedText.setPadding(0, 10, 0, 10);
 
-        root.addView(roleGroup);
+        layout.addView(selectedText);
 
-        Button create = button("CREATE ACCOUNT", BLUE);
-        root.addView(create);
+        passenger.setOnClickListener(v -> {
+            selectedRole[0] = "PASSENGER";
+            selectedText.setText("Selected: PASSENGER");
+        });
 
-        create.setOnClickListener(v -> registerUser());
+        driver.setOnClickListener(v -> {
+            selectedRole[0] = "DRIVER";
+            selectedText.setText("Selected: DRIVER");
+        });
 
-        Button back = button("BACK", Color.DKGRAY);
-        root.addView(back);
+        admin.setOnClickListener(v -> {
+            selectedRole[0] = "ADMIN";
+            selectedText.setText("Selected: ADMIN");
+        });
+
+        Button register = button("REGISTER", GREEN);
+        Button back = button("BACK", Color.GRAY);
+
+        layout.addView(register);
+        layout.addView(back);
+
+        register.setOnClickListener(v -> {
+
+            String nameText = name.getText().toString().trim();
+            String phoneText = phone.getText().toString().trim();
+            String passText = password.getText().toString();
+            String confirmText = confirm.getText().toString();
+
+            if (nameText.isEmpty()) {
+                name.setError("Enter your name");
+                return;
+            }
+
+            if (phoneText.isEmpty()) {
+                phone.setError("Enter phone number");
+                return;
+            }
+
+            if (passText.length() < 6) {
+                password.setError(
+                        "Password must be at least 6 characters"
+                );
+                return;
+            }
+
+            if (!passText.equals(confirmText)) {
+                confirm.setError("Passwords do not match");
+                return;
+            }
+
+            String role = selectedRole[0];
+
+            register.setEnabled(false);
+            register.setText("CREATING ACCOUNT...");
+
+            String email = makeFirebaseEmail(phoneText);
+
+            auth.createUserWithEmailAndPassword(
+                            email,
+                            passText
+                    )
+                    .addOnCompleteListener(task -> {
+
+                        if (!task.isSuccessful()) {
+
+                            register.setEnabled(true);
+                            register.setText("REGISTER");
+
+                            String message =
+                                    "Registration failed.";
+
+                            if (task.getException() != null) {
+                                message =
+                                        task.getException().getMessage();
+                            }
+
+                            Toast.makeText(
+                                    this,
+                                    message,
+                                    Toast.LENGTH_LONG
+                            ).show();
+
+                            return;
+                        }
+
+                        String uid =
+                                auth.getCurrentUser().getUid();
+
+                        Map<String, Object> user =
+                                new HashMap<>();
+
+                        user.put("uid", uid);
+                        user.put("name", nameText);
+                        user.put("phone", normalizePhone(phoneText));
+                        user.put("role", role);
+                        user.put("active", true);
+
+                        db.collection("users")
+                                .document(uid)
+                                .set(user)
+                                .addOnSuccessListener(unused -> {
+
+                                    saveUser(
+                                            uid,
+                                            nameText,
+                                            normalizePhone(phoneText),
+                                            role
+                                    );
+
+                                    Toast.makeText(
+                                            this,
+                                            "Account created successfully!",
+                                            Toast.LENGTH_LONG
+                                    ).show();
+
+                                    openRole(role);
+                                })
+                                .addOnFailureListener(e -> {
+
+                                    register.setEnabled(true);
+                                    register.setText("REGISTER");
+
+                                    Toast.makeText(
+                                            this,
+                                            "Profile error: " +
+                                                    e.getMessage(),
+                                            Toast.LENGTH_LONG
+                                    ).show();
+                                });
+                    });
+        });
 
         back.setOnClickListener(v -> showHome());
+
+        setContentView(layout);
     }
 
-    private void registerUser() {
+    private void showAbout() {
 
-        String name = nameInput.getText().toString().trim();
-        String phone = phoneInput.getText().toString().trim();
-        String password = passwordInput.getText().toString();
-        String confirm = confirmPasswordInput.getText().toString();
+        LinearLayout layout = baseLayout();
 
-        if (name.isEmpty()) {
-            toast("Enter your full name.");
-            return;
-        }
+        layout.addView(title("🛺 SAKAY NA"));
 
-        if (phone.isEmpty()) {
-            toast("Enter your phone number.");
-            return;
-        }
+        layout.addView(subtitle(
+                "A local tricycle ride-hailing application.\n\n" +
+                "Passenger • Driver • Admin\n\n" +
+                "Phone number + password\n" +
+                "No SMS OTP"
+        ));
 
-        if (password.length() < 6) {
-            toast("Password must be at least 6 characters.");
-            return;
-        }
+        Button back = button("BACK", GREEN);
 
-        if (!password.equals(confirm)) {
-            toast("Passwords do not match.");
-            return;
-        }
+        layout.addView(back);
 
-        String role = getSelectedRole();
+        back.setOnClickListener(v -> showHome());
 
-        if (role.isEmpty()) {
-            toast("Select an account type.");
-            return;
-        }
-
-        String email = makeFirebaseEmail(phone);
-
-        Toast.makeText(
-                this,
-                "Creating account...",
-                Toast.LENGTH_SHORT
-        ).show();
-
-        auth.createUserWithEmailAndPassword(email, password)
-                .addOnCompleteListener(task -> {
-
-                    if (!task.isSuccessful()) {
-
-                        String message = "Registration failed.";
-
-                        if (task.getException() != null) {
-                            message = task.getException().getMessage();
-                        }
-
-                        toast(message);
-                        return;
-                    }
-
-                    FirebaseUser user = auth.getCurrentUser();
-
-                    if (user == null) {
-                        toast("Account created but user session is missing.");
-                        return;
-                    }
-
-                    String uid = user.getUid();
-
-                    Map<String, Object> profile = new HashMap<>();
-
-                    profile.put("uid", uid);
-                    profile.put("name", name);
-                    profile.put("phone", phone);
-                    profile.put("role", role);
-                    profile.put("email", email);
-                    profile.put("createdAt", Timestamp.now());
-                    profile.put("active", true);
-
-                    db.collection("users")
-                            .document(uid)
-                            .set(profile)
-                            .addOnSuccessListener(unused -> {
-
-                                saveCurrentUser(
-                                        uid,
-                                        name,
-                                        phone,
-                                        role
-                                );
-
-                                toast("Account created successfully.");
-
-                                openRoleScreen(role);
-                            })
-                            .addOnFailureListener(e -> {
-
-                                toast(
-                                        "Account created, but profile save failed: "
-                                                + e.getMessage()
-                                );
-                            });
-                });
+        setContentView(layout);
     }
 
-    private void loginUser() {
-
-        String phone = phoneInput.getText().toString().trim();
-        String password = passwordInput.getText().toString();
-
-        if (phone.isEmpty()) {
-            toast("Enter your phone number.");
-            return;
-        }
-
-        if (password.isEmpty()) {
-            toast("Enter your password.");
-            return;
-        }
-
-        String email = makeFirebaseEmail(phone);
-
-        Toast.makeText(
-                this,
-                "Logging in...",
-                Toast.LENGTH_SHORT
-        ).show();
-
-        auth.signInWithEmailAndPassword(email, password)
-                .addOnCompleteListener(task -> {
-
-                    if (!task.isSuccessful()) {
-
-                        String message = "Login failed.";
-
-                        if (task.getException() != null) {
-                            message = task.getException().getMessage();
-                        }
-
-                        toast(message);
-                        return;
-                    }
-
-                    FirebaseUser user = auth.getCurrentUser();
-
-                    if (user == null) {
-                        toast("Login succeeded but user session is missing.");
-                        return;
-                    }
-
-                    loadUserProfile(user.getUid());
-                });
-    }
-
-    private void loadUserProfile(String uid) {
-
-        db.collection("users")
-                .document(uid)
-                .get()
-                .addOnSuccessListener(document -> {
-
-                    if (!document.exists()) {
-                        toast("Account profile not found.");
-                        return;
-                    }
-
-                    String name = document.getString("name");
-                    String phone = document.getString("phone");
-                    String role = document.getString("role");
-
-                    if (name == null) {
-                        name = "";
-                    }
-
-                    if (phone == null) {
-                        phone = "";
-                    }
-
-                    if (role == null) {
-                        role = "";
-                    }
-
-                    saveCurrentUser(
-                            uid,
-                            name,
-                            phone,
-                            role
-                    );
-
-                    openRoleScreen(role);
-                })
-                .addOnFailureListener(e ->
-                        toast(
-                                "Could not load account: "
-                                        + e.getMessage()
-                        )
-                );
-    }
-
-    private void openRoleScreen(String role) {
-
-        if (role.equalsIgnoreCase("Passenger")) {
-
-            startActivity(
-                    new Intent(
-                            MainActivity.this,
-                            PassengerActivity.class
-                    )
-            );
-
-            finish();
-
-        } else if (role.equalsIgnoreCase("Driver")) {
-
-            startActivity(
-                    new Intent(
-                            MainActivity.this,
-                            DriverActivity.class
-                    )
-            );
-
-            finish();
-
-        } else if (role.equalsIgnoreCase("Admin")) {
-
-            startActivity(
-                    new Intent(
-                            MainActivity.this,
-                            AdminActivity.class
-                    )
-            );
-
-            finish();
-
-        } else {
-
-            toast("Unknown account type: " + role);
-        }
-    }
-
-    private String getSelectedRole() {
-
-        int selectedId = roleGroup.getCheckedRadioButtonId();
-
-        if (selectedId == -1) {
-            return "";
-        }
-
-        RadioButton selected =
-                roleGroup.findViewById(selectedId);
-
-        if (selected == null) {
-            return "";
-        }
-
-        return selected.getText().toString();
-    }
-
-    private String makeFirebaseEmail(String phone) {
+    private String normalizePhone(String phone) {
 
         String clean =
                 phone.replaceAll("[^0-9]", "");
@@ -534,63 +495,65 @@ public class MainActivity extends AppCompatActivity {
             clean = "63" + clean.substring(1);
         }
 
-        return clean + "@sakyna.app";
+        return clean;
     }
 
-    private void saveCurrentUser(
+    private String makeFirebaseEmail(String phone) {
+
+        return normalizePhone(phone) + "@sakyna.app";
+    }
+
+    private void saveUser(
             String uid,
             String name,
             String phone,
             String role) {
 
-        SharedPreferences preferences =
-                getSharedPreferences(
-                        "SakayNa",
-                        MODE_PRIVATE
-                );
-
-        preferences.edit()
-                .putString("current_user", uid)
+        prefs.edit()
+                .putString("uid", uid)
                 .putString("name", name)
                 .putString("phone", phone)
                 .putString("role", role)
                 .apply();
     }
 
-    private void showAbout() {
+    private void openRole(String role) {
 
-        setupRoot();
+        if (role == null) {
+            Toast.makeText(
+                    this,
+                    "Account type not found.",
+                    Toast.LENGTH_LONG
+            ).show();
+            return;
+        }
 
-        TextView heading = title("ABOUT SAKAY NA", 28);
-        heading.setTextColor(GREEN);
-        heading.setTypeface(null, android.graphics.Typeface.BOLD);
-        root.addView(heading);
+        if (role.equalsIgnoreCase("PASSENGER")) {
 
-        TextView about = title(
-                "SAKAY NA\n\n" +
-                        "A local tricycle ride-hailing application.\n\n" +
-                        "Passengers can request rides.\n" +
-                        "Drivers can accept rides.\n" +
-                        "Admins can manage the system.\n\n" +
-                        "ACCOUNT SYSTEM\n" +
-                        "Phone number + password\n" +
-                        "No SMS OTP required.",
-                17
-        );
+            startActivity(
+                    new Intent(
+                            this,
+                            PassengerActivity.class
+                    )
+            );
 
-        root.addView(about);
+        } else if (role.equalsIgnoreCase("DRIVER")) {
 
-        Button back = button("BACK", GREEN);
-        root.addView(back);
+            startActivity(
+                    new Intent(
+                            this,
+                            DriverActivity.class
+                    )
+            );
 
-        back.setOnClickListener(v -> showHome());
-    }
+        } else if (role.equalsIgnoreCase("ADMIN")) {
 
-    private void toast(String message) {
-        Toast.makeText(
-                this,
-                message,
-                Toast.LENGTH_LONG
-        ).show();
+            startActivity(
+                    new Intent(
+                            this,
+                            AdminActivity.class
+                    )
+            );
+        }
     }
 }
