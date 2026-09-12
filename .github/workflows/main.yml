@@ -22,8 +22,6 @@ jobs:
           pwd
           echo "===== ROOT FILES ====="
           ls -la
-          echo "===== SETTINGS FILE ====="
-          ls -l settings.gradle.kts
           echo "===== APP ====="
           ls -la app
 
@@ -38,6 +36,37 @@ jobs:
           wget -q https://services.gradle.org/distributions/gradle-8.10.2-bin.zip
           unzip -q gradle-8.10.2-bin.zip -d "$RUNNER_TEMP/gradle"
           echo "$RUNNER_TEMP/gradle/gradle-8.10.2/bin" >> "$GITHUB_PATH"
+
+      - name: Get Android signing fingerprints
+        run: |
+          mkdir -p "$HOME/.android"
+
+          if [ ! -f "$HOME/.android/debug.keystore" ]; then
+            keytool -genkeypair \
+              -v \
+              -keystore "$HOME/.android/debug.keystore" \
+              -storepass android \
+              -keypass android \
+              -alias androiddebugkey \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
+          fi
+
+          echo "===== SHA-1 ====="
+          keytool -list \
+            -v \
+            -keystore "$HOME/.android/debug.keystore" \
+            -storepass android \
+            -alias androiddebugkey | grep "SHA1:"
+
+          echo "===== SHA-256 ====="
+          keytool -list \
+            -v \
+            -keystore "$HOME/.android/debug.keystore" \
+            -storepass android \
+            -alias androiddebugkey | grep "SHA256:"
 
       - name: Build APK
         run: |
