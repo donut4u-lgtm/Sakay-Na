@@ -1,12 +1,16 @@
 
-
 package com.sakyna.app;
 
+import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.location.Location;
+import android.location.LocationListener;
+import android.location.LocationManager;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.widget.Button;
@@ -14,9 +18,25 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.firestore.FirebaseFirestore;
+
+import java.util.HashMap;
+import java.util.Map;
+
 public class DriverActivity extends Activity {
 
+    private static final int LOCATION_PERMISSION_REQUEST = 1001;
+
     private SharedPreferences prefs;
+    private FirebaseAuth auth;
+    private FirebaseFirestore db;
+
+    private LocationManager locationManager;
+    private LocationListener locationListener;
+
+    private double currentLatitude = 0.0;
+    private double currentLongitude = 0.0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -27,7 +47,203 @@ public class DriverActivity extends Activity {
                 MODE_PRIVATE
         );
 
+        auth = FirebaseAuth.getInstance();
+        db = FirebaseFirestore.getInstance();
+
+        setupLocationListener();
+
         showDashboard();
+    }
+
+    private void setupLocationListener() {
+
+        locationManager =
+                (LocationManager) getSystemService(LOCATION_SERVICE);
+
+        locationListener =
+                new LocationListener() {
+
+                    @Override
+                    public void onLocationChanged(
+                            Location location
+                    ) {
+
+                        currentLatitude =
+                                location.getLatitude();
+
+                        currentLongitude =
+                                location.getLongitude();
+
+                        saveDriverLocation(
+                                currentLatitude,
+                                currentLongitude
+                        );
+                    }
+
+                    @Override
+                    public void onProviderEnabled(
+                            String provider
+                    ) {
+                    }
+
+                    @Override
+                    public void onProviderDisabled(
+                            String provider
+                    ) {
+                    }
+                };
+    }
+
+    private void startGpsTracking() {
+
+        if (checkSelfPermission(
+                Manifest.permission.ACCESS_FINE_LOCATION
+        ) != PackageManager.PERMISSION_GRANTED
+                &&
+                checkSelfPermission(
+                        Manifest.permission.ACCESS_COARSE_LOCATION
+                ) != PackageManager.PERMISSION_GRANTED) {
+
+            requestPermissions(
+                    new String[]{
+                            Manifest.permission.ACCESS_FINE_LOCATION,
+                            Manifest.permission.ACCESS_COARSE_LOCATION
+                    },
+                    LOCATION_PERMISSION_REQUEST
+            );
+
+            return;
+        }
+
+        try {
+
+            locationManager.requestLocationUpdates(
+                    LocationManager.GPS_PROVIDER,
+                    3000,
+                    5,
+                    locationListener
+            );
+
+            locationManager.requestLocationUpdates(
+                    LocationManager.NETWORK_PROVIDER,
+                    5000,
+                    10,
+                    locationListener
+            );
+
+            Toast.makeText(
+                    this,
+                    "GPS tracking started.",
+                    Toast.LENGTH_LONG
+            ).show();
+
+        } catch (SecurityException e) {
+
+            Toast.makeText(
+                    this,
+                    "GPS permission is required.",
+                    Toast.LENGTH_LONG
+            ).show();
+        }
+    }
+
+    private void stopGpsTracking() {
+
+        if (locationManager == null) {
+            return;
+        }
+
+        try {
+
+            locationManager.removeUpdates(
+                    locationListener
+            );
+
+        } catch (SecurityException ignored) {
+        }
+    }
+
+    private void saveDriverLocation(
+            double latitude,
+            double longitude
+    ) {
+
+        if (auth.getCurrentUser() == null) {
+            return;
+        }
+
+        String driverId =
+                auth.getCurrentUser().getUid();
+
+        String driverName =
+                prefs.getString(
+                        "current_name",
+                        "Sakay Na Driver"
+                );
+
+        Map<String, Object> location =
+                new HashMap<>();
+
+        location.put(
+                "driverId",
+                driverId
+        );
+
+        location.put(
+                "driverName",
+                driverName
+        );
+
+        location.put(
+                "latitude",
+                latitude
+        );
+
+        location.put(
+                "longitude",
+                longitude
+        );
+
+        location.put(
+                "online",
+                true
+        );
+
+        location.put(
+                "updatedAt",
+                com.google.firebase.firestore.FieldValue.serverTimestamp()
+        );
+
+        db.collection("driverLocations")
+                .document(driverId)
+                .set(location);
+    }
+
+    private void markDriverOffline() {
+
+        if (auth.getCurrentUser() == null) {
+            return;
+        }
+
+        String driverId =
+                auth.getCurrentUser().getUid();
+
+        Map<String, Object> update =
+                new HashMap<>();
+
+        update.put(
+                "online",
+                false
+        );
+
+        update.put(
+                "updatedAt",
+                com.google.firebase.firestore.FieldValue.serverTimestamp()
+        );
+
+        db.collection("driverLocations")
+                .document(driverId)
+                .set(update);
     }
 
     private TextView makeText(
@@ -156,8 +372,8 @@ public class DriverActivity extends Activity {
         TextView status =
                 makeText(
                         online
-                        ? "● DRIVER IS ONLINE"
-                        : "● DRIVER IS OFFLINE",
+                                ? "● DRIVER IS ONLINE"
+                                : "● DRIVER IS OFFLINE",
                         21
                 );
 
@@ -172,16 +388,16 @@ public class DriverActivity extends Activity {
 
         status.setTextColor(
                 online
-                ? Color.rgb(
-                        0,
-                        150,
-                        80
-                )
-                : Color.rgb(
-                        180,
-                        80,
-                        80
-                )
+                        ? Color.rgb(
+                                0,
+                                150,
+                                80
+                        )
+                        : Color.rgb(
+                                180,
+                                80,
+                                80
+                        )
         );
 
         layout.addView(status);
@@ -208,6 +424,17 @@ public class DriverActivity extends Activity {
         );
 
         layout.addView(onlineButton);
+
+        Button location =
+                makeButton(
+                        "📍 GPS LOCATION"
+                );
+
+        location.setOnClickListener(
+                v -> showGpsStatus()
+        );
+
+        layout.addView(location);
 
         Button requests =
                 makeButton(
@@ -256,6 +483,87 @@ public class DriverActivity extends Activity {
         setContentView(layout);
     }
 
+    private void showGpsStatus() {
+
+        LinearLayout layout =
+                createPage(
+                        "GPS LOCATION"
+                );
+
+        boolean online =
+                prefs.getBoolean(
+                        "driver_online",
+                        false
+                );
+
+        String locationText;
+
+        if (currentLatitude == 0.0
+                && currentLongitude == 0.0) {
+
+            locationText =
+                    "Waiting for GPS location...\n\n"
+                            + "Make sure Location/GPS is enabled on the phone.";
+
+        } else {
+
+            locationText =
+                    "LIVE DRIVER LOCATION\n\n"
+                            + "Latitude:\n"
+                            + currentLatitude
+                            + "\n\n"
+                            + "Longitude:\n"
+                            + currentLongitude
+                            + "\n\n"
+                            + (
+                            online
+                                    ? "Status: ONLINE"
+                                    : "Status: OFFLINE"
+                    );
+        }
+
+        TextView location =
+                makeText(
+                        locationText,
+                        19
+                );
+
+        location.setGravity(
+                Gravity.CENTER
+        );
+
+        location.setTypeface(
+                null,
+                Typeface.BOLD
+        );
+
+        layout.addView(location);
+
+        Button refresh =
+                makeButton(
+                        "🔄 Refresh GPS"
+                );
+
+        refresh.setOnClickListener(
+                v -> {
+
+                    startGpsTracking();
+
+                    Toast.makeText(
+                            this,
+                            "Looking for GPS location...",
+                            Toast.LENGTH_LONG
+                    ).show();
+                }
+        );
+
+        layout.addView(refresh);
+
+        addBackButton(layout);
+
+        setContentView(layout);
+    }
+
     private void toggleOnline() {
 
         boolean online =
@@ -264,20 +572,42 @@ public class DriverActivity extends Activity {
                         false
                 );
 
-        prefs.edit()
-                .putBoolean(
-                        "driver_online",
-                        !online
-                )
-                .apply();
+        if (!online) {
 
-        Toast.makeText(
-                this,
-                online
-                ? "You are now OFFLINE."
-                : "You are now ONLINE.",
-                Toast.LENGTH_LONG
-        ).show();
+            prefs.edit()
+                    .putBoolean(
+                            "driver_online",
+                            true
+                    )
+                    .apply();
+
+            startGpsTracking();
+
+            Toast.makeText(
+                    this,
+                    "You are now ONLINE. GPS tracking started.",
+                    Toast.LENGTH_LONG
+            ).show();
+
+        } else {
+
+            prefs.edit()
+                    .putBoolean(
+                            "driver_online",
+                            false
+                    )
+                    .apply();
+
+            markDriverOffline();
+
+            stopGpsTracking();
+
+            Toast.makeText(
+                    this,
+                    "You are now OFFLINE.",
+                    Toast.LENGTH_LONG
+            ).show();
+        }
 
         showDashboard();
     }
@@ -293,30 +623,6 @@ public class DriverActivity extends Activity {
                 prefs.getBoolean(
                         "driver_online",
                         false
-                );
-
-        String pickup =
-                prefs.getString(
-                        "ride_pickup",
-                        ""
-                );
-
-        String destination =
-                prefs.getString(
-                        "ride_destination",
-                        ""
-                );
-
-        String status =
-                prefs.getString(
-                        "ride_status",
-                        ""
-                );
-
-        int fare =
-                prefs.getInt(
-                        "ride_fare",
-                        0
                 );
 
         if (!online) {
@@ -340,124 +646,21 @@ public class DriverActivity extends Activity {
             return;
         }
 
-        if (pickup.isEmpty() ||
-                destination.isEmpty() ||
-                !status.equals(
-                        "REQUESTED"
-                )) {
-
-            TextView none =
-                    makeText(
-                            "No new booking requests.",
-                            20
-                    );
-
-            none.setGravity(
-                    Gravity.CENTER
-            );
-
-            layout.addView(none);
-
-            addBackButton(layout);
-
-            setContentView(layout);
-
-            return;
-        }
-
-        TextView request =
+        TextView waiting =
                 makeText(
-                        "NEW RIDE REQUEST\n\n" +
-                        "Pickup:\n" +
-                        pickup +
-                        "\n\n" +
-                        "Destination:\n" +
-                        destination +
-                        "\n\n" +
-                        "Estimated Fare:\n" +
-                        "₱" +
-                        fare,
+                        "GPS is active.\n\nBooking synchronization will be connected to Firestore in the next step.",
                         19
                 );
 
-        request.setTypeface(
-                null,
-                Typeface.BOLD
+        waiting.setGravity(
+                Gravity.CENTER
         );
 
-        layout.addView(request);
-
-        Button accept =
-                makeButton(
-                        "✅ ACCEPT RIDE"
-                );
-
-        accept.setOnClickListener(
-                v -> acceptRide()
-        );
-
-        layout.addView(accept);
-
-        Button decline =
-                makeButton(
-                        "❌ DECLINE RIDE"
-                );
-
-        decline.setOnClickListener(
-                v -> declineRide()
-        );
-
-        layout.addView(decline);
+        layout.addView(waiting);
 
         addBackButton(layout);
 
         setContentView(layout);
-    }
-
-    private void acceptRide() {
-
-        String driverName =
-                prefs.getString(
-                        "current_name",
-                        "Sakay Na Driver"
-                );
-
-        prefs.edit()
-                .putString(
-                        "ride_status",
-                        "ACCEPTED"
-                )
-                .putString(
-                        "ride_driver",
-                        driverName
-                )
-                .apply();
-
-        Toast.makeText(
-                this,
-                "Ride accepted!",
-                Toast.LENGTH_LONG
-        ).show();
-
-        showCurrentTrip();
-    }
-
-    private void declineRide() {
-
-        prefs.edit()
-                .putString(
-                        "ride_status",
-                        "DECLINED"
-                )
-                .apply();
-
-        Toast.makeText(
-                this,
-                "Ride declined.",
-                Toast.LENGTH_LONG
-        ).show();
-
-        showBookingRequest();
     }
 
     private void showCurrentTrip() {
@@ -467,92 +670,31 @@ public class DriverActivity extends Activity {
                         "CURRENT TRIP"
                 );
 
-        String pickup =
-                prefs.getString(
-                        "ride_pickup",
-                        ""
-                );
-
-        String destination =
-                prefs.getString(
-                        "ride_destination",
-                        ""
-                );
-
         String status =
                 prefs.getString(
                         "ride_status",
                         ""
                 );
 
-        String passenger =
-                prefs.getString(
-                        "current_passenger",
-                        "Passenger"
-                );
-
-        String driver =
-                prefs.getString(
-                        "ride_driver",
-                        ""
-                );
-
-        int fare =
-                prefs.getInt(
-                        "ride_fare",
-                        0
-                );
-
-        if (pickup.isEmpty() ||
-                destination.isEmpty() ||
-                status.isEmpty()) {
-
-            TextView none =
-                    makeText(
-                            "No current trip.",
-                            20
-                    );
-
-            none.setGravity(
-                    Gravity.CENTER
-            );
-
-            layout.addView(none);
-
-            addBackButton(layout);
-
-            setContentView(layout);
-
-            return;
-        }
-
         TextView trip =
                 makeText(
-                        "PASSENGER\n" +
-                        passenger +
-                        "\n\n" +
-                        "PICKUP\n" +
-                        pickup +
-                        "\n\n" +
-                        "DESTINATION\n" +
-                        destination +
-                        "\n\n" +
-                        "FARE\n₱" +
-                        fare +
-                        "\n\n" +
-                        "DRIVER\n" +
-                        (
-                            driver.isEmpty()
-                            ? "Not assigned"
-                            : driver
-                        ) +
-                        "\n\n" +
-                        "STATUS\n" +
-                        getReadableStatus(
-                                status
-                        ),
-                        18
+                        "CURRENT RIDE STATUS\n\n"
+                                + (
+                                status.isEmpty()
+                                        ? "No current trip."
+                                        : getReadableStatus(status)
+                        )
+                                + "\n\n"
+                                + "Driver GPS:\n"
+                                + currentLatitude
+                                + ", "
+                                + currentLongitude,
+                        19
                 );
+
+        trip.setGravity(
+                Gravity.CENTER
+        );
 
         trip.setTypeface(
                 null,
@@ -560,368 +702,6 @@ public class DriverActivity extends Activity {
         );
 
         layout.addView(trip);
-
-        TextView statusText =
-                makeText(
-                        getReadableStatus(
-                                status
-                        ),
-                        22
-                );
-
-        statusText.setGravity(
-                Gravity.CENTER
-        );
-
-        statusText.setTypeface(
-                null,
-                Typeface.BOLD
-        );
-
-        statusText.setTextColor(
-                getStatusColor(
-                        status
-                )
-        );
-
-        layout.addView(statusText);
-
-        addTripAction(
-                layout,
-                status
-        );
-
-        Button refresh =
-                makeButton(
-                        "🔄 Refresh Status"
-                );
-
-        refresh.setOnClickListener(
-                v -> showCurrentTrip()
-        );
-
-        layout.addView(refresh);
-
-        addBackButton(layout);
-
-        setContentView(layout);
-    }
-
-    private void addTripAction(
-            LinearLayout layout,
-            String status
-    ) {
-
-        if (status.equals(
-                "ACCEPTED"
-        )) {
-
-            Button button =
-                    makeButton(
-                            "🛣️ DRIVER ON THE WAY"
-                    );
-
-            button.setOnClickListener(
-                    v -> updateTrip(
-                            "DRIVER_ON_THE_WAY"
-                    )
-            );
-
-            layout.addView(button);
-
-            return;
-        }
-
-        if (status.equals(
-                "DRIVER_ON_THE_WAY"
-        )) {
-
-            Button button =
-                    makeButton(
-                            "📍 ARRIVED"
-                    );
-
-            button.setOnClickListener(
-                    v -> updateTrip(
-                            "DRIVER_ARRIVED"
-                    )
-            );
-
-            layout.addView(button);
-
-            return;
-        }
-
-        if (status.equals(
-                "DRIVER_ARRIVED"
-        )) {
-
-            Button button =
-                    makeButton(
-                            "▶️ START TRIP"
-                    );
-
-            button.setOnClickListener(
-                    v -> updateTrip(
-                            "IN_PROGRESS"
-                    )
-            );
-
-            layout.addView(button);
-
-            return;
-        }
-
-        if (status.equals(
-                "IN_PROGRESS"
-        )) {
-
-            Button button =
-                    makeButton(
-                            "🏁 FINISH TRIP"
-                    );
-
-            button.setOnClickListener(
-                    v -> finishTrip()
-            );
-
-            layout.addView(button);
-        }
-    }
-
-    private void updateTrip(
-            String newStatus
-    ) {
-
-        prefs.edit()
-                .putString(
-                        "ride_status",
-                        newStatus
-                )
-                .apply();
-
-        Toast.makeText(
-                this,
-                getReadableStatus(
-                        newStatus
-                ),
-                Toast.LENGTH_LONG
-        ).show();
-
-        showCurrentTrip();
-    }
-
-    private void finishTrip() {
-
-        int fare =
-                prefs.getInt(
-                        "ride_fare",
-                        50
-                );
-
-        prefs.edit()
-                .putString(
-                        "ride_status",
-                        "COMPLETED"
-                )
-                .putInt(
-                        "ride_final_fare",
-                        fare
-                )
-                .apply();
-
-        Toast.makeText(
-                this,
-                "Trip finished successfully!\nFare: ₱" +
-                fare,
-                Toast.LENGTH_LONG
-        ).show();
-
-        showCompletedTrip();
-    }
-
-    private void showCompletedTrip() {
-
-        LinearLayout layout =
-                createPage(
-                        "TRIP COMPLETED"
-                );
-
-        String pickup =
-                prefs.getString(
-                        "ride_pickup",
-                        "Unknown"
-                );
-
-        String destination =
-                prefs.getString(
-                        "ride_destination",
-                        "Unknown"
-                );
-
-        String driver =
-                prefs.getString(
-                        "ride_driver",
-                        "Sakay Na Driver"
-                );
-
-        int fare =
-                prefs.getInt(
-                        "ride_final_fare",
-                        prefs.getInt(
-                                "ride_fare",
-                                0
-                        )
-                );
-
-        String rating =
-                prefs.getString(
-                        "ride_rating",
-                        ""
-                );
-
-        TextView completed =
-                makeText(
-                        "✅ RIDE COMPLETED\n\n" +
-                        "Pickup:\n" +
-                        pickup +
-                        "\n\n" +
-                        "Destination:\n" +
-                        destination +
-                        "\n\n" +
-                        "Driver:\n" +
-                        driver +
-                        "\n\n" +
-                        "FINAL FARE\n" +
-                        "₱" +
-                        fare +
-                        "\n\n" +
-                        (
-                            rating.isEmpty()
-                            ? "Passenger Rating: Not yet rated"
-                            : "Passenger Rating: " +
-                              rating +
-                              " / 5"
-                        ),
-                        19
-                );
-
-        completed.setGravity(
-                Gravity.CENTER
-        );
-
-        completed.setTypeface(
-                null,
-                Typeface.BOLD
-        );
-
-        completed.setTextColor(
-                Color.rgb(
-                        0,
-                        130,
-                        70
-                )
-        );
-
-        layout.addView(completed);
-
-        Button receipt =
-                makeButton(
-                        "🧾 View Trip Receipt"
-                );
-
-        receipt.setOnClickListener(
-                v -> showDriverReceipt()
-        );
-
-        layout.addView(receipt);
-
-        addBackButton(layout);
-
-        setContentView(layout);
-    }
-
-    private void showDriverReceipt() {
-
-        LinearLayout layout =
-                createPage(
-                        "TRIP RECEIPT"
-                );
-
-        String pickup =
-                prefs.getString(
-                        "ride_pickup",
-                        "Unknown"
-                );
-
-        String destination =
-                prefs.getString(
-                        "ride_destination",
-                        "Unknown"
-                );
-
-        String driver =
-                prefs.getString(
-                        "ride_driver",
-                        "Sakay Na Driver"
-                );
-
-        int fare =
-                prefs.getInt(
-                        "ride_final_fare",
-                        prefs.getInt(
-                                "ride_fare",
-                                0
-                        )
-                );
-
-        String rating =
-                prefs.getString(
-                        "ride_rating",
-                        ""
-                );
-
-        TextView receipt =
-                makeText(
-                        "SAKAY NA\n\n" +
-                        "COMPLETED TRIP\n\n" +
-                        "Pickup:\n" +
-                        pickup +
-                        "\n\n" +
-                        "Destination:\n" +
-                        destination +
-                        "\n\n" +
-                        "Driver:\n" +
-                        driver +
-                        "\n\n" +
-                        "Final Fare:\n" +
-                        "₱" +
-                        fare +
-                        "\n\n" +
-                        "Driver Earnings:\n" +
-                        "₱" +
-                        fare +
-                        "\n\n" +
-                        (
-                            rating.isEmpty()
-                            ? "Passenger Rating: Not yet rated"
-                            : "Passenger Rating: " +
-                              rating +
-                              " / 5"
-                        ),
-                        19
-                );
-
-        receipt.setGravity(
-                Gravity.CENTER
-        );
-
-        receipt.setTypeface(
-                null,
-                Typeface.BOLD
-        );
-
-        layout.addView(receipt);
 
         addBackButton(layout);
 
@@ -935,86 +715,17 @@ public class DriverActivity extends Activity {
                         "EARNINGS & HISTORY"
                 );
 
-        String status =
-                prefs.getString(
-                        "ride_status",
-                        ""
+        TextView earnings =
+                makeText(
+                        "Driver earnings and completed ride history will be connected to Firestore next.",
+                        20
                 );
 
-        int fare =
-                prefs.getInt(
-                        "ride_final_fare",
-                        prefs.getInt(
-                                "ride_fare",
-                                0
-                        )
-                );
+        earnings.setGravity(
+                Gravity.CENTER
+        );
 
-        String rating =
-                prefs.getString(
-                        "ride_rating",
-                        ""
-                );
-
-        if (!status.equals(
-                "COMPLETED"
-        )) {
-
-            TextView none =
-                    makeText(
-                            "No completed trips yet.\n\nComplete a trip to see your earnings.",
-                            20
-                    );
-
-            none.setGravity(
-                    Gravity.CENTER
-            );
-
-            layout.addView(none);
-
-        } else {
-
-            TextView earnings =
-                    makeText(
-                            "COMPLETED TRIPS\n\n" +
-                            "Trips Completed: 1\n\n" +
-                            "Total Fare:\n" +
-                            "₱" +
-                            fare +
-                            "\n\n" +
-                            "Driver Earnings:\n" +
-                            "₱" +
-                            fare +
-                            "\n\n" +
-                            (
-                                rating.isEmpty()
-                                ? "Latest Passenger Rating: Not rated"
-                                : "Latest Passenger Rating: " +
-                                  rating +
-                                  " / 5"
-                            ),
-                            20
-                    );
-
-            earnings.setGravity(
-                    Gravity.CENTER
-            );
-
-            earnings.setTypeface(
-                    null,
-                    Typeface.BOLD
-            );
-
-            earnings.setTextColor(
-                    Color.rgb(
-                            0,
-                            130,
-                            70
-                    )
-            );
-
-            layout.addView(earnings);
-        }
+        layout.addView(earnings);
 
         addBackButton(layout);
 
@@ -1025,105 +736,48 @@ public class DriverActivity extends Activity {
             String status
     ) {
 
-        if (status.equals(
-                "REQUESTED"
-        )) {
+        if (status.equals("REQUESTED")) {
             return "WAITING FOR DRIVER";
         }
 
-        if (status.equals(
-                "ACCEPTED"
-        )) {
+        if (status.equals("ACCEPTED")) {
             return "RIDE ACCEPTED";
         }
 
-        if (status.equals(
-                "DRIVER_ON_THE_WAY"
-        )) {
+        if (status.equals("DRIVER_ON_THE_WAY")) {
             return "DRIVER ON THE WAY";
         }
 
-        if (status.equals(
-                "DRIVER_ARRIVED"
-        )) {
+        if (status.equals("DRIVER_ARRIVED")) {
             return "DRIVER ARRIVED";
         }
 
-        if (status.equals(
-                "IN_PROGRESS"
-        )) {
+        if (status.equals("IN_PROGRESS")) {
             return "TRIP IN PROGRESS";
         }
 
-        if (status.equals(
-                "COMPLETED"
-        )) {
+        if (status.equals("COMPLETED")) {
             return "RIDE COMPLETED";
         }
 
-        if (status.equals(
-                "CANCELLED"
-        )) {
+        if (status.equals("CANCELLED")) {
             return "RIDE CANCELLED";
         }
 
-        if (status.equals(
-                "DECLINED"
-        )) {
+        if (status.equals("DECLINED")) {
             return "RIDE DECLINED";
         }
 
         return status;
     }
 
-    private int getStatusColor(
-            String status
-    ) {
-
-        if (status.equals(
-                "COMPLETED"
-        )) {
-
-            return Color.rgb(
-                    0,
-                    150,
-                    80
-            );
-        }
-
-        if (status.equals(
-                "CANCELLED"
-        ) ||
-                status.equals(
-                        "DECLINED"
-                )) {
-
-            return Color.rgb(
-                    200,
-                    40,
-                    40
-            );
-        }
-
-        if (status.equals(
-                "DRIVER_ARRIVED"
-        )) {
-
-            return Color.rgb(
-                    220,
-                    150,
-                    0
-            );
-        }
-
-        return Color.rgb(
-                30,
-                100,
-                200
-        );
-    }
-
     private void logout() {
+
+        stopGpsTracking();
+
+        markDriverOffline();
+
+        auth.signOut();
 
         prefs.edit()
                 .remove("current_phone")
@@ -1139,12 +793,60 @@ public class DriverActivity extends Activity {
                 );
 
         intent.setFlags(
-                Intent.FLAG_ACTIVITY_CLEAR_TOP |
-                Intent.FLAG_ACTIVITY_NEW_TASK
+                Intent.FLAG_ACTIVITY_CLEAR_TOP
+                        | Intent.FLAG_ACTIVITY_NEW_TASK
         );
 
         startActivity(intent);
 
         finish();
+    }
+
+    @Override
+    public void onRequestPermissionsResult(
+            int requestCode,
+            String[] permissions,
+            int[] grantResults
+    ) {
+
+        super.onRequestPermissionsResult(
+                requestCode,
+                permissions,
+                grantResults
+        );
+
+        if (requestCode ==
+                LOCATION_PERMISSION_REQUEST) {
+
+            if (grantResults.length > 0
+                    &&
+                    grantResults[0]
+                            == PackageManager.PERMISSION_GRANTED) {
+
+                Toast.makeText(
+                        this,
+                        "GPS permission granted.",
+                        Toast.LENGTH_LONG
+                ).show();
+
+                startGpsTracking();
+
+            } else {
+
+                Toast.makeText(
+                        this,
+                        "GPS permission was denied.",
+                        Toast.LENGTH_LONG
+                ).show();
+            }
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+
+        stopGpsTracking();
+
+        super.onDestroy();
     }
 }
