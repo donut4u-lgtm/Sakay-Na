@@ -1,10 +1,7 @@
 
 package com.sakyna.app;
 
-import android.app.Activity;
 import android.content.Intent;
-import android.graphics.Color;
-import android.graphics.Typeface;
 import android.os.Bundle;
 import android.text.InputType;
 import android.view.Gravity;
@@ -14,133 +11,63 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
-public class MainActivity extends Activity {
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AppCompatActivity;
+
+import com.google.firebase.FirebaseException;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.PhoneAuthCredential;
+import com.google.firebase.auth.PhoneAuthOptions;
+import com.google.firebase.auth.PhoneAuthProvider;
+import com.google.firebase.firestore.FirebaseFirestore;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+
+public class MainActivity extends AppCompatActivity {
+
+    private FirebaseAuth auth;
+    private FirebaseFirestore db;
 
     private String selectedRole = "";
+    private String pendingName = "";
+    private String pendingPhone = "";
+    private String verificationId = "";
+
+    private PhoneAuthProvider.ForceResendingToken resendToken;
+
+    private LinearLayout root;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        auth = FirebaseAuth.getInstance();
+        db = FirebaseFirestore.getInstance();
+
         showHome();
     }
 
-    private LinearLayout baseLayout() {
+    private void setupScreen(String title) {
+        root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setPadding(32, 40, 32, 32);
+        root.setGravity(Gravity.CENTER_HORIZONTAL);
 
-        LinearLayout layout =
-                new LinearLayout(this);
+        TextView titleView = new TextView(this);
+        titleView.setText(title);
+        titleView.setTextSize(28);
+        titleView.setGravity(Gravity.CENTER);
+        titleView.setPadding(0, 0, 0, 30);
 
-        layout.setOrientation(
-                LinearLayout.VERTICAL
-        );
+        root.addView(titleView);
 
-        layout.setPadding(
-                30,
-                30,
-                30,
-                30
-        );
-
-        layout.setGravity(
-                Gravity.CENTER_HORIZONTAL
-        );
-
-        return layout;
+        setContentView(root);
     }
 
-    private TextView makeTitle(String text) {
-
-        TextView title =
-                new TextView(this);
-
-        title.setText(text);
-        title.setTextSize(32);
-        title.setTypeface(
-                null,
-                Typeface.BOLD
-        );
-
-        title.setTextColor(
-                Color.rgb(0, 150, 80)
-        );
-
-        title.setGravity(
-                Gravity.CENTER
-        );
-
-        title.setPadding(
-                10,
-                20,
-                10,
-                20
-        );
-
-        return title;
-    }
-
-    private TextView makeText(
-            String text,
-            int size
-    ) {
-
-        TextView view =
-                new TextView(this);
-
-        view.setText(text);
-        view.setTextSize(size);
-        view.setTextColor(Color.DKGRAY);
-
-        view.setPadding(
-                10,
-                15,
-                10,
-                15
-        );
-
-        return view;
-    }
-
-    private EditText makeInput(
-            String hint
-    ) {
-
-        EditText input =
-                new EditText(this);
-
-        input.setHint(hint);
-        input.setTextSize(17);
-
-        input.setPadding(
-                20,
-                15,
-                20,
-                15
-        );
-
-        LinearLayout.LayoutParams params =
-                new LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT
-                );
-
-        params.setMargins(
-                0,
-                8,
-                0,
-                8
-        );
-
-        input.setLayoutParams(params);
-
-        return input;
-    }
-
-    private Button makeButton(
-            String text
-    ) {
-
-        Button button =
-                new Button(this);
-
+    private Button button(String text) {
+        Button button = new Button(this);
         button.setText(text);
         button.setTextSize(17);
         button.setAllCaps(false);
@@ -151,689 +78,431 @@ public class MainActivity extends Activity {
                         LinearLayout.LayoutParams.WRAP_CONTENT
                 );
 
-        params.setMargins(
-                0,
-                8,
-                0,
-                8
-        );
-
-        button.setLayoutParams(params);
+        params.setMargins(0, 8, 0, 8);
+        root.addView(button, params);
 
         return button;
     }
 
+    private EditText input(String hint) {
+        EditText editText = new EditText(this);
+        editText.setHint(hint);
+        editText.setTextSize(17);
+        editText.setSingleLine(true);
+
+        LinearLayout.LayoutParams params =
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                );
+
+        params.setMargins(0, 5, 0, 5);
+        root.addView(editText, params);
+
+        return editText;
+    }
+
     private void showHome() {
+        setupScreen("🛺 SAKAY NA");
 
-        LinearLayout layout =
-                baseLayout();
+        TextView welcome = new TextView(this);
+        welcome.setText("Tricycle Ride-Hailing");
+        welcome.setTextSize(20);
+        welcome.setGravity(Gravity.CENTER);
+        root.addView(welcome);
 
-        TextView title =
-                makeTitle("SAKAY NA");
+        Button login = button("LOGIN");
+        login.setOnClickListener(v -> showLogin());
 
-        layout.addView(title);
+        Button register = button("REGISTER");
+        register.setOnClickListener(v -> showRoleSelection());
 
-        TextView subtitle =
-                makeText(
-                        "Tricycle Ride Booking",
-                        20
-                );
-
-        subtitle.setGravity(
-                Gravity.CENTER
-        );
-
-        layout.addView(subtitle);
-
-        TextView welcome =
-                makeText(
-                        "Your local ride, made easy.",
-                        17
-                );
-
-        welcome.setGravity(
-                Gravity.CENTER
-        );
-
-        layout.addView(welcome);
-
-        Button login =
-                makeButton("LOGIN");
-
-        login.setOnClickListener(
-                v -> showLogin()
-        );
-
-        layout.addView(login);
-
-        Button register =
-                makeButton("REGISTER");
-
-        register.setOnClickListener(
-                v -> showRegisterRole()
-        );
-
-        layout.addView(register);
-
-        Button about =
-                makeButton("About Sakay Na");
-
-        about.setOnClickListener(
-                v -> Toast.makeText(
+        Button about = button("ABOUT");
+        about.setOnClickListener(v ->
+                Toast.makeText(
                         this,
-                        "Sakay Na - Tricycle Ride Booking",
+                        "Sakay Na\nYour local tricycle ride-hailing app.",
                         Toast.LENGTH_LONG
                 ).show()
         );
-
-        layout.addView(about);
-
-        setContentView(layout);
     }
 
-    private void showRegisterRole() {
+    private void showRoleSelection() {
+        setupScreen("Choose Account Type");
 
-        LinearLayout layout =
-                baseLayout();
-
-        TextView title =
-                makeTitle("REGISTER");
-
-        layout.addView(title);
-
-        TextView text =
-                makeText(
-                        "Choose your account type",
-                        19
-                );
-
-        text.setGravity(
-                Gravity.CENTER
-        );
-
-        layout.addView(text);
-
-        Button passenger =
-                makeButton("Passenger");
-
+        Button passenger = button("🟠 Passenger");
         passenger.setOnClickListener(v -> {
-
             selectedRole = "Passenger";
-
             showRegistration();
         });
 
-        layout.addView(passenger);
-
-        Button driver =
-                makeButton("Driver");
-
+        Button driver = button("🔵 Driver");
         driver.setOnClickListener(v -> {
-
             selectedRole = "Driver";
-
             showRegistration();
         });
 
-        layout.addView(driver);
-
-        Button admin =
-                makeButton("Admin");
-
+        Button admin = button("🟣 Admin");
         admin.setOnClickListener(v -> {
-
             selectedRole = "Admin";
-
             showRegistration();
         });
 
-        layout.addView(admin);
-
-        Button back =
-                makeButton("Back");
-
-        back.setOnClickListener(
-                v -> showHome()
-        );
-
-        layout.addView(back);
-
-        setContentView(layout);
+        Button back = button("BACK");
+        back.setOnClickListener(v -> showHome());
     }
 
     private void showRegistration() {
+        setupScreen("Register — " + selectedRole);
 
-        LinearLayout layout =
-                baseLayout();
+        EditText nameInput = input("Full name");
 
-        TextView title =
-                makeTitle("REGISTER");
+        EditText phoneInput = input("Phone number");
+        phoneInput.setInputType(InputType.TYPE_CLASS_PHONE);
 
-        layout.addView(title);
+        TextView format = new TextView(this);
+        format.setText("Example: +639171234567");
+        root.addView(format);
 
-        TextView role =
-                makeText(
-                        "Account type: " +
-                        selectedRole,
-                        18
-                );
-
-        role.setGravity(
-                Gravity.CENTER
-        );
-
-        layout.addView(role);
-
-        EditText name =
-                makeInput("Full Name");
-
-        layout.addView(name);
-
-        EditText phone =
-                makeInput("Phone Number");
-
-        phone.setInputType(
-                InputType.TYPE_CLASS_PHONE
-        );
-
-        layout.addView(phone);
-
-        EditText password =
-                makeInput("Password");
-
-        password.setInputType(
-                InputType.TYPE_CLASS_TEXT |
-                InputType.TYPE_TEXT_VARIATION_PASSWORD
-        );
-
-        layout.addView(password);
-
-        EditText confirmPassword =
-                makeInput("Confirm Password");
-
-        confirmPassword.setInputType(
-                InputType.TYPE_CLASS_TEXT |
-                InputType.TYPE_TEXT_VARIATION_PASSWORD
-        );
-
-        layout.addView(confirmPassword);
-
-        Button continueButton =
-                makeButton(
-                        "Continue to OTP"
-                );
+        Button continueButton = button("SEND OTP");
 
         continueButton.setOnClickListener(v -> {
+            String name = nameInput.getText().toString().trim();
+            String phone = phoneInput.getText().toString().trim();
 
-            String fullName =
-                    name.getText()
-                            .toString()
-                            .trim();
-
-            String phoneNumber =
-                    phone.getText()
-                            .toString()
-                            .trim();
-
-            String pass =
-                    password.getText()
-                            .toString();
-
-            String confirm =
-                    confirmPassword.getText()
-                            .toString();
-
-            if (fullName.isEmpty()) {
-
-                Toast.makeText(
-                        this,
-                        "Please enter your full name",
-                        Toast.LENGTH_SHORT
-                ).show();
-
+            if (name.length() < 2) {
+                toast("Enter your full name.");
                 return;
             }
 
-            if (phoneNumber.isEmpty()) {
-
-                Toast.makeText(
-                        this,
-                        "Please enter your phone number",
-                        Toast.LENGTH_SHORT
-                ).show();
-
+            if (!phone.startsWith("+63") || phone.length() < 12) {
+                toast("Use Philippine format: +639XXXXXXXXX");
                 return;
             }
 
-            if (phoneNumber.length() < 7) {
+            pendingName = name;
+            pendingPhone = phone;
 
-                Toast.makeText(
-                        this,
-                        "Please enter a valid phone number",
-                        Toast.LENGTH_SHORT
-                ).show();
-
-                return;
-            }
-
-            String existingAccount =
-                    getSharedPreferences(
-                            "SakayNa",
-                            MODE_PRIVATE
-                    ).getString(
-                            "phone_" + phoneNumber,
-                            null
-                    );
-
-            if (existingAccount != null) {
-
-                Toast.makeText(
-                        this,
-                        "This phone number is already registered.",
-                        Toast.LENGTH_LONG
-                ).show();
-
-                return;
-            }
-
-            if (pass.isEmpty()) {
-
-                Toast.makeText(
-                        this,
-                        "Please enter a password",
-                        Toast.LENGTH_SHORT
-                ).show();
-
-                return;
-            }
-
-            if (pass.length() < 4) {
-
-                Toast.makeText(
-                        this,
-                        "Password must be at least 4 characters.",
-                        Toast.LENGTH_SHORT
-                ).show();
-
-                return;
-            }
-
-            if (!pass.equals(confirm)) {
-
-                Toast.makeText(
-                        this,
-                        "Passwords do not match",
-                        Toast.LENGTH_SHORT
-                ).show();
-
-                return;
-            }
-
-            showOtp(
-                    fullName,
-                    phoneNumber,
-                    pass
-            );
+            sendOtp(phone, true);
         });
 
-        layout.addView(
-                continueButton
-        );
-
-        Button back =
-                makeButton("Back");
-
-        back.setOnClickListener(
-                v -> showRegisterRole()
-        );
-
-        layout.addView(back);
-
-        setContentView(layout);
-    }
-
-    private void showOtp(
-            String fullName,
-            String phone,
-            String password
-    ) {
-
-        LinearLayout layout =
-                baseLayout();
-
-        TextView title =
-                makeTitle("VERIFY PHONE");
-
-        layout.addView(title);
-
-        TextView info =
-                makeText(
-                        "Demo OTP: 123456\n\n" +
-                        "Enter the OTP sent to your phone.",
-                        18
-                );
-
-        info.setGravity(
-                Gravity.CENTER
-        );
-
-        layout.addView(info);
-
-        EditText otp =
-                makeInput("Enter OTP");
-
-        otp.setInputType(
-                InputType.TYPE_CLASS_NUMBER
-        );
-
-        layout.addView(otp);
-
-        Button verify =
-                makeButton(
-                        "VERIFY & CREATE ACCOUNT"
-                );
-
-        verify.setOnClickListener(v -> {
-
-            String enteredOtp =
-                    otp.getText()
-                            .toString()
-                            .trim();
-
-            if (!enteredOtp.equals(
-                    "123456"
-            )) {
-
-                Toast.makeText(
-                        this,
-                        "Invalid OTP. Use 123456 for this demo.",
-                        Toast.LENGTH_LONG
-                ).show();
-
-                return;
-            }
-
-            getSharedPreferences(
-                    "SakayNa",
-                    MODE_PRIVATE
-            )
-                    .edit()
-                    .putString(
-                            "phone_" + phone,
-                            password
-                    )
-                    .putString(
-                            "name_" + phone,
-                            fullName
-                    )
-                    .putString(
-                            "role_" + phone,
-                            selectedRole
-                    )
-                    .putBoolean(
-                            "suspended_" + phone,
-                            false
-                    )
-                    .apply();
-
-            Toast.makeText(
-                    this,
-                    "Account created successfully!",
-                    Toast.LENGTH_LONG
-            ).show();
-
-            showLogin();
-        });
-
-        layout.addView(verify);
-
-        Button back =
-                makeButton("Back");
-
-        back.setOnClickListener(
-                v -> showRegistration()
-        );
-
-        layout.addView(back);
-
-        setContentView(layout);
+        Button back = button("BACK");
+        back.setOnClickListener(v -> showRoleSelection());
     }
 
     private void showLogin() {
+        setupScreen("Login");
 
-        LinearLayout layout =
-                baseLayout();
+        EditText phoneInput = input("Phone number");
+        phoneInput.setInputType(InputType.TYPE_CLASS_PHONE);
 
-        TextView title =
-                makeTitle("LOGIN");
+        TextView info = new TextView(this);
+        info.setText("We'll send a one-time verification code.");
+        root.addView(info);
 
-        layout.addView(title);
-
-        EditText phone =
-                makeInput("Phone Number");
-
-        phone.setInputType(
-                InputType.TYPE_CLASS_PHONE
-        );
-
-        layout.addView(phone);
-
-        EditText password =
-                makeInput("Password");
-
-        password.setInputType(
-                InputType.TYPE_CLASS_TEXT |
-                InputType.TYPE_TEXT_VARIATION_PASSWORD
-        );
-
-        layout.addView(password);
-
-        Button login =
-                makeButton("LOGIN");
+        Button login = button("SEND OTP");
 
         login.setOnClickListener(v -> {
+            String phone = phoneInput.getText().toString().trim();
 
-            String phoneNumber =
-                    phone.getText()
-                            .toString()
-                            .trim();
-
-            String pass =
-                    password.getText()
-                            .toString();
-
-            if (phoneNumber.isEmpty() ||
-                    pass.isEmpty()) {
-
-                Toast.makeText(
-                        this,
-                        "Please enter phone number and password",
-                        Toast.LENGTH_SHORT
-                ).show();
-
+            if (!phone.startsWith("+63") || phone.length() < 12) {
+                toast("Use Philippine format: +639XXXXXXXXX");
                 return;
             }
 
-            String savedPassword =
-                    getSharedPreferences(
-                            "SakayNa",
-                            MODE_PRIVATE
-                    ).getString(
-                            "phone_" + phoneNumber,
-                            null
-                    );
-
-            if (savedPassword == null) {
-
-                Toast.makeText(
-                        this,
-                        "Account not found. Please register first.",
-                        Toast.LENGTH_LONG
-                ).show();
-
-                return;
-            }
-
-            boolean suspended =
-                    getSharedPreferences(
-                            "SakayNa",
-                            MODE_PRIVATE
-                    ).getBoolean(
-                            "suspended_" + phoneNumber,
-                            false
-                    );
-
-            if (suspended) {
-
-                Toast.makeText(
-                        this,
-                        "This account has been suspended by an administrator.",
-                        Toast.LENGTH_LONG
-                ).show();
-
-                return;
-            }
-
-            if (!savedPassword.equals(pass)) {
-
-                Toast.makeText(
-                        this,
-                        "Incorrect password",
-                        Toast.LENGTH_SHORT
-                ).show();
-
-                return;
-            }
-
-            String name =
-                    getSharedPreferences(
-                            "SakayNa",
-                            MODE_PRIVATE
-                    ).getString(
-                            "name_" + phoneNumber,
-                            ""
-                    );
-
-            String role =
-                    getSharedPreferences(
-                            "SakayNa",
-                            MODE_PRIVATE
-                    ).getString(
-                            "role_" + phoneNumber,
-                            ""
-                    );
-
-            getSharedPreferences(
-                    "SakayNa",
-                    MODE_PRIVATE
-            )
-                    .edit()
-                    .putString(
-                            "current_phone",
-                            phoneNumber
-                    )
-                    .putString(
-                            "current_name",
-                            name
-                    )
-                    .putString(
-                            "current_role",
-                            role
-                    )
-                    .apply();
-
-            Toast.makeText(
-                    this,
-                    "Welcome, " + name + "!",
-                    Toast.LENGTH_SHORT
-            ).show();
-
-            openRoleActivity(role);
+            pendingPhone = phone;
+            sendOtp(phone, false);
         });
 
-        layout.addView(login);
-
-        Button register =
-                makeButton(
-                        "Create New Account"
-                );
-
-        register.setOnClickListener(
-                v -> showRegisterRole()
-        );
-
-        layout.addView(register);
-
-        Button back =
-                makeButton("Back");
-
-        back.setOnClickListener(
-                v -> showHome()
-        );
-
-        layout.addView(back);
-
-        setContentView(layout);
+        Button back = button("BACK");
+        back.setOnClickListener(v -> showHome());
     }
 
-    private void openRoleActivity(
-            String role
-    ) {
+    private void sendOtp(String phone, boolean registration) {
 
-        if (role.equals(
-                "Passenger"
-        )) {
+        Toast.makeText(this, "Sending OTP...", Toast.LENGTH_SHORT).show();
 
-            Intent intent =
+        PhoneAuthOptions options =
+                PhoneAuthOptions.newBuilder(auth)
+                        .setPhoneNumber(phone)
+                        .setTimeout(60L, TimeUnit.SECONDS)
+                        .setActivity(this)
+                        .setCallbacks(new PhoneAuthProvider.OnVerificationStateChangedCallbacks() {
+
+                            @Override
+                            public void onVerificationCompleted(
+                                    @NonNull PhoneAuthCredential credential) {
+
+                                verifyCredential(credential, registration);
+                            }
+
+                            @Override
+                            public void onVerificationFailed(
+                                    @NonNull FirebaseException e) {
+
+                                toast("OTP failed: " + e.getMessage());
+                            }
+
+                            @Override
+                            public void onCodeSent(
+                                    @NonNull String id,
+                                    @NonNull PhoneAuthProvider.ForceResendingToken token) {
+
+                                verificationId = id;
+                                resendToken = token;
+
+                                showOtpScreen(registration);
+                            }
+                        })
+                        .build();
+
+        PhoneAuthProvider.verifyPhoneNumber(options);
+    }
+
+    private void showOtpScreen(boolean registration) {
+        setupScreen("Enter OTP");
+
+        TextView info = new TextView(this);
+        info.setText("A verification code was sent to:\n" + pendingPhone);
+        info.setTextSize(17);
+        info.setGravity(Gravity.CENTER);
+        root.addView(info);
+
+        EditText otpInput = input("6-digit OTP");
+        otpInput.setInputType(InputType.TYPE_CLASS_NUMBER);
+        otpInput.setGravity(Gravity.CENTER);
+
+        Button verify = button("VERIFY OTP");
+
+        verify.setOnClickListener(v -> {
+
+            String code = otpInput.getText().toString().trim();
+
+            if (code.length() != 6) {
+                toast("Enter the 6-digit OTP.");
+                return;
+            }
+
+            PhoneAuthCredential credential =
+                    PhoneAuthProvider.getCredential(
+                            verificationId,
+                            code
+                    );
+
+            verifyCredential(credential, registration);
+        });
+
+        Button resend = button("RESEND OTP");
+
+        resend.setOnClickListener(v -> {
+            if (resendToken != null) {
+                resendOtp(registration);
+            } else {
+                sendOtp(pendingPhone, registration);
+            }
+        });
+
+        Button back = button("BACK");
+        back.setOnClickListener(v -> showHome());
+    }
+
+    private void resendOtp(boolean registration) {
+
+        PhoneAuthOptions options =
+                PhoneAuthOptions.newBuilder(auth)
+                        .setPhoneNumber(pendingPhone)
+                        .setTimeout(60L, TimeUnit.SECONDS)
+                        .setActivity(this)
+                        .setForceResendingToken(resendToken)
+                        .setCallbacks(new PhoneAuthProvider.OnVerificationStateChangedCallbacks() {
+
+                            @Override
+                            public void onVerificationCompleted(
+                                    @NonNull PhoneAuthCredential credential) {
+
+                                verifyCredential(credential, registration);
+                            }
+
+                            @Override
+                            public void onVerificationFailed(
+                                    @NonNull FirebaseException e) {
+
+                                toast("Resend failed: " + e.getMessage());
+                            }
+
+                            @Override
+                            public void onCodeSent(
+                                    @NonNull String id,
+                                    @NonNull PhoneAuthProvider.ForceResendingToken token) {
+
+                                verificationId = id;
+                                resendToken = token;
+
+                                toast("New OTP sent.");
+                            }
+                        })
+                        .build();
+
+        PhoneAuthProvider.verifyPhoneNumber(options);
+    }
+
+    private void verifyCredential(
+            PhoneAuthCredential credential,
+            boolean registration) {
+
+        auth.signInWithCredential(credential)
+                .addOnCompleteListener(this, task -> {
+
+                    if (!task.isSuccessful()) {
+                        toast("Verification failed.");
+                        return;
+                    }
+
+                    if (registration) {
+                        createUserProfile();
+                    } else {
+                        loadExistingProfile();
+                    }
+                });
+    }
+
+    private void createUserProfile() {
+
+        if (auth.getCurrentUser() == null) {
+            toast("Authentication error.");
+            return;
+        }
+
+        String uid = auth.getCurrentUser().getUid();
+
+        Map<String, Object> profile = new HashMap<>();
+        profile.put("name", pendingName);
+        profile.put("phone", pendingPhone);
+        profile.put("role", selectedRole);
+        profile.put("suspended", false);
+
+        db.collection("users")
+                .document(uid)
+                .set(profile)
+                .addOnSuccessListener(unused -> {
+
+                    getSharedPreferences("SakayNa", MODE_PRIVATE)
+                            .edit()
+                            .putString("current_phone", pendingPhone)
+                            .putString("current_name", pendingName)
+                            .putString("current_role", selectedRole)
+                            .apply();
+
+                    toast("Account created successfully!");
+
+                    openRoleScreen(selectedRole);
+                })
+                .addOnFailureListener(e ->
+                        toast("Could not save profile: " + e.getMessage()));
+    }
+
+    private void loadExistingProfile() {
+
+        if (auth.getCurrentUser() == null) {
+            toast("Authentication error.");
+            return;
+        }
+
+        String uid = auth.getCurrentUser().getUid();
+
+        db.collection("users")
+                .document(uid)
+                .get()
+                .addOnSuccessListener(document -> {
+
+                    if (!document.exists()) {
+                        toast("No Sakay Na profile found. Please register first.");
+                        auth.signOut();
+                        showHome();
+                        return;
+                    }
+
+                    Boolean suspended =
+                            document.getBoolean("suspended");
+
+                    if (Boolean.TRUE.equals(suspended)) {
+                        toast("This account is suspended.");
+                        auth.signOut();
+                        showHome();
+                        return;
+                    }
+
+                    String name = document.getString("name");
+                    String phone = document.getString("phone");
+                    String role = document.getString("role");
+
+                    if (role == null) {
+                        toast("Account role is missing.");
+                        auth.signOut();
+                        showHome();
+                        return;
+                    }
+
+                    getSharedPreferences("SakayNa", MODE_PRIVATE)
+                            .edit()
+                            .putString("current_phone", phone)
+                            .putString("current_name", name)
+                            .putString("current_role", role)
+                            .apply();
+
+                    toast("Login successful!");
+
+                    openRoleScreen(role);
+                })
+                .addOnFailureListener(e ->
+                        toast("Could not load profile: " + e.getMessage()));
+    }
+
+    private void openRoleScreen(String role) {
+
+        if ("Passenger".equals(role)) {
+
+            startActivity(
                     new Intent(
-                            this,
+                            MainActivity.this,
                             PassengerActivity.class
-                    );
+                    )
+            );
 
-            startActivity(intent);
-            finish();
+        } else if ("Driver".equals(role)) {
 
-        } else if (role.equals(
-                "Driver"
-        )) {
-
-            Intent intent =
+            startActivity(
                     new Intent(
-                            this,
+                            MainActivity.this,
                             DriverActivity.class
-                    );
+                    )
+            );
 
-            startActivity(intent);
-            finish();
+        } else if ("Admin".equals(role)) {
 
-        } else if (role.equals(
-                "Admin"
-        )) {
-
-            Intent intent =
+            startActivity(
                     new Intent(
-                            this,
+                            MainActivity.this,
                             AdminActivity.class
-                    );
-
-            startActivity(intent);
-            finish();
+                    )
+            );
 
         } else {
-
-            Toast.makeText(
-                    this,
-                    "Unknown account type",
-                    Toast.LENGTH_LONG
-            ).show();
-
+            toast("Unknown account role.");
             showHome();
         }
     }
 
+    private void toast(String message) {
+        Toast.makeText(
+                this,
+                message,
+                Toast.LENGTH_LONG
+        ).show();
+    }
+
     @Override
     public void onBackPressed() {
-
         showHome();
     }
 }
