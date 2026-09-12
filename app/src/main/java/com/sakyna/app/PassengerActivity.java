@@ -6,7 +6,6 @@ import android.graphics.Color;
 import android.graphics.Typeface;
 import android.os.Bundle;
 import android.view.Gravity;
-import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -300,11 +299,13 @@ public class PassengerActivity extends AppCompatActivity {
         int difference =
                 Math.abs(pickup.length() - destination.length());
 
-        int fare = 50 + (difference * 2);
+        int calculatedFare = 50 + (difference * 2);
 
-        if (fare > 200) {
-            fare = 200;
+        if (calculatedFare > 200) {
+            calculatedFare = 200;
         }
+
+        final int fare = calculatedFare;
 
         Map<String, Object> ride =
                 new HashMap<>();
