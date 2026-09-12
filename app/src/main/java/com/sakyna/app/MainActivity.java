@@ -2,8 +2,8 @@
 package com.sakyna.app;
 
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.graphics.Color;
-import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.text.InputType;
 import android.view.Gravity;
@@ -11,42 +11,40 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.RadioButton;
+import android.widget.RadioGroup;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 
-import com.google.firebase.FirebaseException;
+import com.google.firebase.Timestamp;
 import com.google.firebase.auth.FirebaseAuth;
-import com.google.firebase.auth.PhoneAuthCredential;
-import com.google.firebase.auth.PhoneAuthOptions;
-import com.google.firebase.auth.PhoneAuthProvider;
+import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.FirebaseFirestore;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 public class MainActivity extends AppCompatActivity {
 
     private FirebaseAuth auth;
     private FirebaseFirestore db;
 
-    private String selectedRole = "";
-    private String pendingName = "";
-    private String pendingPhone = "";
-    private String verificationId = "";
-
-    private PhoneAuthProvider.ForceResendingToken resendToken;
-
     private LinearLayout root;
+    private EditText phoneInput;
+    private EditText passwordInput;
+    private EditText nameInput;
+    private EditText confirmPasswordInput;
+    private RadioGroup roleGroup;
 
-    private final int GREEN = Color.rgb(25, 135, 84);
-    private final int DARK_GREEN = Color.rgb(16, 100, 62);
-    private final int ORANGE = Color.rgb(245, 145, 30);
-    private final int BLUE = Color.rgb(35, 105, 190);
-    private final int PURPLE = Color.rgb(125, 70, 170);
+    private static final int GREEN = Color.rgb(0, 150, 80);
+    private static final int DARK = Color.rgb(30, 30, 30);
+    private static final int LIGHT = Color.rgb(245, 248, 246);
+    private static final int ORANGE = Color.rgb(245, 150, 30);
+    private static final int BLUE = Color.rgb(35, 110, 210);
+    private static final int PURPLE = Color.rgb(125, 70, 180);
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -58,417 +56,372 @@ public class MainActivity extends AppCompatActivity {
         showHome();
     }
 
-    private void setupScreen(String title) {
+    private void setupRoot() {
+        ScrollView scrollView = new ScrollView(this);
+
         root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
+        root.setPadding(35, 45, 35, 45);
         root.setGravity(Gravity.CENTER_HORIZONTAL);
-        root.setPadding(32, 40, 32, 32);
-        root.setBackgroundColor(Color.rgb(248, 250, 249));
+        root.setBackgroundColor(LIGHT);
 
-        TextView titleView = new TextView(this);
-        titleView.setText(title);
-        titleView.setTextSize(28);
-        titleView.setTextColor(DARK_GREEN);
-        titleView.setTypeface(null, android.graphics.Typeface.BOLD);
-        titleView.setGravity(Gravity.CENTER);
-        titleView.setPadding(0, 0, 0, 25);
+        scrollView.addView(root);
 
-        root.addView(titleView);
-
-        setContentView(root);
+        setContentView(scrollView);
     }
 
-    private TextView text(String value, float size) {
-        TextView view = new TextView(this);
-        view.setText(value);
-        view.setTextSize(size);
-        view.setTextColor(Color.DKGRAY);
-        view.setGravity(Gravity.CENTER);
-        return view;
+    private TextView title(String text, int size) {
+        TextView tv = new TextView(this);
+        tv.setText(text);
+        tv.setTextSize(size);
+        tv.setTextColor(DARK);
+        tv.setGravity(Gravity.CENTER);
+        tv.setPadding(10, 15, 10, 15);
+
+        return tv;
+    }
+
+    private EditText input(String hint) {
+        EditText edit = new EditText(this);
+        edit.setHint(hint);
+        edit.setTextSize(17);
+        edit.setSingleLine(true);
+        edit.setPadding(25, 18, 25, 18);
+
+        LinearLayout.LayoutParams params =
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT);
+
+        params.setMargins(0, 8, 0, 8);
+
+        edit.setLayoutParams(params);
+
+        return edit;
     }
 
     private Button button(String text, int color) {
         Button button = new Button(this);
         button.setText(text);
-        button.setTextSize(18);
+        button.setTextSize(17);
         button.setTextColor(Color.WHITE);
+        button.setBackgroundColor(color);
         button.setAllCaps(false);
-        button.setGravity(Gravity.CENTER);
-
-        GradientDrawable background = new GradientDrawable();
-        background.setColor(color);
-        background.setCornerRadius(30);
-        button.setBackground(background);
 
         LinearLayout.LayoutParams params =
                 new LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.MATCH_PARENT,
-                        60
-                );
+                        LinearLayout.LayoutParams.WRAP_CONTENT);
 
         params.setMargins(0, 10, 0, 10);
-        root.addView(button, params);
+
+        button.setLayoutParams(params);
 
         return button;
     }
 
-    private EditText input(String hint) {
-        EditText editText = new EditText(this);
-        editText.setHint(hint);
-        editText.setTextSize(17);
-        editText.setSingleLine(true);
-        editText.setPadding(25, 5, 25, 5);
-
-        GradientDrawable background = new GradientDrawable();
-        background.setColor(Color.WHITE);
-        background.setCornerRadius(25);
-        background.setStroke(2, Color.LTGRAY);
-        editText.setBackground(background);
-
-        LinearLayout.LayoutParams params =
-                new LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT,
-                        60
-                );
-
-        params.setMargins(0, 6, 0, 6);
-        root.addView(editText, params);
-
-        return editText;
-    }
-
     private void showHome() {
-        setupScreen("");
 
-        TextView logo = text("🛺", 64);
+        setupRoot();
+
+        TextView logo = title("🛺", 60);
         root.addView(logo);
 
-        TextView title = text("SAKAY NA", 34);
-        title.setTextColor(GREEN);
-        title.setTypeface(null, android.graphics.Typeface.BOLD);
-        title.setPadding(0, 5, 0, 5);
-        root.addView(title);
+        TextView appName = title("SAKAY NA", 34);
+        appName.setTextColor(GREEN);
+        appName.setTypeface(null, android.graphics.Typeface.BOLD);
+        root.addView(appName);
 
-        TextView subtitle = text("Tricycle Ride-Hailing", 18);
-        subtitle.setTextColor(Color.DKGRAY);
-        subtitle.setPadding(0, 0, 0, 30);
+        TextView subtitle =
+                title("TRICYCLE RIDE-HAILING", 18);
         root.addView(subtitle);
 
+        TextView description =
+                title("Safe • Simple • Local", 16);
+        root.addView(description);
+
+        TextView loginInfo =
+                title("PHONE NUMBER + PASSWORD\nNO SMS • NO OTP", 14);
+        loginInfo.setTextColor(GREEN);
+        root.addView(loginInfo);
+
         Button login = button("LOGIN", GREEN);
+        root.addView(login);
+
         login.setOnClickListener(v -> showLogin());
 
-        Button register = button("REGISTER", ORANGE);
-        register.setOnClickListener(v -> showRoleSelection());
+        Button register = button("REGISTER", BLUE);
+        root.addView(register);
 
-        Button about = button("ABOUT", BLUE);
-        about.setOnClickListener(v ->
-                Toast.makeText(
-                        this,
-                        "Sakay Na\nYour local tricycle ride-hailing app.",
-                        Toast.LENGTH_LONG
-                ).show()
-        );
+        register.setOnClickListener(v -> showRegister());
 
-        TextView footer = text("Safe • Simple • Local", 14);
-        footer.setTextColor(Color.GRAY);
-        footer.setPadding(0, 25, 0, 0);
-        root.addView(footer);
-    }
+        Button about = button("ABOUT SAKAY NA", Color.DKGRAY);
+        root.addView(about);
 
-    private void showRoleSelection() {
-        setupScreen("Choose Account Type");
-
-        TextView info = text("How will you use Sakay Na?", 17);
-        info.setPadding(0, 0, 0, 20);
-        root.addView(info);
-
-        Button passenger = button("🟠  Passenger", ORANGE);
-        passenger.setOnClickListener(v -> {
-            selectedRole = "Passenger";
-            showRegistration();
-        });
-
-        Button driver = button("🔵  Driver", BLUE);
-        driver.setOnClickListener(v -> {
-            selectedRole = "Driver";
-            showRegistration();
-        });
-
-        Button admin = button("🟣  Admin", PURPLE);
-        admin.setOnClickListener(v -> {
-            selectedRole = "Admin";
-            showRegistration();
-        });
-
-        Button back = button("BACK", Color.GRAY);
-        back.setOnClickListener(v -> showHome());
-    }
-
-    private void showRegistration() {
-        setupScreen("Register — " + selectedRole);
-
-        EditText nameInput = input("Full name");
-
-        EditText phoneInput = input("Phone number");
-        phoneInput.setInputType(InputType.TYPE_CLASS_PHONE);
-
-        TextView format = text("Example: +639171234567", 14);
-        format.setTextColor(Color.GRAY);
-        root.addView(format);
-
-        Button continueButton = button("SEND OTP", GREEN);
-
-        continueButton.setOnClickListener(v -> {
-            String name = nameInput.getText().toString().trim();
-            String phone = phoneInput.getText().toString().trim();
-
-            if (name.length() < 2) {
-                toast("Enter your full name.");
-                return;
-            }
-
-            if (!phone.startsWith("+63") || phone.length() < 12) {
-                toast("Use Philippine format: +639XXXXXXXXX");
-                return;
-            }
-
-            pendingName = name;
-            pendingPhone = phone;
-
-            sendOtp(phone, true);
-        });
-
-        Button back = button("BACK", Color.GRAY);
-        back.setOnClickListener(v -> showRoleSelection());
+        about.setOnClickListener(v -> showAbout());
     }
 
     private void showLogin() {
-        setupScreen("LOGIN");
 
-        TextView info = text(
-                "Enter your registered phone number.\nWe'll send a one-time verification code.",
-                17
-        );
-        info.setPadding(0, 0, 0, 20);
+        setupRoot();
+
+        TextView heading = title("LOGIN", 30);
+        heading.setTextColor(GREEN);
+        heading.setTypeface(null, android.graphics.Typeface.BOLD);
+        root.addView(heading);
+
+        TextView info =
+                title("Enter your registered phone number and password.\n\nNo OTP required.", 15);
+        info.setTextColor(DARK);
         root.addView(info);
 
-        EditText phoneInput = input("Phone number");
+        phoneInput = input("Phone number");
         phoneInput.setInputType(InputType.TYPE_CLASS_PHONE);
+        root.addView(phoneInput);
 
-        Button login = button("SEND OTP", GREEN);
+        passwordInput = input("Password");
+        passwordInput.setInputType(
+                InputType.TYPE_CLASS_TEXT |
+                        InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        root.addView(passwordInput);
 
-        login.setOnClickListener(v -> {
-            String phone = phoneInput.getText().toString().trim();
+        Button login = button("LOGIN", GREEN);
+        root.addView(login);
 
-            if (!phone.startsWith("+63") || phone.length() < 12) {
-                toast("Use Philippine format: +639XXXXXXXXX");
-                return;
-            }
+        login.setOnClickListener(v -> loginUser());
 
-            pendingPhone = phone;
-            sendOtp(phone, false);
-        });
+        Button register = button("CREATE NEW ACCOUNT", BLUE);
+        root.addView(register);
 
-        Button back = button("BACK", Color.GRAY);
+        register.setOnClickListener(v -> showRegister());
+
+        Button back = button("BACK", Color.DKGRAY);
+        root.addView(back);
+
         back.setOnClickListener(v -> showHome());
     }
 
-    private void sendOtp(String phone, boolean registration) {
+    private void showRegister() {
 
-        toast("Sending OTP...");
+        setupRoot();
 
-        PhoneAuthOptions options =
-                PhoneAuthOptions.newBuilder(auth)
-                        .setPhoneNumber(phone)
-                        .setTimeout(60L, TimeUnit.SECONDS)
-                        .setActivity(this)
-                        .setCallbacks(
-                                new PhoneAuthProvider.OnVerificationStateChangedCallbacks() {
+        TextView heading = title("CREATE ACCOUNT", 28);
+        heading.setTextColor(BLUE);
+        heading.setTypeface(null, android.graphics.Typeface.BOLD);
+        root.addView(heading);
 
-                                    @Override
-                                    public void onVerificationCompleted(
-                                            @NonNull PhoneAuthCredential credential) {
-
-                                        verifyCredential(credential, registration);
-                                    }
-
-                                    @Override
-                                    public void onVerificationFailed(
-                                            @NonNull FirebaseException e) {
-
-                                        toast("OTP failed: " + e.getMessage());
-                                    }
-
-                                    @Override
-                                    public void onCodeSent(
-                                            @NonNull String id,
-                                            @NonNull PhoneAuthProvider.ForceResendingToken token) {
-
-                                        verificationId = id;
-                                        resendToken = token;
-
-                                        showOtpScreen(registration);
-                                    }
-                                }
-                        )
-                        .build();
-
-        PhoneAuthProvider.verifyPhoneNumber(options);
-    }
-
-    private void showOtpScreen(boolean registration) {
-        setupScreen("VERIFY PHONE");
-
-        TextView info = text(
-                "OTP sent to:\n" + pendingPhone,
-                17
-        );
-        info.setPadding(0, 0, 0, 20);
+        TextView info =
+                title("Create your Sakay Na account.\n\nPhone number + password only.\nNO OTP.", 15);
         root.addView(info);
 
-        EditText otpInput = input("6-digit OTP");
-        otpInput.setInputType(InputType.TYPE_CLASS_NUMBER);
-        otpInput.setGravity(Gravity.CENTER);
+        nameInput = input("Full name");
+        root.addView(nameInput);
 
-        Button verify = button("VERIFY OTP", GREEN);
+        phoneInput = input("Phone number");
+        phoneInput.setInputType(InputType.TYPE_CLASS_PHONE);
+        root.addView(phoneInput);
 
-        verify.setOnClickListener(v -> {
+        passwordInput = input("Password");
+        passwordInput.setInputType(
+                InputType.TYPE_CLASS_TEXT |
+                        InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        root.addView(passwordInput);
 
-            String code = otpInput.getText().toString().trim();
+        confirmPasswordInput = input("Confirm password");
+        confirmPasswordInput.setInputType(
+                InputType.TYPE_CLASS_TEXT |
+                        InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        root.addView(confirmPasswordInput);
 
-            if (code.length() != 6) {
-                toast("Enter the 6-digit OTP.");
-                return;
-            }
+        TextView roleTitle = title("SELECT ACCOUNT TYPE", 18);
+        roleTitle.setTextColor(DARK);
+        root.addView(roleTitle);
 
-            PhoneAuthCredential credential =
-                    PhoneAuthProvider.getCredential(
-                            verificationId,
-                            code
-                    );
+        roleGroup = new RadioGroup(this);
+        roleGroup.setOrientation(RadioGroup.VERTICAL);
 
-            verifyCredential(credential, registration);
-        });
+        RadioButton passenger = new RadioButton(this);
+        passenger.setText("Passenger");
+        passenger.setTextSize(17);
+        passenger.setChecked(true);
 
-        Button resend = button("RESEND OTP", BLUE);
+        RadioButton driver = new RadioButton(this);
+        driver.setText("Driver");
+        driver.setTextSize(17);
 
-        resend.setOnClickListener(v -> {
-            if (resendToken != null) {
-                resendOtp(registration);
-            } else {
-                sendOtp(pendingPhone, registration);
-            }
-        });
+        RadioButton admin = new RadioButton(this);
+        admin.setText("Admin");
+        admin.setTextSize(17);
 
-        Button back = button("BACK", Color.GRAY);
+        roleGroup.addView(passenger);
+        roleGroup.addView(driver);
+        roleGroup.addView(admin);
+
+        root.addView(roleGroup);
+
+        Button create = button("CREATE ACCOUNT", BLUE);
+        root.addView(create);
+
+        create.setOnClickListener(v -> registerUser());
+
+        Button back = button("BACK", Color.DKGRAY);
+        root.addView(back);
+
         back.setOnClickListener(v -> showHome());
     }
 
-    private void resendOtp(boolean registration) {
+    private void registerUser() {
 
-        PhoneAuthOptions options =
-                PhoneAuthOptions.newBuilder(auth)
-                        .setPhoneNumber(pendingPhone)
-                        .setTimeout(60L, TimeUnit.SECONDS)
-                        .setActivity(this)
-                        .setForceResendingToken(resendToken)
-                        .setCallbacks(
-                                new PhoneAuthProvider.OnVerificationStateChangedCallbacks() {
+        String name = nameInput.getText().toString().trim();
+        String phone = phoneInput.getText().toString().trim();
+        String password = passwordInput.getText().toString();
+        String confirm = confirmPasswordInput.getText().toString();
 
-                                    @Override
-                                    public void onVerificationCompleted(
-                                            @NonNull PhoneAuthCredential credential) {
+        if (name.isEmpty()) {
+            toast("Enter your full name.");
+            return;
+        }
 
-                                        verifyCredential(credential, registration);
-                                    }
+        if (phone.isEmpty()) {
+            toast("Enter your phone number.");
+            return;
+        }
 
-                                    @Override
-                                    public void onVerificationFailed(
-                                            @NonNull FirebaseException e) {
+        if (password.length() < 6) {
+            toast("Password must be at least 6 characters.");
+            return;
+        }
 
-                                        toast("Resend failed: " + e.getMessage());
-                                    }
+        if (!password.equals(confirm)) {
+            toast("Passwords do not match.");
+            return;
+        }
 
-                                    @Override
-                                    public void onCodeSent(
-                                            @NonNull String id,
-                                            @NonNull PhoneAuthProvider.ForceResendingToken token) {
+        String role = getSelectedRole();
 
-                                        verificationId = id;
-                                        resendToken = token;
+        if (role.isEmpty()) {
+            toast("Select an account type.");
+            return;
+        }
 
-                                        toast("New OTP sent.");
-                                    }
-                                }
-                        )
-                        .build();
+        String email = makeFirebaseEmail(phone);
 
-        PhoneAuthProvider.verifyPhoneNumber(options);
-    }
+        Toast.makeText(
+                this,
+                "Creating account...",
+                Toast.LENGTH_SHORT
+        ).show();
 
-    private void verifyCredential(
-            PhoneAuthCredential credential,
-            boolean registration) {
-
-        auth.signInWithCredential(credential)
-                .addOnCompleteListener(this, task -> {
+        auth.createUserWithEmailAndPassword(email, password)
+                .addOnCompleteListener(task -> {
 
                     if (!task.isSuccessful()) {
-                        toast("Verification failed.");
+
+                        String message = "Registration failed.";
+
+                        if (task.getException() != null) {
+                            message = task.getException().getMessage();
+                        }
+
+                        toast(message);
                         return;
                     }
 
-                    if (registration) {
-                        createUserProfile();
-                    } else {
-                        loadExistingProfile();
+                    FirebaseUser user = auth.getCurrentUser();
+
+                    if (user == null) {
+                        toast("Account created but user session is missing.");
+                        return;
                     }
+
+                    String uid = user.getUid();
+
+                    Map<String, Object> profile = new HashMap<>();
+
+                    profile.put("uid", uid);
+                    profile.put("name", name);
+                    profile.put("phone", phone);
+                    profile.put("role", role);
+                    profile.put("email", email);
+                    profile.put("createdAt", Timestamp.now());
+                    profile.put("active", true);
+
+                    db.collection("users")
+                            .document(uid)
+                            .set(profile)
+                            .addOnSuccessListener(unused -> {
+
+                                saveCurrentUser(
+                                        uid,
+                                        name,
+                                        phone,
+                                        role
+                                );
+
+                                toast("Account created successfully.");
+
+                                openRoleScreen(role);
+                            })
+                            .addOnFailureListener(e -> {
+
+                                toast(
+                                        "Account created, but profile save failed: "
+                                                + e.getMessage()
+                                );
+                            });
                 });
     }
 
-    private void createUserProfile() {
+    private void loginUser() {
 
-        if (auth.getCurrentUser() == null) {
-            toast("Authentication error.");
+        String phone = phoneInput.getText().toString().trim();
+        String password = passwordInput.getText().toString();
+
+        if (phone.isEmpty()) {
+            toast("Enter your phone number.");
             return;
         }
 
-        String uid = auth.getCurrentUser().getUid();
+        if (password.isEmpty()) {
+            toast("Enter your password.");
+            return;
+        }
 
-        Map<String, Object> profile = new HashMap<>();
-        profile.put("name", pendingName);
-        profile.put("phone", pendingPhone);
-        profile.put("role", selectedRole);
-        profile.put("suspended", false);
+        String email = makeFirebaseEmail(phone);
 
-        db.collection("users")
-                .document(uid)
-                .set(profile)
-                .addOnSuccessListener(unused -> {
+        Toast.makeText(
+                this,
+                "Logging in...",
+                Toast.LENGTH_SHORT
+        ).show();
 
-                    getSharedPreferences("SakayNa", MODE_PRIVATE)
-                            .edit()
-                            .putString("current_phone", pendingPhone)
-                            .putString("current_name", pendingName)
-                            .putString("current_role", selectedRole)
-                            .apply();
+        auth.signInWithEmailAndPassword(email, password)
+                .addOnCompleteListener(task -> {
 
-                    toast("Account created successfully!");
+                    if (!task.isSuccessful()) {
 
-                    openRoleScreen(selectedRole);
-                })
-                .addOnFailureListener(e ->
-                        toast("Could not save profile: " + e.getMessage()));
+                        String message = "Login failed.";
+
+                        if (task.getException() != null) {
+                            message = task.getException().getMessage();
+                        }
+
+                        toast(message);
+                        return;
+                    }
+
+                    FirebaseUser user = auth.getCurrentUser();
+
+                    if (user == null) {
+                        toast("Login succeeded but user session is missing.");
+                        return;
+                    }
+
+                    loadUserProfile(user.getUid());
+                });
     }
 
-    private void loadExistingProfile() {
-
-        if (auth.getCurrentUser() == null) {
-            toast("Authentication error.");
-            return;
-        }
-
-        String uid = auth.getCurrentUser().getUid();
+    private void loadUserProfile(String uid) {
 
         db.collection("users")
                 .document(uid)
@@ -476,18 +429,7 @@ public class MainActivity extends AppCompatActivity {
                 .addOnSuccessListener(document -> {
 
                     if (!document.exists()) {
-                        toast("No Sakay Na profile found. Please register first.");
-                        auth.signOut();
-                        showHome();
-                        return;
-                    }
-
-                    Boolean suspended = document.getBoolean("suspended");
-
-                    if (Boolean.TRUE.equals(suspended)) {
-                        toast("This account is suspended.");
-                        auth.signOut();
-                        showHome();
+                        toast("Account profile not found.");
                         return;
                     }
 
@@ -495,31 +437,38 @@ public class MainActivity extends AppCompatActivity {
                     String phone = document.getString("phone");
                     String role = document.getString("role");
 
-                    if (role == null) {
-                        toast("Account role is missing.");
-                        auth.signOut();
-                        showHome();
-                        return;
+                    if (name == null) {
+                        name = "";
                     }
 
-                    getSharedPreferences("SakayNa", MODE_PRIVATE)
-                            .edit()
-                            .putString("current_phone", phone)
-                            .putString("current_name", name)
-                            .putString("current_role", role)
-                            .apply();
+                    if (phone == null) {
+                        phone = "";
+                    }
 
-                    toast("Login successful!");
+                    if (role == null) {
+                        role = "";
+                    }
+
+                    saveCurrentUser(
+                            uid,
+                            name,
+                            phone,
+                            role
+                    );
 
                     openRoleScreen(role);
                 })
                 .addOnFailureListener(e ->
-                        toast("Could not load profile: " + e.getMessage()));
+                        toast(
+                                "Could not load account: "
+                                        + e.getMessage()
+                        )
+                );
     }
 
     private void openRoleScreen(String role) {
 
-        if ("Passenger".equals(role)) {
+        if (role.equalsIgnoreCase("Passenger")) {
 
             startActivity(
                     new Intent(
@@ -528,7 +477,9 @@ public class MainActivity extends AppCompatActivity {
                     )
             );
 
-        } else if ("Driver".equals(role)) {
+            finish();
+
+        } else if (role.equalsIgnoreCase("Driver")) {
 
             startActivity(
                     new Intent(
@@ -537,7 +488,9 @@ public class MainActivity extends AppCompatActivity {
                     )
             );
 
-        } else if ("Admin".equals(role)) {
+            finish();
+
+        } else if (role.equalsIgnoreCase("Admin")) {
 
             startActivity(
                     new Intent(
@@ -546,10 +499,91 @@ public class MainActivity extends AppCompatActivity {
                     )
             );
 
+            finish();
+
         } else {
-            toast("Unknown account role.");
-            showHome();
+
+            toast("Unknown account type: " + role);
         }
+    }
+
+    private String getSelectedRole() {
+
+        int selectedId = roleGroup.getCheckedRadioButtonId();
+
+        if (selectedId == -1) {
+            return "";
+        }
+
+        RadioButton selected =
+                roleGroup.findViewById(selectedId);
+
+        if (selected == null) {
+            return "";
+        }
+
+        return selected.getText().toString();
+    }
+
+    private String makeFirebaseEmail(String phone) {
+
+        String clean =
+                phone.replaceAll("[^0-9]", "");
+
+        if (clean.startsWith("0")) {
+            clean = "63" + clean.substring(1);
+        }
+
+        return clean + "@sakyna.app";
+    }
+
+    private void saveCurrentUser(
+            String uid,
+            String name,
+            String phone,
+            String role) {
+
+        SharedPreferences preferences =
+                getSharedPreferences(
+                        "SakayNa",
+                        MODE_PRIVATE
+                );
+
+        preferences.edit()
+                .putString("current_user", uid)
+                .putString("name", name)
+                .putString("phone", phone)
+                .putString("role", role)
+                .apply();
+    }
+
+    private void showAbout() {
+
+        setupRoot();
+
+        TextView heading = title("ABOUT SAKAY NA", 28);
+        heading.setTextColor(GREEN);
+        heading.setTypeface(null, android.graphics.Typeface.BOLD);
+        root.addView(heading);
+
+        TextView about = title(
+                "SAKAY NA\n\n" +
+                        "A local tricycle ride-hailing application.\n\n" +
+                        "Passengers can request rides.\n" +
+                        "Drivers can accept rides.\n" +
+                        "Admins can manage the system.\n\n" +
+                        "ACCOUNT SYSTEM\n" +
+                        "Phone number + password\n" +
+                        "No SMS OTP required.",
+                17
+        );
+
+        root.addView(about);
+
+        Button back = button("BACK", GREEN);
+        root.addView(back);
+
+        back.setOnClickListener(v -> showHome());
     }
 
     private void toast(String message) {
@@ -558,10 +592,5 @@ public class MainActivity extends AppCompatActivity {
                 message,
                 Toast.LENGTH_LONG
         ).show();
-    }
-
-    @Override
-    public void onBackPressed() {
-        showHome();
     }
 }
