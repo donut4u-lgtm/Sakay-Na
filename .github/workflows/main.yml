@@ -16,15 +16,6 @@ jobs:
         with:
           ref: main
 
-      - name: Check project
-        run: |
-          echo "===== CURRENT DIRECTORY ====="
-          pwd
-          echo "===== ROOT FILES ====="
-          ls -la
-          echo "===== APP ====="
-          ls -la app
-
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
@@ -37,43 +28,27 @@ jobs:
           unzip -q gradle-8.10.2-bin.zip -d "$RUNNER_TEMP/gradle"
           echo "$RUNNER_TEMP/gradle/gradle-8.10.2/bin" >> "$GITHUB_PATH"
 
-      - name: Get Android signing fingerprints
+      - name: Prepare signing keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.SAKAYNA_KEYSTORE_BASE64 }}
         run: |
-          mkdir -p "$HOME/.android"
+          echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/sakyna-release.jks"
 
-          if [ ! -f "$HOME/.android/debug.keystore" ]; then
-            keytool -genkeypair \
-              -v \
-              -keystore "$HOME/.android/debug.keystore" \
-              -storepass android \
-              -keypass android \
-              -alias androiddebugkey \
-              -keyalg RSA \
-              -keysize 2048 \
-              -validity 10000 \
-              -dname "CN=Android Debug,O=Android,C=US"
+          if [ ! -s "$RUNNER_TEMP/sakyna-release.jks" ]; then
+            echo "ERROR: Signing keystore was not created."
+            exit 1
           fi
 
-          echo "===== SHA-1 ====="
-          keytool -list \
-            -v \
-            -keystore "$HOME/.android/debug.keystore" \
-            -storepass android \
-            -alias androiddebugkey | grep "SHA1:"
-
-          echo "===== SHA-256 ====="
-          keytool -list \
-            -v \
-            -keystore "$HOME/.android/debug.keystore" \
-            -storepass android \
-            -alias androiddebugkey | grep "SHA256:"
-
-      - name: Build APK
+      - name: Build release APK
+        env:
+          SAKAYNA_KEYSTORE_PATH: ${{ runner.temp }}/sakyna-release.jks
+          SAKAYNA_KEYSTORE_PASSWORD: ${{ secrets.SAKAYNA_KEYSTORE_PASSWORD }}
+          SAKAYNA_KEY_ALIAS: ${{ secrets.SAKAYNA_KEY_ALIAS }}
         run: |
-          gradle :app:assembleDebug --stacktrace
+          gradle :app:assembleRelease --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Sakay-Na-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: Sakay-Na-release
+          path: app/build/outputs/apk/release/app-release.apk
