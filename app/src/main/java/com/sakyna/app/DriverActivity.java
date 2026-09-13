@@ -425,48 +425,20 @@ public class DriverActivity extends Activity {
         Map<String, Object> location =
                 new HashMap<>();
 
-        location.put(
-                "driverId",
-                driverId
-        );
-
-        location.put(
-                "driverName",
-                driverName
-        );
-
-        location.put(
-                "driverPhone",
-                driverPhone
-        );
-
-        location.put(
-                "latitude",
-                currentLatitude
-        );
-
-        location.put(
-                "longitude",
-                currentLongitude
-        );
-
-        location.put(
-                "online",
-                true
-        );
-
-        location.put(
-                "updatedAt",
-                Timestamp.now()
-        );
+        location.put("driverId", driverId);
+        location.put("driverName", driverName);
+        location.put("driverPhone", driverPhone);
+        location.put("latitude", currentLatitude);
+        location.put("longitude", currentLongitude);
+        location.put("online", true);
+        location.put("updatedAt", Timestamp.now());
 
         db.collection("driverLocations")
                 .document(driverId)
                 .set(location);
     }
 
-    private void setDriverOnline(
-            boolean online) {
+    private void setDriverOnline(boolean online) {
 
         if (driverId.isEmpty()) {
             return;
@@ -475,40 +447,13 @@ public class DriverActivity extends Activity {
         Map<String, Object> data =
                 new HashMap<>();
 
-        data.put(
-                "driverId",
-                driverId
-        );
-
-        data.put(
-                "driverName",
-                driverName
-        );
-
-        data.put(
-                "driverPhone",
-                driverPhone
-        );
-
-        data.put(
-                "online",
-                online
-        );
-
-        data.put(
-                "latitude",
-                currentLatitude
-        );
-
-        data.put(
-                "longitude",
-                currentLongitude
-        );
-
-        data.put(
-                "updatedAt",
-                Timestamp.now()
-        );
+        data.put("driverId", driverId);
+        data.put("driverName", driverName);
+        data.put("driverPhone", driverPhone);
+        data.put("online", online);
+        data.put("latitude", currentLatitude);
+        data.put("longitude", currentLongitude);
+        data.put("updatedAt", Timestamp.now());
 
         db.collection("driverLocations")
                 .document(driverId)
@@ -796,40 +741,13 @@ public class DriverActivity extends Activity {
         Map<String, Object> update =
                 new HashMap<>();
 
-        update.put(
-                "status",
-                "ACCEPTED"
-        );
-
-        update.put(
-                "driverId",
-                driverId
-        );
-
-        update.put(
-                "driverName",
-                driverName
-        );
-
-        update.put(
-                "driverPhone",
-                driverPhone
-        );
-
-        update.put(
-                "driverLatitude",
-                currentLatitude
-        );
-
-        update.put(
-                "driverLongitude",
-                currentLongitude
-        );
-
-        update.put(
-                "acceptedAt",
-                Timestamp.now()
-        );
+        update.put("status", "ACCEPTED");
+        update.put("driverId", driverId);
+        update.put("driverName", driverName);
+        update.put("driverPhone", driverPhone);
+        update.put("driverLatitude", currentLatitude);
+        update.put("driverLongitude", currentLongitude);
+        update.put("acceptedAt", Timestamp.now());
 
         db.collection("rides")
                 .document(rideId)
@@ -1259,20 +1177,35 @@ public class DriverActivity extends Activity {
 
     private void logout() {
 
+        // Stop driver GPS tracking.
         driverOnline = false;
-
         stopLocationTracking();
 
+        // Mark driver offline in Firestore.
         setDriverOnline(false);
 
+        // Remove the ride listener.
         if (rideListener != null) {
-
             rideListener.remove();
             rideListener = null;
         }
 
+        // IMPORTANT:
+        // Sign out only.
+        // DO NOT delete the Firebase account.
         auth.signOut();
 
+        // Completely clear the local Sakay Na session.
+        getSharedPreferences(
+                "SakayNa",
+                MODE_PRIVATE
+        )
+                .edit()
+                .clear()
+                .apply();
+
+        // Return to MainActivity and remove
+        // DriverActivity from the back stack.
         Intent intent =
                 new Intent(
                         DriverActivity.this,
@@ -1280,12 +1213,12 @@ public class DriverActivity extends Activity {
                 );
 
         intent.addFlags(
-                Intent.FLAG_ACTIVITY_NEW_TASK |
-                        Intent.FLAG_ACTIVITY_CLEAR_TASK
+                Intent.FLAG_ACTIVITY_CLEAR_TOP
+                        | Intent.FLAG_ACTIVITY_NEW_TASK
+                        | Intent.FLAG_ACTIVITY_CLEAR_TASK
         );
 
         startActivity(intent);
-
         finish();
     }
 
