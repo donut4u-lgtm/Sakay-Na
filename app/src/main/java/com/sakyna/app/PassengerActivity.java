@@ -58,6 +58,9 @@ public class PassengerActivity extends AppCompatActivity {
     private TextView liveDriverDistanceText;
     private TextView liveDriverGpsText;
 
+    private LinearLayout completionPanel;
+    private int selectedRating = 0;
+
     private final int LOCATION_PERMISSION_REQUEST = 2001;
 
     private final int GREEN = Color.rgb(25, 135, 84);
@@ -66,6 +69,7 @@ public class PassengerActivity extends AppCompatActivity {
     private final int RED = Color.rgb(200, 55, 55);
     private final int GRAY = Color.rgb(110, 110, 110);
     private final int DARK = Color.rgb(35, 35, 35);
+    private final int STAR = Color.rgb(255, 170, 0);
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -736,6 +740,8 @@ public class PassengerActivity extends AppCompatActivity {
 
         liveDriverDistanceText = null;
         liveDriverGpsText = null;
+        completionPanel = null;
+        selectedRating = 0;
 
         if (rideId.isEmpty()) {
 
@@ -777,8 +783,6 @@ public class PassengerActivity extends AppCompatActivity {
 
         root.addView(status);
 
-        listenToRide(status);
-
         liveDriverGpsText =
                 text(
                         "🚕 DRIVER GPS\n\nWaiting for driver...",
@@ -806,6 +810,32 @@ public class PassengerActivity extends AppCompatActivity {
         );
 
         root.addView(liveDriverDistanceText);
+
+        completionPanel =
+                new LinearLayout(this);
+
+        completionPanel.setOrientation(
+                LinearLayout.VERTICAL
+        );
+
+        completionPanel.setGravity(
+                Gravity.CENTER_HORIZONTAL
+        );
+
+        completionPanel.setPadding(
+                0,
+                20,
+                0,
+                10
+        );
+
+        root.addView(
+                completionPanel,
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+        );
 
         Button driverLocation =
                 button(
@@ -850,9 +880,12 @@ public class PassengerActivity extends AppCompatActivity {
 
             liveDriverDistanceText = null;
             liveDriverGpsText = null;
+            completionPanel = null;
 
             showDashboard();
         });
+
+        listenToRide(status);
 
         loadCurrentRide(status);
     }
@@ -962,6 +995,9 @@ public class PassengerActivity extends AppCompatActivity {
         Double distance =
                 document.getDouble("distanceKm");
 
+        Long rating =
+                document.getLong("rating");
+
         if (pickup == null) {
             pickup = "";
         }
@@ -1025,6 +1061,409 @@ public class PassengerActivity extends AppCompatActivity {
         statusView.setTextColor(DARK);
 
         updateLiveDriverDistanceDisplay();
+
+        if (status.equals("FINISHED")) {
+
+            showCompletionPanel(
+                    displayFare
+            );
+
+        } else if (status.equals("COMPLETED")) {
+
+            showCompletedPanel(
+                    rating == null ? 0 : rating
+            );
+
+        } else {
+
+            clearCompletionPanel();
+        }
+    }
+
+    private void showCompletionPanel(
+            long fare) {
+
+        if (completionPanel == null) {
+            return;
+        }
+
+        completionPanel.removeAllViews();
+
+        TextView finished =
+                text(
+                        "🎉 RIDE FINISHED\n\n" +
+                                "Your driver has finished the trip.\n" +
+                                "Fare: ₱" + fare +
+                                "\n\n" +
+                                "Please rate your driver.",
+                        18
+                );
+
+        finished.setTextColor(
+                GREEN
+        );
+
+        finished.setTypeface(
+                null,
+                Typeface.BOLD
+        );
+
+        completionPanel.addView(
+                finished
+        );
+
+        TextView stars =
+                text(
+                        "Select your rating",
+                        18
+                );
+
+        stars.setTypeface(
+                null,
+                Typeface.BOLD
+        );
+
+        completionPanel.addView(
+                stars
+        );
+
+        LinearLayout ratingRow =
+                new LinearLayout(this);
+
+        ratingRow.setOrientation(
+                LinearLayout.HORIZONTAL
+        );
+
+        ratingRow.setGravity(
+                Gravity.CENTER
+        );
+
+        for (int i = 1; i <= 5; i++) {
+
+            final int rating =
+                    i;
+
+            Button starButton =
+                    new Button(this);
+
+            starButton.setText(
+                    "★ " + i
+            );
+
+            starButton.setTextSize(
+                    17
+            );
+
+            starButton.setTextColor(
+                    Color.WHITE
+            );
+
+            starButton.setAllCaps(
+                    false
+            );
+
+            starButton.setBackgroundColor(
+                    GRAY
+            );
+
+            LinearLayout.LayoutParams params =
+                    new LinearLayout.LayoutParams(
+                            0,
+                            62,
+                            1
+                    );
+
+            params.setMargins(
+                    3,
+                    5,
+                    3,
+                    5
+            );
+
+            ratingRow.addView(
+                    starButton,
+                    params
+            );
+
+            starButton.setOnClickListener(
+                    v -> {
+
+                        selectedRating =
+                                rating;
+
+                        updateRatingButtons(
+                                ratingRow
+                        );
+                    }
+            );
+        }
+
+        completionPanel.addView(
+                ratingRow
+        );
+
+        Button complete =
+                new Button(this);
+
+        complete.setText(
+                "COMPLETE RIDE"
+        );
+
+        complete.setTextSize(
+                17
+        );
+
+        complete.setTextColor(
+                Color.WHITE
+        );
+
+        complete.setAllCaps(
+                false
+        );
+
+        android.graphics.drawable.GradientDrawable background =
+                new android.graphics.drawable.GradientDrawable();
+
+        background.setColor(
+                GREEN
+        );
+
+        background.setCornerRadius(
+                30
+        );
+
+        complete.setBackground(
+                background
+        );
+
+        LinearLayout.LayoutParams completeParams =
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        62
+                );
+
+        completeParams.setMargins(
+                0,
+                12,
+                0,
+                8
+        );
+
+        completionPanel.addView(
+                complete,
+                completeParams
+        );
+
+        complete.setOnClickListener(
+                v -> completeRide()
+        );
+    }
+
+    private void updateRatingButtons(
+            LinearLayout ratingRow) {
+
+        for (int i = 0;
+             i < ratingRow.getChildCount();
+             i++) {
+
+            Button button =
+                    (Button)
+                            ratingRow.getChildAt(i);
+
+            int rating =
+                    i + 1;
+
+            if (rating == selectedRating) {
+
+                button.setBackgroundColor(
+                        STAR
+                );
+
+            } else {
+
+                button.setBackgroundColor(
+                        GRAY
+                );
+            }
+        }
+    }
+
+    private void completeRide() {
+
+        if (rideId.isEmpty()) {
+
+            toast(
+                    "No active ride."
+            );
+
+            return;
+        }
+
+        if (selectedRating < 1
+                || selectedRating > 5) {
+
+            toast(
+                    "Please select a rating from 1 to 5 stars."
+            );
+
+            return;
+        }
+
+        Map<String, Object> update =
+                new HashMap<>();
+
+        update.put(
+                "status",
+                "COMPLETED"
+        );
+
+        update.put(
+                "rating",
+                selectedRating
+        );
+
+        update.put(
+                "completedAt",
+                FieldValue.serverTimestamp()
+        );
+
+        db.collection("rides")
+                .document(rideId)
+                .get()
+                .addOnSuccessListener(
+                        document -> {
+
+                            if (!document.exists()) {
+
+                                toast(
+                                        "Ride not found."
+                                );
+
+                                return;
+                            }
+
+                            Long fare =
+                                    document.getLong(
+                                            "fare"
+                                    );
+
+                            Long finalFare =
+                                    document.getLong(
+                                            "finalFare"
+                                    );
+
+                            if (finalFare == null
+                                    || finalFare <= 0) {
+
+                                update.put(
+                                        "finalFare",
+                                        fare == null
+                                                ? 0
+                                                : fare
+                                );
+                            }
+
+                            db.collection("rides")
+                                    .document(rideId)
+                                    .update(update)
+                                    .addOnSuccessListener(
+                                            unused -> {
+
+                                                getSharedPreferences(
+                                                        "SakayNa",
+                                                        MODE_PRIVATE
+                                                )
+                                                        .edit()
+                                                        .remove(
+                                                                "ride_id"
+                                                        )
+                                                        .remove(
+                                                                "ride_pickup"
+                                                        )
+                                                        .remove(
+                                                                "ride_destination"
+                                                        )
+                                                        .remove(
+                                                                "ride_distance_km"
+                                                        )
+                                                        .remove(
+                                                                "ride_fare"
+                                                        )
+                                                        .remove(
+                                                                "ride_status"
+                                                        )
+                                                        .apply();
+
+                                                removeRideListener();
+                                                removeDriverLocationListener();
+
+                                                rideId = "";
+
+                                                toast(
+                                                        "Ride completed. Thank you!"
+                                                );
+
+                                                showDashboard();
+                                            }
+                                    )
+                                    .addOnFailureListener(
+                                            e -> toast(
+                                                    "Could not complete ride: "
+                                                            + e.getMessage()
+                                            )
+                                    );
+                        }
+                )
+                .addOnFailureListener(
+                        e -> toast(
+                                "Could not load ride."
+                        )
+                );
+    }
+
+    private void showCompletedPanel(
+            long rating) {
+
+        if (completionPanel == null) {
+            return;
+        }
+
+        completionPanel.removeAllViews();
+
+        String ratingText =
+                rating >= 1 && rating <= 5
+                        ? "\nYour rating: "
+                        + rating
+                        + " / 5 ★"
+                        : "";
+
+        TextView completed =
+                text(
+                        "✅ RIDE COMPLETED\n\n"
+                                + "Thank you for riding with Sakay Na!"
+                                + ratingText,
+                        18
+                );
+
+        completed.setTextColor(
+                GREEN
+        );
+
+        completed.setTypeface(
+                null,
+                Typeface.BOLD
+        );
+
+        completionPanel.addView(
+                completed
+        );
+    }
+
+    private void clearCompletionPanel() {
+
+        if (completionPanel != null) {
+            completionPanel.removeAllViews();
+        }
     }
 
     private void startDriverLocationListener(
@@ -1785,6 +2224,28 @@ public class PassengerActivity extends AppCompatActivity {
                                                 "fare"
                                         );
 
+                                Long finalFare =
+                                        document.getLong(
+                                                "finalFare"
+                                        );
+
+                                Long rating =
+                                        document.getLong(
+                                                "rating"
+                                        );
+
+                                long displayFare =
+                                        fare == null
+                                                ? 0
+                                                : fare;
+
+                                if (finalFare != null
+                                        && finalFare > 0) {
+
+                                    displayFare =
+                                            finalFare;
+                                }
+
                                 builder.append(
                                         "Pickup: "
                                 )
@@ -1801,9 +2262,7 @@ public class PassengerActivity extends AppCompatActivity {
                                         "Fare: ₱"
                                 )
                                         .append(
-                                                fare == null
-                                                        ? 0
-                                                        : fare
+                                                displayFare
                                         )
                                         .append("\n");
 
@@ -1816,6 +2275,21 @@ public class PassengerActivity extends AppCompatActivity {
                                                 )
                                         )
                                         .append("\n");
+
+                                if (rating != null
+                                        && rating > 0) {
+
+                                    builder.append(
+                                            "Rating: "
+                                    )
+                                            .append(
+                                                    rating
+                                            )
+                                            .append(
+                                                    " / 5 ★"
+                                            )
+                                            .append("\n");
+                                }
 
                                 builder.append(
                                         "--------------------\n"
@@ -1992,6 +2466,7 @@ public class PassengerActivity extends AppCompatActivity {
 
         liveDriverDistanceText = null;
         liveDriverGpsText = null;
+        completionPanel = null;
 
         showDashboard();
     }
