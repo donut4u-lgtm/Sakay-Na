@@ -28,30 +28,12 @@ jobs:
           unzip -q gradle-8.10.2-bin.zip -d "$RUNNER_TEMP/gradle"
           echo "$RUNNER_TEMP/gradle/gradle-8.10.2/bin" >> "$GITHUB_PATH"
 
-      - name: Prepare signing keystore
-        env:
-          KEYSTORE_BASE64: ${{ secrets.SAKAYNA_KEYSTORE_BASE64 }}
+      - name: Build debug APK
         run: |
-          CLEAN_BASE64=$(printf '%s' "$KEYSTORE_BASE64" | tr -d '[:space:]')
-          printf '%s' "$CLEAN_BASE64" | base64 --decode > "$RUNNER_TEMP/sakyna-release.jks"
-
-          if [ ! -s "$RUNNER_TEMP/sakyna-release.jks" ]; then
-            echo "ERROR: Signing keystore was not created."
-            exit 1
-          fi
-
-          echo "Signing keystore prepared successfully."
-
-      - name: Build release APK
-        env:
-          SAKAYNA_KEYSTORE_PATH: ${{ runner.temp }}/sakyna-release.jks
-          SAKAYNA_KEYSTORE_PASSWORD: ${{ secrets.SAKAYNA_KEYSTORE_PASSWORD }}
-          SAKAYNA_KEY_ALIAS: ${{ secrets.SAKAYNA_KEY_ALIAS }}
-        run: |
-          gradle :app:assembleRelease --stacktrace
+          gradle :app:assembleDebug --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Sakay-Na-release
-          path: app/build/outputs/apk/release/app-release.apk
+          name: Sakay-Na-debug
+          path: app/build/outputs/apk/debug/app-debug.apk
