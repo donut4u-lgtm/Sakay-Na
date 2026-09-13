@@ -1,5 +1,5 @@
 
-      package com.sakyna.app;
+package com.sakyna.app;
 
 import android.Manifest;
 import android.app.Activity;
@@ -67,14 +67,6 @@ public class DriverActivity extends Activity {
     private final int DARK = Color.rgb(35, 35, 35);
     private final int LIGHT = Color.rgb(245, 248, 246);
 
-    /*
-     * Ride IDs declined by this driver.
-     *
-     * IMPORTANT:
-     * These are stored locally for this driver only.
-     * The ride remains REQUESTED in Firestore so another
-     * driver can still see and accept it.
-     */
     private final Set<String> declinedRideIds =
             new HashSet<>();
 
@@ -131,8 +123,7 @@ public class DriverActivity extends Activity {
         StringBuilder builder =
                 new StringBuilder();
 
-        for (String id :
-                declinedRideIds) {
+        for (String id : declinedRideIds) {
 
             if (builder.length() > 0) {
                 builder.append(",");
@@ -329,6 +320,8 @@ public class DriverActivity extends Activity {
 
         root.addView(gpsText);
 
+        updateGpsDisplay();
+
         Button requests =
                 button(
                         "🚕 RIDE REQUESTS",
@@ -445,6 +438,18 @@ public class DriverActivity extends Activity {
                                 Context.LOCATION_SERVICE
                         );
 
+        if (locationListener != null) {
+
+            try {
+
+                locationManager.removeUpdates(
+                        locationListener
+                );
+
+            } catch (SecurityException ignored) {
+            }
+        }
+
         locationListener =
                 new LocationListener() {
 
@@ -459,6 +464,7 @@ public class DriverActivity extends Activity {
                                 location.getLongitude();
 
                         updateGpsDisplay();
+
                         saveDriverLocation();
                     }
 
@@ -675,11 +681,6 @@ public class DriverActivity extends Activity {
                                                     change.getDocument()
                                                             .getId();
 
-                                            /*
-                                             * Do not notify this driver
-                                             * about rides they already
-                                             * declined.
-                                             */
                                             if (
                                                     declinedRideIds
                                                             .contains(rideId)
@@ -773,10 +774,6 @@ public class DriverActivity extends Activity {
                                 String rideId =
                                         document.getId();
 
-                                /*
-                                 * Hide rides declined by this
-                                 * driver.
-                                 */
                                 if (
                                         declinedRideIds
                                                 .contains(rideId)
@@ -1001,11 +998,6 @@ public class DriverActivity extends Activity {
     private void acceptRide(
             String rideId) {
 
-        /*
-         * Remove it from the driver's declined
-         * list in case the driver previously
-         * declined this ride in an older session.
-         */
         declinedRideIds.remove(
                 rideId
         );
@@ -1073,16 +1065,6 @@ public class DriverActivity extends Activity {
                 );
     }
 
-    /*
-     * IMPORTANT:
-     *
-     * Decline does NOT change the Firestore ride status.
-     *
-     * The passenger's request must remain REQUESTED
-     * so another driver can accept it.
-     *
-     * We only remember that THIS driver declined it.
-     */
     private void declineRide(
             String rideId,
             LinearLayout cardContainer) {
@@ -1103,10 +1085,6 @@ public class DriverActivity extends Activity {
 
         saveDeclinedRides();
 
-        /*
-         * Remove the booking immediately
-         * from the current screen.
-         */
         if (cardContainer != null) {
 
             root.removeView(
@@ -1276,18 +1254,95 @@ public class DriverActivity extends Activity {
                                             "fare"
                                     );
 
+                            double pickupLatitude =
+                                    0.0;
+
+                            double pickupLongitude =
+                                    0.0;
+
+                            Object pickupLatValue =
+                                    document.get(
+                                            "pickupLatitude"
+                                    );
+
+                            Object pickupLngValue =
+                                    document.get(
+                                            "pickupLongitude"
+                                    );
+
+                            if (pickupLatValue
+                                    instanceof Number) {
+
+                                pickupLatitude =
+                                        ((Number)
+                                                pickupLatValue)
+                                                .doubleValue();
+                            }
+
+                            if (pickupLngValue
+                                    instanceof Number) {
+
+                                pickupLongitude =
+                                        ((Number)
+                                                pickupLngValue)
+                                                .doubleValue();
+                            }
+
+                            String distanceText =
+                                    "Waiting for GPS...";
+
+                            if (currentLatitude != 0.0
+                                    && currentLongitude != 0.0
+                                    && pickupLatitude != 0.0
+                                    && pickupLongitude != 0.0) {
+
+                                float[] results =
+                                        new float[1];
+
+                                Location.distanceBetween(
+                                        currentLatitude,
+                                        currentLongitude,
+                                        pickupLatitude,
+                                        pickupLongitude,
+                                        results
+                                );
+
+                                double distanceKm =
+                                        results[0] / 1000.0;
+
+                                distanceText =
+                                        String.format(
+                                                java.util.Locale.US,
+                                                "%.2f km",
+                                                distanceKm
+                                        );
+                            }
+
                             root.addView(
                                     title(
                                             "👤 Passenger\n" +
                                                     passenger +
                                                     "\n" +
                                                     phone +
+
                                                     "\n\n📍 Pickup\n" +
                                                     pickup +
+
                                                     "\n\n🏁 Destination\n" +
                                                     destination +
+
                                                     "\n\n💰 Fare\n" +
                                                     fare +
+
+                                                    "\n\n📡 DRIVER GPS\n" +
+                                                    "Latitude: " +
+                                                    currentLatitude +
+                                                    "\nLongitude: " +
+                                                    currentLongitude +
+
+                                                    "\n\n📏 DISTANCE TO PICKUP\n" +
+                                                    distanceText +
+
                                                     "\n\nSTATUS\n" +
                                                     status,
                                             18
@@ -1546,21 +1601,21 @@ public class DriverActivity extends Activity {
             rideListener = null;
         }
 
-        /*
-         * Sign out only.
-         * DO NOT delete Firebase account.
-         */
         auth.signOut();
 
         /*
-         * Clear local login/session information.
+         * Clear login/session information only.
+         *
+         * IMPORTANT:
+         * declinedRideIds is intentionally preserved
+         * so rides declined by this driver stay hidden
+         * after logging in again.
          */
-        getSharedPreferences(
-                "SakayNa",
-                MODE_PRIVATE
-        )
-                .edit()
-                .clear()
+        preferences.edit()
+                .remove("name")
+                .remove("current_name")
+                .remove("phone")
+                .remove("current_phone")
                 .apply();
 
         Intent intent =
@@ -1670,4 +1725,4 @@ public class DriverActivity extends Activity {
 
         super.onDestroy();
     }
-}                      
+}
