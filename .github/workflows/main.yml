@@ -32,12 +32,15 @@ jobs:
         env:
           KEYSTORE_BASE64: ${{ secrets.SAKAYNA_KEYSTORE_BASE64 }}
         run: |
-          echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/sakyna-release.jks"
+          CLEAN_BASE64=$(printf '%s' "$KEYSTORE_BASE64" | tr -d '[:space:]')
+          printf '%s' "$CLEAN_BASE64" | base64 --decode > "$RUNNER_TEMP/sakyna-release.jks"
 
           if [ ! -s "$RUNNER_TEMP/sakyna-release.jks" ]; then
             echo "ERROR: Signing keystore was not created."
             exit 1
           fi
+
+          echo "Signing keystore prepared successfully."
 
       - name: Build release APK
         env:
