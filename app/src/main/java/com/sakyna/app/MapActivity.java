@@ -25,6 +25,7 @@ import java.util.concurrent.Executors;
 public class MapActivity extends Activity {
 
     private WebView webView;
+
     private FirebaseFirestore db;
 
     private ListenerRegistration driverLocationListener;
@@ -35,6 +36,8 @@ public class MapActivity extends Activity {
 
     private String rideId = "";
     private String driverId = "";
+
+    private String rideStatus = "REQUESTED";
 
     private double passengerLatitude = 14.2456;
     private double passengerLongitude = 121.4451;
@@ -47,12 +50,15 @@ public class MapActivity extends Activity {
 
     private boolean pageReady = false;
 
+    private boolean initialMapFitDone = false;
+
     private double lastRouteDriverLatitude = 0.0;
     private double lastRouteDriverLongitude = 0.0;
 
     private long lastRouteRequestTime = 0L;
 
     private static final long ROUTE_UPDATE_INTERVAL = 10000L;
+
     private static final double ROUTE_UPDATE_DISTANCE_KM = 0.05;
 
     @Override
@@ -63,73 +69,110 @@ public class MapActivity extends Activity {
 
         webView = new WebView(this);
 
-        WebSettings settings = webView.getSettings();
+        WebSettings settings =
+                webView.getSettings();
+
         settings.setJavaScriptEnabled(true);
+
         settings.setDomStorageEnabled(true);
+
         settings.setBuiltInZoomControls(true);
+
         settings.setDisplayZoomControls(false);
+
         settings.setUseWideViewPort(true);
+
         settings.setLoadWithOverviewMode(true);
 
-        webView.setWebViewClient(new WebViewClient());
+        webView.setWebViewClient(
+                new WebViewClient()
+        );
 
         setContentView(webView);
 
         readIntentData();
+
         loadMap();
+
         listenToRide();
     }
 
     private void readIntentData() {
 
         if (getIntent().hasExtra("ride_id")) {
-            rideId = getIntent().getStringExtra("ride_id");
+
+            rideId =
+                    getIntent().getStringExtra(
+                            "ride_id"
+                    );
         }
 
         if (getIntent().hasExtra("driver_id")) {
-            driverId = getIntent().getStringExtra("driver_id");
+
+            driverId =
+                    getIntent().getStringExtra(
+                            "driver_id"
+                    );
         }
 
-        if (getIntent().hasExtra("passenger_latitude")) {
-            passengerLatitude = getIntent().getDoubleExtra(
-                    "passenger_latitude",
-                    passengerLatitude
-            );
+        if (getIntent().hasExtra(
+                "passenger_latitude")) {
+
+            passengerLatitude =
+                    getIntent().getDoubleExtra(
+                            "passenger_latitude",
+                            passengerLatitude
+                    );
         }
 
-        if (getIntent().hasExtra("passenger_longitude")) {
-            passengerLongitude = getIntent().getDoubleExtra(
-                    "passenger_longitude",
-                    passengerLongitude
-            );
+        if (getIntent().hasExtra(
+                "passenger_longitude")) {
+
+            passengerLongitude =
+                    getIntent().getDoubleExtra(
+                            "passenger_longitude",
+                            passengerLongitude
+                    );
         }
 
-        if (getIntent().hasExtra("destination_latitude")) {
-            destinationLatitude = getIntent().getDoubleExtra(
-                    "destination_latitude",
-                    destinationLatitude
-            );
+        if (getIntent().hasExtra(
+                "destination_latitude")) {
+
+            destinationLatitude =
+                    getIntent().getDoubleExtra(
+                            "destination_latitude",
+                            destinationLatitude
+                    );
         }
 
-        if (getIntent().hasExtra("destination_longitude")) {
-            destinationLongitude = getIntent().getDoubleExtra(
-                    "destination_longitude",
-                    destinationLongitude
-            );
+        if (getIntent().hasExtra(
+                "destination_longitude")) {
+
+            destinationLongitude =
+                    getIntent().getDoubleExtra(
+                            "destination_longitude",
+                            destinationLongitude
+                    );
         }
 
-        if (getIntent().hasExtra("driver_latitude")) {
-            driverLatitude = getIntent().getDoubleExtra(
-                    "driver_latitude",
-                    0.0
-            );
+        if (getIntent().hasExtra(
+                "driver_latitude")) {
+
+            driverLatitude =
+                    getIntent().getDoubleExtra(
+                            "driver_latitude",
+                            0.0
+                    );
         }
 
-        if (getIntent().hasExtra("driver_longitude")) {
-            driverLongitude = getIntent().getDoubleExtra(
-                    "driver_longitude",
-                    0.0
-            );
+        if (getIntent().hasExtra(
+                "driver_longitude")) {
+
+            driverLongitude =
+                    getIntent().getDoubleExtra(
+                            "driver_longitude",
+                            0.0
+                    );
         }
     }
 
@@ -138,6 +181,7 @@ public class MapActivity extends Activity {
         String html =
                 "<!DOCTYPE html>" +
                 "<html>" +
+
                 "<head>" +
 
                 "<meta name='viewport' " +
@@ -159,16 +203,27 @@ public class MapActivity extends Activity {
                 "z-index:9999;" +
                 "background:white;" +
                 "padding:14px;" +
-                "border-radius:14px;" +
-                "box-shadow:0 2px 10px rgba(0,0,0,.3);" +
+                "border-radius:16px;" +
+                "box-shadow:0 3px 12px rgba(0,0,0,.30);" +
                 "font-family:Arial,sans-serif;" +
                 "font-size:14px;" +
-                "line-height:1.5;" +
+                "line-height:1.45;" +
                 "}" +
 
                 ".title{" +
-                "font-size:19px;" +
+                "font-size:20px;" +
                 "font-weight:bold;" +
+                "margin-bottom:5px;" +
+                "}" +
+
+                ".status{" +
+                "font-size:15px;" +
+                "font-weight:bold;" +
+                "margin-bottom:5px;" +
+                "}" +
+
+                ".routeInfo{" +
+                "margin-top:4px;" +
                 "}" +
 
                 "</style>" +
@@ -182,15 +237,21 @@ public class MapActivity extends Activity {
 
                 "<div class='infoBox'>" +
 
-                "<div class='title'>🛺 SAKAY NA</div>" +
-
-                "<div id='status'>" +
-                "Preparing road route..." +
+                "<div class='title'>" +
+                "🛺 SAKAY NA" +
                 "</div>" +
 
-                "<div id='driverRoute'></div>" +
+                "<div id='status' class='status'>" +
+                "Preparing live ride..." +
+                "</div>" +
 
-                "<div id='passengerRoute'></div>" +
+                "<div id='driverRoute' " +
+                "class='routeInfo'>" +
+                "</div>" +
+
+                "<div id='passengerRoute' " +
+                "class='routeInfo'>" +
+                "</div>" +
 
                 "</div>" +
 
@@ -202,7 +263,8 @@ public class MapActivity extends Activity {
 
                 "<script>" +
 
-                "var map=L.map('map').setView(" +
+                "var map=" +
+                "L.map('map').setView(" +
                 "[14.2456,121.4451],13);" +
 
                 "L.tileLayer(" +
@@ -214,27 +276,33 @@ public class MapActivity extends Activity {
                 ").addTo(map);" +
 
                 "var passengerMarker=null;" +
+
                 "var driverMarker=null;" +
+
                 "var destinationMarker=null;" +
 
                 "var driverRouteLine=null;" +
+
                 "var passengerRouteLine=null;" +
 
-                "var passengerIcon=L.divIcon({" +
+                "var passengerIcon=" +
+                "L.divIcon({" +
                 "className:''," +
                 "html:'<div style=\"font-size:32px\">👤</div>'," +
                 "iconSize:[40,40]," +
                 "iconAnchor:[20,20]" +
                 "});" +
 
-                "var driverIcon=L.divIcon({" +
+                "var driverIcon=" +
+                "L.divIcon({" +
                 "className:''," +
                 "html:'<div style=\"font-size:34px\">🛺</div>'," +
                 "iconSize:[40,40]," +
                 "iconAnchor:[20,20]" +
                 "});" +
 
-                "var destinationIcon=L.divIcon({" +
+                "var destinationIcon=" +
+                "L.divIcon({" +
                 "className:''," +
                 "html:'<div style=\"font-size:32px\">📍</div>'," +
                 "iconSize:[40,40]," +
@@ -245,15 +313,19 @@ public class MapActivity extends Activity {
 
                 "if(passengerMarker==null){" +
 
-                "passengerMarker=L.marker([lat,lon],{" +
+                "passengerMarker=" +
+                "L.marker([lat,lon],{" +
                 "icon:passengerIcon" +
-                "}).addTo(map).bindPopup(" +
+                "}).addTo(map)" +
+                ".bindPopup(" +
                 "'<b>Passenger</b><br>Pickup location'" +
                 ");" +
 
                 "}else{" +
 
-                "passengerMarker.setLatLng([lat,lon]);" +
+                "passengerMarker.setLatLng(" +
+                "[lat,lon]" +
+                ");" +
 
                 "}" +
 
@@ -263,15 +335,19 @@ public class MapActivity extends Activity {
 
                 "if(destinationMarker==null){" +
 
-                "destinationMarker=L.marker([lat,lon],{" +
+                "destinationMarker=" +
+                "L.marker([lat,lon],{" +
                 "icon:destinationIcon" +
-                "}).addTo(map).bindPopup(" +
+                "}).addTo(map)" +
+                ".bindPopup(" +
                 "'<b>Destination</b>'" +
                 ");" +
 
                 "}else{" +
 
-                "destinationMarker.setLatLng([lat,lon]);" +
+                "destinationMarker.setLatLng(" +
+                "[lat,lon]" +
+                ");" +
 
                 "}" +
 
@@ -281,40 +357,54 @@ public class MapActivity extends Activity {
 
                 "if(driverMarker==null){" +
 
-                "driverMarker=L.marker([lat,lon],{" +
+                "driverMarker=" +
+                "L.marker([lat,lon],{" +
                 "icon:driverIcon" +
-                "}).addTo(map).bindPopup(" +
+                "}).addTo(map)" +
+                ".bindPopup(" +
                 "'<b>Sakay Na Driver</b><br>Live location'" +
                 ");" +
 
                 "}else{" +
 
-                "driverMarker.setLatLng([lat,lon]);" +
+                "driverMarker.setLatLng(" +
+                "[lat,lon]" +
+                ");" +
 
                 "}" +
 
-                "document.getElementById('status').innerHTML=" +
-                "'🟢 Driver is live';" +
+                "}" +
+
+                "function setStatus(text){" +
+
+                "document.getElementById(" +
+                "'status').innerHTML=text;" +
 
                 "}" +
 
                 "function setRoutingStatus(text){" +
 
-                "document.getElementById('status').innerHTML=text;" +
+                "document.getElementById(" +
+                "'status').innerHTML=text;" +
 
                 "}" +
 
                 "function drawDriverRoute(points){" +
 
                 "if(driverRouteLine!=null){" +
-                "map.removeLayer(driverRouteLine);" +
+
+                "map.removeLayer(" +
+                "driverRouteLine);" +
+
                 "}" +
 
                 "if(points.length>1){" +
 
-                "driverRouteLine=L.polyline(points," +
-                "{weight:6,opacity:0.85}" +
-                ").addTo(map);" +
+                "driverRouteLine=" +
+                "L.polyline(points,{" +
+                "weight:6," +
+                "opacity:0.85" +
+                "}).addTo(map);" +
 
                 "}" +
 
@@ -323,36 +413,53 @@ public class MapActivity extends Activity {
                 "function drawPassengerRoute(points){" +
 
                 "if(passengerRouteLine!=null){" +
-                "map.removeLayer(passengerRouteLine);" +
+
+                "map.removeLayer(" +
+                "passengerRouteLine);" +
+
                 "}" +
 
                 "if(points.length>1){" +
 
-                "passengerRouteLine=L.polyline(points," +
-                "{weight:6,opacity:0.85}" +
-                ").addTo(map);" +
+                "passengerRouteLine=" +
+                "L.polyline(points,{" +
+                "weight:6," +
+                "opacity:0.85" +
+                "}).addTo(map);" +
 
                 "}" +
 
                 "}" +
 
-                "function updateDriverRouteInfo(distance,duration){" +
+                "function updateDriverRouteInfo(" +
+                "distance,duration){" +
 
-                "document.getElementById('driverRoute').innerHTML=" +
+                "document.getElementById(" +
+                "'driverRoute').innerHTML=" +
 
                 "'🛺 Driver → Passenger: ' +" +
+
                 "distance.toFixed(2)+" +
-                "' km • '+duration.toFixed(0)+' min';" +
+
+                "' km • '+duration.toFixed(0)+" +
+
+                "' min';" +
 
                 "}" +
 
-                "function updatePassengerRouteInfo(distance,duration){" +
+                "function updatePassengerRouteInfo(" +
+                "distance,duration){" +
 
-                "document.getElementById('passengerRoute').innerHTML=" +
+                "document.getElementById(" +
+                "'passengerRoute').innerHTML=" +
 
                 "'👤 Passenger → Destination: ' +" +
+
                 "distance.toFixed(2)+" +
-                "' km • '+duration.toFixed(0)+' min';" +
+
+                "' km • '+duration.toFixed(0)+" +
+
+                "' min';" +
 
                 "}" +
 
@@ -360,18 +467,47 @@ public class MapActivity extends Activity {
 
                 "var points=[];" +
 
-                "if(passengerMarker!=null)" +
-                "points.push(passengerMarker.getLatLng());" +
+                "if(passengerMarker!=null){" +
 
-                "if(driverMarker!=null)" +
-                "points.push(driverMarker.getLatLng());" +
+                "points.push(" +
+                "passengerMarker.getLatLng()" +
+                ");" +
 
-                "if(destinationMarker!=null)" +
-                "points.push(destinationMarker.getLatLng());" +
+                "}" +
+
+                "if(driverMarker!=null){" +
+
+                "points.push(" +
+                "driverMarker.getLatLng()" +
+                ");" +
+
+                "}" +
+
+                "if(destinationMarker!=null){" +
+
+                "points.push(" +
+                "destinationMarker.getLatLng()" +
+                ");" +
+
+                "}" +
 
                 "if(points.length>0){" +
 
-                "map.fitBounds(points,{padding:[60,60]});" +
+                "map.fitBounds(" +
+                "points,{padding:[70,70]}" +
+                ");" +
+
+                "}" +
+
+                "}" +
+
+                "function centerOnDriver(){" +
+
+                "if(driverMarker!=null){" +
+
+                "map.setView(" +
+                "driverMarker.getLatLng(),16" +
+                ");" +
 
                 "}" +
 
@@ -380,6 +516,7 @@ public class MapActivity extends Activity {
                 "</script>" +
 
                 "</body>" +
+
                 "</html>";
 
         webView.loadDataWithBaseURL(
@@ -395,6 +532,7 @@ public class MapActivity extends Activity {
             pageReady = true;
 
             updatePassengerOnMap();
+
             updateDestinationOnMap();
 
             if (validCoordinate(
@@ -416,14 +554,15 @@ public class MapActivity extends Activity {
                 requestDriverPassengerRoute();
             }
 
-            fitMap();
+            fitMapInitially();
 
         }, 1500);
     }
 
     private void listenToRide() {
 
-        if (rideId == null || rideId.isEmpty()) {
+        if (rideId == null ||
+                rideId.isEmpty()) {
 
             startDriverLocationListener();
 
@@ -439,6 +578,7 @@ public class MapActivity extends Activity {
                                     if (error != null ||
                                             snapshot == null ||
                                             !snapshot.exists()) {
+
                                         return;
                                     }
 
@@ -453,19 +593,34 @@ public class MapActivity extends Activity {
             DocumentSnapshot snapshot) {
 
         Double pickupLat =
-                snapshot.getDouble("pickupLatitude");
+                snapshot.getDouble(
+                        "pickupLatitude"
+                );
 
         Double pickupLon =
-                snapshot.getDouble("pickupLongitude");
+                snapshot.getDouble(
+                        "pickupLongitude"
+                );
 
         Double destinationLat =
-                snapshot.getDouble("destinationLatitude");
+                snapshot.getDouble(
+                        "destinationLatitude"
+                );
 
         Double destinationLon =
-                snapshot.getDouble("destinationLongitude");
+                snapshot.getDouble(
+                        "destinationLongitude"
+                );
 
         String firestoreDriverId =
-                snapshot.getString("driverId");
+                snapshot.getString(
+                        "driverId"
+                );
+
+        String firestoreStatus =
+                snapshot.getString(
+                        "status"
+                );
 
         if (pickupLat != null) {
             passengerLatitude = pickupLat;
@@ -476,35 +631,139 @@ public class MapActivity extends Activity {
         }
 
         if (destinationLat != null) {
-            destinationLatitude = destinationLat;
+            destinationLatitude =
+                    destinationLat;
         }
 
         if (destinationLon != null) {
-            destinationLongitude = destinationLon;
+            destinationLongitude =
+                    destinationLon;
         }
 
         if (firestoreDriverId != null &&
                 !firestoreDriverId.isEmpty()) {
 
-            driverId = firestoreDriverId;
+            driverId =
+                    firestoreDriverId;
         }
 
+        if (firestoreStatus != null &&
+                !firestoreStatus.isEmpty()) {
+
+            rideStatus =
+                    firestoreStatus;
+        }
+
+        updateRideStatusDisplay();
+
         updatePassengerOnMap();
+
         updateDestinationOnMap();
 
         requestPassengerDestinationRoute();
 
-        fitMap();
+        fitMapInitially();
+    }
+
+    private void updateRideStatusDisplay() {
+
+        if (!pageReady) return;
+
+        String message;
+
+        switch (rideStatus) {
+
+            case "REQUESTED":
+
+                message =
+                        "🟡 Finding a driver...";
+
+                break;
+
+            case "ACCEPTED":
+
+                message =
+                        "🟢 Driver accepted your ride";
+
+                break;
+
+            case "DRIVER_ON_THE_WAY":
+
+                message =
+                        "🛺 Driver is on the way";
+
+                break;
+
+            case "DRIVER_ARRIVED":
+
+                message =
+                        "📍 Driver has arrived";
+
+                break;
+
+            case "IN_PROGRESS":
+
+                message =
+                        "🚕 Ride in progress";
+
+                break;
+
+            case "FINISHED":
+
+                message =
+                        "🏁 Trip finished";
+
+                break;
+
+            case "COMPLETED":
+
+                message =
+                        "✅ Ride completed";
+
+                break;
+
+            case "CANCELLED":
+
+                message =
+                        "❌ Ride cancelled";
+
+                break;
+
+            case "DECLINED":
+
+                message =
+                        "❌ Ride declined";
+
+                break;
+
+            default:
+
+                message =
+                        "🟢 Ride status: " +
+                        rideStatus;
+        }
+
+        String javascript =
+                "setStatus(" +
+                JSONObject.quote(message) +
+                ");";
+
+        webView.evaluateJavascript(
+                javascript,
+                null
+        );
     }
 
     private void startDriverLocationListener() {
 
         if (driverId == null ||
                 driverId.isEmpty()) {
+
             return;
         }
 
         if (driverLocationListener != null) {
+
             driverLocationListener.remove();
         }
 
@@ -517,6 +776,7 @@ public class MapActivity extends Activity {
                                     if (error != null ||
                                             snapshot == null ||
                                             !snapshot.exists()) {
+
                                         return;
                                     }
 
@@ -532,10 +792,12 @@ public class MapActivity extends Activity {
 
                                     if (lat == null ||
                                             lon == null) {
+
                                         return;
                                     }
 
                                     driverLatitude = lat;
+
                                     driverLongitude = lon;
 
                                     updateDriverOnMap(
@@ -545,9 +807,50 @@ public class MapActivity extends Activity {
 
                                     maybeUpdateDriverRoute();
 
-                                    fitMap();
+                                    updateLiveDriverStatus();
+
+                                    if (!initialMapFitDone) {
+
+                                        fitMapInitially();
+                                    }
                                 }
                         );
+    }
+
+    private void updateLiveDriverStatus() {
+
+        if (!pageReady) return;
+
+        if (rideStatus.equals(
+                "DRIVER_ON_THE_WAY")) {
+
+            String javascript =
+                    "setStatus(" +
+                    JSONObject.quote(
+                            "🛺 Driver is on the way"
+                    ) +
+                    ");";
+
+            webView.evaluateJavascript(
+                    javascript,
+                    null
+            );
+
+        } else if (rideStatus.equals(
+                "DRIVER_ARRIVED")) {
+
+            String javascript =
+                    "setStatus(" +
+                    JSONObject.quote(
+                            "📍 Driver has arrived"
+                    ) +
+                    ");";
+
+            webView.evaluateJavascript(
+                    javascript,
+                    null
+            );
+        }
     }
 
     private void updatePassengerOnMap() {
@@ -613,19 +916,28 @@ public class MapActivity extends Activity {
         if (!validCoordinate(
                 passengerLatitude,
                 passengerLongitude)) {
+
             return;
         }
 
         if (!validCoordinate(
                 destinationLatitude,
                 destinationLongitude)) {
+
             return;
         }
 
-        final double startLat = passengerLatitude;
-        final double startLon = passengerLongitude;
-        final double endLat = destinationLatitude;
-        final double endLon = destinationLongitude;
+        final double startLat =
+                passengerLatitude;
+
+        final double startLon =
+                passengerLongitude;
+
+        final double endLat =
+                destinationLatitude;
+
+        final double endLon =
+                destinationLongitude;
 
         routeExecutor.execute(() -> {
 
@@ -638,19 +950,6 @@ public class MapActivity extends Activity {
                     );
 
             if (result == null) {
-
-                runOnUiThread(() -> {
-
-                    if (pageReady) {
-
-                        webView.evaluateJavascript(
-                                "setRoutingStatus(" +
-                                "'⚠️ Road route unavailable'" +
-                                ");",
-                                null
-                        );
-                    }
-                });
 
                 return;
             }
@@ -673,22 +972,35 @@ public class MapActivity extends Activity {
         if (!validCoordinate(
                 driverLatitude,
                 driverLongitude)) {
+
             return;
         }
 
         if (!validCoordinate(
                 passengerLatitude,
                 passengerLongitude)) {
+
             return;
         }
 
-        final double startLat = driverLatitude;
-        final double startLon = driverLongitude;
-        final double endLat = passengerLatitude;
-        final double endLon = passengerLongitude;
+        final double startLat =
+                driverLatitude;
 
-        lastRouteDriverLatitude = startLat;
-        lastRouteDriverLongitude = startLon;
+        final double startLon =
+                driverLongitude;
+
+        final double endLat =
+                passengerLatitude;
+
+        final double endLon =
+                passengerLongitude;
+
+        lastRouteDriverLatitude =
+                startLat;
+
+        lastRouteDriverLongitude =
+                startLon;
+
         lastRouteRequestTime =
                 System.currentTimeMillis();
 
@@ -703,6 +1015,7 @@ public class MapActivity extends Activity {
                     );
 
             if (result == null) {
+
                 return;
             }
 
@@ -724,6 +1037,7 @@ public class MapActivity extends Activity {
         if (!validCoordinate(
                 driverLatitude,
                 driverLongitude)) {
+
             return;
         }
 
@@ -732,6 +1046,7 @@ public class MapActivity extends Activity {
 
         if (now - lastRouteRequestTime <
                 ROUTE_UPDATE_INTERVAL) {
+
             return;
         }
 
@@ -745,7 +1060,8 @@ public class MapActivity extends Activity {
 
         if (lastRouteDriverLatitude == 0.0 ||
                 lastRouteDriverLongitude == 0.0 ||
-                movedKm >= ROUTE_UPDATE_DISTANCE_KM) {
+                movedKm >=
+                        ROUTE_UPDATE_DISTANCE_KM) {
 
             requestDriverPassengerRoute();
         }
@@ -764,18 +1080,21 @@ public class MapActivity extends Activity {
             String routeUrl =
                     String.format(
                             Locale.US,
+
                             "https://router.project-osrm.org/" +
                             "route/v1/driving/" +
                             "%f,%f;%f,%f" +
                             "?overview=full" +
                             "&geometries=geojson",
+
                             startLon,
                             startLat,
                             endLon,
                             endLat
                     );
 
-            URL url = new URL(routeUrl);
+            URL url =
+                    new URL(routeUrl);
 
             connection =
                     (HttpURLConnection)
@@ -783,9 +1102,13 @@ public class MapActivity extends Activity {
 
             connection.setRequestMethod("GET");
 
-            connection.setConnectTimeout(10000);
+            connection.setConnectTimeout(
+                    10000
+            );
 
-            connection.setReadTimeout(15000);
+            connection.setReadTimeout(
+                    15000
+            );
 
             connection.setRequestProperty(
                     "User-Agent",
@@ -797,13 +1120,15 @@ public class MapActivity extends Activity {
 
             if (responseCode !=
                     HttpURLConnection.HTTP_OK) {
+
                 return null;
             }
 
             BufferedReader reader =
                     new BufferedReader(
                             new InputStreamReader(
-                                    connection.getInputStream()
+                                    connection
+                                            .getInputStream()
                             )
                     );
 
@@ -826,9 +1151,12 @@ public class MapActivity extends Activity {
                     );
 
             JSONArray routes =
-                    root.getJSONArray("routes");
+                    root.getJSONArray(
+                            "routes"
+                    );
 
             if (routes.length() == 0) {
+
                 return null;
             }
 
@@ -836,16 +1164,24 @@ public class MapActivity extends Activity {
                     routes.getJSONObject(0);
 
             double distanceMeters =
-                    route.getDouble("distance");
+                    route.getDouble(
+                            "distance"
+                    );
 
             double durationSeconds =
-                    route.getDouble("duration");
+                    route.getDouble(
+                            "duration"
+                    );
 
             JSONObject geometry =
-                    route.getJSONObject("geometry");
+                    route.getJSONObject(
+                            "geometry"
+                    );
 
             JSONArray coordinates =
-                    geometry.getJSONArray("coordinates");
+                    geometry.getJSONArray(
+                            "coordinates"
+                    );
 
             StringBuilder points =
                     new StringBuilder();
@@ -866,10 +1202,12 @@ public class MapActivity extends Activity {
                         coordinate.getDouble(1);
 
                 if (i > 0) {
+
                     points.append(",");
                 }
 
                 points.append("[")
+
                         .append(
                                 String.format(
                                         Locale.US,
@@ -877,7 +1215,9 @@ public class MapActivity extends Activity {
                                         lat
                                 )
                         )
+
                         .append(",")
+
                         .append(
                                 String.format(
                                         Locale.US,
@@ -885,6 +1225,7 @@ public class MapActivity extends Activity {
                                         lon
                                 )
                         )
+
                         .append("]");
             }
 
@@ -897,10 +1238,12 @@ public class MapActivity extends Activity {
                     points.toString();
 
             result.distanceKm =
-                    distanceMeters / 1000.0;
+                    distanceMeters /
+                            1000.0;
 
             result.durationMin =
-                    durationSeconds / 60.0;
+                    durationSeconds /
+                            60.0;
 
             return result;
 
@@ -911,6 +1254,7 @@ public class MapActivity extends Activity {
         } finally {
 
             if (connection != null) {
+
                 connection.disconnect();
             }
         }
@@ -929,12 +1273,14 @@ public class MapActivity extends Activity {
                 ");" +
 
                 "updateDriverRouteInfo(" +
+
                 String.format(
                         Locale.US,
                         "%.3f,%.1f",
                         distanceKm,
                         durationMin
                 ) +
+
                 ");";
 
         webView.evaluateJavascript(
@@ -956,12 +1302,14 @@ public class MapActivity extends Activity {
                 ");" +
 
                 "updatePassengerRouteInfo(" +
+
                 String.format(
                         Locale.US,
                         "%.3f,%.1f",
                         distanceKm,
                         durationMin
                 ) +
+
                 ");";
 
         webView.evaluateJavascript(
@@ -988,18 +1336,28 @@ public class MapActivity extends Activity {
             double lat2,
             double lon2) {
 
-        if (!validCoordinate(lat1, lon1) ||
-                !validCoordinate(lat2, lon2)) {
+        if (!validCoordinate(
+                lat1,
+                lon1) ||
+                !validCoordinate(
+                        lat2,
+                        lon2)) {
+
             return 0.0;
         }
 
-        double earthRadius = 6371.0;
+        double earthRadius =
+                6371.0;
 
         double dLat =
-                Math.toRadians(lat2 - lat1);
+                Math.toRadians(
+                        lat2 - lat1
+                );
 
         double dLon =
-                Math.toRadians(lon2 - lon1);
+                Math.toRadians(
+                        lon2 - lon1
+                );
 
         double a =
                 Math.sin(dLat / 2) *
@@ -1026,9 +1384,13 @@ public class MapActivity extends Activity {
         return earthRadius * c;
     }
 
-    private void fitMap() {
+    private void fitMapInitially() {
 
         if (!pageReady) return;
+
+        if (initialMapFitDone) return;
+
+        initialMapFitDone = true;
 
         webView.evaluateJavascript(
                 "fitAll();",
@@ -1040,16 +1402,19 @@ public class MapActivity extends Activity {
     protected void onDestroy() {
 
         if (driverLocationListener != null) {
+
             driverLocationListener.remove();
         }
 
         if (rideListener != null) {
+
             rideListener.remove();
         }
 
         routeExecutor.shutdownNow();
 
         if (webView != null) {
+
             webView.destroy();
         }
 
