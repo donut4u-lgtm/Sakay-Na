@@ -12,12 +12,33 @@ android {
         applicationId = "com.sakyna.app"
         minSdk = 23
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+
+        versionCode = 2
+        versionName = "1.0.1"
+    }
+
+    signingConfigs {
+        create("release") {
+            val keystorePath = System.getenv("SAKAYNA_KEYSTORE_PATH")
+            val keystorePassword = System.getenv("SAKAYNA_KEYSTORE_PASSWORD")
+            val keyAliasValue = System.getenv("SAKAYNA_KEY_ALIAS")
+
+            if (!keystorePath.isNullOrBlank()) {
+                storeFile = file(keystorePath)
+                storePassword = keystorePassword
+                keyAlias = keyAliasValue
+                keyPassword = keystorePassword
+            }
+        }
     }
 
     buildTypes {
         release {
+            isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
+        }
+
+        debug {
             isMinifyEnabled = false
         }
     }
