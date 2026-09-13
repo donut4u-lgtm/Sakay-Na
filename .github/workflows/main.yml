@@ -6,6 +6,9 @@ on:
       - main
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -22,6 +25,42 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Fix Driver logout bug
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+
+          file = Path("app/src/main/java/com/sakyna/app/DriverActivity.java")
+
+          text = file.read_text()
+
+          old = r'''getSharedPreferences\(
+              \s*"SakayNa",
+              \s*MODE_PRIVATE
+          \)
+              \.edit\(\)
+              \.clear\(\)
+              \.apply\(\);'''
+
+          new = '''preferences.edit()
+              .remove("name")
+              .remove("current_name")
+              .remove("phone")
+              .remove("current_phone")
+              .apply();'''
+
+          fixed, count = re.subn(old, new, text)
+
+          if count == 0:
+              print("Logout clear() pattern not found.")
+              print("No automatic change was made.")
+          else:
+              file.write_text(fixed)
+              print("Driver logout bug fixed.")
+              print("Replacements:", count)
+          PY
+
       - name: Install Gradle
         run: |
           wget -q https://services.gradle.org/distributions/gradle-8.10.2-bin.zip
@@ -35,5 +74,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Sakay-Na-debug
+          name: Sakay-Na-debug-fixed
           path: app/build/outputs/apk/debug/app-debug.apk
