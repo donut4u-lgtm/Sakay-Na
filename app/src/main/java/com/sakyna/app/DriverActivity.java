@@ -2,9 +2,6 @@
 package com.sakyna.app;
 
 import android.Manifest;
-import android.app.Activity;
-import android.content.Context;
-import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
@@ -13,373 +10,765 @@ import android.location.LocationListener;
 import android.location.LocationManager;
 import android.os.Bundle;
 import android.view.Gravity;
+import android.view.View;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.LinearLayout;
-import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
+import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
-import com.google.firebase.Timestamp;
 import com.google.firebase.auth.FirebaseAuth;
-import com.google.firebase.firestore.DocumentChange;
 import com.google.firebase.firestore.DocumentSnapshot;
+import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
 
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 
-public class DriverActivity extends Activity {
+public class DriverActivity extends AppCompatActivity {
 
-    private FirebaseAuth auth;
     private FirebaseFirestore db;
-
-    private LocationManager locationManager;
-    private LocationListener locationListener;
-    private ListenerRegistration rideListener;
+    private FirebaseAuth auth;
 
     private LinearLayout root;
-    private TextView statusText;
-    private TextView gpsText;
 
-    private boolean driverOnline = false;
+    private LocationManager locationManager;
 
-    private double currentLatitude = 0.0;
-    private double currentLongitude = 0.0;
+    private double driverLatitude = 0.0;
+    private double driverLongitude = 0.0;
 
-    private static final int LOCATION_PERMISSION_REQUEST = 1001;
-
-    private String driverId = "";
-    private String driverName = "";
-    private String driverPhone = "";
     private String currentRideId = "";
 
-    private final int GREEN = Color.rgb(0, 150, 80);
-    private final int BLUE = Color.rgb(35, 110, 210);
-    private final int RED = Color.rgb(210, 50, 50);
-    private final int ORANGE = Color.rgb(245, 150, 30);
+    private ListenerRegistration rideListener;
+
+    private TextView gpsText;
+    private TextView rideText;
+
+    private final int LOCATION_PERMISSION_REQUEST = 3001;
+
+    private final int GREEN = Color.rgb(25, 135, 84);
+    private final int ORANGE = Color.rgb(245, 145, 30);
+    private final int BLUE = Color.rgb(35, 105, 190);
+    private final int RED = Color.rgb(200, 55, 55);
+    private final int GRAY = Color.rgb(110, 110, 110);
     private final int DARK = Color.rgb(35, 35, 35);
-    private final int LIGHT = Color.rgb(245, 248, 246);
-
-    private final Set<String> declinedRideIds =
-            new HashSet<>();
-
-    private SharedPreferences preferences;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        auth = FirebaseAuth.getInstance();
         db = FirebaseFirestore.getInstance();
+        auth = FirebaseAuth.getInstance();
 
-        preferences =
-                getSharedPreferences(
-                        "SakayNa",
-                        MODE_PRIVATE
-                );
+        SharedPreferences prefs =
+                getSharedPreferences("SakayNa", MODE_PRIVATE);
 
-        loadDeclinedRides();
-        loadDriverProfile();
-    }
+        currentRideId = prefs.getString("driver_ride_id", "");
 
-    private void loadDeclinedRides() {
-
-        String saved =
-                preferences.getString(
-                        "declinedRideIds",
-                        ""
-                );
-
-        declinedRideIds.clear();
-
-        if (saved == null || saved.trim().isEmpty()) {
-            return;
-        }
-
-        String[] ids =
-                saved.split(",");
-
-        for (String id : ids) {
-
-            if (id != null
-                    && !id.trim().isEmpty()) {
-
-                declinedRideIds.add(
-                        id.trim()
-                );
-            }
-        }
-    }
-
-    private void saveDeclinedRides() {
-
-        StringBuilder builder =
-                new StringBuilder();
-
-        for (String id : declinedRideIds) {
-
-            if (builder.length() > 0) {
-                builder.append(",");
-            }
-
-            builder.append(id);
-        }
-
-        preferences.edit()
-                .putString(
-                        "declinedRideIds",
-                        builder.toString()
-                )
-                .apply();
-    }
-
-    private void loadDriverProfile() {
-
-        if (auth.getCurrentUser() == null) {
-            showLoginMessage();
-            return;
-        }
-
-        driverId =
-                auth.getCurrentUser().getUid();
-
-        driverName =
-                preferences.getString(
-                        "name",
-                        preferences.getString(
-                                "current_name",
-                                "Driver"
-                        )
-                );
-
-        driverPhone =
-                preferences.getString(
-                        "phone",
-                        preferences.getString(
-                                "current_phone",
-                                ""
-                        )
-                );
-
+        setupRoot();
         showDashboard();
+        startDriverLocation();
     }
 
     private void setupRoot() {
+        root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setPadding(30, 30, 30, 30);
+        root.setBackgroundColor(Color.WHITE);
 
-        ScrollView scrollView =
-                new ScrollView(this);
-
-        root =
-                new LinearLayout(this);
-
-        root.setOrientation(
-                LinearLayout.VERTICAL
-        );
-
-        root.setPadding(
-                25,
-                30,
-                25,
-                40
-        );
-
-        root.setBackgroundColor(LIGHT);
-
-        scrollView.addView(root);
-
-        setContentView(scrollView);
+        setContentView(root);
     }
 
-    private TextView title(
-            String text,
-            int size) {
-
-        TextView textView =
-                new TextView(this);
-
-        textView.setText(text);
-        textView.setTextSize(size);
-        textView.setTextColor(DARK);
-        textView.setGravity(Gravity.CENTER);
-        textView.setPadding(
-                10,
-                15,
-                10,
-                15
-        );
-
-        return textView;
+    private void clearRoot() {
+        root.removeAllViews();
     }
 
-    private Button button(
-            String text,
-            int color) {
-
-        Button button =
-                new Button(this);
-
-        button.setText(text);
-        button.setTextSize(17);
-        button.setTextColor(Color.WHITE);
-        button.setAllCaps(false);
-        button.setBackgroundColor(color);
-
-        LinearLayout.LayoutParams params =
+    private void add(View view) {
+        root.addView(
+                view,
                 new LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.MATCH_PARENT,
                         LinearLayout.LayoutParams.WRAP_CONTENT
-                );
-
-        params.setMargins(
-                0,
-                8,
-                0,
-                8
+                )
         );
+    }
 
-        button.setLayoutParams(params);
+    private void addSpace(int height) {
+        TextView space = new TextView(this);
+        space.setHeight(height);
+        add(space);
+    }
 
-        return button;
+    private TextView title(String text) {
+        TextView t = new TextView(this);
+        t.setText(text);
+        t.setTextSize(25);
+        t.setTextColor(DARK);
+        t.setGravity(Gravity.CENTER);
+        t.setPadding(10, 20, 10, 20);
+        return t;
+    }
+
+    private TextView label(String text) {
+        TextView t = new TextView(this);
+        t.setText(text);
+        t.setTextSize(17);
+        t.setTextColor(DARK);
+        t.setPadding(5, 10, 5, 10);
+        return t;
+    }
+
+    private Button button(String text, int color) {
+        Button b = new Button(this);
+        b.setText(text);
+        b.setTextSize(16);
+        b.setTextColor(Color.WHITE);
+        b.setBackgroundColor(color);
+        return b;
     }
 
     private void showDashboard() {
 
-        setupRoot();
+        clearRoot();
 
-        TextView heading =
-                title(
-                        "🛺 SAKAY NA DRIVER",
-                        28
-                );
+        add(title("Sakay Na - Driver"));
 
-        heading.setTextColor(BLUE);
+        add(label("Driver Dashboard"));
 
-        heading.setTypeface(
-                null,
-                android.graphics.Typeface.BOLD
-        );
+        addSpace(10);
 
-        root.addView(heading);
+        Button gps = button("📍 My GPS Location", BLUE);
+        gps.setOnClickListener(v -> showGPS());
+        add(gps);
 
-        root.addView(
-                title(
-                        "Welcome, " + driverName,
-                        20
-                )
-        );
+        addSpace(10);
 
-        statusText =
-                title(
-                        driverOnline
-                                ? "🟢 ONLINE"
-                                : "🔴 OFFLINE",
-                        20
-                );
+        Button rides = button("🚕 Ride Requests", ORANGE);
+        rides.setOnClickListener(v -> showRideRequests());
+        add(rides);
 
-        statusText.setTextColor(
-                driverOnline
-                        ? GREEN
-                        : RED
-        );
+        addSpace(10);
 
-        root.addView(statusText);
+        Button current = button("🚗 Current Ride", GREEN);
+        current.setOnClickListener(v -> showCurrentRide());
+        add(current);
 
-        Button onlineButton =
-                button(
-                        driverOnline
-                                ? "GO OFFLINE"
-                                : "GO ONLINE",
-                        driverOnline
-                                ? RED
-                                : GREEN
-                );
+        addSpace(10);
 
-        root.addView(onlineButton);
+        Button history = button("📋 Ride History", BLUE);
+        history.setOnClickListener(v -> showHistory());
+        add(history);
 
-        onlineButton.setOnClickListener(v -> {
+        addSpace(10);
 
-            if (driverOnline) {
-                goOffline();
-            } else {
-                goOnline();
-            }
-        });
+        Button logout = button("Logout", RED);
+        logout.setOnClickListener(v -> logout());
+        add(logout);
 
-        gpsText =
-                title(
-                        "📍 GPS\nWaiting for location...",
-                        16
-                );
-
-        root.addView(gpsText);
-
-        updateGpsDisplay();
-
-        Button requests =
-                button(
-                        "🚕 RIDE REQUESTS",
-                        ORANGE
-                );
-
-        root.addView(requests);
-
-        requests.setOnClickListener(
-                v -> showRideRequests()
-        );
-
-        Button current =
-                button(
-                        "🚗 CURRENT RIDE",
-                        BLUE
-                );
-
-        root.addView(current);
-
-        current.setOnClickListener(
-                v -> showCurrentRide()
-        );
-
-        Button earnings =
-                button(
-                        "💰 EARNINGS",
-                        GREEN
-                );
-
-        root.addView(earnings);
-
-        earnings.setOnClickListener(
-                v -> showEarnings()
-        );
-
-        Button logout =
-                button(
-                        "LOGOUT",
-                        DARK
-                );
-
-        root.addView(logout);
-
-        logout.setOnClickListener(
-                v -> logout()
-        );
-
-        if (driverOnline) {
-            startLocationTracking();
+        if (!currentRideId.isEmpty()) {
+            listenToRide(currentRideId);
         }
-
-        listenForRideRequests();
     }
 
-    private void goOnline() {
+    private void showGPS() {
 
-        if (!hasLocationPermission()) {
+        clearRoot();
+
+        add(title("Driver GPS"));
+
+        gpsText = label(
+                "Latitude: " + driverLatitude +
+                        "\nLongitude: " + driverLongitude
+        );
+
+        add(gpsText);
+
+        addSpace(10);
+
+        Button refresh = button("Refresh GPS", BLUE);
+        refresh.setOnClickListener(v -> updateGpsText());
+        add(refresh);
+
+        addSpace(10);
+
+        Button back = button("Back", GRAY);
+        back.setOnClickListener(v -> showDashboard());
+        add(back);
+    }
+
+    private void updateGpsText() {
+
+        if (gpsText != null) {
+            gpsText.setText(
+                    "Latitude: " + driverLatitude +
+                            "\nLongitude: " + driverLongitude
+            );
+        }
+
+        uploadDriverLocation();
+    }
+
+    private void showRideRequests() {
+
+        clearRoot();
+
+        add(title("Ride Requests"));
+
+        TextView info = label("Searching for REQUESTED rides...");
+        add(info);
+
+        db.collection("rides")
+                .whereEqualTo("status", "REQUESTED")
+                .get()
+                .addOnSuccessListener(querySnapshot -> {
+
+                    clearRoot();
+
+                    add(title("Available Rides"));
+
+                    if (querySnapshot.isEmpty()) {
+
+                        add(label("No ride requests available."));
+
+                    } else {
+
+                        for (DocumentSnapshot doc :
+                                querySnapshot.getDocuments()) {
+
+                            String rideId = doc.getId();
+
+                            String passenger =
+                                    safe(doc.getString("passengerName"));
+
+                            String pickup =
+                                    safe(doc.getString("pickup"));
+
+                            String destination =
+                                    safe(doc.getString("destination"));
+
+                            Double distance =
+                                    doc.getDouble("distanceKm");
+
+                            Long fare =
+                                    doc.getLong("fare");
+
+                            String text =
+                                    "Passenger: " + passenger +
+                                            "\nPickup: " + pickup +
+                                            "\nDestination: " + destination +
+                                            "\nDistance: " +
+                                            (distance == null ? "0" : distance)
+                                            + " km" +
+                                            "\nFare: ₱" +
+                                            (fare == null ? "0" : fare);
+
+                            add(label(text));
+
+                            Button accept =
+                                    button("ACCEPT RIDE", GREEN);
+
+                            accept.setOnClickListener(
+                                    v -> acceptRide(rideId)
+                            );
+
+                            add(accept);
+                            addSpace(15);
+                        }
+                    }
+
+                    Button back = button("Back", GRAY);
+                    back.setOnClickListener(v -> showDashboard());
+                    add(back);
+                })
+                .addOnFailureListener(e ->
+                        Toast.makeText(
+                                this,
+                                "Could not load rides: " + e.getMessage(),
+                                Toast.LENGTH_LONG
+                        ).show()
+                );
+    }
+
+    private void acceptRide(String rideId) {
+
+        String uid = auth.getCurrentUser() == null
+                ? ""
+                : auth.getCurrentUser().getUid();
+
+        if (uid.isEmpty()) {
+            Toast.makeText(
+                    this,
+                    "Driver is not logged in.",
+                    Toast.LENGTH_SHORT
+            ).show();
+            return;
+        }
+
+        Map<String, Object> update =
+                new HashMap<>();
+
+        update.put("driverId", uid);
+        update.put("driverName", "Sakay Na Driver");
+        update.put("status", "ACCEPTED");
+        update.put("acceptedAt",
+                FieldValue.serverTimestamp());
+
+        db.collection("rides")
+                .document(rideId)
+                .update(update)
+                .addOnSuccessListener(v -> {
+
+                    currentRideId = rideId;
+
+                    getSharedPreferences(
+                            "SakayNa",
+                            MODE_PRIVATE
+                    )
+                            .edit()
+                            .putString(
+                                    "driver_ride_id",
+                                    rideId
+                            )
+                            .putString(
+                                    "driver_ride_status",
+                                    "ACCEPTED"
+                            )
+                            .apply();
+
+                    Toast.makeText(
+                            this,
+                            "Ride accepted!",
+                            Toast.LENGTH_SHORT
+                    ).show();
+
+                    listenToRide(rideId);
+                    showCurrentRide();
+                })
+                .addOnFailureListener(e ->
+                        Toast.makeText(
+                                this,
+                                "Accept failed: " + e.getMessage(),
+                                Toast.LENGTH_LONG
+                        ).show()
+                );
+    }
+
+    private void showCurrentRide() {
+
+        clearRoot();
+
+        add(title("Current Ride"));
+
+        rideText = label("Loading ride...");
+        add(rideText);
+
+        addSpace(15);
+
+        if (currentRideId.isEmpty()) {
+
+            rideText.setText(
+                    "No current ride."
+            );
+
+            Button find =
+                    button("Find Ride Requests", ORANGE);
+
+            find.setOnClickListener(
+                    v -> showRideRequests()
+            );
+
+            add(find);
+
+        } else {
+
+            listenToRide(currentRideId);
+        }
+
+        addSpace(15);
+
+        Button back = button("Back", GRAY);
+        back.setOnClickListener(v -> showDashboard());
+        add(back);
+    }
+
+    private void listenToRide(String rideId) {
+
+        if (rideListener != null) {
+            rideListener.remove();
+        }
+
+        if (rideId == null || rideId.isEmpty()) {
+            return;
+        }
+
+        rideListener =
+                db.collection("rides")
+                        .document(rideId)
+                        .addSnapshotListener(
+                                (snapshot, error) -> {
+
+                                    if (error != null) {
+                                        return;
+                                    }
+
+                                    if (snapshot == null ||
+                                            !snapshot.exists()) {
+                                        return;
+                                    }
+
+                                    updateRideDisplay(snapshot);
+                                }
+                        );
+    }
+
+    private void updateRideDisplay(
+            DocumentSnapshot doc
+    ) {
+
+        String status =
+                safe(doc.getString("status"));
+
+        String passenger =
+                safe(doc.getString("passengerName"));
+
+        String phone =
+                safe(doc.getString("passengerPhone"));
+
+        String pickup =
+                safe(doc.getString("pickup"));
+
+        String destination =
+                safe(doc.getString("destination"));
+
+        Double distance =
+                doc.getDouble("distanceKm");
+
+        Long fare =
+                doc.getLong("fare");
+
+        String text =
+                "STATUS: " + readableStatus(status) +
+                        "\n\nPassenger: " + passenger +
+                        "\nPhone: " + phone +
+                        "\n\nPickup:\n" + pickup +
+                        "\n\nDestination:\n" + destination +
+                        "\n\nDistance: " +
+                        (distance == null ? "0" : distance) +
+                        " km" +
+                        "\nFare: ₱" +
+                        (fare == null ? "0" : fare);
+
+        if (rideText != null) {
+            rideText.setText(text);
+        }
+
+        if (root != null &&
+                root.getChildCount() > 0) {
+
+            buildStatusButtons(status);
+        }
+    }
+
+    private void buildStatusButtons(String status) {
+
+        if (currentRideId.isEmpty()) {
+            return;
+        }
+
+        if (status.equals("ACCEPTED")) {
+
+            addSpace(10);
+
+            Button onTheWay =
+                    button(
+                            "🚗 DRIVER ON THE WAY",
+                            ORANGE
+                    );
+
+            onTheWay.setOnClickListener(
+                    v -> updateRideStatus(
+                            "DRIVER_ON_THE_WAY"
+                    )
+            );
+
+            add(onTheWay);
+
+        } else if (status.equals("DRIVER_ON_THE_WAY")) {
+
+            addSpace(10);
+
+            Button arrived =
+                    button(
+                            "📍 DRIVER ARRIVED",
+                            BLUE
+                    );
+
+            arrived.setOnClickListener(
+                    v -> updateRideStatus(
+                            "DRIVER_ARRIVED"
+                    )
+            );
+
+            add(arrived);
+
+        } else if (status.equals("DRIVER_ARRIVED")) {
+
+            addSpace(10);
+
+            Button start =
+                    button(
+                            "▶ START TRIP",
+                            GREEN
+                    );
+
+            start.setOnClickListener(
+                    v -> updateRideStatus(
+                            "IN_PROGRESS"
+                    )
+            );
+
+            add(start);
+
+        } else if (status.equals("IN_PROGRESS")) {
+
+            addSpace(10);
+
+            Button finish =
+                    button(
+                            "🏁 FINISH TRIP",
+                            GREEN
+                    );
+
+            finish.setOnClickListener(
+                    v -> updateRideStatus(
+                            "FINISHED"
+                    )
+            );
+
+            add(finish);
+
+        } else if (status.equals("FINISHED")) {
+
+            addSpace(10);
+
+            TextView finished =
+                    label(
+                            "Trip finished.\n" +
+                                    "Waiting for passenger to complete the ride and give a rating."
+                    );
+
+            add(finished);
+
+        } else if (status.equals("COMPLETED")) {
+
+            addSpace(10);
+
+            TextView completed =
+                    label(
+                            "✅ Ride completed successfully."
+                    );
+
+            add(completed);
+
+            Button dashboard =
+                    button(
+                            "Back to Dashboard",
+                            GREEN
+                    );
+
+            dashboard.setOnClickListener(
+                    v -> {
+                        currentRideId = "";
+
+                        getSharedPreferences(
+                                "SakayNa",
+                                MODE_PRIVATE
+                        )
+                                .edit()
+                                .remove("driver_ride_id")
+                                .remove("driver_ride_status")
+                                .apply();
+
+                        showDashboard();
+                    }
+            );
+
+            add(dashboard);
+        }
+    }
+
+    private void updateRideStatus(String newStatus) {
+
+        if (currentRideId.isEmpty()) {
+            return;
+        }
+
+        Map<String, Object> update =
+                new HashMap<>();
+
+        update.put("status", newStatus);
+
+        if (newStatus.equals("DRIVER_ON_THE_WAY")) {
+            update.put(
+                    "driverOnTheWayAt",
+                    FieldValue.serverTimestamp()
+            );
+        }
+
+        if (newStatus.equals("DRIVER_ARRIVED")) {
+            update.put(
+                    "driverArrivedAt",
+                    FieldValue.serverTimestamp()
+            );
+        }
+
+        if (newStatus.equals("IN_PROGRESS")) {
+            update.put(
+                    "tripStartedAt",
+                    FieldValue.serverTimestamp()
+            );
+        }
+
+        if (newStatus.equals("FINISHED")) {
+            update.put(
+                    "finishedAt",
+                    FieldValue.serverTimestamp()
+            );
+        }
+
+        db.collection("rides")
+                .document(currentRideId)
+                .update(update)
+                .addOnSuccessListener(v -> {
+
+                    getSharedPreferences(
+                            "SakayNa",
+                            MODE_PRIVATE
+                    )
+                            .edit()
+                            .putString(
+                                    "driver_ride_status",
+                                    newStatus
+                            )
+                            .apply();
+
+                    Toast.makeText(
+                            this,
+                            "Status updated: " +
+                                    readableStatus(newStatus),
+                            Toast.LENGTH_SHORT
+                    ).show();
+
+                })
+                .addOnFailureListener(e ->
+                        Toast.makeText(
+                                this,
+                                "Update failed: " +
+                                        e.getMessage(),
+                                Toast.LENGTH_LONG
+                        ).show()
+                );
+    }
+
+    private void showHistory() {
+
+        clearRoot();
+
+        add(title("Ride History"));
+
+        String uid = auth.getCurrentUser() == null
+                ? ""
+                : auth.getCurrentUser().getUid();
+
+        if (uid.isEmpty()) {
+
+            add(label("Driver not logged in."));
+
+        } else {
+
+            db.collection("rides")
+                    .whereEqualTo("driverId", uid)
+                    .get()
+                    .addOnSuccessListener(snapshot -> {
+
+                        if (snapshot.isEmpty()) {
+
+                            add(label(
+                                    "No completed rides yet."
+                            ));
+
+                        } else {
+
+                            for (DocumentSnapshot doc :
+                                    snapshot.getDocuments()) {
+
+                                String passenger =
+                                        safe(doc.getString(
+                                                "passengerName"
+                                        ));
+
+                                String destination =
+                                        safe(doc.getString(
+                                                "destination"
+                                        ));
+
+                                String status =
+                                        safe(doc.getString(
+                                                "status"
+                                        ));
+
+                                Long fare =
+                                        doc.getLong("fare");
+
+                                add(label(
+                                        "Passenger: " +
+                                                passenger +
+                                                "\nDestination: " +
+                                                destination +
+                                                "\nStatus: " +
+                                                readableStatus(
+                                                        status
+                                                ) +
+                                                "\nFare: ₱" +
+                                                (fare == null
+                                                        ? "0"
+                                                        : fare)
+                                ));
+
+                                addSpace(10);
+                            }
+                        }
+
+                        Button back =
+                                button("Back", GRAY);
+
+                        back.setOnClickListener(
+                                v -> showDashboard()
+                        );
+
+                        add(back);
+                    });
+        }
+    }
+
+    private void startDriverLocation() {
+
+        locationManager =
+                (LocationManager)
+                        getSystemService(
+                                LOCATION_SERVICE
+                        );
+
+        if (ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_FINE_LOCATION
+        ) != PackageManager.PERMISSION_GRANTED) {
 
             ActivityCompat.requestPermissions(
                     this,
@@ -393,166 +782,73 @@ public class DriverActivity extends Activity {
             return;
         }
 
-        driverOnline = true;
-
-        setDriverOnline(true);
-        startLocationTracking();
-        showDashboard();
-
-        toast("You are now ONLINE.");
+        requestLocationUpdates();
     }
 
-    private void goOffline() {
+    private void requestLocationUpdates() {
 
-        driverOnline = false;
-
-        stopLocationTracking();
-        setDriverOnline(false);
-        showDashboard();
-
-        toast("You are now OFFLINE.");
-    }
-
-    private boolean hasLocationPermission() {
-
-        return ContextCompat.checkSelfPermission(
-                this,
-                Manifest.permission.ACCESS_FINE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
-                ||
-                ContextCompat.checkSelfPermission(
-                        this,
-                        Manifest.permission.ACCESS_COARSE_LOCATION
-                ) == PackageManager.PERMISSION_GRANTED;
-    }
-
-    private void startLocationTracking() {
-
-        if (!hasLocationPermission()) {
+        if (locationManager == null) {
             return;
         }
 
-        locationManager =
-                (LocationManager)
-                        getSystemService(
-                                Context.LOCATION_SERVICE
-                        );
-
-        if (locationListener != null) {
-
-            try {
-
-                locationManager.removeUpdates(
-                        locationListener
-                );
-
-            } catch (SecurityException ignored) {
-            }
+        if (ActivityCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_FINE_LOCATION
+        ) != PackageManager.PERMISSION_GRANTED) {
+            return;
         }
 
-        locationListener =
+        LocationListener listener =
                 new LocationListener() {
 
                     @Override
                     public void onLocationChanged(
-                            @NonNull Location location) {
+                            @NonNull Location location
+                    ) {
 
-                        currentLatitude =
+                        driverLatitude =
                                 location.getLatitude();
 
-                        currentLongitude =
+                        driverLongitude =
                                 location.getLongitude();
 
-                        updateGpsDisplay();
+                        uploadDriverLocation();
 
-                        saveDriverLocation();
-                    }
-
-                    @Override
-                    public void onProviderEnabled(
-                            @NonNull String provider) {
-                    }
-
-                    @Override
-                    public void onProviderDisabled(
-                            @NonNull String provider) {
+                        updateGpsText();
                     }
                 };
 
-        try {
+        locationManager.requestLocationUpdates(
+                LocationManager.GPS_PROVIDER,
+                5000,
+                5,
+                listener
+        );
 
-            locationManager.requestLocationUpdates(
-                    LocationManager.GPS_PROVIDER,
-                    3000,
-                    5,
-                    locationListener
-            );
-
-        } catch (SecurityException ignored) {
-        }
-
-        try {
-
-            locationManager.requestLocationUpdates(
-                    LocationManager.NETWORK_PROVIDER,
-                    5000,
-                    10,
-                    locationListener
-            );
-
-        } catch (SecurityException ignored) {
-        }
-
-        updateGpsDisplay();
-    }
-
-    private void stopLocationTracking() {
-
-        if (locationManager != null
-                && locationListener != null) {
-
-            try {
-
-                locationManager.removeUpdates(
-                        locationListener
+        Location last =
+                locationManager.getLastKnownLocation(
+                        LocationManager.GPS_PROVIDER
                 );
 
-            } catch (SecurityException ignored) {
-            }
-        }
+        if (last != null) {
 
-        locationListener = null;
+            driverLatitude =
+                    last.getLatitude();
+
+            driverLongitude =
+                    last.getLongitude();
+
+            uploadDriverLocation();
+        }
     }
 
-    private void updateGpsDisplay() {
+    private void uploadDriverLocation() {
 
-        if (gpsText == null) {
-            return;
-        }
+        String uid = auth.getCurrentUser() == null
+                ? ""
+                : auth.getCurrentUser().getUid();
 
-        if (currentLatitude == 0.0
-                && currentLongitude == 0.0) {
-
-            gpsText.setText(
-                    "📍 GPS\nWaiting for location..."
-            );
-
-            return;
-        }
-
-        gpsText.setText(
-                "📍 GPS LOCATION\n\n" +
-                        "Latitude: " +
-                        currentLatitude +
-                        "\nLongitude: " +
-                        currentLongitude
-        );
-    }
-
-    private void saveDriverLocation() {
-
-        if (!driverOnline
-                || driverId.isEmpty()) {
+        if (uid.isEmpty()) {
             return;
         }
 
@@ -561,1113 +857,35 @@ public class DriverActivity extends Activity {
 
         location.put(
                 "driverId",
-                driverId
-        );
-
-        location.put(
-                "driverName",
-                driverName
-        );
-
-        location.put(
-                "driverPhone",
-                driverPhone
+                uid
         );
 
         location.put(
                 "latitude",
-                currentLatitude
+                driverLatitude
         );
 
         location.put(
                 "longitude",
-                currentLongitude
-        );
-
-        location.put(
-                "online",
-                true
+                driverLongitude
         );
 
         location.put(
                 "updatedAt",
-                Timestamp.now()
+                FieldValue.serverTimestamp()
         );
 
         db.collection("driverLocations")
-                .document(driverId)
+                .document(uid)
                 .set(location);
-    }
-
-    private void setDriverOnline(
-            boolean online) {
-
-        if (driverId.isEmpty()) {
-            return;
-        }
-
-        Map<String, Object> data =
-                new HashMap<>();
-
-        data.put(
-                "driverId",
-                driverId
-        );
-
-        data.put(
-                "driverName",
-                driverName
-        );
-
-        data.put(
-                "driverPhone",
-                driverPhone
-        );
-
-        data.put(
-                "online",
-                online
-        );
-
-        data.put(
-                "latitude",
-                currentLatitude
-        );
-
-        data.put(
-                "longitude",
-                currentLongitude
-        );
-
-        data.put(
-                "updatedAt",
-                Timestamp.now()
-        );
-
-        db.collection("driverLocations")
-                .document(driverId)
-                .set(data);
-    }
-
-    private void listenForRideRequests() {
-
-        if (rideListener != null) {
-            rideListener.remove();
-        }
-
-        rideListener =
-                db.collection("rides")
-                        .whereEqualTo(
-                                "status",
-                                "REQUESTED"
-                        )
-                        .addSnapshotListener(
-                                (snapshot, error) -> {
-
-                                    if (error != null
-                                            || snapshot == null) {
-                                        return;
-                                    }
-
-                                    for (
-                                            DocumentChange change :
-                                            snapshot.getDocumentChanges()
-                                    ) {
-
-                                        if (change.getType()
-                                                == DocumentChange.Type.ADDED) {
-
-                                            String rideId =
-                                                    change.getDocument()
-                                                            .getId();
-
-                                            if (
-                                                    declinedRideIds
-                                                            .contains(rideId)
-                                            ) {
-                                                continue;
-                                            }
-
-                                            showRideNotification();
-                                            break;
-                                        }
-                                    }
-                                }
-                        );
-    }
-
-    private void showRideNotification() {
-
-        Toast.makeText(
-                this,
-                "🚕 NEW RIDE REQUEST",
-                Toast.LENGTH_LONG
-        ).show();
-    }
-
-    private void showRideRequests() {
-
-        setupRoot();
-
-        TextView heading =
-                title(
-                        "🚕 RIDE REQUESTS",
-                        28
-                );
-
-        heading.setTextColor(ORANGE);
-
-        heading.setTypeface(
-                null,
-                android.graphics.Typeface.BOLD
-        );
-
-        root.addView(heading);
-
-        TextView loading =
-                title(
-                        "Loading ride requests...",
-                        18
-                );
-
-        root.addView(loading);
-
-        db.collection("rides")
-                .whereEqualTo(
-                        "status",
-                        "REQUESTED"
-                )
-                .get()
-                .addOnSuccessListener(
-                        snapshot -> {
-
-                            if (root == null) {
-                                return;
-                            }
-
-                            root.removeView(
-                                    loading
-                            );
-
-                            if (snapshot == null
-                                    || snapshot.isEmpty()) {
-
-                                root.addView(
-                                        title(
-                                                "No ride requests right now.",
-                                                18
-                                        )
-                                );
-
-                                addBackButton();
-
-                                return;
-                            }
-
-                            int visibleRides = 0;
-
-                            for (
-                                    DocumentSnapshot document :
-                                    snapshot.getDocuments()
-                            ) {
-
-                                String rideId =
-                                        document.getId();
-
-                                if (
-                                        declinedRideIds
-                                                .contains(rideId)
-                                ) {
-                                    continue;
-                                }
-
-                                visibleRides++;
-
-                                try {
-
-                                    addRideRequestCard(
-                                            document
-                                    );
-
-                                } catch (Exception e) {
-
-                                    TextView error =
-                                            title(
-                                                    "A ride could not be displayed.",
-                                                    16
-                                            );
-
-                                    error.setTextColor(RED);
-
-                                    root.addView(error);
-                                }
-                            }
-
-                            if (visibleRides == 0) {
-
-                                root.addView(
-                                        title(
-                                                "No new ride requests.",
-                                                18
-                                        )
-                                );
-                            }
-
-                            addBackButton();
-                        }
-                )
-                .addOnFailureListener(
-                        e -> {
-
-                            if (root == null) {
-                                return;
-                            }
-
-                            root.removeView(
-                                    loading
-                            );
-
-                            root.addView(
-                                    title(
-                                            "Could not load rides.\n\n" +
-                                                    "Please try again.",
-                                            18
-                                    )
-                            );
-
-                            addBackButton();
-                        }
-                );
-    }
-
-    private void addBackButton() {
-
-        Button back =
-                button(
-                        "BACK",
-                        DARK
-                );
-
-        root.addView(back);
-
-        back.setOnClickListener(
-                v -> showDashboard()
-        );
-    }
-
-    private void addRideRequestCard(
-            DocumentSnapshot document) {
-
-        if (document == null
-                || root == null) {
-            return;
-        }
-
-        String rideId =
-                document.getId();
-
-        String passengerName =
-                getSafeValue(
-                        document,
-                        "passengerName"
-                );
-
-        String passengerPhone =
-                getSafeValue(
-                        document,
-                        "passengerPhone"
-                );
-
-        String pickup =
-                getSafeValue(
-                        document,
-                        "pickup"
-                );
-
-        String destination =
-                getSafeValue(
-                        document,
-                        "destination"
-                );
-
-        String fare =
-                getSafeValue(
-                        document,
-                        "fare"
-                );
-
-        LinearLayout cardContainer =
-                new LinearLayout(this);
-
-        cardContainer.setOrientation(
-                LinearLayout.VERTICAL
-        );
-
-        cardContainer.setPadding(
-                10,
-                10,
-                10,
-                20
-        );
-
-        root.addView(
-                cardContainer
-        );
-
-        TextView card =
-                title(
-                        "👤 Passenger: " +
-                                passengerName +
-                                "\n📞 " +
-                                passengerPhone +
-                                "\n\n📍 Pickup: " +
-                                pickup +
-                                "\n\n🏁 Destination: " +
-                                destination +
-                                "\n\n💰 Fare: " +
-                                fare,
-                        16
-                );
-
-        card.setGravity(
-                Gravity.START
-        );
-
-        card.setPadding(
-                20,
-                20,
-                20,
-                20
-        );
-
-        cardContainer.addView(card);
-
-        Button accept =
-                button(
-                        "ACCEPT RIDE",
-                        GREEN
-                );
-
-        cardContainer.addView(
-                accept
-        );
-
-        accept.setOnClickListener(
-                v -> acceptRide(rideId)
-        );
-
-        Button decline =
-                button(
-                        "DECLINE",
-                        RED
-                );
-
-        cardContainer.addView(
-                decline
-        );
-
-        decline.setOnClickListener(
-                v -> declineRide(
-                        rideId,
-                        cardContainer
-                )
-        );
-    }
-
-    private String getSafeValue(
-            DocumentSnapshot document,
-            String field) {
-
-        try {
-
-            Object value =
-                    document.get(field);
-
-            if (value == null) {
-                return "";
-            }
-
-            return String.valueOf(value);
-
-        } catch (Exception e) {
-
-            return "";
-        }
-    }
-
-    private void acceptRide(
-            String rideId) {
-
-        declinedRideIds.remove(
-                rideId
-        );
-
-        saveDeclinedRides();
-
-        Map<String, Object> update =
-                new HashMap<>();
-
-        update.put(
-                "status",
-                "ACCEPTED"
-        );
-
-        update.put(
-                "driverId",
-                driverId
-        );
-
-        update.put(
-                "driverName",
-                driverName
-        );
-
-        update.put(
-                "driverPhone",
-                driverPhone
-        );
-
-        update.put(
-                "driverLatitude",
-                currentLatitude
-        );
-
-        update.put(
-                "driverLongitude",
-                currentLongitude
-        );
-
-        update.put(
-                "acceptedAt",
-                Timestamp.now()
-        );
-
-        db.collection("rides")
-                .document(rideId)
-                .update(update)
-                .addOnSuccessListener(
-                        unused -> {
-
-                            currentRideId =
-                                    rideId;
-
-                            toast(
-                                    "Ride accepted."
-                            );
-
-                            showCurrentRide();
-                        }
-                )
-                .addOnFailureListener(
-                        e -> toast(
-                                "Could not accept ride."
-                        )
-                );
-    }
-
-    private void declineRide(
-            String rideId,
-            LinearLayout cardContainer) {
-
-        if (rideId == null
-                || rideId.trim().isEmpty()) {
-
-            toast(
-                    "Invalid ride."
-            );
-
-            return;
-        }
-
-        declinedRideIds.add(
-                rideId
-        );
-
-        saveDeclinedRides();
-
-        if (cardContainer != null) {
-
-            root.removeView(
-                    cardContainer
-            );
-        }
-
-        toast(
-                "Ride declined."
-        );
-    }
-
-    private void showCurrentRide() {
-
-        setupRoot();
-
-        TextView heading =
-                title(
-                        "🚗 CURRENT RIDE",
-                        28
-                );
-
-        heading.setTextColor(BLUE);
-
-        heading.setTypeface(
-                null,
-                android.graphics.Typeface.BOLD
-        );
-
-        root.addView(heading);
-
-        if (currentRideId.isEmpty()) {
-
-            findAcceptedRide();
-
-        } else {
-
-            loadCurrentRide(
-                    currentRideId
-            );
-        }
-
-        addBackButton();
-    }
-
-    private void findAcceptedRide() {
-
-        db.collection("rides")
-                .whereEqualTo(
-                        "driverId",
-                        driverId
-                )
-                .limit(20)
-                .get()
-                .addOnSuccessListener(
-                        snapshot -> {
-
-                            for (
-                                    DocumentSnapshot document :
-                                    snapshot.getDocuments()
-                            ) {
-
-                                String status =
-                                        getSafeValue(
-                                                document,
-                                                "status"
-                                        );
-
-                                if (
-                                        status.equals(
-                                                "ACCEPTED"
-                                        )
-                                                || status.equals(
-                                                "DRIVER_ON_THE_WAY"
-                                        )
-                                                || status.equals(
-                                                "DRIVER_ARRIVED"
-                                        )
-                                                || status.equals(
-                                                "IN_PROGRESS"
-                                        )
-                                ) {
-
-                                    currentRideId =
-                                            document.getId();
-
-                                    loadCurrentRide(
-                                            currentRideId
-                                    );
-
-                                    return;
-                                }
-                            }
-
-                            root.addView(
-                                    title(
-                                            "No current ride.",
-                                            18
-                                    )
-                            );
-                        }
-                )
-                .addOnFailureListener(
-                        e -> root.addView(
-                                title(
-                                        "Could not load current ride.",
-                                        16
-                                )
-                        )
-                );
-    }
-
-    private void loadCurrentRide(
-            String rideId) {
-
-        db.collection("rides")
-                .document(rideId)
-                .get()
-                .addOnSuccessListener(
-                        document -> {
-
-                            if (!document.exists()) {
-
-                                root.addView(
-                                        title(
-                                                "Ride not found.",
-                                                18
-                                        )
-                                );
-
-                                return;
-                            }
-
-                            String passenger =
-                                    getSafeValue(
-                                            document,
-                                            "passengerName"
-                                    );
-
-                            String phone =
-                                    getSafeValue(
-                                            document,
-                                            "passengerPhone"
-                                    );
-
-                            String pickup =
-                                    getSafeValue(
-                                            document,
-                                            "pickup"
-                                    );
-
-                            String destination =
-                                    getSafeValue(
-                                            document,
-                                            "destination"
-                                    );
-
-                            String status =
-                                    getSafeValue(
-                                            document,
-                                            "status"
-                                    );
-
-                            String fare =
-                                    getSafeValue(
-                                            document,
-                                            "fare"
-                                    );
-
-                            double pickupLatitude =
-                                    0.0;
-
-                            double pickupLongitude =
-                                    0.0;
-
-                            Object pickupLatValue =
-                                    document.get(
-                                            "pickupLatitude"
-                                    );
-
-                            Object pickupLngValue =
-                                    document.get(
-                                            "pickupLongitude"
-                                    );
-
-                            if (pickupLatValue
-                                    instanceof Number) {
-
-                                pickupLatitude =
-                                        ((Number)
-                                                pickupLatValue)
-                                                .doubleValue();
-                            }
-
-                            if (pickupLngValue
-                                    instanceof Number) {
-
-                                pickupLongitude =
-                                        ((Number)
-                                                pickupLngValue)
-                                                .doubleValue();
-                            }
-
-                            String distanceText =
-                                    "Waiting for GPS...";
-
-                            if (currentLatitude != 0.0
-                                    && currentLongitude != 0.0
-                                    && pickupLatitude != 0.0
-                                    && pickupLongitude != 0.0) {
-
-                                float[] results =
-                                        new float[1];
-
-                                Location.distanceBetween(
-                                        currentLatitude,
-                                        currentLongitude,
-                                        pickupLatitude,
-                                        pickupLongitude,
-                                        results
-                                );
-
-                                double distanceKm =
-                                        results[0] / 1000.0;
-
-                                distanceText =
-                                        String.format(
-                                                java.util.Locale.US,
-                                                "%.2f km",
-                                                distanceKm
-                                        );
-                            }
-
-                            root.addView(
-                                    title(
-                                            "👤 Passenger\n" +
-                                                    passenger +
-                                                    "\n" +
-                                                    phone +
-
-                                                    "\n\n📍 Pickup\n" +
-                                                    pickup +
-
-                                                    "\n\n🏁 Destination\n" +
-                                                    destination +
-
-                                                    "\n\n💰 Fare\n" +
-                                                    fare +
-
-                                                    "\n\n📡 DRIVER GPS\n" +
-                                                    "Latitude: " +
-                                                    currentLatitude +
-                                                    "\nLongitude: " +
-                                                    currentLongitude +
-
-                                                    "\n\n📏 DISTANCE TO PICKUP\n" +
-                                                    distanceText +
-
-                                                    "\n\nSTATUS\n" +
-                                                    status,
-                                            18
-                                    )
-                            );
-
-                            addTripButtons(
-                                    rideId,
-                                    status
-                            );
-                        }
-                )
-                .addOnFailureListener(
-                        e -> root.addView(
-                                title(
-                                        "Could not load ride.",
-                                        16
-                                )
-                        )
-                );
-    }
-
-    private void addTripButtons(
-            String rideId,
-            String status) {
-
-        if (status.equals(
-                "ACCEPTED")) {
-
-            Button onWay =
-                    button(
-                            "🚗 DRIVER ON THE WAY",
-                            BLUE
-                    );
-
-            root.addView(onWay);
-
-            onWay.setOnClickListener(
-                    v -> updateRideStatus(
-                            rideId,
-                            "DRIVER_ON_THE_WAY"
-                    )
-            );
-        }
-
-        if (status.equals(
-                "DRIVER_ON_THE_WAY")) {
-
-            Button arrived =
-                    button(
-                            "📍 DRIVER ARRIVED",
-                            ORANGE
-                    );
-
-            root.addView(arrived);
-
-            arrived.setOnClickListener(
-                    v -> updateRideStatus(
-                            rideId,
-                            "DRIVER_ARRIVED"
-                    )
-            );
-        }
-
-        if (status.equals(
-                "DRIVER_ARRIVED")) {
-
-            Button start =
-                    button(
-                            "▶ START TRIP",
-                            GREEN
-                    );
-
-            root.addView(start);
-
-            start.setOnClickListener(
-                    v -> updateRideStatus(
-                            rideId,
-                            "IN_PROGRESS"
-                    )
-            );
-        }
-
-        if (status.equals(
-                "IN_PROGRESS")) {
-
-            Button finish =
-                    button(
-                            "✓ FINISH TRIP",
-                            GREEN
-                    );
-
-            root.addView(finish);
-
-            finish.setOnClickListener(
-                    v -> updateRideStatus(
-                            rideId,
-                            "FINISHED"
-                    )
-            );
-        }
-    }
-
-    private void updateRideStatus(
-            String rideId,
-            String newStatus) {
-
-        Map<String, Object> update =
-                new HashMap<>();
-
-        update.put(
-                "status",
-                newStatus
-        );
-
-        update.put(
-                "updatedAt",
-                Timestamp.now()
-        );
-
-        db.collection("rides")
-                .document(rideId)
-                .update(update)
-                .addOnSuccessListener(
-                        unused -> {
-
-                            toast(
-                                    "Ride status updated."
-                            );
-
-                            showCurrentRide();
-                        }
-                )
-                .addOnFailureListener(
-                        e -> toast(
-                                "Status update failed."
-                        )
-                );
-    }
-
-    private void showEarnings() {
-
-        setupRoot();
-
-        TextView heading =
-                title(
-                        "💰 DRIVER EARNINGS",
-                        28
-                );
-
-        heading.setTextColor(GREEN);
-
-        heading.setTypeface(
-                null,
-                android.graphics.Typeface.BOLD
-        );
-
-        root.addView(heading);
-
-        db.collection("rides")
-                .whereEqualTo(
-                        "driverId",
-                        driverId
-                )
-                .limit(100)
-                .get()
-                .addOnSuccessListener(
-                        snapshot -> {
-
-                            double total = 0;
-                            int completed = 0;
-
-                            for (
-                                    DocumentSnapshot document :
-                                    snapshot.getDocuments()
-                            ) {
-
-                                String status =
-                                        getSafeValue(
-                                                document,
-                                                "status"
-                                        );
-
-                                if (
-                                        !status.equals(
-                                                "FINISHED"
-                                        )
-                                                && !status.equals(
-                                                "COMPLETED"
-                                        )
-                                ) {
-
-                                    continue;
-                                }
-
-                                completed++;
-
-                                Object fare =
-                                        document.get(
-                                                "finalFare"
-                                        );
-
-                                if (!(fare
-                                        instanceof Number)) {
-
-                                    fare =
-                                            document.get(
-                                                    "fare"
-                                            );
-                                }
-
-                                if (fare
-                                        instanceof Number) {
-
-                                    total +=
-                                            ((Number) fare)
-                                                    .doubleValue();
-                                }
-                            }
-
-                            root.addView(
-                                    title(
-                                            "Completed rides: " +
-                                                    completed +
-                                                    "\n\nTotal earnings: " +
-                                                    total,
-                                            20
-                                    )
-                            );
-                        }
-                )
-                .addOnFailureListener(
-                        e -> root.addView(
-                                title(
-                                        "Could not load earnings.",
-                                        16
-                                )
-                        )
-                );
-
-        addBackButton();
-    }
-
-    private void logout() {
-
-        driverOnline = false;
-
-        stopLocationTracking();
-
-        setDriverOnline(false);
-
-        if (rideListener != null) {
-
-            rideListener.remove();
-
-            rideListener = null;
-        }
-
-        auth.signOut();
-
-        /*
-         * Clear login/session information only.
-         *
-         * IMPORTANT:
-         * declinedRideIds is intentionally preserved
-         * so rides declined by this driver stay hidden
-         * after logging in again.
-         */
-        preferences.edit()
-                .remove("name")
-                .remove("current_name")
-                .remove("phone")
-                .remove("current_phone")
-                .apply();
-
-        Intent intent =
-                new Intent(
-                        DriverActivity.this,
-                        MainActivity.class
-                );
-
-        intent.addFlags(
-                Intent.FLAG_ACTIVITY_CLEAR_TOP
-                        | Intent.FLAG_ACTIVITY_NEW_TASK
-                        | Intent.FLAG_ACTIVITY_CLEAR_TASK
-        );
-
-        startActivity(intent);
-
-        finish();
-    }
-
-    private void showLoginMessage() {
-
-        Toast.makeText(
-                this,
-                "Please login first.",
-                Toast.LENGTH_LONG
-        ).show();
-
-        startActivity(
-                new Intent(
-                        this,
-                        MainActivity.class
-                )
-        );
-
-        finish();
-    }
-
-    private void toast(
-            String message) {
-
-        Toast.makeText(
-                this,
-                message,
-                Toast.LENGTH_LONG
-        ).show();
     }
 
     @Override
     public void onRequestPermissionsResult(
             int requestCode,
             @NonNull String[] permissions,
-            @NonNull int[] grantResults) {
+            @NonNull int[] grantResults
+    ) {
 
         super.onRequestPermissionsResult(
                 requestCode,
@@ -1675,54 +893,89 @@ public class DriverActivity extends Activity {
                 grantResults
         );
 
-        if (requestCode
-                == LOCATION_PERMISSION_REQUEST) {
+        if (requestCode ==
+                LOCATION_PERMISSION_REQUEST) {
 
-            boolean granted = false;
+            if (grantResults.length > 0 &&
+                    grantResults[0] ==
+                            PackageManager.PERMISSION_GRANTED) {
 
-            for (int result :
-                    grantResults) {
-
-                if (result
-                        == PackageManager.PERMISSION_GRANTED) {
-
-                    granted = true;
-                    break;
-                }
-            }
-
-            if (granted) {
-
-                driverOnline = true;
-
-                setDriverOnline(true);
-                startLocationTracking();
-                showDashboard();
-
-                toast(
-                        "GPS enabled. You are ONLINE."
-                );
+                requestLocationUpdates();
 
             } else {
 
-                toast(
-                        "Location permission is required."
-                );
+                Toast.makeText(
+                        this,
+                        "Location permission is required for driver GPS.",
+                        Toast.LENGTH_LONG
+                ).show();
             }
+        }
+    }
+
+    private String readableStatus(String status) {
+
+        if (status == null || status.isEmpty()) {
+            return "UNKNOWN";
+        }
+
+        return status.replace(
+                "_",
+                " "
+        );
+    }
+
+    private String safe(String value) {
+
+        if (value == null) {
+            return "";
+        }
+
+        return value;
+    }
+
+    private void logout() {
+
+        stopRideListener();
+
+        auth.signOut();
+
+        getSharedPreferences(
+                "SakayNa",
+                MODE_PRIVATE
+        )
+                .edit()
+                .clear()
+                .apply();
+
+        Toast.makeText(
+                this,
+                "Logged out.",
+                Toast.LENGTH_SHORT
+        ).show();
+
+        finish();
+    }
+
+    private void stopRideListener() {
+
+        if (rideListener != null) {
+            rideListener.remove();
+            rideListener = null;
         }
     }
 
     @Override
     protected void onDestroy() {
 
-        stopLocationTracking();
-
-        if (rideListener != null) {
-
-            rideListener.remove();
-            rideListener = null;
-        }
+        stopRideListener();
 
         super.onDestroy();
+    }
+
+    @Override
+    public void onBackPressed() {
+
+        showDashboard();
     }
 }
