@@ -51,8 +51,12 @@ public class PassengerActivity extends AppCompatActivity {
     private double driverLongitude = 0.0;
 
     private double rideDistanceKm = 0.0;
+    private double driverDistanceKm = 0.0;
 
     private String rideId = "";
+
+    private TextView liveDriverDistanceText;
+    private TextView liveDriverGpsText;
 
     private final int LOCATION_PERMISSION_REQUEST = 2001;
 
@@ -175,6 +179,8 @@ public class PassengerActivity extends AppCompatActivity {
     }
 
     private void showDashboard() {
+
+        removeDriverLocationListener();
 
         setupScreen("Passenger Dashboard");
 
@@ -626,30 +632,11 @@ public class PassengerActivity extends AppCompatActivity {
         Map<String, Object> ride =
                 new HashMap<>();
 
-        ride.put(
-                "passengerId",
-                uid
-        );
-
-        ride.put(
-                "passengerName",
-                name
-        );
-
-        ride.put(
-                "passengerPhone",
-                phone
-        );
-
-        ride.put(
-                "pickup",
-                pickup
-        );
-
-        ride.put(
-                "destination",
-                destination
-        );
+        ride.put("passengerId", uid);
+        ride.put("passengerName", name);
+        ride.put("passengerPhone", phone);
+        ride.put("pickup", pickup);
+        ride.put("destination", destination);
 
         ride.put(
                 "pickupLatitude",
@@ -676,36 +663,12 @@ public class PassengerActivity extends AppCompatActivity {
                 rideDistanceKm
         );
 
-        ride.put(
-                "fare",
-                fare
-        );
-
-        ride.put(
-                "finalFare",
-                0
-        );
-
-        ride.put(
-                "status",
-                "REQUESTED"
-        );
-
-        ride.put(
-                "driverId",
-                ""
-        );
-
-        ride.put(
-                "driverName",
-                ""
-        );
-
-        ride.put(
-                "rating",
-                0
-        );
-
+        ride.put("fare", fare);
+        ride.put("finalFare", 0);
+        ride.put("status", "REQUESTED");
+        ride.put("driverId", "");
+        ride.put("driverName", "");
+        ride.put("rating", 0);
         ride.put(
                 "createdAt",
                 FieldValue.serverTimestamp()
@@ -771,6 +734,9 @@ public class PassengerActivity extends AppCompatActivity {
 
         setupScreen("Current Ride");
 
+        liveDriverDistanceText = null;
+        liveDriverGpsText = null;
+
         if (rideId.isEmpty()) {
 
             root.addView(
@@ -813,6 +779,34 @@ public class PassengerActivity extends AppCompatActivity {
 
         listenToRide(status);
 
+        liveDriverGpsText =
+                text(
+                        "🚕 DRIVER GPS\n\nWaiting for driver...",
+                        17
+                );
+
+        liveDriverGpsText.setTextColor(BLUE);
+        liveDriverGpsText.setTypeface(
+                null,
+                Typeface.BOLD
+        );
+
+        root.addView(liveDriverGpsText);
+
+        liveDriverDistanceText =
+                text(
+                        "📏 DISTANCE TO DRIVER\n\nWaiting for driver GPS...",
+                        19
+                );
+
+        liveDriverDistanceText.setTextColor(GREEN);
+        liveDriverDistanceText.setTypeface(
+                null,
+                Typeface.BOLD
+        );
+
+        root.addView(liveDriverDistanceText);
+
         Button driverLocation =
                 button(
                         "📍  VIEW DRIVER LOCATION",
@@ -854,6 +848,9 @@ public class PassengerActivity extends AppCompatActivity {
             removeRideListener();
             removeDriverLocationListener();
 
+            liveDriverDistanceText = null;
+            liveDriverGpsText = null;
+
             showDashboard();
         });
 
@@ -890,6 +887,10 @@ public class PassengerActivity extends AppCompatActivity {
                             updateRideDisplay(
                                     document,
                                     statusView
+                            );
+
+                            startDriverLocationListener(
+                                    document
                             );
                         }
                 )
@@ -1007,7 +1008,7 @@ public class PassengerActivity extends AppCompatActivity {
                         + "DESTINATION\n"
                         + destination
                         + "\n\n"
-                        + "DISTANCE\n"
+                        + "TRIP DISTANCE\n"
                         + distanceText
                         + "\n\n"
                         + "FARE\n₱"
@@ -1022,6 +1023,8 @@ public class PassengerActivity extends AppCompatActivity {
 
         statusView.setTextSize(17);
         statusView.setTextColor(DARK);
+
+        updateLiveDriverDistanceDisplay();
     }
 
     private void startDriverLocationListener(
@@ -1043,6 +1046,8 @@ public class PassengerActivity extends AppCompatActivity {
 
             removeDriverLocationListener();
 
+            updateWaitingForDriverDisplay();
+
             return;
         }
 
@@ -1052,6 +1057,8 @@ public class PassengerActivity extends AppCompatActivity {
                 || status.equals("COMPLETED")) {
 
             removeDriverLocationListener();
+
+            updateWaitingForDriverDisplay();
 
             return;
         }
@@ -1070,6 +1077,9 @@ public class PassengerActivity extends AppCompatActivity {
 
                                     if (snapshot == null
                                             || !snapshot.exists()) {
+
+                                        updateWaitingForDriverDisplay();
+
                                         return;
                                     }
 
@@ -1096,9 +1106,92 @@ public class PassengerActivity extends AppCompatActivity {
                                                 lat,
                                                 lng
                                         );
+
+                                        updateLiveDriverDistanceDisplay();
                                     }
                                 }
                         );
+    }
+
+    private void updateWaitingForDriverDisplay() {
+
+        if (liveDriverGpsText != null) {
+
+            liveDriverGpsText.setText(
+                    "🚕 DRIVER GPS\n\n"
+                            + "Waiting for driver location..."
+            );
+        }
+
+        if (liveDriverDistanceText != null) {
+
+            liveDriverDistanceText.setText(
+                    "📏 DISTANCE TO DRIVER\n\n"
+                            + "Waiting for driver GPS..."
+            );
+        }
+    }
+
+    private void updateLiveDriverDistanceDisplay() {
+
+        if (liveDriverGpsText == null
+                && liveDriverDistanceText == null) {
+
+            return;
+        }
+
+        if (driverLatitude == 0.0
+                && driverLongitude == 0.0) {
+
+            updateWaitingForDriverDisplay();
+
+            return;
+        }
+
+        if (liveDriverGpsText != null) {
+
+            liveDriverGpsText.setText(
+                    "🚕 DRIVER GPS\n\n"
+                            + "Latitude:\n"
+                            + driverLatitude
+                            + "\n\n"
+                            + "Longitude:\n"
+                            + driverLongitude
+            );
+        }
+
+        if (passengerLatitude == 0.0
+                && passengerLongitude == 0.0) {
+
+            if (liveDriverDistanceText != null) {
+
+                liveDriverDistanceText.setText(
+                        "📏 DISTANCE TO DRIVER\n\n"
+                                + "Waiting for your GPS..."
+                );
+            }
+
+            return;
+        }
+
+        driverDistanceKm =
+                calculateDistanceKm(
+                        passengerLatitude,
+                        passengerLongitude,
+                        driverLatitude,
+                        driverLongitude
+                );
+
+        if (liveDriverDistanceText != null) {
+
+            liveDriverDistanceText.setText(
+                    String.format(
+                            "📏 DISTANCE TO DRIVER\n\n"
+                                    + "%.2f km away",
+                            driverDistanceKm
+                    )
+            );
+        }
     }
 
     private void showDriverLocation() {
@@ -1107,26 +1200,46 @@ public class PassengerActivity extends AppCompatActivity {
                 "Driver Location"
         );
 
-        TextView locationText =
+        liveDriverGpsText =
                 text(
-                        "Waiting for driver location...",
+                        "🚕 DRIVER GPS\n\n"
+                                + "Waiting for driver location...",
                         18
                 );
 
-        root.addView(locationText);
+        liveDriverGpsText.setTextColor(BLUE);
+        liveDriverGpsText.setTypeface(
+                null,
+                Typeface.BOLD
+        );
+
+        root.addView(liveDriverGpsText);
+
+        liveDriverDistanceText =
+                text(
+                        "📏 DISTANCE TO DRIVER\n\n"
+                                + "Waiting for driver GPS...",
+                        19
+                );
+
+        liveDriverDistanceText.setTextColor(GREEN);
+        liveDriverDistanceText.setTypeface(
+                null,
+                Typeface.BOLD
+        );
+
+        root.addView(liveDriverDistanceText);
 
         if (rideId.isEmpty()) {
 
-            locationText.setText(
+            liveDriverGpsText.setText(
                     "No active ride.\n\n"
                             + "Book a ride first."
             );
 
         } else {
 
-            loadDriverLocationForScreen(
-                    locationText
-            );
+            loadDriverLocationForScreen();
         }
 
         Button refresh =
@@ -1136,9 +1249,7 @@ public class PassengerActivity extends AppCompatActivity {
                 );
 
         refresh.setOnClickListener(
-                v -> loadDriverLocationForScreen(
-                        locationText
-                )
+                v -> loadDriverLocationForScreen()
         );
 
         Button back =
@@ -1151,18 +1262,18 @@ public class PassengerActivity extends AppCompatActivity {
 
             removeDriverLocationListener();
 
+            liveDriverDistanceText = null;
+            liveDriverGpsText = null;
+
             showDashboard();
         });
     }
 
-    private void loadDriverLocationForScreen(
-            TextView locationText) {
+    private void loadDriverLocationForScreen() {
 
         if (rideId.isEmpty()) {
 
-            locationText.setText(
-                    "No active ride."
-            );
+            updateWaitingForDriverDisplay();
 
             return;
         }
@@ -1175,7 +1286,7 @@ public class PassengerActivity extends AppCompatActivity {
 
                             if (!ride.exists()) {
 
-                                locationText.setText(
+                                liveDriverGpsText.setText(
                                         "Ride not found."
                                 );
 
@@ -1190,84 +1301,87 @@ public class PassengerActivity extends AppCompatActivity {
                             if (driverId == null
                                     || driverId.isEmpty()) {
 
-                                locationText.setText(
-                                        "No driver has accepted "
-                                                + "the ride yet.\n\n"
-                                                + "Driver GPS will appear "
-                                                + "after acceptance."
-                                );
+                                updateWaitingForDriverDisplay();
+
+                                if (liveDriverGpsText != null) {
+
+                                    liveDriverGpsText.setText(
+                                            "🚕 DRIVER GPS\n\n"
+                                                    + "No driver has accepted "
+                                                    + "the ride yet."
+                                    );
+                                }
 
                                 return;
                             }
 
-                            db.collection(
-                                            "driverLocations"
-                                    )
-                                    .document(driverId)
-                                    .get()
-                                    .addOnSuccessListener(
-                                            location -> {
+                            removeDriverLocationListener();
 
-                                                if (!location.exists()) {
+                            driverLocationListener =
+                                    db.collection(
+                                                    "driverLocations"
+                                            )
+                                            .document(driverId)
+                                            .addSnapshotListener(
+                                                    (location,
+                                                     error) -> {
 
-                                                    locationText.setText(
-                                                            "Driver location "
-                                                                    + "is not available yet."
-                                                    );
+                                                        if (error != null) {
+                                                            return;
+                                                        }
 
-                                                    return;
-                                                }
+                                                        if (location == null
+                                                                || !location.exists()) {
 
-                                                Double lat =
-                                                        location.getDouble(
-                                                                "latitude"
+                                                            updateWaitingForDriverDisplay();
+
+                                                            return;
+                                                        }
+
+                                                        Double lat =
+                                                                location.getDouble(
+                                                                        "latitude"
+                                                                );
+
+                                                        Double lng =
+                                                                location.getDouble(
+                                                                        "longitude"
+                                                                );
+
+                                                        if (lat == null
+                                                                || lng == null) {
+
+                                                            updateWaitingForDriverDisplay();
+
+                                                            return;
+                                                        }
+
+                                                        driverLatitude =
+                                                                lat;
+
+                                                        driverLongitude =
+                                                                lng;
+
+                                                        saveDriverLocationLocally(
+                                                                lat,
+                                                                lng
                                                         );
 
-                                                Double lng =
-                                                        location.getDouble(
-                                                                "longitude"
-                                                        );
-
-                                                if (lat == null
-                                                        || lng == null) {
-
-                                                    locationText.setText(
-                                                            "Driver GPS "
-                                                                    + "coordinates are "
-                                                                    + "not available yet."
-                                                    );
-
-                                                    return;
-                                                }
-
-                                                driverLatitude =
-                                                        lat;
-
-                                                driverLongitude =
-                                                        lng;
-
-                                                locationText.setText(
-                                                        "🚕 DRIVER GPS\n\n"
-                                                                + "Latitude:\n"
-                                                                + lat
-                                                                + "\n\n"
-                                                                + "Longitude:\n"
-                                                                + lng
-                                                                + "\n\n"
-                                                                + "Driver location received."
-                                                );
-
-                                                locationText.setTextSize(
-                                                        17
-                                                );
-                                            }
-                                    );
+                                                        updateLiveDriverDistanceDisplay();
+                                                    }
+                                            );
                         }
                 )
                 .addOnFailureListener(
-                        e -> locationText.setText(
-                                "Could not load driver location."
-                        )
+                        e -> {
+
+                            if (liveDriverGpsText != null) {
+
+                                liveDriverGpsText.setText(
+                                        "Could not load driver location."
+                                );
+                            }
+                        }
                 );
     }
 
@@ -1418,6 +1532,8 @@ public class PassengerActivity extends AppCompatActivity {
                     updatePassengerCoordinates(
                             location
                     );
+
+                    updateLiveDriverDistanceDisplay();
                 }
             };
 
@@ -1433,6 +1549,8 @@ public class PassengerActivity extends AppCompatActivity {
 
         passengerLongitude =
                 location.getLongitude();
+
+        updateLiveDriverDistanceDisplay();
     }
 
     private void saveDriverLocationLocally(
@@ -1871,6 +1989,9 @@ public class PassengerActivity extends AppCompatActivity {
 
         removeRideListener();
         removeDriverLocationListener();
+
+        liveDriverDistanceText = null;
+        liveDriverGpsText = null;
 
         showDashboard();
     }
