@@ -3,7 +3,6 @@ package com.sakyna.app;
 
 import android.Manifest;
 import android.app.AlertDialog;
-import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
@@ -414,6 +413,11 @@ public class PassengerActivity extends AppCompatActivity {
                     if (fare < 50) fare = 50;
                     if (fare > 500) fare = 500;
 
+                    // IMPORTANT:
+                    // fare is changed above, so make a final copy
+                    // before using it inside the Firebase lambda.
+                    final int safeFare = fare;
+
                     Map<String, Object> ride =
                             new HashMap<>();
 
@@ -449,7 +453,7 @@ public class PassengerActivity extends AppCompatActivity {
                             rideDistanceKm
                     );
 
-                    ride.put("fare", fare);
+                    ride.put("fare", safeFare);
                     ride.put("finalFare", 0);
 
                     ride.put("status", "REQUESTED");
@@ -496,7 +500,9 @@ public class PassengerActivity extends AppCompatActivity {
                                         )
                                         .putString(
                                                 "ride_fare",
-                                                String.valueOf(fare)
+                                                String.valueOf(
+                                                        safeFare
+                                                )
                                         )
                                         .putString(
                                                 "ride_status",
