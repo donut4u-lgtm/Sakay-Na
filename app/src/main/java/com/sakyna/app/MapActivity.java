@@ -1,193 +1,81 @@
 
 package com.sakyna.app;
 
-import android.Manifest;
-import android.content.pm.PackageManager;
-import android.graphics.Color;
+import android.app.Activity;
 import android.os.Bundle;
-import android.preference.PreferenceManager;
-import android.view.Gravity;
-import android.widget.LinearLayout;
-import android.widget.TextView;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
 
-import androidx.annotation.NonNull;
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.app.ActivityCompat;
+public class MapActivity extends Activity {
 
-import org.osmdroid.config.Configuration;
-import org.osmdroid.library.R;
-import org.osmdroid.util.GeoPoint;
-import org.osmdroid.views.MapView;
-import org.osmdroid.views.overlay.Marker;
-import org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider;
-import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay;
-
-public class MapActivity extends AppCompatActivity {
-
-    private static final int LOCATION_REQUEST = 5001;
-
-    private MapView mapView;
-    private TextView status;
-    private MyLocationNewOverlay myLocationOverlay;
+    private WebView webView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        Configuration.getInstance().load(
-                this,
-                PreferenceManager.getDefaultSharedPreferences(this)
+        webView = new WebView(this);
+
+        WebSettings settings = webView.getSettings();
+        settings.setJavaScriptEnabled(true);
+        settings.setDomStorageEnabled(true);
+        settings.setBuiltInZoomControls(true);
+        settings.setDisplayZoomControls(false);
+        settings.setUseWideViewPort(true);
+        settings.setLoadWithOverviewMode(true);
+
+        webView.setWebViewClient(new WebViewClient());
+
+        String html =
+                "<!DOCTYPE html>" +
+                "<html>" +
+                "<head>" +
+                "<meta name='viewport' content='width=device-width, initial-scale=1.0'>" +
+                "<style>" +
+                "html,body,#map{height:100%;margin:0;padding:0;}" +
+                "</style>" +
+                "<link rel='stylesheet' " +
+                "href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'>" +
+                "</head>" +
+                "<body>" +
+                "<div id='map'></div>" +
+                "<script src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'></script>" +
+                "<script>" +
+                "var map = L.map('map').setView([14.2456,121.4451],13);" +
+
+                "L.tileLayer(" +
+                "'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'," +
+                "{maxZoom:19," +
+                "attribution:'© OpenStreetMap contributors'}" +
+                ").addTo(map);" +
+
+                "L.marker([14.2456,121.4451])" +
+                ".addTo(map)" +
+                ".bindPopup('<b>Sakay Na</b><br>Map is working!')" +
+                ".openPopup();" +
+
+                "</script>" +
+                "</body>" +
+                "</html>";
+
+        webView.loadDataWithBaseURL(
+                "https://www.openstreetmap.org/",
+                html,
+                "text/html",
+                "UTF-8",
+                null
         );
 
-        Configuration.getInstance().setUserAgentValue(
-                getPackageName()
-        );
-
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(Color.WHITE);
-
-        status = new TextView(this);
-        status.setText("Sakay Na Map\nGetting GPS location...");
-        status.setTextSize(18);
-        status.setTextColor(Color.DKGRAY);
-        status.setGravity(Gravity.CENTER);
-        status.setPadding(20, 20, 20, 20);
-
-        root.addView(
-                status,
-                new LinearLayout.LayoutParams(
-                        -1,
-                        150
-                )
-        );
-
-        mapView = new MapView(this);
-        mapView.setMultiTouchControls(true);
-
-        root.addView(
-                mapView,
-                new LinearLayout.LayoutParams(
-                        -1,
-                        0,
-                        1
-                )
-        );
-
-        setContentView(root);
-
-        mapView.getController().setZoom(15.0);
-
-        startLocation();
-    }
-
-    private void startLocation() {
-
-        if (ActivityCompat.checkSelfPermission(
-                this,
-                Manifest.permission.ACCESS_FINE_LOCATION
-        ) != PackageManager.PERMISSION_GRANTED) {
-
-            ActivityCompat.requestPermissions(
-                    this,
-                    new String[]{
-                            Manifest.permission.ACCESS_FINE_LOCATION,
-                            Manifest.permission.ACCESS_COARSE_LOCATION
-                    },
-                    LOCATION_REQUEST
-            );
-
-            status.setText(
-                    "Sakay Na Map\nPlease allow location."
-            );
-
-            return;
-        }
-
-        myLocationOverlay =
-                new MyLocationNewOverlay(
-                        new GpsMyLocationProvider(this),
-                        mapView
-                );
-
-        myLocationOverlay.enableMyLocation();
-        myLocationOverlay.enableFollowLocation();
-
-        myLocationOverlay.runOnFirstFix(
-                () -> runOnUiThread(() -> {
-
-                    GeoPoint location =
-                            myLocationOverlay.getMyLocation();
-
-                    if (location != null) {
-
-                        mapView.getController()
-                                .animateTo(location);
-
-                        status.setText(
-                                "Sakay Na Map\nGPS location found."
-                        );
-                    }
-                })
-        );
-
-        mapView.getOverlays().add(
-                myLocationOverlay
-        );
-
-        status.setText(
-                "Sakay Na Map\nWaiting for GPS..."
-        );
-
-        mapView.invalidate();
+        setContentView(webView);
     }
 
     @Override
-    public void onRequestPermissionsResult(
-            int requestCode,
-            @NonNull String[] permissions,
-            @NonNull int[] results) {
-
-        super.onRequestPermissionsResult(
-                requestCode,
-                permissions,
-                results
-        );
-
-        if (requestCode == LOCATION_REQUEST) {
-
-            if (results.length > 0
-                    && results[0]
-                    == PackageManager.PERMISSION_GRANTED) {
-
-                startLocation();
-
-            } else {
-
-                status.setText(
-                        "Sakay Na Map\nLocation permission denied."
-                );
-            }
+    public void onBackPressed() {
+        if (webView != null && webView.canGoBack()) {
+            webView.goBack();
+        } else {
+            super.onBackPressed();
         }
-    }
-
-    @Override
-    protected void onResume() {
-
-        super.onResume();
-
-        if (mapView != null) {
-            mapView.onResume();
-        }
-    }
-
-    @Override
-    protected void onPause() {
-
-        if (mapView != null) {
-            mapView.onPause();
-        }
-
-        super.onPause();
     }
 }
