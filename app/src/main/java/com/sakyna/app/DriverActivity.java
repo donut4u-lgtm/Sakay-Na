@@ -1,4 +1,5 @@
-package com.sakyna.app;
+
+      package com.sakyna.app;
 
 import android.Manifest;
 import android.app.Activity;
@@ -30,7 +31,9 @@ import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 public class DriverActivity extends Activity {
 
@@ -64,6 +67,19 @@ public class DriverActivity extends Activity {
     private final int DARK = Color.rgb(35, 35, 35);
     private final int LIGHT = Color.rgb(245, 248, 246);
 
+    /*
+     * Ride IDs declined by this driver.
+     *
+     * IMPORTANT:
+     * These are stored locally for this driver only.
+     * The ride remains REQUESTED in Firestore so another
+     * driver can still see and accept it.
+     */
+    private final Set<String> declinedRideIds =
+            new HashSet<>();
+
+    private SharedPreferences preferences;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -71,7 +87,66 @@ public class DriverActivity extends Activity {
         auth = FirebaseAuth.getInstance();
         db = FirebaseFirestore.getInstance();
 
+        preferences =
+                getSharedPreferences(
+                        "SakayNa",
+                        MODE_PRIVATE
+                );
+
+        loadDeclinedRides();
         loadDriverProfile();
+    }
+
+    private void loadDeclinedRides() {
+
+        String saved =
+                preferences.getString(
+                        "declinedRideIds",
+                        ""
+                );
+
+        declinedRideIds.clear();
+
+        if (saved == null || saved.trim().isEmpty()) {
+            return;
+        }
+
+        String[] ids =
+                saved.split(",");
+
+        for (String id : ids) {
+
+            if (id != null
+                    && !id.trim().isEmpty()) {
+
+                declinedRideIds.add(
+                        id.trim()
+                );
+            }
+        }
+    }
+
+    private void saveDeclinedRides() {
+
+        StringBuilder builder =
+                new StringBuilder();
+
+        for (String id :
+                declinedRideIds) {
+
+            if (builder.length() > 0) {
+                builder.append(",");
+            }
+
+            builder.append(id);
+        }
+
+        preferences.edit()
+                .putString(
+                        "declinedRideIds",
+                        builder.toString()
+                )
+                .apply();
     }
 
     private void loadDriverProfile() {
@@ -81,46 +156,83 @@ public class DriverActivity extends Activity {
             return;
         }
 
-        driverId = auth.getCurrentUser().getUid();
+        driverId =
+                auth.getCurrentUser().getUid();
 
-        SharedPreferences preferences =
-                getSharedPreferences("SakayNa", MODE_PRIVATE);
+        driverName =
+                preferences.getString(
+                        "name",
+                        preferences.getString(
+                                "current_name",
+                                "Driver"
+                        )
+                );
 
-        driverName = preferences.getString("name", "Driver");
-        driverPhone = preferences.getString("phone", "");
+        driverPhone =
+                preferences.getString(
+                        "phone",
+                        preferences.getString(
+                                "current_phone",
+                                ""
+                        )
+                );
 
         showDashboard();
     }
 
     private void setupRoot() {
 
-        ScrollView scrollView = new ScrollView(this);
+        ScrollView scrollView =
+                new ScrollView(this);
 
-        root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(25, 30, 25, 40);
+        root =
+                new LinearLayout(this);
+
+        root.setOrientation(
+                LinearLayout.VERTICAL
+        );
+
+        root.setPadding(
+                25,
+                30,
+                25,
+                40
+        );
+
         root.setBackgroundColor(LIGHT);
 
         scrollView.addView(root);
+
         setContentView(scrollView);
     }
 
-    private TextView title(String text, int size) {
+    private TextView title(
+            String text,
+            int size) {
 
-        TextView textView = new TextView(this);
+        TextView textView =
+                new TextView(this);
 
         textView.setText(text);
         textView.setTextSize(size);
         textView.setTextColor(DARK);
         textView.setGravity(Gravity.CENTER);
-        textView.setPadding(10, 15, 10, 15);
+        textView.setPadding(
+                10,
+                15,
+                10,
+                15
+        );
 
         return textView;
     }
 
-    private Button button(String text, int color) {
+    private Button button(
+            String text,
+            int color) {
 
-        Button button = new Button(this);
+        Button button =
+                new Button(this);
 
         button.setText(text);
         button.setTextSize(17);
@@ -134,7 +246,12 @@ public class DriverActivity extends Activity {
                         LinearLayout.LayoutParams.WRAP_CONTENT
                 );
 
-        params.setMargins(0, 8, 0, 8);
+        params.setMargins(
+                0,
+                8,
+                0,
+                8
+        );
 
         button.setLayoutParams(params);
 
@@ -146,9 +263,13 @@ public class DriverActivity extends Activity {
         setupRoot();
 
         TextView heading =
-                title("🛺 SAKAY NA DRIVER", 28);
+                title(
+                        "🛺 SAKAY NA DRIVER",
+                        28
+                );
 
         heading.setTextColor(BLUE);
+
         heading.setTypeface(
                 null,
                 android.graphics.Typeface.BOLD
@@ -172,7 +293,9 @@ public class DriverActivity extends Activity {
                 );
 
         statusText.setTextColor(
-                driverOnline ? GREEN : RED
+                driverOnline
+                        ? GREEN
+                        : RED
         );
 
         root.addView(statusText);
@@ -182,7 +305,9 @@ public class DriverActivity extends Activity {
                         driverOnline
                                 ? "GO OFFLINE"
                                 : "GO ONLINE",
-                        driverOnline ? RED : GREEN
+                        driverOnline
+                                ? RED
+                                : GREEN
                 );
 
         root.addView(onlineButton);
@@ -381,9 +506,11 @@ public class DriverActivity extends Activity {
                 && locationListener != null) {
 
             try {
+
                 locationManager.removeUpdates(
                         locationListener
                 );
+
             } catch (SecurityException ignored) {
             }
         }
@@ -418,27 +545,56 @@ public class DriverActivity extends Activity {
 
     private void saveDriverLocation() {
 
-        if (!driverOnline || driverId.isEmpty()) {
+        if (!driverOnline
+                || driverId.isEmpty()) {
             return;
         }
 
         Map<String, Object> location =
                 new HashMap<>();
 
-        location.put("driverId", driverId);
-        location.put("driverName", driverName);
-        location.put("driverPhone", driverPhone);
-        location.put("latitude", currentLatitude);
-        location.put("longitude", currentLongitude);
-        location.put("online", true);
-        location.put("updatedAt", Timestamp.now());
+        location.put(
+                "driverId",
+                driverId
+        );
+
+        location.put(
+                "driverName",
+                driverName
+        );
+
+        location.put(
+                "driverPhone",
+                driverPhone
+        );
+
+        location.put(
+                "latitude",
+                currentLatitude
+        );
+
+        location.put(
+                "longitude",
+                currentLongitude
+        );
+
+        location.put(
+                "online",
+                true
+        );
+
+        location.put(
+                "updatedAt",
+                Timestamp.now()
+        );
 
         db.collection("driverLocations")
                 .document(driverId)
                 .set(location);
     }
 
-    private void setDriverOnline(boolean online) {
+    private void setDriverOnline(
+            boolean online) {
 
         if (driverId.isEmpty()) {
             return;
@@ -447,13 +603,40 @@ public class DriverActivity extends Activity {
         Map<String, Object> data =
                 new HashMap<>();
 
-        data.put("driverId", driverId);
-        data.put("driverName", driverName);
-        data.put("driverPhone", driverPhone);
-        data.put("online", online);
-        data.put("latitude", currentLatitude);
-        data.put("longitude", currentLongitude);
-        data.put("updatedAt", Timestamp.now());
+        data.put(
+                "driverId",
+                driverId
+        );
+
+        data.put(
+                "driverName",
+                driverName
+        );
+
+        data.put(
+                "driverPhone",
+                driverPhone
+        );
+
+        data.put(
+                "online",
+                online
+        );
+
+        data.put(
+                "latitude",
+                currentLatitude
+        );
+
+        data.put(
+                "longitude",
+                currentLongitude
+        );
+
+        data.put(
+                "updatedAt",
+                Timestamp.now()
+        );
 
         db.collection("driverLocations")
                 .document(driverId)
@@ -480,11 +663,29 @@ public class DriverActivity extends Activity {
                                         return;
                                     }
 
-                                    for (DocumentChange change :
-                                            snapshot.getDocumentChanges()) {
+                                    for (
+                                            DocumentChange change :
+                                            snapshot.getDocumentChanges()
+                                    ) {
 
                                         if (change.getType()
                                                 == DocumentChange.Type.ADDED) {
+
+                                            String rideId =
+                                                    change.getDocument()
+                                                            .getId();
+
+                                            /*
+                                             * Do not notify this driver
+                                             * about rides they already
+                                             * declined.
+                                             */
+                                            if (
+                                                    declinedRideIds
+                                                            .contains(rideId)
+                                            ) {
+                                                continue;
+                                            }
 
                                             showRideNotification();
                                             break;
@@ -543,7 +744,9 @@ public class DriverActivity extends Activity {
                                 return;
                             }
 
-                            root.removeView(loading);
+                            root.removeView(
+                                    loading
+                            );
 
                             if (snapshot == null
                                     || snapshot.isEmpty()) {
@@ -560,8 +763,28 @@ public class DriverActivity extends Activity {
                                 return;
                             }
 
-                            for (DocumentSnapshot document :
-                                    snapshot.getDocuments()) {
+                            int visibleRides = 0;
+
+                            for (
+                                    DocumentSnapshot document :
+                                    snapshot.getDocuments()
+                            ) {
+
+                                String rideId =
+                                        document.getId();
+
+                                /*
+                                 * Hide rides declined by this
+                                 * driver.
+                                 */
+                                if (
+                                        declinedRideIds
+                                                .contains(rideId)
+                                ) {
+                                    continue;
+                                }
+
+                                visibleRides++;
 
                                 try {
 
@@ -583,6 +806,16 @@ public class DriverActivity extends Activity {
                                 }
                             }
 
+                            if (visibleRides == 0) {
+
+                                root.addView(
+                                        title(
+                                                "No new ride requests.",
+                                                18
+                                        )
+                                );
+                            }
+
                             addBackButton();
                         }
                 )
@@ -593,7 +826,9 @@ public class DriverActivity extends Activity {
                                 return;
                             }
 
-                            root.removeView(loading);
+                            root.removeView(
+                                    loading
+                            );
 
                             root.addView(
                                     title(
@@ -626,7 +861,8 @@ public class DriverActivity extends Activity {
     private void addRideRequestCard(
             DocumentSnapshot document) {
 
-        if (document == null || root == null) {
+        if (document == null
+                || root == null) {
             return;
         }
 
@@ -663,6 +899,24 @@ public class DriverActivity extends Activity {
                         "fare"
                 );
 
+        LinearLayout cardContainer =
+                new LinearLayout(this);
+
+        cardContainer.setOrientation(
+                LinearLayout.VERTICAL
+        );
+
+        cardContainer.setPadding(
+                10,
+                10,
+                10,
+                20
+        );
+
+        root.addView(
+                cardContainer
+        );
+
         TextView card =
                 title(
                         "👤 Passenger: " +
@@ -678,7 +932,9 @@ public class DriverActivity extends Activity {
                         16
                 );
 
-        card.setGravity(Gravity.START);
+        card.setGravity(
+                Gravity.START
+        );
 
         card.setPadding(
                 20,
@@ -687,7 +943,7 @@ public class DriverActivity extends Activity {
                 20
         );
 
-        root.addView(card);
+        cardContainer.addView(card);
 
         Button accept =
                 button(
@@ -695,7 +951,9 @@ public class DriverActivity extends Activity {
                         GREEN
                 );
 
-        root.addView(accept);
+        cardContainer.addView(
+                accept
+        );
 
         accept.setOnClickListener(
                 v -> acceptRide(rideId)
@@ -707,10 +965,15 @@ public class DriverActivity extends Activity {
                         RED
                 );
 
-        root.addView(decline);
+        cardContainer.addView(
+                decline
+        );
 
         decline.setOnClickListener(
-                v -> declineRide(rideId)
+                v -> declineRide(
+                        rideId,
+                        cardContainer
+                )
         );
     }
 
@@ -738,16 +1001,54 @@ public class DriverActivity extends Activity {
     private void acceptRide(
             String rideId) {
 
+        /*
+         * Remove it from the driver's declined
+         * list in case the driver previously
+         * declined this ride in an older session.
+         */
+        declinedRideIds.remove(
+                rideId
+        );
+
+        saveDeclinedRides();
+
         Map<String, Object> update =
                 new HashMap<>();
 
-        update.put("status", "ACCEPTED");
-        update.put("driverId", driverId);
-        update.put("driverName", driverName);
-        update.put("driverPhone", driverPhone);
-        update.put("driverLatitude", currentLatitude);
-        update.put("driverLongitude", currentLongitude);
-        update.put("acceptedAt", Timestamp.now());
+        update.put(
+                "status",
+                "ACCEPTED"
+        );
+
+        update.put(
+                "driverId",
+                driverId
+        );
+
+        update.put(
+                "driverName",
+                driverName
+        );
+
+        update.put(
+                "driverPhone",
+                driverPhone
+        );
+
+        update.put(
+                "driverLatitude",
+                currentLatitude
+        );
+
+        update.put(
+                "driverLongitude",
+                currentLongitude
+        );
+
+        update.put(
+                "acceptedAt",
+                Timestamp.now()
+        );
 
         db.collection("rides")
                 .document(rideId)
@@ -772,8 +1073,46 @@ public class DriverActivity extends Activity {
                 );
     }
 
+    /*
+     * IMPORTANT:
+     *
+     * Decline does NOT change the Firestore ride status.
+     *
+     * The passenger's request must remain REQUESTED
+     * so another driver can accept it.
+     *
+     * We only remember that THIS driver declined it.
+     */
     private void declineRide(
-            String rideId) {
+            String rideId,
+            LinearLayout cardContainer) {
+
+        if (rideId == null
+                || rideId.trim().isEmpty()) {
+
+            toast(
+                    "Invalid ride."
+            );
+
+            return;
+        }
+
+        declinedRideIds.add(
+                rideId
+        );
+
+        saveDeclinedRides();
+
+        /*
+         * Remove the booking immediately
+         * from the current screen.
+         */
+        if (cardContainer != null) {
+
+            root.removeView(
+                    cardContainer
+            );
+        }
 
         toast(
                 "Ride declined."
@@ -800,8 +1139,11 @@ public class DriverActivity extends Activity {
         root.addView(heading);
 
         if (currentRideId.isEmpty()) {
+
             findAcceptedRide();
+
         } else {
+
             loadCurrentRide(
                     currentRideId
             );
@@ -822,8 +1164,10 @@ public class DriverActivity extends Activity {
                 .addOnSuccessListener(
                         snapshot -> {
 
-                            for (DocumentSnapshot document :
-                                    snapshot.getDocuments()) {
+                            for (
+                                    DocumentSnapshot document :
+                                    snapshot.getDocuments()
+                            ) {
 
                                 String status =
                                         getSafeValue(
@@ -831,14 +1175,20 @@ public class DriverActivity extends Activity {
                                                 "status"
                                         );
 
-                                if (status.equals(
-                                        "ACCEPTED")
-                                        || status.equals(
-                                        "DRIVER_ON_THE_WAY")
-                                        || status.equals(
-                                        "DRIVER_ARRIVED")
-                                        || status.equals(
-                                        "IN_PROGRESS")) {
+                                if (
+                                        status.equals(
+                                                "ACCEPTED"
+                                        )
+                                                || status.equals(
+                                                "DRIVER_ON_THE_WAY"
+                                        )
+                                                || status.equals(
+                                                "DRIVER_ARRIVED"
+                                        )
+                                                || status.equals(
+                                                "IN_PROGRESS"
+                                        )
+                                ) {
 
                                     currentRideId =
                                             document.getId();
@@ -1110,8 +1460,10 @@ public class DriverActivity extends Activity {
                             double total = 0;
                             int completed = 0;
 
-                            for (DocumentSnapshot document :
-                                    snapshot.getDocuments()) {
+                            for (
+                                    DocumentSnapshot document :
+                                    snapshot.getDocuments()
+                            ) {
 
                                 String status =
                                         getSafeValue(
@@ -1119,10 +1471,14 @@ public class DriverActivity extends Activity {
                                                 "status"
                                         );
 
-                                if (!status.equals(
-                                        "FINISHED")
-                                        && !status.equals(
-                                        "COMPLETED")) {
+                                if (
+                                        !status.equals(
+                                                "FINISHED"
+                                        )
+                                                && !status.equals(
+                                                "COMPLETED"
+                                        )
+                                ) {
 
                                     continue;
                                 }
@@ -1177,25 +1533,28 @@ public class DriverActivity extends Activity {
 
     private void logout() {
 
-        // Stop driver GPS tracking.
         driverOnline = false;
+
         stopLocationTracking();
 
-        // Mark driver offline in Firestore.
         setDriverOnline(false);
 
-        // Remove the ride listener.
         if (rideListener != null) {
+
             rideListener.remove();
+
             rideListener = null;
         }
 
-        // IMPORTANT:
-        // Sign out only.
-        // DO NOT delete the Firebase account.
+        /*
+         * Sign out only.
+         * DO NOT delete Firebase account.
+         */
         auth.signOut();
 
-        // Completely clear the local Sakay Na session.
+        /*
+         * Clear local login/session information.
+         */
         getSharedPreferences(
                 "SakayNa",
                 MODE_PRIVATE
@@ -1204,8 +1563,6 @@ public class DriverActivity extends Activity {
                 .clear()
                 .apply();
 
-        // Return to MainActivity and remove
-        // DriverActivity from the back stack.
         Intent intent =
                 new Intent(
                         DriverActivity.this,
@@ -1219,6 +1576,7 @@ public class DriverActivity extends Activity {
         );
 
         startActivity(intent);
+
         finish();
     }
 
@@ -1312,4 +1670,4 @@ public class DriverActivity extends Activity {
 
         super.onDestroy();
     }
-}
+}                      
