@@ -8,9 +8,16 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Toast;
 
-import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
+
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
 
 public class MapActivity extends Activity {
 
@@ -23,6 +30,12 @@ public class MapActivity extends Activity {
     private String driverId = "";
 
     private boolean mapReady = false;
+
+    private double pickupLatitude = 0.0;
+    private double pickupLongitude = 0.0;
+
+    private double destinationLatitude = 0.0;
+    private double destinationLongitude = 0.0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -74,7 +87,47 @@ public class MapActivity extends Activity {
                 ").addTo(map);" +
 
                 "var driverMarker = null;" +
-                "var firstDriverLocation = true;" +
+                "var pickupMarker = null;" +
+                "var destinationMarker = null;" +
+                "var routeLine = null;" +
+
+                "function setPickup(lat,lng) {" +
+                "   if (pickupMarker === null) {" +
+                "       pickupMarker = L.marker([lat,lng])" +
+                "       .addTo(map)" +
+                "       .bindPopup('<b>Pickup A</b>');" +
+                "   } else {" +
+                "       pickupMarker.setLatLng([lat,lng]);" +
+                "   }" +
+                "}" +
+
+                "function setDestination(lat,lng) {" +
+                "   if (destinationMarker === null) {" +
+                "       destinationMarker = L.marker([lat,lng])" +
+                "       .addTo(map)" +
+                "       .bindPopup('<b>Destination B</b>');" +
+                "   } else {" +
+                "       destinationMarker.setLatLng([lat,lng]);" +
+                "   }" +
+                "}" +
+
+                "function drawRoute(points) {" +
+
+                "   if (routeLine !== null) {" +
+                "       map.removeLayer(routeLine);" +
+                "   }" +
+
+                "   routeLine = L.polyline(points, {" +
+                "       weight:6," +
+                "       opacity:0.8" +
+                "   }).addTo(map);" +
+
+                "   if (routeLine.getBounds().isValid()) {" +
+                "       map.fitBounds(routeLine.getBounds(), {" +
+                "           padding:[30,30]" +
+                "       });" +
+                "   }" +
+                "}" +
 
                 "function updateDriver(lat,lng) {" +
 
@@ -93,12 +146,6 @@ public class MapActivity extends Activity {
 
                 "       driverMarker.setLatLng([lat,lng]);" +
                 "   }" +
-
-                "   if (firstDriverLocation) {" +
-                "       map.setView([lat,lng],16);" +
-                "       firstDriverLocation = false;" +
-                "   }" +
-
                 "}" +
 
                 "</script>" +
@@ -116,12 +163,9 @@ public class MapActivity extends Activity {
 
         setContentView(webView);
 
-        webView.postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                mapReady = true;
-                loadCurrentRide();
-            }
+        webView.postDelayed(() -> {
+            mapReady = true;
+            loadCurrentRide();
         }, 1000);
     }
 
@@ -159,24 +203,52 @@ public class MapActivity extends Activity {
                         return;
                     }
 
-                    String foundDriverId =
-                            document.getString("driverId");
+                    Double pickupLat =
+                            document.getDouble("pickupLatitude");
 
-                    if (foundDriverId == null ||
-                            foundDriverId.trim().isEmpty()) {
+                    Double pickupLng =
+                            document.getDouble("pickupLongitude");
+
+                    Double destinationLat =
+                            document.getDouble("destinationLatitude");
+
+                    Double destinationLng =
+                            document.getDouble("destinationLongitude");
+
+                    if (pickupLat == null ||
+                            pickupLng == null ||
+                            destinationLat == null ||
+                            destinationLng == null) {
 
                         Toast.makeText(
                                 this,
-                                "Driver has not been assigned yet.",
+                                "Pickup or destination coordinates are missing.",
                                 Toast.LENGTH_LONG
                         ).show();
 
                         return;
                     }
 
-                    driverId = foundDriverId;
+                    pickupLatitude = pickupLat;
+                    pickupLongitude = pickupLng;
 
-                    startDriverLocationListener();
+                    destinationLatitude = destinationLat;
+                    destinationLongitude = destinationLng;
+
+                    showPickupAndDestination();
+
+                    drawRoute();
+
+                    String foundDriverId =
+                            document.getString("driverId");
+
+                    if (foundDriverId != null &&
+                            !foundDriverId.trim().isEmpty()) {
+
+                        driverId = foundDriverId;
+
+                        startDriverLocationListener();
+                    }
 
                 })
                 .addOnFailureListener(error -> {
@@ -187,6 +259,151 @@ public class MapActivity extends Activity {
                             Toast.LENGTH_LONG
                     ).show();
                 });
+    }
+
+    private void showPickupAndDestination() {
+
+        if (!mapReady || webView == null) {
+            return;
+        }
+
+        String javascript =
+                "setPickup(" +
+                        pickupLatitude +
+                        "," +
+                        pickupLongitude +
+                        ");" +
+
+                "setDestination(" +
+                        destinationLatitude +
+                        "," +
+                        destinationLongitude +
+                        ");";
+
+        webView.post(() ->
+                webView.evaluateJavascript(
+                        javascript,
+                        null
+                )
+        );
+    }
+
+    private void drawRoute() {
+
+        Thread routeThread = new Thread(() -> {
+
+            HttpURLConnection connection = null;
+
+            try {
+
+                String urlString =
+                        "https://router.project-osrm.org/route/v1/driving/" +
+                        pickupLongitude + "," +
+                        pickupLatitude + ";" +
+                        destinationLongitude + "," +
+                        destinationLatitude +
+                        "?overview=full&geometries=geojson";
+
+                URL url = new URL(urlString);
+
+                connection =
+                        (HttpURLConnection) url.openConnection();
+
+                connection.setRequestMethod("GET");
+                connection.setConnectTimeout(15000);
+                connection.setReadTimeout(15000);
+
+                BufferedReader reader =
+                        new BufferedReader(
+                                new InputStreamReader(
+                                        connection.getInputStream()
+                                )
+                        );
+
+                StringBuilder response =
+                        new StringBuilder();
+
+                String line;
+
+                while ((line = reader.readLine()) != null) {
+                    response.append(line);
+                }
+
+                reader.close();
+
+                JSONObject json =
+                        new JSONObject(response.toString());
+
+                JSONArray routes =
+                        json.getJSONArray("routes");
+
+                if (routes.length() == 0) {
+                    return;
+                }
+
+                JSONObject route =
+                        routes.getJSONObject(0);
+
+                JSONObject geometry =
+                        route.getJSONObject("geometry");
+
+                JSONArray coordinates =
+                        geometry.getJSONArray("coordinates");
+
+                JSONArray leafletPoints =
+                        new JSONArray();
+
+                for (int i = 0;
+                     i < coordinates.length();
+                     i++) {
+
+                    JSONArray point =
+                            coordinates.getJSONArray(i);
+
+                    double longitude =
+                            point.getDouble(0);
+
+                    double latitude =
+                            point.getDouble(1);
+
+                    JSONArray leafletPoint =
+                            new JSONArray();
+
+                    leafletPoint.put(latitude);
+                    leafletPoint.put(longitude);
+
+                    leafletPoints.put(leafletPoint);
+                }
+
+                runOnUiThread(() -> {
+
+                    if (!mapReady || webView == null) {
+                        return;
+                    }
+
+                    String javascript =
+                            "drawRoute(" +
+                                    leafletPoints.toString() +
+                                    ");";
+
+                    webView.evaluateJavascript(
+                            javascript,
+                            null
+                    );
+                });
+
+            } catch (Exception ignored) {
+
+            } finally {
+
+                if (connection != null) {
+                    connection.disconnect();
+                }
+            }
+
+        });
+
+        routeThread.start();
     }
 
     private void startDriverLocationListener() {
