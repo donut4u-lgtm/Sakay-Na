@@ -1,3 +1,4 @@
+
 package com.sakyna.app;
 
 import android.Manifest;
@@ -17,7 +18,6 @@ public class PassengerGpsActivity extends Activity {
 
     private LocationManager locationManager;
     private LocationListener locationListener;
-
     private TextView gpsText;
 
     @Override
@@ -100,12 +100,11 @@ public class PassengerGpsActivity extends Activity {
                 grantResults
         );
 
-        if (requestCode == LOCATION_REQUEST) {
-            if (grantResults.length > 0
-                    && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+        if (requestCode == LOCATION_REQUEST
+                && grantResults.length > 0
+                && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
 
-                startGps();
-            }
+            startGps();
         }
     }
 
