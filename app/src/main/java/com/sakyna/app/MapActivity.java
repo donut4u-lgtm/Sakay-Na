@@ -1,9 +1,9 @@
+
 package com.sakyna.app;
 
 import android.Manifest;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
-import android.location.Location;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
 import android.view.Gravity;
@@ -15,9 +15,12 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 
 import org.osmdroid.config.Configuration;
+import org.osmdroid.library.R;
 import org.osmdroid.util.GeoPoint;
 import org.osmdroid.views.MapView;
 import org.osmdroid.views.overlay.Marker;
+import org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider;
+import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay;
 
 public class MapActivity extends AppCompatActivity {
 
@@ -25,6 +28,7 @@ public class MapActivity extends AppCompatActivity {
 
     private MapView mapView;
     private TextView status;
+    private MyLocationNewOverlay myLocationOverlay;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -44,7 +48,7 @@ public class MapActivity extends AppCompatActivity {
         root.setBackgroundColor(Color.WHITE);
 
         status = new TextView(this);
-        status.setText("Sakay Na Map\nGetting your location...");
+        status.setText("Sakay Na Map\nGetting GPS location...");
         status.setTextSize(18);
         status.setTextColor(Color.DKGRAY);
         status.setGravity(Gravity.CENTER);
@@ -74,10 +78,10 @@ public class MapActivity extends AppCompatActivity {
 
         mapView.getController().setZoom(15.0);
 
-        requestLocation();
+        startLocation();
     }
 
-    private void requestLocation() {
+    private void startLocation() {
 
         if (ActivityCompat.checkSelfPermission(
                 this,
@@ -94,53 +98,45 @@ public class MapActivity extends AppCompatActivity {
             );
 
             status.setText(
-                    "Sakay Na Map\nLocation permission required."
+                    "Sakay Na Map\nPlease allow location."
             );
 
             return;
         }
 
-        showDefaultMap();
-    }
-
-    private void showDefaultMap() {
-
-        /*
-         * Philippines starting position.
-         * This is only the initial map position.
-         * GPS will be added next.
-         */
-        GeoPoint philippines =
-                new GeoPoint(
-                        14.5995,
-                        120.9842
+        myLocationOverlay =
+                new MyLocationNewOverlay(
+                        new GpsMyLocationProvider(this),
+                        mapView
                 );
 
-        mapView.getController().setCenter(
-                philippines
-        );
+        myLocationOverlay.enableMyLocation();
+        myLocationOverlay.enableFollowLocation();
 
-        Marker marker =
-                new Marker(mapView);
+        myLocationOverlay.runOnFirstFix(
+                () -> runOnUiThread(() -> {
 
-        marker.setPosition(
-                philippines
-        );
+                    GeoPoint location =
+                            myLocationOverlay.getMyLocation();
 
-        marker.setTitle(
-                "Sakay Na"
-        );
+                    if (location != null) {
 
-        marker.setSnippet(
-                "Map is working"
+                        mapView.getController()
+                                .animateTo(location);
+
+                        status.setText(
+                                "Sakay Na Map\nGPS location found."
+                        );
+                    }
+                })
         );
 
         mapView.getOverlays().add(
-                marker
+                myLocationOverlay
         );
 
         status.setText(
-                "Sakay Na Map\nOpenStreetMap is working."
+                "Sakay Na Map\nWaiting for GPS..."
         );
 
         mapView.invalidate();
@@ -164,7 +160,7 @@ public class MapActivity extends AppCompatActivity {
                     && results[0]
                     == PackageManager.PERMISSION_GRANTED) {
 
-                showDefaultMap();
+                startLocation();
 
             } else {
 
@@ -177,6 +173,7 @@ public class MapActivity extends AppCompatActivity {
 
     @Override
     protected void onResume() {
+
         super.onResume();
 
         if (mapView != null) {
