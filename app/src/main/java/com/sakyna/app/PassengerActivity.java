@@ -11,7 +11,6 @@ import android.location.LocationListener;
 import android.location.LocationManager;
 import android.os.Bundle;
 import android.view.Gravity;
-import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -24,7 +23,6 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 
 import com.google.firebase.auth.FirebaseAuth;
-import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
 
@@ -36,6 +34,7 @@ public class PassengerActivity extends Activity {
     private FirebaseAuth auth;
     private FirebaseFirestore db;
     private LocationManager locationManager;
+    private LocationListener locationListener;
 
     private EditText pickupField;
     private EditText destinationField;
@@ -69,33 +68,64 @@ public class PassengerActivity extends Activity {
         startGps();
     }
 
+    private int dp(int value) {
+        return (int) (
+                value * getResources().getDisplayMetrics().density
+        );
+    }
+
+    private void addSpace(LinearLayout root, int height) {
+
+        TextView space = new TextView(this);
+
+        root.addView(
+                space,
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        dp(height)
+                )
+        );
+    }
+
     private void buildScreen() {
 
         ScrollView scroll = new ScrollView(this);
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(30, 30, 30, 40);
+        root.setPadding(
+                dp(24),
+                dp(24),
+                dp(24),
+                dp(40)
+        );
 
         TextView title = new TextView(this);
         title.setText("SAKAY NA");
         title.setTextSize(30);
         title.setTextColor(Color.rgb(0, 120, 70));
         title.setGravity(Gravity.CENTER);
-        title.setPadding(0, 10, 0, 25);
         root.addView(title);
 
-        TextView passengerTitle = new TextView(this);
-        passengerTitle.setText("Passenger • Book a Ride");
-        passengerTitle.setTextSize(21);
-        passengerTitle.setTextColor(Color.DKGRAY);
-        root.addView(passengerTitle);
+        addSpace(root, 8);
+
+        TextView subtitle = new TextView(this);
+        subtitle.setText("Passenger • Book a Ride");
+        subtitle.setTextSize(20);
+        subtitle.setTextColor(Color.DKGRAY);
+        subtitle.setGravity(Gravity.CENTER);
+
+        root.addView(subtitle);
+
+        addSpace(root, 22);
 
         gpsText = new TextView(this);
         gpsText.setText("📍 Getting your current location...");
         gpsText.setTextSize(16);
-        gpsText.setPadding(0, 20, 0, 20);
+        gpsText.setGravity(Gravity.CENTER);
         root.addView(gpsText);
+
+        addSpace(root, 18);
 
         TextView pickupLabel = new TextView(this);
         pickupLabel.setText("PICKUP LOCATION");
@@ -103,70 +133,128 @@ public class PassengerActivity extends Activity {
         pickupLabel.setTextColor(Color.DKGRAY);
         root.addView(pickupLabel);
 
+        addSpace(root, 6);
+
         pickupField = new EditText(this);
-        pickupField.setHint("Your current location");
+        pickupField.setHint("Your current GPS location");
         pickupField.setTextSize(17);
         pickupField.setSingleLine(true);
         pickupField.setEnabled(false);
-        root.addView(pickupField);
+
+        root.addView(
+                pickupField,
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        dp(60)
+                )
+        );
+
+        addSpace(root, 10);
 
         Button refreshLocation = new Button(this);
         refreshLocation.setText("📍 USE MY CURRENT LOCATION");
+        refreshLocation.setTextSize(15);
         refreshLocation.setOnClickListener(v -> startGps());
+
         root.addView(refreshLocation);
+
+        addSpace(root, 24);
 
         TextView destinationLabel = new TextView(this);
         destinationLabel.setText("DESTINATION");
         destinationLabel.setTextSize(14);
         destinationLabel.setTextColor(Color.DKGRAY);
-        destinationLabel.setPadding(0, 20, 0, 5);
         root.addView(destinationLabel);
+
+        addSpace(root, 6);
 
         destinationField = new EditText(this);
         destinationField.setHint("Choose destination on map");
         destinationField.setTextSize(17);
         destinationField.setSingleLine(true);
         destinationField.setFocusable(false);
-        root.addView(destinationField);
+        destinationField.setClickable(false);
+
+        root.addView(
+                destinationField,
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        dp(60)
+                )
+        );
+
+        addSpace(root, 10);
 
         Button chooseDestination = new Button(this);
-        chooseDestination.setText("🗺️ CHOOSE DESTINATION ON MAP");
-        chooseDestination.setTextSize(16);
-        chooseDestination.setOnClickListener(v -> openDestinationMap());
+        chooseDestination.setText(
+                "🗺️ CHOOSE DESTINATION ON MAP"
+        );
+        chooseDestination.setTextSize(15);
+        chooseDestination.setOnClickListener(
+                v -> openDestinationMap()
+        );
+
         root.addView(chooseDestination);
 
+        addSpace(root, 24);
+
         fareText = new TextView(this);
-        fareText.setText("Fare: —");
-        fareText.setTextSize(20);
-        fareText.setTextColor(Color.rgb(0, 120, 70));
-        fareText.setPadding(0, 25, 0, 15);
+        fareText.setText("Distance: —\nEstimated Fare: —");
+        fareText.setTextSize(19);
+        fareText.setTextColor(
+                Color.rgb(0, 120, 70)
+        );
+        fareText.setGravity(Gravity.CENTER);
         root.addView(fareText);
+
+        addSpace(root, 10);
 
         Button calculate = new Button(this);
         calculate.setText("CALCULATE FARE");
-        calculate.setOnClickListener(v -> calculateFare());
+        calculate.setTextSize(16);
+        calculate.setOnClickListener(
+                v -> calculateFare()
+        );
+
         root.addView(calculate);
+
+        addSpace(root, 24);
 
         TextView paymentLabel = new TextView(this);
         paymentLabel.setText("PAYMENT METHOD");
         paymentLabel.setTextSize(15);
-        paymentLabel.setPadding(0, 20, 0, 5);
+        paymentLabel.setTextColor(Color.DKGRAY);
+        paymentLabel.setGravity(Gravity.CENTER);
         root.addView(paymentLabel);
 
+        addSpace(root, 8);
+
         RadioGroup paymentGroup = new RadioGroup(this);
+        paymentGroup.setOrientation(
+                RadioGroup.VERTICAL
+        );
 
         RadioButton cash = new RadioButton(this);
         cash.setText("Cash");
-        cash.setId(View.generateViewId());
+        cash.setTextSize(16);
+        cash.setId(
+                android.view.View.generateViewId()
+        );
         cash.setChecked(true);
 
         RadioButton gcash = new RadioButton(this);
         gcash.setText("GCash");
-        gcash.setId(View.generateViewId());
+        gcash.setTextSize(16);
+        gcash.setId(
+                android.view.View.generateViewId()
+        );
 
         RadioButton maya = new RadioButton(this);
         maya.setText("Maya");
-        maya.setId(View.generateViewId());
+        maya.setTextSize(16);
+        maya.setId(
+                android.view.View.generateViewId()
+        );
 
         paymentGroup.addView(cash);
         paymentGroup.addView(gcash);
@@ -174,44 +262,88 @@ public class PassengerActivity extends Activity {
 
         root.addView(paymentGroup);
 
+        addSpace(root, 20);
+
         Button book = new Button(this);
         book.setText("🚕 BOOK RIDE");
         book.setTextSize(18);
-        book.setOnClickListener(v ->
-                bookRide(paymentGroup.getCheckedRadioButtonId()));
+        book.setOnClickListener(
+                v -> bookRide(
+                        paymentGroup.getCheckedRadioButtonId()
+                )
+        );
+
         root.addView(book);
 
+        addSpace(root, 18);
+
         rideStatusText = new TextView(this);
-        rideStatusText.setText("Current Ride: None");
+        rideStatusText.setText(
+                "Current Ride: None"
+        );
         rideStatusText.setTextSize(17);
-        rideStatusText.setPadding(0, 25, 0, 15);
+        rideStatusText.setTextColor(Color.DKGRAY);
+        rideStatusText.setGravity(Gravity.CENTER);
         root.addView(rideStatusText);
+
+        addSpace(root, 10);
 
         Button liveMap = new Button(this);
         liveMap.setText("🗺️ LIVE RIDE MAP");
-        liveMap.setOnClickListener(v -> openLiveMap());
+        liveMap.setTextSize(16);
+        liveMap.setOnClickListener(
+                v -> openLiveMap()
+        );
+
         root.addView(liveMap);
 
+        addSpace(root, 8);
+
         Button cancel = new Button(this);
-        cancel.setText("CANCEL CURRENT RIDE");
-        cancel.setOnClickListener(v -> cancelRide());
+        cancel.setText("❌ CANCEL CURRENT RIDE");
+        cancel.setTextSize(16);
+        cancel.setOnClickListener(
+                v -> cancelRide()
+        );
+
         root.addView(cancel);
+
+        addSpace(root, 18);
+
+        Button back = new Button(this);
+        back.setText("↩ BACK");
+        back.setTextSize(16);
+        back.setOnClickListener(
+                v -> finish()
+        );
+
+        root.addView(back);
+
+        addSpace(root, 8);
 
         Button logout = new Button(this);
         logout.setText("LOGOUT");
-        logout.setOnClickListener(v -> logout());
+        logout.setTextSize(16);
+        logout.setOnClickListener(
+                v -> logout()
+        );
+
         root.addView(logout);
 
         scroll.addView(root);
+
         setContentView(scroll);
     }
 
     private void startGps() {
 
-        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)
-                != PackageManager.PERMISSION_GRANTED &&
-            checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION)
-                != PackageManager.PERMISSION_GRANTED) {
+        if (checkSelfPermission(
+                Manifest.permission.ACCESS_FINE_LOCATION
+        ) != PackageManager.PERMISSION_GRANTED
+                &&
+            checkSelfPermission(
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED) {
 
             requestPermissions(
                     new String[]{
@@ -224,74 +356,106 @@ public class PassengerActivity extends Activity {
             return;
         }
 
-        locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
+        locationManager =
+                (LocationManager)
+                        getSystemService(LOCATION_SERVICE);
 
-        LocationListener listener = new LocationListener() {
-            @Override
-            public void onLocationChanged(@NonNull Location location) {
+        locationListener =
+                new LocationListener() {
 
-                pickupLat = location.getLatitude();
-                pickupLng = location.getLongitude();
+                    @Override
+                    public void onLocationChanged(
+                            @NonNull Location location) {
 
-                pickupField.setText(
-                        String.format(
-                                java.util.Locale.US,
-                                "Current location (%.6f, %.6f)",
-                                pickupLat,
-                                pickupLng
-                        )
-                );
+                        pickupLat =
+                                location.getLatitude();
 
-                gpsText.setText(
-                        String.format(
-                                java.util.Locale.US,
-                                "📍 GPS: %.6f, %.6f",
-                                pickupLat,
-                                pickupLng
-                        )
-                );
-            }
-        };
+                        pickupLng =
+                                location.getLongitude();
+
+                        pickupField.setText(
+                                String.format(
+                                        java.util.Locale.US,
+                                        "Current location\n%.6f, %.6f",
+                                        pickupLat,
+                                        pickupLng
+                                )
+                        );
+
+                        gpsText.setText(
+                                String.format(
+                                        java.util.Locale.US,
+                                        "📍 GPS LOCATION\n%.6f, %.6f",
+                                        pickupLat,
+                                        pickupLng
+                                )
+                        );
+                    }
+                };
 
         try {
+
             locationManager.requestLocationUpdates(
                     LocationManager.GPS_PROVIDER,
                     2000,
                     5,
-                    listener
+                    locationListener
             );
 
             locationManager.requestLocationUpdates(
                     LocationManager.NETWORK_PROVIDER,
                     2000,
                     5,
-                    listener
+                    locationListener
             );
 
         } catch (Exception e) {
-            gpsText.setText("Unable to start GPS: " + e.getMessage());
+
+            gpsText.setText(
+                    "Unable to start GPS."
+            );
         }
     }
 
     private void openDestinationMap() {
 
-        if (pickupLat == 0 && pickupLng == 0) {
+        if (pickupLat == 0 &&
+                pickupLng == 0) {
+
             Toast.makeText(
                     this,
-                    "Waiting for your pickup location.",
+                    "Waiting for your pickup GPS location.",
                     Toast.LENGTH_LONG
             ).show();
+
             return;
         }
 
-        Intent intent = new Intent(this, MapActivity.class);
+        Intent intent =
+                new Intent(
+                        this,
+                        MapActivity.class
+                );
 
-        intent.putExtra("mode", "SELECT_DESTINATION");
+        intent.putExtra(
+                "mode",
+                "SELECT_DESTINATION"
+        );
 
-        intent.putExtra("passenger_latitude", pickupLat);
-        intent.putExtra("passenger_longitude", pickupLng);
+        intent.putExtra(
+                "passenger_latitude",
+                pickupLat
+        );
 
-        startActivityForResult(intent, DESTINATION_MAP);
+        intent.putExtra(
+                "passenger_longitude",
+                pickupLng
+        );
+
+        startActivityForResult(
+                intent,
+                DESTINATION_MAP
+        );
     }
 
     @Override
@@ -300,62 +464,85 @@ public class PassengerActivity extends Activity {
             int resultCode,
             Intent data) {
 
-        super.onActivityResult(requestCode, resultCode, data);
+        super.onActivityResult(
+                requestCode,
+                resultCode,
+                data
+        );
 
         if (requestCode == DESTINATION_MAP &&
                 resultCode == RESULT_OK &&
                 data != null) {
 
             destinationLat =
-                    data.getDoubleExtra("destination_latitude", 0);
+                    data.getDoubleExtra(
+                            "destination_latitude",
+                            0
+                    );
 
             destinationLng =
-                    data.getDoubleExtra("destination_longitude", 0);
+                    data.getDoubleExtra(
+                            "destination_longitude",
+                            0
+                    );
 
             String address =
-                    data.getStringExtra("destination_address");
+                    data.getStringExtra(
+                            "destination_address"
+                    );
 
-            if (destinationLat != 0 && destinationLng != 0) {
+            if (destinationLat != 0 &&
+                    destinationLng != 0) {
 
-                if (address == null || address.trim().isEmpty()) {
+                if (address == null ||
+                        address.trim().isEmpty()) {
+
                     address = String.format(
                             java.util.Locale.US,
-                            "Selected location (%.6f, %.6f)",
+                            "Selected location\n%.6f, %.6f",
                             destinationLat,
                             destinationLng
                     );
                 }
 
-                destinationField.setText(address);
+                destinationField.setText(
+                        address
+                );
+
+                calculateFare();
 
                 Toast.makeText(
                         this,
                         "Destination selected.",
                         Toast.LENGTH_SHORT
                 ).show();
-
-                calculateFare();
             }
         }
     }
 
     private void calculateFare() {
 
-        if (pickupLat == 0 || pickupLng == 0) {
+        if (pickupLat == 0 ||
+                pickupLng == 0) {
+
             Toast.makeText(
                     this,
                     "Pickup GPS location is not ready.",
                     Toast.LENGTH_LONG
             ).show();
+
             return;
         }
 
-        if (destinationLat == 0 || destinationLng == 0) {
+        if (destinationLat == 0 ||
+                destinationLng == 0) {
+
             Toast.makeText(
                     this,
-                    "Please choose your destination on the map.",
+                    "Choose your destination on the map.",
                     Toast.LENGTH_LONG
             ).show();
+
             return;
         }
 
@@ -369,14 +556,15 @@ public class PassengerActivity extends Activity {
                 results
         );
 
-        distanceKm = results[0] / 1000.0;
+        distanceKm =
+                results[0] / 1000.0;
 
-        // Default Sakay Na fare.
-        // These values can later be controlled from Firestore.
         double baseFare = 20.0;
         double perKm = 10.0;
 
-        fare = baseFare + (distanceKm * perKm);
+        fare =
+                baseFare +
+                (distanceKm * perKm);
 
         if (fare < 20) {
             fare = 20;
@@ -392,36 +580,44 @@ public class PassengerActivity extends Activity {
         );
     }
 
-    private void bookRide(int paymentId) {
+    private void bookRide(
+            int paymentId
+    ) {
 
-        if (pickupLat == 0 || pickupLng == 0) {
+        if (pickupLat == 0 ||
+                pickupLng == 0) {
+
             Toast.makeText(
                     this,
                     "Pickup location is not ready.",
                     Toast.LENGTH_LONG
             ).show();
+
             return;
         }
 
-        if (destinationLat == 0 || destinationLng == 0) {
+        if (destinationLat == 0 ||
+                destinationLng == 0) {
+
             Toast.makeText(
                     this,
-                    "Choose a destination on the map first.",
+                    "Choose a destination first.",
                     Toast.LENGTH_LONG
             ).show();
+
             return;
         }
 
-        if (distanceKm <= 0 || fare <= 0) {
-            calculateFare();
-        }
+        calculateFare();
 
         if (auth.getCurrentUser() == null) {
+
             Toast.makeText(
                     this,
                     "Please login again.",
                     Toast.LENGTH_LONG
             ).show();
+
             return;
         }
 
@@ -436,111 +632,177 @@ public class PassengerActivity extends Activity {
                         ? "Cash"
                         : selected.getText().toString();
 
-        Map<String, Object> ride = new HashMap<>();
+        Map<String, Object> ride =
+                new HashMap<>();
 
-        ride.put("passengerId", passengerId);
+        ride.put(
+                "passengerId",
+                passengerId
+        );
 
-        ride.put("pickup", pickupField.getText().toString());
-        ride.put("destination",
-                destinationField.getText().toString());
+        ride.put(
+                "pickup",
+                pickupField.getText().toString()
+        );
 
-        ride.put("passengerLatitude", pickupLat);
-        ride.put("passengerLongitude", pickupLng);
+        ride.put(
+                "destination",
+                destinationField.getText().toString()
+        );
 
-        ride.put("destinationLatitude", destinationLat);
-        ride.put("destinationLongitude", destinationLng);
+        ride.put(
+                "passengerLatitude",
+                pickupLat
+        );
 
-        ride.put("distanceKm", distanceKm);
-        ride.put("fare", fare);
+        ride.put(
+                "passengerLongitude",
+                pickupLng
+        );
 
-        ride.put("paymentMethod", paymentMethod);
+        ride.put(
+                "destinationLatitude",
+                destinationLat
+        );
 
-        ride.put("status", "REQUESTED");
-        ride.put("paymentStatus", "PENDING");
+        ride.put(
+                "destinationLongitude",
+                destinationLng
+        );
+
+        ride.put(
+                "distanceKm",
+                distanceKm
+        );
+
+        ride.put(
+                "fare",
+                fare
+        );
+
+        ride.put(
+                "paymentMethod",
+                paymentMethod
+        );
+
+        ride.put(
+                "status",
+                "REQUESTED"
+        );
+
+        ride.put(
+                "paymentStatus",
+                "PENDING"
+        );
 
         ride.put(
                 "createdAt",
-                com.google.firebase.firestore.FieldValue.serverTimestamp()
+                com.google.firebase.firestore
+                        .FieldValue
+                        .serverTimestamp()
         );
 
         db.collection("rides")
                 .add(ride)
-                .addOnSuccessListener(documentReference -> {
+                .addOnSuccessListener(
+                        documentReference -> {
 
-                    currentRideId =
-                            documentReference.getId();
+                            currentRideId =
+                                    documentReference
+                                            .getId();
 
-                    rideStatusText.setText(
-                            "Current Ride: REQUESTED\n" +
-                            "Waiting for a driver..."
-                    );
+                            rideStatusText.setText(
+                                    "Current Ride: REQUESTED\n" +
+                                    "Waiting for a driver..."
+                            );
 
-                    listenToRide(currentRideId);
+                            listenToRide(
+                                    currentRideId
+                            );
 
-                    Toast.makeText(
-                            this,
-                            "🚕 Ride requested successfully!",
-                            Toast.LENGTH_LONG
-                    ).show();
-                })
-                .addOnFailureListener(e ->
-                        Toast.makeText(
+                            Toast.makeText(
+                                    this,
+                                    "🚕 Ride requested!",
+                                    Toast.LENGTH_LONG
+                            ).show();
+                        }
+                )
+                .addOnFailureListener(
+                        e -> Toast.makeText(
                                 this,
-                                "Booking failed: " + e.getMessage(),
+                                "Booking failed: "
+                                        + e.getMessage(),
                                 Toast.LENGTH_LONG
                         ).show()
                 );
     }
 
-    private void listenToRide(String rideId) {
+    private void listenToRide(
+            String rideId
+    ) {
 
         if (rideListener != null) {
             rideListener.remove();
         }
 
-        rideListener = db.collection("rides")
-                .document(rideId)
-                .addSnapshotListener((snapshot, error) -> {
+        rideListener =
+                db.collection("rides")
+                        .document(rideId)
+                        .addSnapshotListener(
+                                (snapshot, error) -> {
 
-                    if (error != null || snapshot == null ||
-                            !snapshot.exists()) {
-                        return;
-                    }
+                                    if (error != null ||
+                                            snapshot == null ||
+                                            !snapshot.exists()) {
+                                        return;
+                                    }
 
-                    String status =
-                            snapshot.getString("status");
+                                    String status =
+                                            snapshot.getString(
+                                                    "status"
+                                            );
 
-                    if (status == null) {
-                        status = "REQUESTED";
-                    }
+                                    if (status == null) {
+                                        status = "REQUESTED";
+                                    }
 
-                    String driverId =
-                            snapshot.getString("driverId");
+                                    String driverId =
+                                            snapshot.getString(
+                                                    "driverId"
+                                            );
 
-                    rideStatusText.setText(
-                            "Current Ride: " + status +
-                            (driverId == null
-                                    ? "\nWaiting for a driver..."
-                                    : "\nDriver assigned.")
-                    );
-                });
+                                    rideStatusText.setText(
+                                            "Current Ride: "
+                                                    + status
+                                                    + (
+                                                    driverId == null
+                                                    ? "\nWaiting for a driver..."
+                                                    : "\nDriver assigned."
+                                            )
+                                    );
+                                }
+                        );
     }
 
     private void openLiveMap() {
 
-        if (pickupLat == 0 || destinationLat == 0) {
+        if (pickupLat == 0 ||
+                destinationLat == 0) {
+
             Toast.makeText(
                     this,
-                    "Please select pickup and destination first.",
+                    "Select pickup and destination first.",
                     Toast.LENGTH_LONG
             ).show();
+
             return;
         }
 
-        Intent intent = new Intent(
-                this,
-                MapActivity.class
-        );
+        Intent intent =
+                new Intent(
+                        this,
+                        MapActivity.class
+                );
 
         intent.putExtra(
                 "ride_id",
@@ -584,25 +846,53 @@ public class PassengerActivity extends Activity {
             return;
         }
 
+        String rideId =
+                currentRideId;
+
         db.collection("rides")
-                .document(currentRideId)
-                .update("status", "CANCELLED")
-                .addOnSuccessListener(v -> {
+                .document(rideId)
+                .update(
+                        "status",
+                        "CANCELLED"
+                )
+                .addOnSuccessListener(
+                        v -> {
 
-                    rideStatusText.setText(
-                            "Current Ride: CANCELLED"
-                    );
+                            if (rideListener != null) {
+                                rideListener.remove();
+                                rideListener = null;
+                            }
 
-                    Toast.makeText(
-                            this,
-                            "Ride cancelled.",
-                            Toast.LENGTH_SHORT
-                    ).show();
-                })
-                .addOnFailureListener(e ->
-                        Toast.makeText(
+                            currentRideId = "";
+
+                            rideStatusText.setText(
+                                    "Current Ride: None"
+                            );
+
+                            destinationLat = 0;
+                            destinationLng = 0;
+
+                            distanceKm = 0;
+                            fare = 0;
+
+                            destinationField.setText("");
+
+                            fareText.setText(
+                                    "Distance: —\nEstimated Fare: —"
+                            );
+
+                            Toast.makeText(
+                                    this,
+                                    "Ride cancelled. You can book another ride.",
+                                    Toast.LENGTH_LONG
+                            ).show();
+                        }
+                )
+                .addOnFailureListener(
+                        e -> Toast.makeText(
                                 this,
-                                "Cancel failed: " + e.getMessage(),
+                                "Cancel failed: "
+                                        + e.getMessage(),
                                 Toast.LENGTH_LONG
                         ).show()
                 );
@@ -615,19 +905,15 @@ public class PassengerActivity extends Activity {
             rideListener = null;
         }
 
-        if (locationManager != null) {
-            try {
-                locationManager.removeUpdates(
-                        (LocationListener) null
-                );
-            } catch (Exception ignored) {
-            }
-        }
+        stopGps();
 
         auth.signOut();
 
         Intent intent =
-                new Intent(this, MainActivity.class);
+                new Intent(
+                        this,
+                        MainActivity.class
+                );
 
         intent.addFlags(
                 Intent.FLAG_ACTIVITY_NEW_TASK |
@@ -635,14 +921,30 @@ public class PassengerActivity extends Activity {
         );
 
         startActivity(intent);
+
         finish();
+    }
+
+    private void stopGps() {
+
+        if (locationManager != null &&
+                locationListener != null) {
+
+            try {
+                locationManager.removeUpdates(
+                        locationListener
+                );
+            } catch (Exception ignored) {
+            }
+        }
     }
 
     @Override
     public void onRequestPermissionsResult(
             int requestCode,
             @NonNull String[] permissions,
-            @NonNull int[] grantResults) {
+            @NonNull int[] grantResults
+    ) {
 
         super.onRequestPermissionsResult(
                 requestCode,
@@ -653,16 +955,24 @@ public class PassengerActivity extends Activity {
         if (requestCode == LOCATION_PERMISSION) {
 
             if (grantResults.length > 0 &&
-                    grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    grantResults[0] ==
+                            PackageManager.PERMISSION_GRANTED) {
 
                 startGps();
 
             } else {
+
                 gpsText.setText(
-                        "📍 Location permission is required for pickup."
+                        "📍 Location permission is required."
                 );
             }
         }
+    }
+
+    @Override
+    public void onBackPressed() {
+
+        finish();
     }
 
     @Override
@@ -672,6 +982,8 @@ public class PassengerActivity extends Activity {
             rideListener.remove();
             rideListener = null;
         }
+
+        stopGps();
 
         super.onDestroy();
     }
