@@ -3,980 +3,916 @@ package com.sakyna.app;
 
 import android.app.Activity;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.graphics.Color;
-import android.graphics.Typeface;
 import android.os.Bundle;
 import android.view.Gravity;
+import android.view.View;
 import android.widget.Button;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import java.util.Map;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.firestore.DocumentSnapshot;
+import com.google.firebase.firestore.FirebaseFirestore;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class AdminActivity extends Activity {
 
-    private SharedPreferences prefs;
+    private FirebaseAuth auth;
+    private FirebaseFirestore db;
+
+    private LinearLayout content;
+
+    private TextView statisticsText;
+
+    private int totalUsers = 0;
+    private int totalPassengers = 0;
+    private int totalDrivers = 0;
+    private int approvedDrivers = 0;
+    private int pendingDrivers = 0;
+    private int activeUsers = 0;
+    private int totalRides = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        prefs = getSharedPreferences(
-                "SakayNa",
-                MODE_PRIVATE
-        );
+        auth = FirebaseAuth.getInstance();
 
-        showAdminHome();
+        db = FirebaseFirestore.getInstance();
+
+        showDashboard();
+
+        loadUsers();
+
+        loadRides();
     }
 
-    private TextView makeText(String text, int size) {
+    private void showDashboard() {
 
-        TextView view = new TextView(this);
+        LinearLayout root =
+                new LinearLayout(this);
 
-        view.setText(text);
-        view.setTextSize(size);
-        view.setTextColor(Color.DKGRAY);
+        root.setOrientation(
+                LinearLayout.VERTICAL
+        );
 
-        view.setPadding(
+        root.setBackgroundColor(
+                Color.WHITE
+        );
+
+        TextView header =
+                text(
+                        "👨‍💼 SAKAY NA ADMIN",
+                        26,
+                        Color.rgb(20, 20, 20)
+                );
+
+        header.setGravity(
+                Gravity.CENTER
+        );
+
+        header.setPadding(
                 20,
-                20,
+                35,
                 20,
                 20
         );
 
-        return view;
-    }
-
-    private Button makeButton(String text) {
-
-        Button button = new Button(this);
-
-        button.setText(text);
-        button.setTextSize(17);
-        button.setAllCaps(false);
-
-        return button;
-    }
-
-    private LinearLayout createPage(String titleText) {
-
-        LinearLayout layout =
-                new LinearLayout(this);
-
-        layout.setOrientation(
-                LinearLayout.VERTICAL
+        root.addView(
+                header
         );
-
-        layout.setPadding(
-                25,
-                25,
-                25,
-                25
-        );
-
-        TextView title =
-                makeText(
-                        titleText,
-                        27
-                );
-
-        title.setTypeface(
-                null,
-                Typeface.BOLD
-        );
-
-        title.setTextColor(
-                Color.rgb(
-                        130,
-                        60,
-                        180
-                )
-        );
-
-        title.setGravity(
-                Gravity.CENTER
-        );
-
-        layout.addView(title);
-
-        return layout;
-    }
-
-    private void addBackButton(
-            LinearLayout layout
-    ) {
-
-        Button back =
-                makeButton(
-                        "Back to Dashboard"
-                );
-
-        back.setOnClickListener(
-                v -> showAdminHome()
-        );
-
-        layout.addView(back);
-    }
-
-    private void showAdminHome() {
-
-        LinearLayout layout =
-                createPage(
-                        "SAKAY NA"
-                );
 
         TextView subtitle =
-                makeText(
-                        "ADMIN DASHBOARD",
-                        21
+                text(
+                        "Control Center",
+                        16,
+                        Color.DKGRAY
                 );
 
         subtitle.setGravity(
                 Gravity.CENTER
         );
 
-        layout.addView(subtitle);
-
-        Button users =
-                makeButton(
-                        "👥 Manage Users"
-                );
-
-        users.setOnClickListener(
-                v -> showUsers()
+        root.addView(
+                subtitle
         );
 
-        layout.addView(users);
-
-        Button drivers =
-                makeButton(
-                        "🚗 Drivers"
+        statisticsText =
+                text(
+                        "Loading statistics...",
+                        16,
+                        Color.rgb(30, 100, 70)
                 );
 
-        drivers.setOnClickListener(
-                v -> showDrivers()
+        statisticsText.setPadding(
+                20,
+                20,
+                20,
+                20
         );
 
-        layout.addView(drivers);
+        root.addView(
+                statisticsText
+        );
 
-        Button passengers =
-                makeButton(
-                        "🧑‍🤝‍🧑 Passengers"
+        Button refresh =
+                button(
+                        "🔄 REFRESH DATA"
                 );
 
-        passengers.setOnClickListener(
-                v -> showPassengers()
+        refresh.setOnClickListener(
+                v -> {
+
+                    resetStatistics();
+
+                    loadUsers();
+
+                    loadRides();
+
+                    showMessage(
+                            "Refreshing admin data..."
+                    );
+                }
         );
 
-        layout.addView(passengers);
+        root.addView(
+                refresh
+        );
 
-        Button currentRide =
-                makeButton(
-                        "🚕 Current Ride"
+        Button usersButton =
+                button(
+                        "👥 USERS"
                 );
 
-        currentRide.setOnClickListener(
-                v -> showCurrentRide()
+        usersButton.setOnClickListener(
+                v -> loadUsers()
         );
 
-        layout.addView(currentRide);
+        root.addView(
+                usersButton
+        );
 
-        Button reset =
-                makeButton(
-                        "🔄 Reset Ride"
+        Button ridesButton =
+                button(
+                        "🚕 RIDES"
                 );
 
-        reset.setOnClickListener(
-                v -> resetRide()
+        ridesButton.setOnClickListener(
+                v -> loadRides()
         );
 
-        layout.addView(reset);
-
-        Button reports =
-                makeButton(
-                        "📊 Reports"
-                );
-
-        reports.setOnClickListener(
-                v -> showReports()
+        root.addView(
+                ridesButton
         );
-
-        layout.addView(reports);
-
-        Button transactions =
-                makeButton(
-                        "💰 Transactions"
-                );
-
-        transactions.setOnClickListener(
-                v -> showTransactions()
-        );
-
-        layout.addView(transactions);
 
         Button logout =
-                makeButton(
-                        "Logout"
+                button(
+                        "🚪 LOGOUT"
                 );
 
         logout.setOnClickListener(
                 v -> logout()
         );
 
-        layout.addView(logout);
+        root.addView(
+                logout
+        );
 
-        setContentView(layout);
+        ScrollView scrollView =
+                new ScrollView(this);
+
+        content =
+                new LinearLayout(this);
+
+        content.setOrientation(
+                LinearLayout.VERTICAL
+        );
+
+        content.setPadding(
+                15,
+                10,
+                15,
+                30
+        );
+
+        scrollView.addView(
+                content
+        );
+
+        root.addView(
+                scrollView,
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        0,
+                        1
+                )
+        );
+
+        setContentView(
+                root
+        );
     }
 
-    private void showUsers() {
+    private void loadUsers() {
 
-        LinearLayout layout =
-                createPage(
-                        "MANAGE USERS"
+        if (content == null) {
+            return;
+        }
+
+        db.collection("users")
+                .get()
+                .addOnSuccessListener(
+                        documents -> {
+
+                            resetUserStatistics();
+
+                            content.removeAllViews();
+
+                            TextView title =
+                                    text(
+                                            "👥 REGISTERED USERS",
+                                            20,
+                                            Color.BLACK
+                                    );
+
+                            content.addView(
+                                    title
+                            );
+
+                            if (documents.isEmpty()) {
+
+                                content.addView(
+                                        text(
+                                                "No users found.",
+                                                15,
+                                                Color.GRAY
+                                        )
+                                );
+
+                                updateStatistics();
+
+                                return;
+                            }
+
+                            for (DocumentSnapshot doc :
+                                    documents) {
+
+                                totalUsers++;
+
+                                String uid =
+                                        doc.getId();
+
+                                String email =
+                                        doc.getString(
+                                                "email"
+                                        );
+
+                                String role =
+                                        doc.getString(
+                                                "role"
+                                        );
+
+                                Boolean active =
+                                        doc.getBoolean(
+                                                "active"
+                                        );
+
+                                Boolean approved =
+                                        doc.getBoolean(
+                                                "approved"
+                                        );
+
+                                if (email == null) {
+                                    email = "No email";
+                                }
+
+                                if (role == null) {
+                                    role = "UNKNOWN";
+                                }
+
+                                boolean isActive =
+                                        active == null ||
+                                        active;
+
+                                if (isActive) {
+                                    activeUsers++;
+                                }
+
+                                if (role.equals(
+                                        "PASSENGER"
+                                )) {
+
+                                    totalPassengers++;
+
+                                } else if (role.equals(
+                                        "DRIVER"
+                                )) {
+
+                                    totalDrivers++;
+
+                                    if (approved != null &&
+                                            approved) {
+
+                                        approvedDrivers++;
+
+                                    } else {
+
+                                        pendingDrivers++;
+                                    }
+                                }
+
+                                addUserCard(
+                                        doc,
+                                        uid,
+                                        email,
+                                        role,
+                                        isActive,
+                                        approved
+                                );
+                            }
+
+                            updateStatistics();
+                        }
+                )
+                .addOnFailureListener(
+                        e -> {
+
+                            showMessage(
+                                    "Unable to load users: " +
+                                    e.getMessage()
+                            );
+                        }
+                );
+    }
+
+    private void addUserCard(
+            DocumentSnapshot doc,
+            String uid,
+            String email,
+            String role,
+            boolean active,
+            Boolean approved) {
+
+        LinearLayout card =
+                new LinearLayout(this);
+
+        card.setOrientation(
+                LinearLayout.VERTICAL
+        );
+
+        card.setPadding(
+                18,
+                18,
+                18,
+                18
+        );
+
+        TextView account =
+                text(
+                        roleIcon(role) +
+                        " " +
+                        role,
+                        19,
+                        Color.BLACK
                 );
 
-        Map<String, ?> all =
-                prefs.getAll();
+        card.addView(
+                account
+        );
 
-        int count = 0;
+        TextView emailText =
+                text(
+                        "Email: " + email,
+                        15,
+                        Color.DKGRAY
+                );
 
-        for (Map.Entry<String, ?> entry :
-                all.entrySet()) {
+        card.addView(
+                emailText
+        );
 
-            String key =
-                    entry.getKey();
+        TextView uidText =
+                text(
+                        "UID: " + uid,
+                        11,
+                        Color.GRAY
+                );
 
-            if (!key.startsWith("phone_")) {
-                continue;
-            }
+        card.addView(
+                uidText
+        );
 
-            String phone =
-                    key.substring(6);
+        String status;
 
-            String name =
-                    prefs.getString(
-                            "name_" + phone,
-                            "Unknown"
-                    );
+        if (!active) {
 
-            String role =
-                    prefs.getString(
-                            "role_" + phone,
-                            "Unknown"
-                    );
+            status =
+                    "⛔ Account disabled";
 
-            boolean suspended =
-                    prefs.getBoolean(
-                            "suspended_" + phone,
-                            false
-                    );
+        } else if (role.equals(
+                "DRIVER"
+        )) {
 
-            TextView user =
-                    makeText(
-                            "Name: " +
-                            name +
-                            "\nPhone: " +
-                            phone +
-                            "\nRole: " +
-                            role +
-                            "\nStatus: " +
-                            (
-                                suspended
-                                ? "SUSPENDED"
-                                : "ACTIVE"
-                            ),
-                            18
-                    );
+            if (approved != null &&
+                    approved) {
 
-            user.setTypeface(
-                    null,
-                    Typeface.BOLD
-            );
-
-            user.setTextColor(
-                    suspended
-                    ? Color.rgb(
-                            200,
-                            40,
-                            40
-                    )
-                    : Color.rgb(
-                            0,
-                            120,
-                            70
-                    )
-            );
-
-            layout.addView(user);
-
-            Button control;
-
-            if (suspended) {
-
-                control =
-                        makeButton(
-                                "RESTORE ACCOUNT"
-                        );
+                status =
+                        "🟢 Driver approved";
 
             } else {
 
-                control =
-                        makeButton(
-                                "SUSPEND ACCOUNT"
-                        );
+                status =
+                        "🟡 Driver approval pending";
             }
-
-            control.setOnClickListener(
-                    v -> toggleSuspension(
-                            phone
-                    )
-            );
-
-            layout.addView(control);
-
-            count++;
-        }
-
-        if (count == 0) {
-
-            TextView none =
-                    makeText(
-                            "No registered users yet.",
-                            19
-                    );
-
-            none.setGravity(
-                    Gravity.CENTER
-            );
-
-            layout.addView(none);
-        }
-
-        addBackButton(layout);
-
-        setContentView(layout);
-    }
-
-    private void toggleSuspension(
-            String phone
-    ) {
-
-        boolean suspended =
-                prefs.getBoolean(
-                        "suspended_" + phone,
-                        false
-                );
-
-        prefs.edit()
-                .putBoolean(
-                        "suspended_" + phone,
-                        !suspended
-                )
-                .apply();
-
-        Toast.makeText(
-                this,
-                suspended
-                ? "Account restored."
-                : "Account suspended.",
-                Toast.LENGTH_LONG
-        ).show();
-
-        showUsers();
-    }
-
-    private void showDrivers() {
-
-        LinearLayout layout =
-                createPage(
-                        "DRIVERS"
-                );
-
-        Map<String, ?> all =
-                prefs.getAll();
-
-        int count = 0;
-
-        for (Map.Entry<String, ?> entry :
-                all.entrySet()) {
-
-            String key =
-                    entry.getKey();
-
-            if (!key.startsWith("role_")) {
-                continue;
-            }
-
-            String phone =
-                    key.substring(5);
-
-            String role =
-                    prefs.getString(
-                            key,
-                            ""
-                    );
-
-            if (!role.equals("Driver")) {
-                continue;
-            }
-
-            String name =
-                    prefs.getString(
-                            "name_" + phone,
-                            "Unknown"
-                    );
-
-            boolean suspended =
-                    prefs.getBoolean(
-                            "suspended_" + phone,
-                            false
-                    );
-
-            TextView driver =
-                    makeText(
-                            "DRIVER\n\n" +
-                            "Name: " +
-                            name +
-                            "\nPhone: " +
-                            phone +
-                            "\nStatus: " +
-                            (
-                                suspended
-                                ? "SUSPENDED"
-                                : "ACTIVE"
-                            ),
-                            18
-                    );
-
-            layout.addView(driver);
-
-            count++;
-        }
-
-        if (count == 0) {
-
-            TextView none =
-                    makeText(
-                            "No registered drivers yet.",
-                            19
-                    );
-
-            none.setGravity(
-                    Gravity.CENTER
-            );
-
-            layout.addView(none);
-        }
-
-        addBackButton(layout);
-
-        setContentView(layout);
-    }
-
-    private void showPassengers() {
-
-        LinearLayout layout =
-                createPage(
-                        "PASSENGERS"
-                );
-
-        Map<String, ?> all =
-                prefs.getAll();
-
-        int count = 0;
-
-        for (Map.Entry<String, ?> entry :
-                all.entrySet()) {
-
-            String key =
-                    entry.getKey();
-
-            if (!key.startsWith("role_")) {
-                continue;
-            }
-
-            String phone =
-                    key.substring(5);
-
-            String role =
-                    prefs.getString(
-                            key,
-                            ""
-                    );
-
-            if (!role.equals("Passenger")) {
-                continue;
-            }
-
-            String name =
-                    prefs.getString(
-                            "name_" + phone,
-                            "Unknown"
-                    );
-
-            boolean suspended =
-                    prefs.getBoolean(
-                            "suspended_" + phone,
-                            false
-                    );
-
-            TextView passenger =
-                    makeText(
-                            "PASSENGER\n\n" +
-                            "Name: " +
-                            name +
-                            "\nPhone: " +
-                            phone +
-                            "\nStatus: " +
-                            (
-                                suspended
-                                ? "SUSPENDED"
-                                : "ACTIVE"
-                            ),
-                            18
-                    );
-
-            layout.addView(
-                    passenger
-            );
-
-            count++;
-        }
-
-        if (count == 0) {
-
-            TextView none =
-                    makeText(
-                            "No registered passengers yet.",
-                            19
-                    );
-
-            none.setGravity(
-                    Gravity.CENTER
-            );
-
-            layout.addView(none);
-        }
-
-        addBackButton(layout);
-
-        setContentView(layout);
-    }
-
-    private void showCurrentRide() {
-
-        LinearLayout layout =
-                createPage(
-                        "CURRENT RIDE"
-                );
-
-        String pickup =
-                prefs.getString(
-                        "ride_pickup",
-                        ""
-                );
-
-        String destination =
-                prefs.getString(
-                        "ride_destination",
-                        ""
-                );
-
-        String status =
-                prefs.getString(
-                        "ride_status",
-                        ""
-                );
-
-        String driver =
-                prefs.getString(
-                        "ride_driver",
-                        ""
-                );
-
-        int fare =
-                prefs.getInt(
-                        "ride_final_fare",
-                        prefs.getInt(
-                                "ride_fare",
-                                0
-                        )
-                );
-
-        if (pickup.isEmpty() ||
-                destination.isEmpty() ||
-                status.isEmpty()) {
-
-            TextView none =
-                    makeText(
-                            "No current ride.",
-                            20
-                    );
-
-            none.setGravity(
-                    Gravity.CENTER
-            );
-
-            layout.addView(none);
 
         } else {
 
-            TextView ride =
-                    makeText(
-                            "RIDE INFORMATION\n\n" +
-                            "Pickup:\n" +
-                            pickup +
-                            "\n\n" +
-                            "Destination:\n" +
-                            destination +
-                            "\n\n" +
-                            "Fare: ₱" +
-                            fare +
-                            "\n\n" +
-                            "Status:\n" +
-                            getReadableStatus(
-                                    status
-                            ) +
-                            "\n\n" +
-                            "Driver:\n" +
-                            (
-                                driver.isEmpty()
-                                ? "Not assigned"
-                                : driver
-                            ),
-                            19
+            status =
+                    "🟢 Account active";
+        }
+
+        TextView statusText =
+                text(
+                        status,
+                        14,
+                        Color.rgb(50, 110, 70)
+                );
+
+        card.addView(
+                statusText
+        );
+
+        if (role.equals(
+                "DRIVER"
+        )) {
+
+            Button approvalButton =
+                    button(
+                            approved != null &&
+                            approved
+                                    ? "⛔ REMOVE APPROVAL"
+                                    : "✅ APPROVE DRIVER"
                     );
 
-            ride.setTypeface(
-                    null,
-                    Typeface.BOLD
+            approvalButton.setOnClickListener(
+                    v -> {
+
+                        boolean newValue =
+                                !(approved != null &&
+                                        approved);
+
+                        updateDriverApproval(
+                                uid,
+                                newValue
+                        );
+                    }
             );
 
-            layout.addView(ride);
+            card.addView(
+                    approvalButton
+            );
         }
 
-        addBackButton(layout);
-
-        setContentView(layout);
-    }
-
-    private void resetRide() {
-
-        prefs.edit()
-                .remove("ride_pickup")
-                .remove("ride_destination")
-                .remove("ride_fare")
-                .remove("ride_final_fare")
-                .remove("ride_status")
-                .remove("ride_driver")
-                .remove("ride_rating")
-                .apply();
-
-        Toast.makeText(
-                this,
-                "Current ride has been reset.",
-                Toast.LENGTH_LONG
-        ).show();
-
-        showAdminHome();
-    }
-
-    private void showReports() {
-
-        LinearLayout layout =
-                createPage(
-                        "REPORTS"
+        Button activeButton =
+                button(
+                        active
+                                ? "⛔ DISABLE ACCOUNT"
+                                : "✅ ENABLE ACCOUNT"
                 );
 
-        Map<String, ?> all =
-                prefs.getAll();
+        activeButton.setOnClickListener(
+                v -> updateAccountStatus(
+                        uid,
+                        !active
+                )
+        );
 
-        int totalUsers = 0;
-        int drivers = 0;
-        int passengers = 0;
-        int suspended = 0;
+        card.addView(
+                activeButton
+        );
 
-        for (Map.Entry<String, ?> entry :
-                all.entrySet()) {
+        addSeparator();
 
-            String key =
-                    entry.getKey();
+        content.addView(
+                card
+        );
+    }
 
-            if (key.startsWith(
-                    "phone_"
-            )) {
+    private void updateDriverApproval(
+            String uid,
+            boolean approved) {
 
-                totalUsers++;
+        db.collection("users")
+                .document(uid)
+                .update(
+                        "approved",
+                        approved
+                )
+                .addOnSuccessListener(
+                        unused -> {
 
-                String phone =
-                        key.substring(6);
+                            showMessage(
+                                    approved
+                                            ? "Driver approved."
+                                            : "Driver approval removed."
+                            );
 
-                if (prefs.getBoolean(
-                        "suspended_" + phone,
-                        false
-                )) {
-
-                    suspended++;
-                }
-            }
-
-            if (key.startsWith(
-                    "role_"
-            )) {
-
-                String role =
-                        prefs.getString(
-                                key,
-                                ""
-                        );
-
-                if (role.equals(
-                        "Driver"
-                )) {
-
-                    drivers++;
-
-                } else if (role.equals(
-                        "Passenger"
-                )) {
-
-                    passengers++;
-                }
-            }
-        }
-
-        String status =
-                prefs.getString(
-                        "ride_status",
-                        ""
-                );
-
-        int fare =
-                prefs.getInt(
-                        "ride_final_fare",
-                        prefs.getInt(
-                                "ride_fare",
-                                0
+                            loadUsers();
+                        }
+                )
+                .addOnFailureListener(
+                        e -> showMessage(
+                                "Approval update failed: " +
+                                e.getMessage()
                         )
                 );
-
-        int completed =
-                status.equals(
-                        "COMPLETED"
-                )
-                ? 1
-                : 0;
-
-        int cancelled =
-                status.equals(
-                        "CANCELLED"
-                )
-                ? 1
-                : 0;
-
-        TextView report =
-                makeText(
-                        "SAKAY NA REPORT\n\n" +
-                        "Total Users: " +
-                        totalUsers +
-                        "\n\n" +
-                        "Drivers: " +
-                        drivers +
-                        "\n\n" +
-                        "Passengers: " +
-                        passengers +
-                        "\n\n" +
-                        "Suspended Accounts: " +
-                        suspended +
-                        "\n\n" +
-                        "Completed Rides: " +
-                        completed +
-                        "\n\n" +
-                        "Cancelled Rides: " +
-                        cancelled +
-                        "\n\n" +
-                        "Current Ride Fare: ₱" +
-                        fare,
-                        20
-                );
-
-        layout.addView(report);
-
-        addBackButton(layout);
-
-        setContentView(layout);
     }
 
-    private void showTransactions() {
+    private void updateAccountStatus(
+            String uid,
+            boolean active) {
 
-        LinearLayout layout =
-                createPage(
-                        "TRANSACTIONS"
+        db.collection("users")
+                .document(uid)
+                .update(
+                        "active",
+                        active
+                )
+                .addOnSuccessListener(
+                        unused -> {
+
+                            showMessage(
+                                    active
+                                            ? "Account enabled."
+                                            : "Account disabled."
+                            );
+
+                            loadUsers();
+                        }
+                )
+                .addOnFailureListener(
+                        e -> showMessage(
+                                "Account update failed: " +
+                                e.getMessage()
+                        )
                 );
+    }
+
+    private void loadRides() {
+
+        db.collection("rides")
+                .get()
+                .addOnSuccessListener(
+                        documents -> {
+
+                            totalRides =
+                                    documents.size();
+
+                            updateStatistics();
+
+                            content.removeAllViews();
+
+                            TextView title =
+                                    text(
+                                            "🚕 RIDE MANAGEMENT",
+                                            20,
+                                            Color.BLACK
+                                    );
+
+                            content.addView(
+                                    title
+                            );
+
+                            if (documents.isEmpty()) {
+
+                                content.addView(
+                                        text(
+                                                "No rides found.",
+                                                15,
+                                                Color.GRAY
+                                        )
+                                );
+
+                                return;
+                            }
+
+                            for (DocumentSnapshot doc :
+                                    documents) {
+
+                                addRideCard(
+                                        doc
+                                );
+                            }
+                        }
+                )
+                .addOnFailureListener(
+                        e -> showMessage(
+                                "Unable to load rides: " +
+                                e.getMessage()
+                        )
+                );
+    }
+
+    private void addRideCard(
+            DocumentSnapshot doc) {
+
+        String rideId =
+                doc.getId();
 
         String status =
-                prefs.getString(
-                        "ride_status",
-                        ""
+                doc.getString(
+                        "status"
+                );
+
+        String passengerId =
+                doc.getString(
+                        "passengerId"
+                );
+
+        String driverId =
+                doc.getString(
+                        "driverId"
                 );
 
         String pickup =
-                prefs.getString(
-                        "ride_pickup",
-                        ""
+                doc.getString(
+                        "pickup"
                 );
 
         String destination =
-                prefs.getString(
-                        "ride_destination",
-                        ""
+                doc.getString(
+                        "destination"
                 );
 
-        String driver =
-                prefs.getString(
-                        "ride_driver",
-                        ""
-                );
-
-        int fare =
-                prefs.getInt(
-                        "ride_final_fare",
-                        prefs.getInt(
-                                "ride_fare",
-                                0
-                        )
-                );
-
-        if (pickup.isEmpty() ||
-                destination.isEmpty()) {
-
-            TextView none =
-                    makeText(
-                            "No transactions yet.",
-                            20
-                    );
-
-            none.setGravity(
-                    Gravity.CENTER
-            );
-
-            layout.addView(none);
-
-        } else {
-
-            TextView transaction =
-                    makeText(
-                            "LATEST TRANSACTION\n\n" +
-                            "Pickup:\n" +
-                            pickup +
-                            "\n\n" +
-                            "Destination:\n" +
-                            destination +
-                            "\n\n" +
-                            "Driver:\n" +
-                            (
-                                driver.isEmpty()
-                                ? "Not assigned"
-                                : driver
-                            ) +
-                            "\n\n" +
-                            "Ride Status:\n" +
-                            getReadableStatus(
-                                    status
-                            ) +
-                            "\n\n" +
-                            "Final Fare:\n" +
-                            "₱" +
-                            fare +
-                            "\n\n" +
-                            "Transaction Status:\n" +
-                            (
-                                status.equals(
-                                        "COMPLETED"
-                                )
-                                ? "PAID / COMPLETED"
-                                : "PENDING"
-                            ),
-                            19
-                    );
-
-            transaction.setTypeface(
-                    null,
-                    Typeface.BOLD
-            );
-
-            layout.addView(transaction);
+        if (status == null) {
+            status = "UNKNOWN";
         }
 
-        addBackButton(layout);
+        if (passengerId == null) {
+            passengerId = "Not assigned";
+        }
 
-        setContentView(layout);
+        if (driverId == null ||
+                driverId.isEmpty()) {
+
+            driverId =
+                    "Not assigned";
+        }
+
+        if (pickup == null) {
+            pickup = "Unknown pickup";
+        }
+
+        if (destination == null) {
+            destination =
+                    "Unknown destination";
+        }
+
+        LinearLayout card =
+                new LinearLayout(this);
+
+        card.setOrientation(
+                LinearLayout.VERTICAL
+        );
+
+        card.setPadding(
+                18,
+                18,
+                18,
+                18
+        );
+
+        TextView rideTitle =
+                text(
+                        "🚕 Ride " + rideId,
+                        17,
+                        Color.BLACK
+                );
+
+        card.addView(
+                rideTitle
+        );
+
+        card.addView(
+                text(
+                        "Status: " + status,
+                        15,
+                        Color.rgb(20, 110, 70)
+                )
+        );
+
+        card.addView(
+                text(
+                        "Passenger: " +
+                        passengerId,
+                        13,
+                        Color.DKGRAY
+                )
+        );
+
+        card.addView(
+                text(
+                        "Driver: " +
+                        driverId,
+                        13,
+                        Color.DKGRAY
+                )
+        );
+
+        card.addView(
+                text(
+                        "Pickup: " +
+                        pickup,
+                        13,
+                        Color.DKGRAY
+                )
+        );
+
+        card.addView(
+                text(
+                        "Destination: " +
+                        destination,
+                        13,
+                        Color.DKGRAY
+                )
+        );
+
+        addSeparator();
+
+        content.addView(
+                card
+        );
     }
 
-    private String getReadableStatus(
-            String status
-    ) {
+    private void resetStatistics() {
 
-        if (status.equals(
-                "REQUESTED"
-        )) {
-            return "WAITING FOR DRIVER";
+        totalUsers = 0;
+
+        totalPassengers = 0;
+
+        totalDrivers = 0;
+
+        approvedDrivers = 0;
+
+        pendingDrivers = 0;
+
+        activeUsers = 0;
+
+        totalRides = 0;
+    }
+
+    private void resetUserStatistics() {
+
+        totalUsers = 0;
+
+        totalPassengers = 0;
+
+        totalDrivers = 0;
+
+        approvedDrivers = 0;
+
+        pendingDrivers = 0;
+
+        activeUsers = 0;
+    }
+
+    private void updateStatistics() {
+
+        if (statisticsText == null) {
+            return;
         }
 
-        if (status.equals(
-                "ACCEPTED"
+        String statistics =
+                "📊 SAKAY NA STATISTICS\n\n" +
+
+                "👥 Total Users: " +
+                totalUsers +
+
+                "\n🧍 Passengers: " +
+                totalPassengers +
+
+                "\n🛺 Drivers: " +
+                totalDrivers +
+
+                "\n✅ Approved Drivers: " +
+                approvedDrivers +
+
+                "\n🟡 Pending Drivers: " +
+                pendingDrivers +
+
+                "\n🟢 Active Accounts: " +
+                activeUsers +
+
+                "\n🚕 Total Rides: " +
+                totalRides;
+
+        statisticsText.setText(
+                statistics
+        );
+    }
+
+    private String roleIcon(
+            String role) {
+
+        if (role.equals(
+                "DRIVER"
         )) {
-            return "DRIVER ACCEPTED";
+
+            return "🛺";
+
         }
 
-        if (status.equals(
-                "DRIVER_ON_THE_WAY"
+        if (role.equals(
+                "ADMIN"
         )) {
-            return "DRIVER ON THE WAY";
+
+            return "👨‍💼";
+
         }
 
-        if (status.equals(
-                "DRIVER_ARRIVED"
+        if (role.equals(
+                "PASSENGER"
         )) {
-            return "DRIVER ARRIVED";
+
+            return "🧍";
         }
 
-        if (status.equals(
-                "IN_PROGRESS"
-        )) {
-            return "TRIP IN PROGRESS";
-        }
+        return "👤";
+    }
 
-        if (status.equals(
-                "COMPLETED"
-        )) {
-            return "COMPLETED";
-        }
+    private void addSeparator() {
 
-        if (status.equals(
-                "CANCELLED"
-        )) {
-            return "CANCELLED";
-        }
+        TextView separator =
+                text(
+                        "────────────────────",
+                        10,
+                        Color.LTGRAY
+                );
 
-        if (status.equals(
-                "DECLINED"
-        )) {
-            return "DECLINED";
-        }
+        content.addView(
+                separator
+        );
+    }
 
-        return status;
+    private TextView text(
+            String value,
+            int size,
+            int color) {
+
+        TextView view =
+                new TextView(this);
+
+        view.setText(
+                value
+        );
+
+        view.setTextSize(
+                size
+        );
+
+        view.setTextColor(
+                color
+        );
+
+        view.setPadding(
+                8,
+                8,
+                8,
+                8
+        );
+
+        return view;
+    }
+
+    private Button button(
+            String label) {
+
+        Button button =
+                new Button(this);
+
+        button.setText(
+                label
+        );
+
+        button.setTextSize(
+                14
+        );
+
+        button.setAllCaps(
+                false
+        );
+
+        return button;
     }
 
     private void logout() {
 
-        prefs.edit()
-                .remove("current_phone")
-                .remove("current_name")
-                .remove("current_role")
-                .apply();
+        auth.signOut();
 
         Intent intent =
                 new Intent(
@@ -984,13 +920,24 @@ public class AdminActivity extends Activity {
                         MainActivity.class
                 );
 
-        intent.setFlags(
+        intent.addFlags(
                 Intent.FLAG_ACTIVITY_CLEAR_TOP |
-                Intent.FLAG_ACTIVITY_NEW_TASK
+                Intent.FLAG_ACTIVITY_NEW_TASK |
+                Intent.FLAG_ACTIVITY_CLEAR_TASK
         );
 
         startActivity(intent);
 
         finish();
+    }
+
+    private void showMessage(
+            String message) {
+
+        Toast.makeText(
+                this,
+                message,
+                Toast.LENGTH_LONG
+        ).show();
     }
 }
