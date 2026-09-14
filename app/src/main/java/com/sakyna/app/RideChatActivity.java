@@ -1,0 +1,545 @@
+package com.sakyna.app;
+
+import android.app.Activity;
+import android.graphics.Color;
+import android.os.Bundle;
+import android.view.Gravity;
+import android.view.View;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.LinearLayout;
+import android.widget.ScrollView;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.firestore.DocumentChange;
+import com.google.firebase.firestore.DocumentSnapshot;
+import com.google.firebase.firestore.FieldValue;
+import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.ListenerRegistration;
+import com.google.firebase.firestore.Query;
+
+import java.util.HashMap;
+import java.util.Map;
+
+public class RideChatActivity extends Activity {
+
+    private FirebaseAuth auth;
+    private FirebaseFirestore db;
+
+    private String rideId = "";
+
+    private LinearLayout messagesLayout;
+    private EditText messageInput;
+    private ScrollView scrollView;
+
+    private ListenerRegistration messageListener;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+
+        auth = FirebaseAuth.getInstance();
+        db = FirebaseFirestore.getInstance();
+
+        rideId = getIntent().getStringExtra("ride_id");
+
+        if (rideId == null) {
+            rideId = "";
+        }
+
+        buildScreen();
+
+        if (rideId.isEmpty()) {
+
+            Toast.makeText(
+                    this,
+                    "Ride ID is missing.",
+                    Toast.LENGTH_LONG
+            ).show();
+
+            return;
+        }
+
+        verifyRide();
+    }
+
+    private void buildScreen() {
+
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setBackgroundColor(Color.WHITE);
+
+        TextView title = new TextView(this);
+        title.setText("Sakay Na Ride Chat");
+        title.setTextSize(23);
+        title.setTextColor(Color.BLACK);
+        title.setGravity(Gravity.CENTER);
+        title.setPadding(16, 20, 16, 20);
+
+        root.addView(
+                title,
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+        );
+
+        scrollView = new ScrollView(this);
+
+        messagesLayout = new LinearLayout(this);
+        messagesLayout.setOrientation(
+                LinearLayout.VERTICAL
+        );
+        messagesLayout.setPadding(
+                16,
+                16,
+                16,
+                16
+        );
+
+        scrollView.addView(messagesLayout);
+
+        root.addView(
+                scrollView,
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        0,
+                        1
+                )
+        );
+
+        LinearLayout bottom =
+                new LinearLayout(this);
+
+        bottom.setOrientation(
+                LinearLayout.HORIZONTAL
+        );
+        bottom.setPadding(
+                12,
+                12,
+                12,
+                12
+        );
+
+        messageInput = new EditText(this);
+        messageInput.setHint("Type a message...");
+        messageInput.setTextSize(16);
+        messageInput.setSingleLine(true);
+
+        bottom.addView(
+                messageInput,
+                new LinearLayout.LayoutParams(
+                        0,
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        1
+                )
+        );
+
+        Button sendButton = new Button(this);
+        sendButton.setText("SEND");
+
+        bottom.addView(
+                sendButton,
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+        );
+
+        sendButton.setOnClickListener(
+                new View.OnClickListener() {
+                    @Override
+                    public void onClick(View view) {
+                        sendMessage();
+                    }
+                }
+        );
+
+        root.addView(
+                bottom,
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+        );
+
+        setContentView(root);
+    }
+
+    private void verifyRide() {
+
+        FirebaseUser user =
+                auth.getCurrentUser();
+
+        if (user == null) {
+
+            Toast.makeText(
+                    this,
+                    "Please login again.",
+                    Toast.LENGTH_LONG
+            ).show();
+
+            return;
+        }
+
+        db.collection("rides")
+                .document(rideId)
+                .get()
+                .addOnSuccessListener(
+                        snapshot -> {
+
+                            if (!snapshot.exists()) {
+
+                                Toast.makeText(
+                                        this,
+                                        "Ride not found.",
+                                        Toast.LENGTH_LONG
+                                ).show();
+
+                                return;
+                            }
+
+                            String passengerId =
+                                    snapshot.getString(
+                                            "passengerId"
+                                    );
+
+                            String driverId =
+                                    snapshot.getString(
+                                            "driverId"
+                                    );
+
+                            String uid =
+                                    user.getUid();
+
+                            if (!uid.equals(passengerId)
+                                    && !uid.equals(driverId)) {
+
+                                Toast.makeText(
+                                        this,
+                                        "You are not part of this ride.",
+                                        Toast.LENGTH_LONG
+                                ).show();
+
+                                return;
+                            }
+
+                            listenForMessages();
+                        }
+                )
+                .addOnFailureListener(
+                        e -> Toast.makeText(
+                                this,
+                                "Ride check failed: "
+                                        + e.getMessage(),
+                                Toast.LENGTH_LONG
+                        ).show()
+                );
+    }
+
+    private void listenForMessages() {
+
+        if (messageListener != null) {
+            messageListener.remove();
+        }
+
+        messageListener =
+                db.collection("rides")
+                        .document(rideId)
+                        .collection("messages")
+                        .orderBy(
+                                "createdAt",
+                                Query.Direction.ASCENDING
+                        )
+                        .addSnapshotListener(
+                                (snapshots, error) -> {
+
+                                    if (error != null) {
+
+                                        Toast.makeText(
+                                                this,
+                                                "Chat error: "
+                                                        + error.getMessage(),
+                                                Toast.LENGTH_LONG
+                                        ).show();
+
+                                        return;
+                                    }
+
+                                    if (snapshots == null) {
+                                        return;
+                                    }
+
+                                    for (
+                                            DocumentChange change
+                                            : snapshots.getDocumentChanges()
+                                    ) {
+
+                                        if (change.getType()
+                                                == DocumentChange.Type.ADDED) {
+
+                                            addMessage(
+                                                    change.getDocument()
+                                            );
+                                        }
+                                    }
+                                }
+                        );
+    }
+
+    private void addMessage(
+            DocumentSnapshot snapshot
+    ) {
+
+        FirebaseUser user =
+                auth.getCurrentUser();
+
+        if (user == null) {
+            return;
+        }
+
+        String senderId =
+                snapshot.getString(
+                        "senderId"
+                );
+
+        String senderRole =
+                snapshot.getString(
+                        "senderRole"
+                );
+
+        String message =
+                snapshot.getString(
+                        "message"
+                );
+
+        if (message == null) {
+            message = "";
+        }
+
+        boolean mine =
+                user.getUid().equals(senderId);
+
+        LinearLayout messageBox =
+                new LinearLayout(this);
+
+        messageBox.setOrientation(
+                LinearLayout.VERTICAL
+        );
+
+        messageBox.setPadding(
+                14,
+                10,
+                14,
+                10
+        );
+
+        TextView senderText =
+                new TextView(this);
+
+        if (mine) {
+
+            senderText.setText(
+                    "You"
+            );
+
+        } else if ("DRIVER".equals(senderRole)) {
+
+            senderText.setText(
+                    "Driver"
+            );
+
+        } else {
+
+            senderText.setText(
+                    "Passenger"
+            );
+        }
+
+        senderText.setTextSize(13);
+        senderText.setTextColor(Color.GRAY);
+
+        TextView messageText =
+                new TextView(this);
+
+        messageText.setText(
+                message
+        );
+
+        messageText.setTextSize(17);
+        messageText.setTextColor(Color.BLACK);
+        messageText.setPadding(
+                0,
+                4,
+                0,
+                4
+        );
+
+        messageBox.addView(senderText);
+        messageBox.addView(messageText);
+
+        LinearLayout.LayoutParams params =
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                );
+
+        params.bottomMargin = 10;
+
+        if (mine) {
+            params.gravity = Gravity.END;
+        } else {
+            params.gravity = Gravity.START;
+        }
+
+        messagesLayout.addView(
+                messageBox,
+                params
+        );
+
+        scrollView.post(
+                new Runnable() {
+                    @Override
+                    public void run() {
+                        scrollView.fullScroll(
+                                View.FOCUS_DOWN
+                        );
+                    }
+                }
+        );
+    }
+
+    private void sendMessage() {
+
+        FirebaseUser user =
+                auth.getCurrentUser();
+
+        if (user == null) {
+
+            Toast.makeText(
+                    this,
+                    "Please login again.",
+                    Toast.LENGTH_LONG
+            ).show();
+
+            return;
+        }
+
+        String message =
+                messageInput.getText()
+                        .toString()
+                        .trim();
+
+        if (message.isEmpty()) {
+            return;
+        }
+
+        db.collection("rides")
+                .document(rideId)
+                .get()
+                .addOnSuccessListener(
+                        rideSnapshot -> {
+
+                            if (!rideSnapshot.exists()) {
+
+                                Toast.makeText(
+                                        this,
+                                        "Ride no longer exists.",
+                                        Toast.LENGTH_LONG
+                                ).show();
+
+                                return;
+                            }
+
+                            String passengerId =
+                                    rideSnapshot.getString(
+                                            "passengerId"
+                                    );
+
+                            String driverId =
+                                    rideSnapshot.getString(
+                                            "driverId"
+                                    );
+
+                            String role;
+
+                            if (user.getUid().equals(driverId)) {
+
+                                role = "DRIVER";
+
+                            } else if (
+                                    user.getUid().equals(passengerId)
+                            ) {
+
+                                role = "PASSENGER";
+
+                            } else {
+
+                                Toast.makeText(
+                                        this,
+                                        "You are not part of this ride.",
+                                        Toast.LENGTH_LONG
+                                ).show();
+
+                                return;
+                            }
+
+                            Map<String, Object> chatMessage =
+                                    new HashMap<>();
+
+                            chatMessage.put(
+                                    "senderId",
+                                    user.getUid()
+                            );
+
+                            chatMessage.put(
+                                    "senderRole",
+                                    role
+                            );
+
+                            chatMessage.put(
+                                    "message",
+                                    message
+                            );
+
+                            chatMessage.put(
+                                    "createdAt",
+                                    FieldValue.serverTimestamp()
+                            );
+
+                            db.collection("rides")
+                                    .document(rideId)
+                                    .collection("messages")
+                                    .add(chatMessage)
+                                    .addOnSuccessListener(
+                                            documentReference -> {
+
+                                                messageInput
+                                                        .setText("");
+                                            }
+                                    )
+                                    .addOnFailureListener(
+                                            e -> Toast.makeText(
+                                                    this,
+                                                    "Message failed: "
+                                                            + e.getMessage(),
+                                                    Toast.LENGTH_LONG
+                                            ).show()
+                                    );
+                        }
+                );
+    }
+
+    @Override
+    protected void onDestroy() {
+
+        if (messageListener != null) {
+            messageListener.remove();
+        }
+
+        super.onDestroy();
+    }
+}
