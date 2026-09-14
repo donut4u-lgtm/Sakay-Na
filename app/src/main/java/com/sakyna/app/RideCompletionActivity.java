@@ -1,15 +1,17 @@
+
 package com.sakyna.app;
 
 import android.app.Activity;
-import android.graphics.Color;
 import android.os.Bundle;
+import android.graphics.Color;
 import android.view.Gravity;
+import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.RatingBar;
 import android.widget.ScrollView;
 import android.widget.TextView;
-import android.widget.RatingBar;
 import android.widget.Toast;
 
 import com.google.firebase.auth.FirebaseAuth;
@@ -28,17 +30,10 @@ public class RideCompletionActivity extends Activity {
 
     private String rideId = "";
 
-    private TextView titleText;
-    private TextView rideText;
-    private TextView fareText;
-    private TextView paymentText;
-    private TextView statusText;
-
+    private TextView rideInfo;
+    private TextView paymentStatusText;
     private RatingBar ratingBar;
     private EditText commentInput;
-
-    private Button confirmPaymentButton;
-    private Button submitRatingButton;
 
     private boolean paymentConfirmed = false;
     private boolean ratingSubmitted = false;
@@ -52,254 +47,208 @@ public class RideCompletionActivity extends Activity {
 
         rideId = getIntent().getStringExtra("ride_id");
 
-        showScreen();
+        if (rideId == null) {
+            rideId = "";
+        }
 
-        if (rideId == null || rideId.isEmpty()) {
+        buildScreen();
 
-            showMessage("Ride ID is missing.");
-            finish();
-
+        if (rideId.isEmpty()) {
+            Toast.makeText(
+                    this,
+                    "Ride ID is missing.",
+                    Toast.LENGTH_LONG
+            ).show();
             return;
         }
 
         loadRide();
     }
 
-    private void showScreen() {
+    private void buildScreen() {
 
-        ScrollView scrollView =
-                new ScrollView(this);
+        ScrollView scrollView = new ScrollView(this);
 
-        LinearLayout root =
-                new LinearLayout(this);
-
-        root.setOrientation(
-                LinearLayout.VERTICAL
-        );
-
-        root.setPadding(
-                30,
-                35,
-                30,
-                35
-        );
-
-        root.setBackgroundColor(
-                Color.WHITE
-        );
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setPadding(32, 32, 32, 32);
+        root.setBackgroundColor(Color.WHITE);
 
         scrollView.addView(root);
 
-        titleText =
-                text(
-                        "🛺 SAKAY NA",
-                        30,
-                        Color.BLACK
-                );
-
-        titleText.setGravity(
-                Gravity.CENTER
-        );
-
-        root.addView(titleText);
-
-        TextView heading =
-                text(
-                        "RIDE COMPLETED",
-                        24,
-                        Color.rgb(20, 120, 70)
-                );
-
-        heading.setGravity(
-                Gravity.CENTER
-        );
-
-        root.addView(heading);
-
-        addSpace(root, 15);
-
-        rideText =
-                text(
-                        "Loading ride...",
-                        17,
-                        Color.DKGRAY
-                );
-
-        root.addView(rideText);
-
-        addSpace(root, 10);
-
-        fareText =
-                text(
-                        "💰 Fare: Loading...",
-                        22,
-                        Color.rgb(20, 120, 70)
-                );
-
-        fareText.setGravity(
-                Gravity.CENTER
-        );
-
-        root.addView(fareText);
-
-        addSpace(root, 10);
-
-        paymentText =
-                text(
-                        "💳 Payment: Loading...",
-                        19,
-                        Color.BLACK
-                );
-
-        paymentText.setGravity(
-                Gravity.CENTER
-        );
-
-        root.addView(paymentText);
-
-        addSpace(root, 10);
-
-        statusText =
-                text(
-                        "Status: Loading...",
-                        17,
-                        Color.DKGRAY
-                );
-
-        statusText.setGravity(
-                Gravity.CENTER
-        );
-
-        root.addView(statusText);
-
-        addSpace(root, 20);
-
-        confirmPaymentButton =
-                button(
-                        "✅ CONFIRM PAYMENT"
-                );
-
-        confirmPaymentButton.setOnClickListener(
-                v -> confirmPayment()
-        );
+        TextView title = new TextView(this);
+        title.setText("Ride Completed");
+        title.setTextSize(28);
+        title.setTextColor(Color.BLACK);
+        title.setGravity(Gravity.CENTER);
+        title.setPadding(0, 0, 0, 24);
 
         root.addView(
-                confirmPaymentButton
+                title,
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                )
         );
 
-        addSpace(root, 25);
+        rideInfo = new TextView(this);
+        rideInfo.setText("Loading ride...");
+        rideInfo.setTextSize(17);
+        rideInfo.setTextColor(Color.DKGRAY);
+        rideInfo.setPadding(0, 0, 0, 24);
 
-        TextView ratingTitle =
-                text(
-                        "⭐ RATE YOUR DRIVER",
-                        21,
-                        Color.BLACK
-                );
-
-        ratingTitle.setGravity(
-                Gravity.CENTER
+        root.addView(
+                rideInfo,
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                )
         );
 
-        root.addView(ratingTitle);
+        paymentStatusText = new TextView(this);
+        paymentStatusText.setText("Payment: PENDING");
+        paymentStatusText.setTextSize(18);
+        paymentStatusText.setTextColor(Color.BLACK);
+        paymentStatusText.setPadding(0, 0, 0, 16);
 
-        addSpace(root, 10);
+        root.addView(
+                paymentStatusText,
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+        );
 
-        ratingBar =
-                new RatingBar(
-                        this,
-                        null,
-                        android.R.attr.ratingBarStyleLarge
-                );
+        Button confirmPaymentButton = new Button(this);
+        confirmPaymentButton.setText("CONFIRM PAYMENT");
 
+        root.addView(
+                confirmPaymentButton,
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+        );
+
+        confirmPaymentButton.setOnClickListener(
+                new View.OnClickListener() {
+                    @Override
+                    public void onClick(View view) {
+                        confirmPayment();
+                    }
+                }
+        );
+
+        TextView ratingTitle = new TextView(this);
+        ratingTitle.setText("Rate your driver");
+        ratingTitle.setTextSize(21);
+        ratingTitle.setTextColor(Color.BLACK);
+        ratingTitle.setPadding(0, 32, 0, 12);
+
+        root.addView(
+                ratingTitle,
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+        );
+
+        ratingBar = new RatingBar(this);
         ratingBar.setNumStars(5);
         ratingBar.setStepSize(1.0f);
         ratingBar.setRating(5.0f);
 
-        LinearLayout.LayoutParams ratingParams =
+        root.addView(
+                ratingBar,
                 new LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.WRAP_CONTENT,
                         LinearLayout.LayoutParams.WRAP_CONTENT
-                );
-
-        ratingParams.gravity =
-                Gravity.CENTER;
-
-        ratingBar.setLayoutParams(
-                ratingParams
+                )
         );
 
-        root.addView(
-                ratingBar
-        );
-
-        commentInput =
-                new EditText(this);
-
-        commentInput.setHint(
-                "Driver comment (optional)"
-        );
-
+        commentInput = new EditText(this);
+        commentInput.setHint("Optional comment");
         commentInput.setTextSize(16);
-
         commentInput.setMinLines(3);
+        commentInput.setGravity(Gravity.TOP);
+        commentInput.setPadding(16, 16, 16, 16);
 
-        commentInput.setGravity(
-                Gravity.TOP
-        );
+        LinearLayout.LayoutParams commentParams =
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                );
+
+        commentParams.topMargin = 16;
 
         root.addView(
-                commentInput
+                commentInput,
+                commentParams
         );
 
-        addSpace(root, 10);
+        Button submitRatingButton = new Button(this);
+        submitRatingButton.setText("SUBMIT RATING");
 
-        submitRatingButton =
-                button(
-                        "⭐ SUBMIT RATING"
+        LinearLayout.LayoutParams ratingButtonParams =
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
                 );
+
+        ratingButtonParams.topMargin = 16;
+
+        root.addView(
+                submitRatingButton,
+                ratingButtonParams
+        );
 
         submitRatingButton.setOnClickListener(
-                v -> submitRating()
+                new View.OnClickListener() {
+                    @Override
+                    public void onClick(View view) {
+                        submitRating();
+                    }
+                }
         );
 
-        root.addView(
-                submitRatingButton
-        );
+        Button doneButton = new Button(this);
+        doneButton.setText("DONE");
 
-        addSpace(root, 20);
-
-        Button doneButton =
-                button(
-                        "DONE"
+        LinearLayout.LayoutParams doneParams =
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
                 );
 
+        doneParams.topMargin = 24;
+
+        root.addView(
+                doneButton,
+                doneParams
+        );
+
         doneButton.setOnClickListener(
-                v -> finish()
+                new View.OnClickListener() {
+                    @Override
+                    public void onClick(View view) {
+                        finish();
+                    }
+                }
         );
 
-        root.addView(doneButton);
-
-        setContentView(
-                scrollView
-        );
-
-        confirmPaymentButton.setEnabled(false);
-        submitRatingButton.setEnabled(false);
+        setContentView(scrollView);
     }
 
     private void loadRide() {
 
-        FirebaseUser user =
-                auth.getCurrentUser();
+        FirebaseUser user = auth.getCurrentUser();
 
         if (user == null) {
-
-            showMessage(
-                    "Please login again."
-            );
-
-            finish();
-
+            Toast.makeText(
+                    this,
+                    "Please login again.",
+                    Toast.LENGTH_LONG
+            ).show();
             return;
         }
 
@@ -307,196 +256,118 @@ public class RideCompletionActivity extends Activity {
                 .document(rideId)
                 .get()
                 .addOnSuccessListener(
-                        document -> {
+                        snapshot -> {
 
-                            if (!document.exists()) {
+                            if (!snapshot.exists()) {
 
-                                showMessage(
-                                        "Ride not found."
-                                );
-
-                                finish();
+                                Toast.makeText(
+                                        this,
+                                        "Ride not found.",
+                                        Toast.LENGTH_LONG
+                                ).show();
 
                                 return;
                             }
 
                             String passengerId =
-                                    document.getString(
+                                    getStringValue(
+                                            snapshot,
                                             "passengerId"
                                     );
 
-                            if (passengerId == null ||
-                                    !passengerId.equals(
-                                            user.getUid()
-                                    )) {
+                            if (!user.getUid().equals(passengerId)) {
 
-                                showMessage(
-                                        "This ride does not belong to you."
-                                );
-
-                                finish();
+                                Toast.makeText(
+                                        this,
+                                        "You cannot access this ride.",
+                                        Toast.LENGTH_LONG
+                                ).show();
 
                                 return;
                             }
 
-                            displayRide(
-                                    document
-                            );
+                            displayRide(snapshot);
                         }
                 )
                 .addOnFailureListener(
-                        e -> {
-
-                            showMessage(
-                                    "Failed to load ride: " +
-                                    e.getMessage()
-                            );
-
-                            finish();
-                        }
+                        e -> Toast.makeText(
+                                this,
+                                "Failed to load ride: "
+                                        + e.getMessage(),
+                                Toast.LENGTH_LONG
+                        ).show()
                 );
     }
 
-    private void displayRide(
-            DocumentSnapshot document) {
+    private void displayRide(DocumentSnapshot snapshot) {
 
         String pickup =
-                document.getString(
-                        "pickup"
-                );
+                getStringValue(snapshot, "pickup");
 
         String destination =
-                document.getString(
-                        "destination"
-                );
-
-        String status =
-                document.getString(
-                        "status"
-                );
+                getStringValue(snapshot, "destination");
 
         String paymentMethod =
-                document.getString(
-                        "paymentMethod"
-                );
+                getStringValue(snapshot, "paymentMethod");
+
+        String status =
+                getStringValue(snapshot, "status");
 
         String paymentStatus =
-                document.getString(
-                        "paymentStatus"
-                );
+                getStringValue(snapshot, "paymentStatus");
 
-        Double fare =
-                document.getDouble(
-                        "fare"
-                );
+        Object fareObject =
+                snapshot.get("fare");
 
-        StringBuilder rideInfo =
-                new StringBuilder();
+        String fareText = "0.00";
 
-        rideInfo.append(
-                "📍 Pickup: "
-        ).append(
-                pickup == null
-                        ? "Unknown"
-                        : pickup
-        );
+        if (fareObject instanceof Number) {
 
-        rideInfo.append(
-                "\n📍 Destination: "
-        ).append(
-                destination == null
-                        ? "Unknown"
-                        : destination
-        );
+            double fare =
+                    ((Number) fareObject).doubleValue();
 
-        rideText.setText(
-                rideInfo.toString()
-        );
-
-        if (fare != null) {
-
-            fareText.setText(
-                    "💰 TOTAL FARE: ₱" +
-                    money(fare)
-            );
+            fareText =
+                    String.format(
+                            java.util.Locale.US,
+                            "%.2f",
+                            fare
+                    );
         }
 
-        paymentText.setText(
-                "💳 Payment: " +
-                paymentLabel(
-                        paymentMethod
-                )
+        rideInfo.setText(
+                "Pickup:\n"
+                        + pickup
+                        + "\n\nDestination:\n"
+                        + destination
+                        + "\n\nFare: ₱"
+                        + fareText
+                        + "\n\nPayment Method: "
+                        + paymentMethod
+                        + "\n\nRide Status: "
+                        + status
         );
 
-        statusText.setText(
-                "Status: " +
-                formatStatus(status)
-        );
-
-        if ("CONFIRMED".equals(
-                paymentStatus
-        ) ||
-                "COMPLETED".equals(
-                        status
-                )) {
+        if ("CONFIRMED".equals(paymentStatus)) {
 
             paymentConfirmed = true;
 
-            confirmPaymentButton.setEnabled(
-                    false
-            );
-
-            confirmPaymentButton.setText(
-                    "✅ PAYMENT CONFIRMED"
-            );
-
-            submitRatingButton.setEnabled(
-                    true
+            paymentStatusText.setText(
+                    "Payment: CONFIRMED"
             );
 
         } else {
 
-            confirmPaymentButton.setEnabled(
-                    true
+            paymentStatusText.setText(
+                    "Payment: PENDING"
             );
         }
 
-        if (document.contains(
-                "driverRating"
-        )) {
+        if ("COMPLETED".equals(status)) {
 
-            Double savedRating =
-                    document.getDouble(
-                            "driverRating"
-                    );
+            paymentConfirmed = true;
 
-            if (savedRating != null) {
-
-                ratingBar.setRating(
-                        savedRating.floatValue()
-                );
-
-                ratingSubmitted = true;
-
-                submitRatingButton.setEnabled(
-                        false
-                );
-
-                submitRatingButton.setText(
-                        "⭐ RATING SUBMITTED"
-                );
-            }
-        }
-
-        String savedComment =
-                document.getString(
-                        "driverRatingComment"
-                );
-
-        if (savedComment != null) {
-
-            commentInput.setText(
-                    savedComment
+            paymentStatusText.setText(
+                    "Payment: CONFIRMED"
             );
         }
     }
@@ -507,91 +378,84 @@ public class RideCompletionActivity extends Activity {
             return;
         }
 
-        confirmPaymentButton.setEnabled(
-                false
-        );
+        if (paymentConfirmed) {
 
-        Map<String, Object> payment =
+            Toast.makeText(
+                    this,
+                    "Payment is already confirmed.",
+                    Toast.LENGTH_SHORT
+            ).show();
+
+            return;
+        }
+
+        Map<String, Object> updates =
                 new HashMap<>();
 
-        payment.put(
+        updates.put(
                 "paymentStatus",
                 "CONFIRMED"
         );
 
-        payment.put(
+        updates.put(
                 "paymentConfirmedAt",
                 FieldValue.serverTimestamp()
         );
 
-        payment.put(
+        updates.put(
                 "status",
                 "COMPLETED"
         );
 
-        payment.put(
+        updates.put(
                 "completedAt",
                 FieldValue.serverTimestamp()
         );
 
         db.collection("rides")
                 .document(rideId)
-                .update(payment)
+                .update(updates)
                 .addOnSuccessListener(
                         unused -> {
 
-                            paymentConfirmed =
-                                    true;
+                            paymentConfirmed = true;
 
-                            statusText.setText(
-                                    "Status: COMPLETED"
+                            paymentStatusText.setText(
+                                    "Payment: CONFIRMED"
                             );
 
-                            confirmPaymentButton.setText(
-                                    "✅ PAYMENT CONFIRMED"
-                            );
+                            Toast.makeText(
+                                    this,
+                                    "Payment confirmed.",
+                                    Toast.LENGTH_SHORT
+                            ).show();
 
-                            submitRatingButton.setEnabled(
-                                    true
-                            );
-
-                            showMessage(
-                                    "🟢 Payment confirmed.\n" +
-                                    "Ride completed."
-                            );
+                            loadRide();
                         }
                 )
                 .addOnFailureListener(
-                        e -> {
-
-                            confirmPaymentButton.setEnabled(
-                                    true
-                            );
-
-                            showMessage(
-                                    "Payment confirmation failed: " +
-                                    e.getMessage()
-                            );
-                        }
+                        e -> Toast.makeText(
+                                this,
+                                "Payment confirmation failed: "
+                                        + e.getMessage(),
+                                Toast.LENGTH_LONG
+                        ).show()
                 );
     }
 
     private void submitRating() {
 
-        if (!paymentConfirmed) {
-
-            showMessage(
-                    "Please confirm payment first."
-            );
-
+        if (rideId.isEmpty()) {
             return;
         }
 
         if (ratingSubmitted) {
 
-            showMessage(
-                    "Rating already submitted."
-            );
+            Toast.makeText(
+                    this,
+                    "Rating already submitted.",
+                    Toast.LENGTH_SHORT
+            ).show();
 
             return;
         }
@@ -599,170 +463,77 @@ public class RideCompletionActivity extends Activity {
         float rating =
                 ratingBar.getRating();
 
-        if (rating < 1) {
+        String comment =
+                commentInput.getText()
+                        .toString()
+                        .trim();
 
-            showMessage(
-                    "Please select a rating."
-            );
+        if (rating <= 0) {
+
+            Toast.makeText(
+                    this,
+                    "Please select a rating.",
+                    Toast.LENGTH_SHORT
+            ).show();
 
             return;
         }
 
-        String comment =
-                commentInput
-                        .getText()
-                        .toString()
-                        .trim();
-
-        Map<String, Object> ratingData =
+        Map<String, Object> updates =
                 new HashMap<>();
 
-        ratingData.put(
+        updates.put(
                 "driverRating",
                 (double) rating
         );
 
-        ratingData.put(
+        updates.put(
                 "driverRatingComment",
                 comment
         );
 
-        ratingData.put(
+        updates.put(
                 "ratedAt",
                 FieldValue.serverTimestamp()
         );
 
-        submitRatingButton.setEnabled(
-                false
-        );
-
         db.collection("rides")
                 .document(rideId)
-                .update(ratingData)
+                .update(updates)
                 .addOnSuccessListener(
                         unused -> {
 
-                            ratingSubmitted =
-                                    true;
+                            ratingSubmitted = true;
 
-                            submitRatingButton.setText(
-                                    "⭐ RATING SUBMITTED"
-                            );
-
-                            showMessage(
-                                    "🟢 Thank you for rating your driver!"
-                            );
+                            Toast.makeText(
+                                    this,
+                                    "Thank you for rating your driver.",
+                                    Toast.LENGTH_SHORT
+                            ).show();
                         }
                 )
                 .addOnFailureListener(
-                        e -> {
-
-                            submitRatingButton.setEnabled(
-                                    true
-                            );
-
-                            showMessage(
-                                    "Rating failed: " +
-                                    e.getMessage()
-                            );
-                        }
+                        e -> Toast.makeText(
+                                this,
+                                "Rating failed: "
+                                        + e.getMessage(),
+                                Toast.LENGTH_LONG
+                        ).show()
                 );
     }
 
-    private String paymentLabel(
-            String method) {
+    private String getStringValue(
+            DocumentSnapshot snapshot,
+            String field
+    ) {
 
-        if ("GCASH".equals(method)) {
-            return "GCash";
+        String value =
+                snapshot.getString(field);
+
+        if (value == null) {
+            return "";
         }
 
-        if ("MAYA".equals(method)) {
-            return "Maya / PayMaya";
-        }
-
-        return "Cash";
-    }
-
-    private String formatStatus(
-            String status) {
-
-        if (status == null ||
-                status.isEmpty()) {
-
-            return "UNKNOWN";
-        }
-
-        return status.replace(
-                "_",
-                " "
-        );
-    }
-
-    private String money(
-            double value) {
-
-        return String.format(
-                "%.2f",
-                value
-        );
-    }
-
-    private Button button(
-            String label) {
-
-        Button button =
-                new Button(this);
-
-        button.setText(label);
-        button.setTextSize(15);
-        button.setAllCaps(false);
-
-        return button;
-    }
-
-    private TextView text(
-            String value,
-            int size,
-            int color) {
-
-        TextView view =
-                new TextView(this);
-
-        view.setText(value);
-        view.setTextSize(size);
-        view.setTextColor(color);
-
-        view.setPadding(
-                10,
-                10,
-                10,
-                10
-        );
-
-        return view;
-    }
-
-    private void addSpace(
-            LinearLayout parent,
-            int height) {
-
-        TextView space =
-                new TextView(this);
-
-        space.setHeight(height);
-
-        parent.addView(
-                space
-        );
-    }
-
-    private void showMessage(
-            String message) {
-
-        Toast.makeText(
-                this,
-                message,
-                Toast.LENGTH_LONG
-        ).show();
+        return value;
     }
 }
