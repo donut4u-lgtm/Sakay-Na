@@ -85,7 +85,6 @@ public class PassengerActivity extends Activity {
 
         buildScreen();
         setupLocation();
-
         readDestinationFromIntent(getIntent());
     }
 
@@ -165,10 +164,6 @@ public class PassengerActivity extends Activity {
         liveMapButton.setOnClickListener(v -> openLiveMap());
         root.addView(liveMapButton);
 
-        /*
-         * This button does NOT finish the Activity.
-         * Passenger stays on Passenger Home.
-         */
         backButton = new Button(this);
         backButton.setText("⬆️ BACK TO PASSENGER HOME");
         backButton.setOnClickListener(v -> {
@@ -237,9 +232,7 @@ public class PassengerActivity extends Activity {
             }
 
             if (currentLocation != null) {
-
                 updatePickupDisplay();
-
                 return;
             }
 
@@ -310,10 +303,7 @@ public class PassengerActivity extends Activity {
         }
 
         Intent intent =
-                new Intent(
-                        this,
-                        MapActivity.class
-                );
+                new Intent(this, MapActivity.class);
 
         intent.putExtra(
                 "mode",
@@ -774,15 +764,6 @@ public class PassengerActivity extends Activity {
                         rideListener = null;
                     }
 
-                    /*
-                     * DO NOT:
-                     *
-                     * finish();
-                     * auth.signOut();
-                     *
-                     * Passenger stays here.
-                     */
-
                     Toast.makeText(
                             PassengerActivity.this,
                             "Ride cancelled.",
@@ -853,10 +834,6 @@ public class PassengerActivity extends Activity {
         finish();
     }
 
-    /*
-     * Android system Back button:
-     * stay on Passenger Home.
-     */
     @Override
     public void onBackPressed() {
 
@@ -932,9 +909,3 @@ public class PassengerActivity extends Activity {
         }
     }
 }
-
-Now: replace the whole file → Commit changes → let GitHub Actions build.
-
-Don't change "MainActivity.java", "MapActivity.java", or the workflow yet.
-
-We want 🟢 GREEN from this replacement first.
