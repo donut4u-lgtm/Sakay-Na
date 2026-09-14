@@ -2,6 +2,7 @@
 package com.sakyna.app;
 
 import android.app.Activity;
+import android.content.Intent;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.text.InputType;
@@ -29,7 +30,6 @@ public class MainActivity extends Activity {
     private EditText emailInput;
     private EditText passwordInput;
 
-    private TextView titleText;
     private TextView modeText;
 
     private Button actionButton;
@@ -77,20 +77,18 @@ public class MainActivity extends Activity {
         LinearLayout root =
                 createRoot();
 
-        titleText =
+        TextView title =
                 text(
                         "🛺 SAKAY NA",
                         30,
                         Color.rgb(20, 20, 20)
                 );
 
-        titleText.setGravity(
+        title.setGravity(
                 Gravity.CENTER
         );
 
-        root.addView(
-                titleText
-        );
+        root.addView(title);
 
         TextView subtitle =
                 text(
@@ -103,9 +101,7 @@ public class MainActivity extends Activity {
                 Gravity.CENTER
         );
 
-        root.addView(
-                subtitle
-        );
+        root.addView(subtitle);
 
         modeText =
                 text(
@@ -118,9 +114,7 @@ public class MainActivity extends Activity {
                 Gravity.CENTER
         );
 
-        root.addView(
-                modeText
-        );
+        root.addView(modeText);
 
         emailInput =
                 new EditText(this);
@@ -165,9 +159,7 @@ public class MainActivity extends Activity {
                 v -> performLogin()
         );
 
-        root.addView(
-                actionButton
-        );
+        root.addView(actionButton);
 
         switchButton =
                 button(
@@ -178,9 +170,7 @@ public class MainActivity extends Activity {
                 v -> showRegisterScreen()
         );
 
-        root.addView(
-                switchButton
-        );
+        root.addView(switchButton);
 
         progressBar =
                 new ProgressBar(this);
@@ -189,30 +179,9 @@ public class MainActivity extends Activity {
                 View.GONE
         );
 
-        root.addView(
-                progressBar
-        );
+        root.addView(progressBar);
 
-        TextView info =
-                text(
-                        "Your account determines whether " +
-                        "you enter Passenger, Driver, " +
-                        "or Admin.",
-                        13,
-                        Color.GRAY
-                );
-
-        info.setGravity(
-                Gravity.CENTER
-        );
-
-        root.addView(
-                info
-        );
-
-        setContentView(
-                root
-        );
+        setContentView(root);
     }
 
     private void showRegisterScreen() {
@@ -222,20 +191,18 @@ public class MainActivity extends Activity {
         LinearLayout root =
                 createRoot();
 
-        titleText =
+        TextView title =
                 text(
                         "🛺 SAKAY NA",
                         30,
                         Color.rgb(20, 20, 20)
                 );
 
-        titleText.setGravity(
+        title.setGravity(
                 Gravity.CENTER
         );
 
-        root.addView(
-                titleText
-        );
+        root.addView(title);
 
         TextView subtitle =
                 text(
@@ -248,9 +215,7 @@ public class MainActivity extends Activity {
                 Gravity.CENTER
         );
 
-        root.addView(
-                subtitle
-        );
+        root.addView(subtitle);
 
         modeText =
                 text(
@@ -263,9 +228,7 @@ public class MainActivity extends Activity {
                 Gravity.CENTER
         );
 
-        root.addView(
-                modeText
-        );
+        root.addView(modeText);
 
         emailInput =
                 new EditText(this);
@@ -307,12 +270,12 @@ public class MainActivity extends Activity {
                 );
 
         actionButton.setOnClickListener(
-                v -> performRegistration()
+                v -> registerAccount(
+                        "PASSENGER"
+                )
         );
 
-        root.addView(
-                actionButton
-        );
+        root.addView(actionButton);
 
         Button driverButton =
                 button(
@@ -320,12 +283,12 @@ public class MainActivity extends Activity {
                 );
 
         driverButton.setOnClickListener(
-                v -> performDriverRegistration()
+                v -> registerAccount(
+                        "DRIVER"
+                )
         );
 
-        root.addView(
-                driverButton
-        );
+        root.addView(driverButton);
 
         switchButton =
                 button(
@@ -336,9 +299,7 @@ public class MainActivity extends Activity {
                 v -> showLoginScreen()
         );
 
-        root.addView(
-                switchButton
-        );
+        root.addView(switchButton);
 
         progressBar =
                 new ProgressBar(this);
@@ -347,30 +308,24 @@ public class MainActivity extends Activity {
                 View.GONE
         );
 
-        root.addView(
-                progressBar
-        );
+        root.addView(progressBar);
 
-        TextView driverInfo =
+        TextView info =
                 text(
-                        "Driver accounts will later go " +
-                        "through the Sakay Na onboarding " +
-                        "and approval process.",
+                        "🛺 Driver accounts require " +
+                        "Admin approval before the driver " +
+                        "can accept rides.",
                         13,
                         Color.GRAY
                 );
 
-        driverInfo.setGravity(
+        info.setGravity(
                 Gravity.CENTER
         );
 
-        root.addView(
-                driverInfo
-        );
+        root.addView(info);
 
-        setContentView(
-                root
-        );
+        setContentView(root);
     }
 
     private void performLogin() {
@@ -428,9 +383,7 @@ public class MainActivity extends Activity {
                                             .getMessage();
                         }
 
-                        showMessage(
-                                message
-                        );
+                        showMessage(message);
 
                         return;
                     }
@@ -453,20 +406,6 @@ public class MainActivity extends Activity {
                             user.getUid()
                     );
                 }
-        );
-    }
-
-    private void performRegistration() {
-
-        registerAccount(
-                "PASSENGER"
-        );
-    }
-
-    private void performDriverRegistration() {
-
-        registerAccount(
-                "DRIVER"
         );
     }
 
@@ -526,9 +465,7 @@ public class MainActivity extends Activity {
                                             .getMessage();
                         }
 
-                        showMessage(
-                                message
-                        );
+                        showMessage(message);
 
                         return;
                     }
@@ -585,10 +522,45 @@ public class MainActivity extends Activity {
                 true
         );
 
+        /*
+         * Passenger:
+         * immediately approved.
+         *
+         * Driver:
+         * MUST wait for Admin approval.
+         */
         profile.put(
                 "approved",
                 role.equals("PASSENGER")
         );
+
+        /*
+         * Driver onboarding state.
+         */
+        if (role.equals("DRIVER")) {
+
+            profile.put(
+                    "driverStatus",
+                    "PENDING_APPROVAL"
+            );
+
+            profile.put(
+                    "canAcceptRides",
+                    false
+            );
+
+        } else {
+
+            profile.put(
+                    "driverStatus",
+                    "NOT_DRIVER"
+            );
+
+            profile.put(
+                    "canAcceptRides",
+                    false
+            );
+        }
 
         profile.put(
                 "createdAt",
@@ -606,11 +578,16 @@ public class MainActivity extends Activity {
                                     "DRIVER"
                             )) {
 
-                                showMessage(
-                                        "Driver account created."
-                                );
+                                auth.signOut();
+
+                                hideLoading();
 
                                 showLoginScreen();
+
+                                showMessage(
+                                        "🟡 Driver account created. " +
+                                        "Wait for Admin approval."
+                                );
 
                             } else {
 
@@ -624,8 +601,7 @@ public class MainActivity extends Activity {
                             hideLoading();
 
                             showMessage(
-                                    "Account created, " +
-                                    "but profile save failed: " +
+                                    "Profile save failed: " +
                                     e.getMessage()
                             );
                         }
@@ -672,7 +648,7 @@ public class MainActivity extends Activity {
                                 hideLoading();
 
                                 showMessage(
-                                        "This account is disabled."
+                                        "⛔ This account is disabled."
                                 );
 
                                 auth.signOut();
@@ -697,17 +673,22 @@ public class MainActivity extends Activity {
                                 return;
                             }
 
+                            if (role.equals(
+                                    "DRIVER"
+                            )) {
+
+                                checkDriverApproval(
+                                        document
+                                );
+
+                                return;
+                            }
+
                             switch (role) {
 
                                 case "PASSENGER":
 
                                     openPassenger();
-
-                                    break;
-
-                                case "DRIVER":
-
-                                    openDriver();
 
                                     break;
 
@@ -744,12 +725,162 @@ public class MainActivity extends Activity {
                 );
     }
 
+    private void checkDriverApproval(
+            com.google.firebase.firestore.DocumentSnapshot document) {
+
+        Boolean approved =
+                document.getBoolean(
+                        "approved"
+                );
+
+        Boolean canAccept =
+                document.getBoolean(
+                        "canAcceptRides"
+                );
+
+        String driverStatus =
+                document.getString(
+                        "driverStatus"
+                );
+
+        boolean isApproved =
+                approved != null &&
+                approved;
+
+        boolean canOperate =
+                canAccept != null &&
+                canAccept;
+
+        if (!isApproved ||
+                !canOperate ||
+                !"APPROVED".equals(
+                        driverStatus
+                )) {
+
+            hideLoading();
+
+            showDriverPendingScreen(
+                    driverStatus
+            );
+
+            return;
+        }
+
+        openDriver();
+    }
+
+    private void showDriverPendingScreen(
+            String status) {
+
+        LinearLayout root =
+                createRoot();
+
+        TextView title =
+                text(
+                        "🛺 SAKAY NA",
+                        30,
+                        Color.rgb(20, 20, 20)
+                );
+
+        title.setGravity(
+                Gravity.CENTER
+        );
+
+        root.addView(title);
+
+        TextView heading =
+                text(
+                        "🟡 DRIVER APPROVAL PENDING",
+                        22,
+                        Color.rgb(180, 120, 0)
+                );
+
+        heading.setGravity(
+                Gravity.CENTER
+        );
+
+        root.addView(heading);
+
+        String displayStatus =
+                status == null ||
+                status.isEmpty()
+                        ? "PENDING_APPROVAL"
+                        : status;
+
+        TextView message =
+                text(
+                        "Your driver account is registered.\n\n" +
+                        "Current status:\n" +
+                        displayStatus +
+                        "\n\n" +
+                        "An Admin must approve your " +
+                        "driver account before you can " +
+                        "accept passenger rides.",
+                        16,
+                        Color.DKGRAY
+                );
+
+        message.setGravity(
+                Gravity.CENTER
+        );
+
+        root.addView(message);
+
+        Button refresh =
+                button(
+                        "🔄 CHECK APPROVAL AGAIN"
+                );
+
+        refresh.setOnClickListener(
+                v -> {
+
+                    FirebaseUser user =
+                            auth.getCurrentUser();
+
+                    if (user == null) {
+
+                        showLoginScreen();
+
+                        return;
+                    }
+
+                    showLoading(
+                            "Checking approval..."
+                    );
+
+                    loadUserRole(
+                            user.getUid()
+                    );
+                }
+        );
+
+        root.addView(refresh);
+
+        Button logout =
+                button(
+                        "🚪 LOGOUT"
+                );
+
+        logout.setOnClickListener(
+                v -> {
+
+                    auth.signOut();
+
+                    showLoginScreen();
+                }
+        );
+
+        root.addView(logout);
+
+        setContentView(root);
+    }
+
     private void openPassenger() {
 
         hideLoading();
 
-        android.content.Intent intent =
-                new android.content.Intent(
+        Intent intent =
+                new Intent(
                         this,
                         PassengerActivity.class
                 );
@@ -763,8 +894,8 @@ public class MainActivity extends Activity {
 
         hideLoading();
 
-        android.content.Intent intent =
-                new android.content.Intent(
+        Intent intent =
+                new Intent(
                         this,
                         DriverActivity.class
                 );
@@ -778,8 +909,8 @@ public class MainActivity extends Activity {
 
         hideLoading();
 
-        android.content.Intent intent =
-                new android.content.Intent(
+        Intent intent =
+                new Intent(
                         this,
                         AdminActivity.class
                 );
@@ -937,13 +1068,6 @@ public class MainActivity extends Activity {
 
         button.setAllCaps(
                 false
-        );
-
-        button.setPadding(
-                10,
-                8,
-                10,
-                8
         );
 
         return button;
