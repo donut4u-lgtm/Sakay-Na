@@ -1,18 +1,21 @@
 package com.sakyna.app;
 
 import android.app.Activity;
-import android.content.Intent;
-import android.graphics.Color;
 import android.os.Bundle;
+import android.graphics.Color;
 import android.view.Gravity;
+import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.firestore.DocumentSnapshot;
+import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
 
 import java.util.HashMap;
@@ -28,155 +31,222 @@ public class DriverOnboardingActivity extends Activity {
     private EditText plateInput;
     private EditText vehicleInput;
 
+    private TextView approvalStatus;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
         auth = FirebaseAuth.getInstance();
-
         db = FirebaseFirestore.getInstance();
 
-        showScreen();
-
-        loadExistingProfile();
+        buildScreen();
+        loadDriverProfile();
     }
 
-    private void showScreen() {
+    private void buildScreen() {
 
-        LinearLayout root =
-                new LinearLayout(this);
+        ScrollView scrollView = new ScrollView(this);
 
-        root.setOrientation(
-                LinearLayout.VERTICAL
-        );
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setPadding(32, 32, 32, 32);
+        root.setBackgroundColor(Color.WHITE);
 
-        root.setGravity(
-                Gravity.CENTER_HORIZONTAL
-        );
+        scrollView.addView(root);
 
-        root.setPadding(
-                30,
-                40,
-                30,
-                30
-        );
-
-        root.setBackgroundColor(
-                Color.WHITE
-        );
-
-        TextView title =
-                text(
-                        "🛺 SAKAY NA",
-                        30,
-                        Color.BLACK
-                );
-
-        title.setGravity(
-                Gravity.CENTER
-        );
+        TextView title = new TextView(this);
+        title.setText("Sakay Na Driver Profile");
+        title.setTextSize(26);
+        title.setTextColor(Color.BLACK);
+        title.setGravity(Gravity.CENTER);
+        title.setPadding(0, 0, 0, 24);
 
         root.addView(title);
 
-        TextView heading =
-                text(
-                        "DRIVER ONBOARDING",
-                        22,
-                        Color.rgb(20, 120, 70)
-                );
-
-        heading.setGravity(
-                Gravity.CENTER
+        TextView subtitle = new TextView(this);
+        subtitle.setText(
+                "Complete your driver information before accepting rides."
         );
+        subtitle.setTextSize(16);
+        subtitle.setTextColor(Color.DKGRAY);
+        subtitle.setGravity(Gravity.CENTER);
+        subtitle.setPadding(0, 0, 0, 24);
 
-        root.addView(heading);
+        root.addView(subtitle);
 
-        TextView info =
-                text(
-                        "Complete your driver profile " +
-                        "before accepting passenger rides.",
-                        15,
-                        Color.DKGRAY
-                );
+        approvalStatus = new TextView(this);
+        approvalStatus.setText("Approval status: CHECKING...");
+        approvalStatus.setTextSize(18);
+        approvalStatus.setTextColor(Color.BLACK);
+        approvalStatus.setGravity(Gravity.CENTER);
+        approvalStatus.setPadding(0, 0, 0, 20);
 
-        info.setGravity(
-                Gravity.CENTER
-        );
-
-        root.addView(info);
+        root.addView(approvalStatus);
 
         nameInput =
-                input(
+                createInput(
                         "Driver full name"
                 );
 
         root.addView(nameInput);
 
         phoneInput =
-                input(
-                        "Mobile number"
+                createInput(
+                        "Phone number"
                 );
 
         root.addView(phoneInput);
 
         plateInput =
-                input(
-                        "Tricycle plate / registration"
+                createInput(
+                        "Tricycle plate number"
                 );
 
         root.addView(plateInput);
 
         vehicleInput =
-                input(
+                createInput(
                         "Vehicle description"
                 );
 
         root.addView(vehicleInput);
 
-        Button save =
-                button(
-                        "💾 SAVE DRIVER PROFILE"
+        Button saveButton = new Button(this);
+        saveButton.setText("SAVE DRIVER PROFILE");
+
+        LinearLayout.LayoutParams saveParams =
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
                 );
 
-        save.setOnClickListener(
-                v -> saveProfile()
-        );
-
-        root.addView(save);
-
-        Button continueButton =
-                button(
-                        "🚕 CONTINUE TO DRIVER"
-                );
-
-        continueButton.setOnClickListener(
-                v -> openDriver()
-        );
+        saveParams.topMargin = 24;
 
         root.addView(
-                continueButton
+                saveButton,
+                saveParams
         );
 
-        Button logout =
-                button(
-                        "🚪 LOGOUT"
+        saveButton.setOnClickListener(
+                new View.OnClickListener() {
+                    @Override
+                    public void onClick(View view) {
+                        saveDriverProfile();
+                    }
+                }
+        );
+
+        Button driverDashboardButton =
+                new Button(this);
+
+        driverDashboardButton.setText(
+                "OPEN DRIVER DASHBOARD"
+        );
+
+        LinearLayout.LayoutParams dashboardParams =
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
                 );
 
-        logout.setOnClickListener(
-                v -> logout()
+        dashboardParams.topMargin = 16;
+
+        root.addView(
+                driverDashboardButton,
+                dashboardParams
         );
 
-        root.addView(logout);
+        driverDashboardButton.setOnClickListener(
+                new View.OnClickListener() {
+                    @Override
+                    public void onClick(View view) {
 
-        setContentView(root);
+                        if (isProfileComplete()) {
+                            openDriverDashboard();
+                        } else {
+                            Toast.makeText(
+                                    DriverOnboardingActivity.this,
+                                    "Complete your driver profile first.",
+                                    Toast.LENGTH_LONG
+                            ).show();
+                        }
+                    }
+                }
+        );
+
+        Button logoutButton = new Button(this);
+        logoutButton.setText("LOGOUT");
+
+        LinearLayout.LayoutParams logoutParams =
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                );
+
+        logoutParams.topMargin = 16;
+
+        root.addView(
+                logoutButton,
+                logoutParams
+        );
+
+        logoutButton.setOnClickListener(
+                new View.OnClickListener() {
+                    @Override
+                    public void onClick(View view) {
+
+                        auth.signOut();
+
+                        finish();
+                    }
+                }
+        );
+
+        setContentView(scrollView);
     }
 
-    private void loadExistingProfile() {
+    private EditText createInput(String hint) {
+
+        EditText input =
+                new EditText(this);
+
+        input.setHint(hint);
+        input.setTextSize(17);
+        input.setTextColor(Color.BLACK);
+        input.setHintTextColor(Color.GRAY);
+        input.setSingleLine(true);
+        input.setPadding(
+                16,
+                16,
+                16,
+                16
+        );
+
+        LinearLayout.LayoutParams params =
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                );
+
+        params.bottomMargin = 12;
+
+        input.setLayoutParams(params);
+
+        return input;
+    }
+
+    private void loadDriverProfile() {
 
         FirebaseUser user =
                 auth.getCurrentUser();
 
         if (user == null) {
+
+            approvalStatus.setText(
+                    "Please login again."
+            );
+
             return;
         }
 
@@ -184,29 +254,34 @@ public class DriverOnboardingActivity extends Activity {
                 .document(user.getUid())
                 .get()
                 .addOnSuccessListener(
-                        document -> {
+                        snapshot -> {
 
-                            if (!document.exists()) {
+                            if (!snapshot.exists()) {
+
+                                approvalStatus.setText(
+                                        "Profile not found."
+                                );
+
                                 return;
                             }
 
                             String name =
-                                    document.getString(
+                                    snapshot.getString(
                                             "driverName"
                                     );
 
                             String phone =
-                                    document.getString(
+                                    snapshot.getString(
                                             "phone"
                                     );
 
                             String plate =
-                                    document.getString(
+                                    snapshot.getString(
                                             "plateNumber"
                                     );
 
                             String vehicle =
-                                    document.getString(
+                                    snapshot.getString(
                                             "vehicleDescription"
                                     );
 
@@ -225,83 +300,134 @@ public class DriverOnboardingActivity extends Activity {
                             if (vehicle != null) {
                                 vehicleInput.setText(vehicle);
                             }
+
+                            updateApprovalStatus(
+                                    snapshot
+                            );
                         }
+                )
+                .addOnFailureListener(
+                        e -> approvalStatus.setText(
+                                "Unable to load profile."
+                        )
                 );
     }
 
-    private void saveProfile() {
+    private void updateApprovalStatus(
+            DocumentSnapshot snapshot
+    ) {
+
+        Boolean approved =
+                snapshot.getBoolean("approved");
+
+        String driverStatus =
+                snapshot.getString("driverStatus");
+
+        Boolean canAcceptRides =
+                snapshot.getBoolean(
+                        "canAcceptRides"
+                );
+
+        if (Boolean.TRUE.equals(approved)
+                && "APPROVED".equals(driverStatus)
+                && Boolean.TRUE.equals(canAcceptRides)) {
+
+            approvalStatus.setText(
+                    "✅ DRIVER APPROVED\n\n"
+                            + "You can accept rides."
+            );
+
+            approvalStatus.setTextColor(
+                    Color.rgb(0, 130, 0)
+            );
+
+        } else {
+
+            approvalStatus.setText(
+                    "⏳ DRIVER APPROVAL PENDING\n\n"
+                            + "You cannot accept rides yet."
+            );
+
+            approvalStatus.setTextColor(
+                    Color.rgb(180, 90, 0)
+            );
+        }
+    }
+
+    private boolean isProfileComplete() {
+
+        String name =
+                nameInput.getText()
+                        .toString()
+                        .trim();
+
+        String phone =
+                phoneInput.getText()
+                        .toString()
+                        .trim();
+
+        String plate =
+                plateInput.getText()
+                        .toString()
+                        .trim();
+
+        String vehicle =
+                vehicleInput.getText()
+                        .toString()
+                        .trim();
+
+        return !name.isEmpty()
+                && !phone.isEmpty()
+                && !plate.isEmpty()
+                && !vehicle.isEmpty();
+    }
+
+    private void saveDriverProfile() {
 
         FirebaseUser user =
                 auth.getCurrentUser();
 
         if (user == null) {
 
-            showMessage(
-                    "Please login again."
-            );
+            Toast.makeText(
+                    this,
+                    "Please login again.",
+                    Toast.LENGTH_LONG
+            ).show();
+
+            return;
+        }
+
+        if (!isProfileComplete()) {
+
+            Toast.makeText(
+                    this,
+                    "Please complete all driver fields.",
+                    Toast.LENGTH_LONG
+            ).show();
 
             return;
         }
 
         String name =
-                nameInput
-                        .getText()
+                nameInput.getText()
                         .toString()
                         .trim();
 
         String phone =
-                phoneInput
-                        .getText()
+                phoneInput.getText()
                         .toString()
                         .trim();
 
         String plate =
-                plateInput
-                        .getText()
+                plateInput.getText()
                         .toString()
                         .trim();
 
         String vehicle =
-                vehicleInput
-                        .getText()
+                vehicleInput.getText()
                         .toString()
                         .trim();
-
-        if (name.isEmpty()) {
-
-            showMessage(
-                    "Enter driver name."
-            );
-
-            return;
-        }
-
-        if (phone.isEmpty()) {
-
-            showMessage(
-                    "Enter mobile number."
-            );
-
-            return;
-        }
-
-        if (plate.isEmpty()) {
-
-            showMessage(
-                    "Enter plate / registration."
-            );
-
-            return;
-        }
-
-        if (vehicle.isEmpty()) {
-
-            showMessage(
-                    "Enter vehicle description."
-            );
-
-            return;
-        }
 
         Map<String, Object> profile =
                 new HashMap<>();
@@ -332,9 +458,8 @@ public class DriverOnboardingActivity extends Activity {
         );
 
         profile.put(
-                "updatedAt",
-                com.google.firebase.firestore.FieldValue
-                        .serverTimestamp()
+                "profileUpdatedAt",
+                FieldValue.serverTimestamp()
         );
 
         db.collection("users")
@@ -343,138 +468,33 @@ public class DriverOnboardingActivity extends Activity {
                 .addOnSuccessListener(
                         unused -> {
 
-                            showMessage(
-                                    "🟢 Driver profile saved."
-                            );
+                            Toast.makeText(
+                                    this,
+                                    "Driver profile saved.",
+                                    Toast.LENGTH_SHORT
+                            ).show();
 
-                            openDriver();
+                            loadDriverProfile();
                         }
                 )
                 .addOnFailureListener(
-                        e -> showMessage(
-                                "Save failed: " +
-                                e.getMessage()
-                        )
+                        e -> Toast.makeText(
+                                this,
+                                "Save failed: "
+                                        + e.getMessage(),
+                                Toast.LENGTH_LONG
+                        ).show()
                 );
     }
 
-    private void openDriver() {
+    private void openDriverDashboard() {
 
-        Intent intent =
-                new Intent(
+        android.content.Intent intent =
+                new android.content.Intent(
                         this,
                         DriverActivity.class
                 );
 
         startActivity(intent);
-
-        finish();
-    }
-
-    private void logout() {
-
-        auth.signOut();
-
-        Intent intent =
-                new Intent(
-                        this,
-                        MainActivity.class
-                );
-
-        intent.addFlags(
-                Intent.FLAG_ACTIVITY_CLEAR_TOP |
-                Intent.FLAG_ACTIVITY_NEW_TASK |
-                Intent.FLAG_ACTIVITY_CLEAR_TASK
-        );
-
-        startActivity(intent);
-
-        finish();
-    }
-
-    private EditText input(
-            String hint) {
-
-        EditText input =
-                new EditText(this);
-
-        input.setHint(hint);
-
-        input.setTextSize(16);
-
-        input.setSingleLine(true);
-
-        input.setPadding(
-                15,
-                12,
-                15,
-                12
-        );
-
-        LinearLayout.LayoutParams params =
-                new LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT
-                );
-
-        params.setMargins(
-                0,
-                8,
-                0,
-                8
-        );
-
-        input.setLayoutParams(params);
-
-        return input;
-    }
-
-    private Button button(
-            String label) {
-
-        Button button =
-                new Button(this);
-
-        button.setText(label);
-
-        button.setTextSize(15);
-
-        button.setAllCaps(false);
-
-        return button;
-    }
-
-    private TextView text(
-            String value,
-            int size,
-            int color) {
-
-        TextView view =
-                new TextView(this);
-
-        view.setText(value);
-
-        view.setTextSize(size);
-
-        view.setTextColor(color);
-
-        view.setPadding(
-                10,
-                10,
-                10,
-                10
-        );
-
-        return view;
-    }
-
-    private void showMessage(
-            String message) {
-
-        Toast.makeText(
-                this,
-                message,
-                Toast.LENGTH_LONG
-        ).show();
     }
 }
