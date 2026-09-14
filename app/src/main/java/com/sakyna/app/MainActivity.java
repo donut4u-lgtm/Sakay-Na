@@ -5,18 +5,23 @@ import android.app.Activity;
 import android.os.Bundle;
 import android.graphics.Color;
 import android.graphics.Typeface;
-import android.content.Intent;
+import android.graphics.drawable.GradientDrawable;
+import android.text.InputType;
 import android.view.Gravity;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import com.google.firebase.auth.FirebaseAuth;
-import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.FirebaseFirestore;
+
+import java.util.HashMap;
+import java.util.Map;
 
 public class MainActivity extends Activity {
 
@@ -26,7 +31,9 @@ public class MainActivity extends Activity {
     private EditText emailInput;
     private EditText passwordInput;
 
-    private LinearLayout root;
+    private int darkText = Color.rgb(35, 35, 35);
+    private int grayText = Color.rgb(90, 90, 90);
+    private int green = Color.rgb(0, 150, 80);
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -35,165 +42,274 @@ public class MainActivity extends Activity {
         auth = FirebaseAuth.getInstance();
         db = FirebaseFirestore.getInstance();
 
-        buildMainPage();
-
-        FirebaseUser user = auth.getCurrentUser();
-
-        if (user != null) {
-            loadUserAndOpen(user);
-        }
+        showLoginScreen();
     }
 
-    private void buildMainPage() {
+    private void showLoginScreen() {
 
-        root = new LinearLayout(this);
+        ScrollView scrollView = new ScrollView(this);
+        scrollView.setFillViewport(true);
+        scrollView.setBackgroundColor(Color.WHITE);
+
+        LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setGravity(Gravity.CENTER_HORIZONTAL);
-        root.setPadding(40, 50, 40, 40);
+        root.setPadding(32, 40, 32, 40);
         root.setBackgroundColor(Color.WHITE);
+
+        scrollView.addView(root);
+
+        // ---------------------------------------------------------
+        // LOGO
+        // ---------------------------------------------------------
 
         TextView logo = new TextView(this);
         logo.setText("🛺");
-        logo.setTextSize(58);
+        logo.setTextSize(54);
         logo.setGravity(Gravity.CENTER);
 
         root.addView(
                 logo,
                 new LinearLayout.LayoutParams(
-                        -1,
-                        100
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT
                 )
         );
+
+        // ---------------------------------------------------------
+        // TITLE
+        // ---------------------------------------------------------
 
         TextView title = new TextView(this);
         title.setText("SAKAY NA");
+        title.setTextColor(Color.rgb(20, 20, 20));
         title.setTextSize(34);
         title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        title.setTextColor(Color.rgb(20, 20, 20));
         title.setGravity(Gravity.CENTER);
+        title.setIncludeFontPadding(true);
 
-        root.addView(
-                title,
+        LinearLayout.LayoutParams titleParams =
                 new LinearLayout.LayoutParams(
-                        -1,
-                        70
-                )
-        );
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT
+                );
+
+        titleParams.setMargins(0, 4, 0, 4);
+        root.addView(title, titleParams);
+
+        // ---------------------------------------------------------
+        // SUBTITLE
+        // ---------------------------------------------------------
 
         TextView subtitle = new TextView(this);
         subtitle.setText("Your local tricycle ride, made simple.");
-        subtitle.setTextSize(16);
-        subtitle.setTextColor(Color.DKGRAY);
+        subtitle.setTextColor(grayText);
+        subtitle.setTextSize(18);
         subtitle.setGravity(Gravity.CENTER);
+        subtitle.setIncludeFontPadding(true);
 
-        root.addView(
-                subtitle,
+        LinearLayout.LayoutParams subtitleParams =
                 new LinearLayout.LayoutParams(
-                        -1,
-                        60
-                )
-        );
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT
+                );
 
-        addSpace(20);
+        subtitleParams.setMargins(0, 0, 0, 28);
+        root.addView(subtitle, subtitleParams);
 
-        emailInput = new EditText(this);
-        emailInput.setHint("Email");
-        emailInput.setSingleLine(true);
-        emailInput.setInputType(
-                android.text.InputType.TYPE_CLASS_TEXT
-                        | android.text.InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS
+        // ---------------------------------------------------------
+        // EMAIL
+        // ---------------------------------------------------------
+
+        emailInput = createInput(
+                "Email",
+                InputType.TYPE_CLASS_TEXT |
+                        InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS
         );
 
         root.addView(
                 emailInput,
                 new LinearLayout.LayoutParams(
-                        -1,
+                        ViewGroup.LayoutParams.MATCH_PARENT,
                         60
                 )
         );
 
-        addSpace(10);
+        // ---------------------------------------------------------
+        // PASSWORD
+        // ---------------------------------------------------------
 
-        passwordInput = new EditText(this);
-        passwordInput.setHint("Password");
-        passwordInput.setSingleLine(true);
-        passwordInput.setInputType(
-                android.text.InputType.TYPE_CLASS_TEXT
-                        | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+        passwordInput = createInput(
+                "Password",
+                InputType.TYPE_CLASS_TEXT |
+                        InputType.TYPE_TEXT_VARIATION_PASSWORD
         );
 
-        root.addView(
-                passwordInput,
+        LinearLayout.LayoutParams passwordParams =
                 new LinearLayout.LayoutParams(
-                        -1,
+                        ViewGroup.LayoutParams.MATCH_PARENT,
                         60
-                )
-        );
+                );
 
-        addSpace(20);
+        passwordParams.setMargins(0, 14, 0, 0);
+        root.addView(passwordInput, passwordParams);
 
-        Button loginButton = new Button(this);
-        loginButton.setText("LOGIN");
-        loginButton.setTextSize(16);
-        loginButton.setAllCaps(false);
+        // ---------------------------------------------------------
+        // LOGIN BUTTON
+        // ---------------------------------------------------------
 
-        root.addView(
-                loginButton,
+        Button loginButton = createButton("LOGIN");
+
+        LinearLayout.LayoutParams loginParams =
                 new LinearLayout.LayoutParams(
-                        -1,
-                        60
-                )
-        );
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        58
+                );
+
+        loginParams.setMargins(0, 26, 0, 0);
+        root.addView(loginButton, loginParams);
 
         loginButton.setOnClickListener(v -> loginUser());
 
-        addSpace(10);
+        // ---------------------------------------------------------
+        // CREATE ACCOUNT BUTTON
+        // ---------------------------------------------------------
 
-        Button registerButton = new Button(this);
-        registerButton.setText("CREATE ACCOUNT");
-        registerButton.setTextSize(16);
-        registerButton.setAllCaps(false);
+        Button createButton = createOutlineButton("CREATE ACCOUNT");
 
-        root.addView(
-                registerButton,
+        LinearLayout.LayoutParams createParams =
                 new LinearLayout.LayoutParams(
-                        -1,
-                        60
-                )
-        );
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        58
+                );
 
-        registerButton.setOnClickListener(v -> registerUser());
+        createParams.setMargins(0, 14, 0, 0);
+        root.addView(createButton, createParams);
 
-        addSpace(30);
+        createButton.setOnClickListener(v -> createAccount());
+
+        // ---------------------------------------------------------
+        // ROLE INFORMATION
+        // ---------------------------------------------------------
+
+        TextView roles = new TextView(this);
+        roles.setText("Passenger  •  Driver  •  Admin");
+        roles.setTextColor(Color.rgb(110, 110, 110));
+        roles.setTextSize(17);
+        roles.setGravity(Gravity.CENTER);
+        roles.setTypeface(Typeface.DEFAULT, Typeface.NORMAL);
+
+        LinearLayout.LayoutParams rolesParams =
+                new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT
+                );
+
+        rolesParams.setMargins(0, 30, 0, 0);
+        root.addView(roles, rolesParams);
+
+        // ---------------------------------------------------------
+        // FOOTER
+        // ---------------------------------------------------------
 
         TextView footer = new TextView(this);
-        footer.setText("Passenger • Driver • Admin");
-        footer.setTextSize(14);
-        footer.setTextColor(Color.GRAY);
+        footer.setText("Safe rides. Simple booking. Local service.");
+        footer.setTextColor(Color.rgb(140, 140, 140));
+        footer.setTextSize(13);
         footer.setGravity(Gravity.CENTER);
 
-        root.addView(
-                footer,
+        LinearLayout.LayoutParams footerParams =
                 new LinearLayout.LayoutParams(
-                        -1,
-                        50
-                )
-        );
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT
+                );
 
-        setContentView(root);
+        footerParams.setMargins(0, 18, 0, 0);
+        root.addView(footer, footerParams);
+
+        setContentView(scrollView);
     }
 
-    private void addSpace(int height) {
-        View space = new View(this);
+    // =============================================================
+    // INPUT STYLE
+    // =============================================================
 
-        root.addView(
-                space,
-                new LinearLayout.LayoutParams(
-                        1,
-                        height
-                )
-        );
+    private EditText createInput(String hint, int inputType) {
+
+        EditText input = new EditText(this);
+
+        input.setHint(hint);
+        input.setHintTextColor(Color.rgb(120, 120, 120));
+        input.setTextColor(darkText);
+        input.setTextSize(17);
+        input.setSingleLine(true);
+        input.setInputType(inputType);
+        input.setPadding(18, 0, 18, 0);
+
+        GradientDrawable background = new GradientDrawable();
+        background.setColor(Color.rgb(248, 248, 248));
+        background.setStroke(2, Color.rgb(190, 190, 190));
+        background.setCornerRadius(12);
+
+        input.setBackground(background);
+
+        return input;
     }
+
+    // =============================================================
+    // GREEN BUTTON
+    // =============================================================
+
+    private Button createButton(String text) {
+
+        Button button = new Button(this);
+
+        button.setText(text);
+        button.setTextColor(Color.WHITE);
+        button.setTextSize(17);
+        button.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        button.setGravity(Gravity.CENTER);
+        button.setAllCaps(false);
+        button.setPadding(0, 0, 0, 0);
+
+        GradientDrawable background = new GradientDrawable();
+        background.setColor(green);
+        background.setCornerRadius(14);
+
+        button.setBackground(background);
+
+        return button;
+    }
+
+    // =============================================================
+    // OUTLINE BUTTON
+    // =============================================================
+
+    private Button createOutlineButton(String text) {
+
+        Button button = new Button(this);
+
+        button.setText(text);
+        button.setTextColor(green);
+        button.setTextSize(17);
+        button.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        button.setGravity(Gravity.CENTER);
+        button.setAllCaps(false);
+        button.setPadding(0, 0, 0, 0);
+
+        GradientDrawable background = new GradientDrawable();
+        background.setColor(Color.WHITE);
+        background.setStroke(3, green);
+        background.setCornerRadius(14);
+
+        button.setBackground(background);
+
+        return button;
+    }
+
+    // =============================================================
+    // LOGIN
+    // =============================================================
 
     private void loginUser() {
 
@@ -202,51 +318,176 @@ public class MainActivity extends Activity {
 
         if (email.isEmpty()) {
             emailInput.setError("Enter your email");
+            emailInput.requestFocus();
             return;
         }
 
         if (password.isEmpty()) {
             passwordInput.setError("Enter your password");
+            passwordInput.requestFocus();
             return;
         }
 
         Toast.makeText(
                 this,
-                "Signing in...",
+                "Logging in...",
                 Toast.LENGTH_SHORT
         ).show();
 
         auth.signInWithEmailAndPassword(email, password)
                 .addOnSuccessListener(result -> {
 
-                    FirebaseUser user = auth.getCurrentUser();
-
-                    if (user != null) {
-                        loadUserAndOpen(user);
-                    }
-
-                })
-                .addOnFailureListener(e ->
+                    if (auth.getCurrentUser() == null) {
                         Toast.makeText(
                                 this,
-                                "Login failed: " + e.getMessage(),
+                                "Login error.",
+                                Toast.LENGTH_LONG
+                        ).show();
+                        return;
+                    }
+
+                    String uid = auth.getCurrentUser().getUid();
+
+                    db.collection("users")
+                            .document(uid)
+                            .get()
+                            .addOnSuccessListener(document -> {
+
+                                if (!document.exists()) {
+                                    Toast.makeText(
+                                            this,
+                                            "User profile not found.",
+                                            Toast.LENGTH_LONG
+                                    ).show();
+                                    return;
+                                }
+
+                                String role =
+                                        document.getString("role");
+
+                                if (role == null) {
+                                    role = "PASSENGER";
+                                }
+
+                                // -------------------------------------------------
+                                // ADMIN
+                                // -------------------------------------------------
+
+                                if (role.equals("ADMIN")) {
+
+                                    startActivity(
+                                            new android.content.Intent(
+                                                    this,
+                                                    AdminActivity.class
+                                            )
+                                    );
+
+                                    finish();
+                                    return;
+                                }
+
+                                // -------------------------------------------------
+                                // DRIVER
+                                // -------------------------------------------------
+
+                                if (role.equals("DRIVER")) {
+
+                                    Boolean approved =
+                                            document.getBoolean("approved");
+
+                                    Boolean canAcceptRides =
+                                            document.getBoolean(
+                                                    "canAcceptRides"
+                                            );
+
+                                    String driverStatus =
+                                            document.getString(
+                                                    "driverStatus"
+                                            );
+
+                                    boolean driverApproved =
+                                            Boolean.TRUE.equals(approved)
+                                                    &&
+                                            Boolean.TRUE.equals(
+                                                    canAcceptRides
+                                            )
+                                                    &&
+                                            "APPROVED".equals(
+                                                    driverStatus
+                                            );
+
+                                    if (driverApproved) {
+
+                                        startActivity(
+                                                new android.content.Intent(
+                                                        this,
+                                                        DriverActivity.class
+                                                )
+                                        );
+
+                                        finish();
+
+                                    } else {
+
+                                        showDriverPendingScreen();
+                                    }
+
+                                    return;
+                                }
+
+                                // -------------------------------------------------
+                                // PASSENGER
+                                // -------------------------------------------------
+
+                                startActivity(
+                                        new android.content.Intent(
+                                                this,
+                                                PassengerActivity.class
+                                        )
+                                );
+
+                                finish();
+
+                            })
+                            .addOnFailureListener(error ->
+                                    Toast.makeText(
+                                            this,
+                                            "Profile error: "
+                                                    + error.getMessage(),
+                                            Toast.LENGTH_LONG
+                                    ).show()
+                            );
+                })
+                .addOnFailureListener(error ->
+                        Toast.makeText(
+                                this,
+                                "Login failed: "
+                                        + error.getMessage(),
                                 Toast.LENGTH_LONG
                         ).show()
                 );
     }
 
-    private void registerUser() {
+    // =============================================================
+    // CREATE ACCOUNT
+    // =============================================================
+
+    private void createAccount() {
 
         String email = emailInput.getText().toString().trim();
         String password = passwordInput.getText().toString();
 
         if (email.isEmpty()) {
             emailInput.setError("Enter your email");
+            emailInput.requestFocus();
             return;
         }
 
         if (password.length() < 6) {
-            passwordInput.setError("Password must be at least 6 characters");
+            passwordInput.setError(
+                    "Password must be at least 6 characters"
+            );
+            passwordInput.requestFocus();
             return;
         }
 
@@ -259,249 +500,228 @@ public class MainActivity extends Activity {
         auth.createUserWithEmailAndPassword(email, password)
                 .addOnSuccessListener(result -> {
 
-                    FirebaseUser user = auth.getCurrentUser();
-
-                    if (user == null) {
-                        return;
-                    }
-
-                    saveNewPassenger(user);
-
-                })
-                .addOnFailureListener(e ->
+                    if (auth.getCurrentUser() == null) {
                         Toast.makeText(
                                 this,
-                                "Registration failed: " + e.getMessage(),
-                                Toast.LENGTH_LONG
-                        ).show()
-                );
-    }
-
-    private void saveNewPassenger(FirebaseUser user) {
-
-        java.util.HashMap<String, Object> data =
-                new java.util.HashMap<>();
-
-        data.put("email", user.getEmail());
-        data.put("role", "PASSENGER");
-        data.put("approved", true);
-        data.put("driverStatus", "NOT_DRIVER");
-        data.put("canAcceptRides", false);
-        data.put("createdAt",
-                com.google.firebase.firestore.FieldValue.serverTimestamp());
-
-        db.collection("users")
-                .document(user.getUid())
-                .set(data)
-                .addOnSuccessListener(v -> {
-
-                    Toast.makeText(
-                            this,
-                            "Account created!",
-                            Toast.LENGTH_SHORT
-                    ).show();
-
-                    openPassenger();
-
-                })
-                .addOnFailureListener(e ->
-                        Toast.makeText(
-                                this,
-                                "Profile error: " + e.getMessage(),
-                                Toast.LENGTH_LONG
-                        ).show()
-                );
-    }
-
-    private void loadUserAndOpen(FirebaseUser user) {
-
-        db.collection("users")
-                .document(user.getUid())
-                .get()
-                .addOnSuccessListener(document -> {
-
-                    if (!document.exists()) {
-
-                        Toast.makeText(
-                                this,
-                                "User profile not found.",
+                                "Account creation error.",
                                 Toast.LENGTH_LONG
                         ).show();
-
                         return;
                     }
 
-                    String role = document.getString("role");
+                    String uid =
+                            auth.getCurrentUser().getUid();
 
-                    if (role == null) {
-                        Toast.makeText(
-                                this,
-                                "User role is missing.",
-                                Toast.LENGTH_LONG
-                        ).show();
+                    Map<String, Object> user =
+                            new HashMap<>();
 
-                        return;
-                    }
+                    user.put("role", "PASSENGER");
+                    user.put("approved", true);
+                    user.put("driverStatus", "NOT_DRIVER");
+                    user.put("canAcceptRides", false);
+                    user.put("email", email);
+                    user.put(
+                            "createdAt",
+                            com.google.firebase.firestore.FieldValue
+                                    .serverTimestamp()
+                    );
 
-                    if ("ADMIN".equals(role)) {
+                    db.collection("users")
+                            .document(uid)
+                            .set(user)
+                            .addOnSuccessListener(unused -> {
 
-                        openAdmin();
+                                Toast.makeText(
+                                        this,
+                                        "Account created!",
+                                        Toast.LENGTH_SHORT
+                                ).show();
 
-                    } else if ("DRIVER".equals(role)) {
+                                startActivity(
+                                        new android.content.Intent(
+                                                this,
+                                                PassengerActivity.class
+                                        )
+                                );
 
-                        Boolean approved =
-                                document.getBoolean("approved");
-
-                        Boolean canAccept =
-                                document.getBoolean("canAcceptRides");
-
-                        String driverStatus =
-                                document.getString("driverStatus");
-
-                        if (Boolean.TRUE.equals(approved)
-                                && Boolean.TRUE.equals(canAccept)
-                                && "APPROVED".equals(driverStatus)) {
-
-                            openDriver();
-
-                        } else {
-
-                            showDriverPending();
-
-                        }
-
-                    } else {
-
-                        openPassenger();
-                    }
+                                finish();
+                            })
+                            .addOnFailureListener(error ->
+                                    Toast.makeText(
+                                            this,
+                                            "Profile creation failed: "
+                                                    + error.getMessage(),
+                                            Toast.LENGTH_LONG
+                                    ).show()
+                            );
                 })
-                .addOnFailureListener(e ->
+                .addOnFailureListener(error ->
                         Toast.makeText(
                                 this,
-                                "Unable to load profile: "
-                                        + e.getMessage(),
+                                "Account creation failed: "
+                                        + error.getMessage(),
                                 Toast.LENGTH_LONG
                         ).show()
                 );
     }
 
-    private void showDriverPending() {
+    // =============================================================
+    // DRIVER APPROVAL SCREEN
+    // =============================================================
 
-        root.removeAllViews();
+    private void showDriverPendingScreen() {
+
+        LinearLayout root = new LinearLayout(this);
+
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setGravity(Gravity.CENTER);
+        root.setPadding(32, 40, 32, 40);
+        root.setBackgroundColor(Color.WHITE);
 
         TextView icon = new TextView(this);
-        icon.setText("🧑‍✈️");
-        icon.setTextSize(60);
+        icon.setText("🛺");
+        icon.setTextSize(54);
         icon.setGravity(Gravity.CENTER);
 
         root.addView(
                 icon,
-                new LinearLayout.LayoutParams(-1, 100)
+                new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT
+                )
         );
 
         TextView title = new TextView(this);
-        title.setText("DRIVER APPROVAL");
-        title.setTextSize(26);
+        title.setText("Driver Approval");
+        title.setTextColor(darkText);
+        title.setTextSize(28);
         title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         title.setGravity(Gravity.CENTER);
 
-        root.addView(
-                title,
-                new LinearLayout.LayoutParams(-1, 70)
-        );
+        LinearLayout.LayoutParams titleParams =
+                new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT
+                );
+
+        titleParams.setMargins(0, 15, 0, 10);
+        root.addView(title, titleParams);
 
         TextView message = new TextView(this);
         message.setText(
-                "Your driver account is waiting for approval.\n\n"
-                        + "You cannot accept rides until an administrator approves your driver account."
+                "Your driver account is waiting for admin approval."
+                        + "\n\n"
+                        + "You cannot accept rides until your account "
+                        + "has been approved."
         );
+
+        message.setTextColor(grayText);
         message.setTextSize(17);
         message.setGravity(Gravity.CENTER);
-        message.setPadding(10, 20, 10, 20);
+
+        LinearLayout.LayoutParams messageParams =
+                new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT
+                );
+
+        messageParams.setMargins(0, 0, 0, 25);
+        root.addView(message, messageParams);
+
+        Button checkButton =
+                createButton("CHECK APPROVAL AGAIN");
 
         root.addView(
-                message,
-                new LinearLayout.LayoutParams(-1, 180)
+                checkButton,
+                new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        58
+                )
         );
 
-        Button check = new Button(this);
-        check.setText("CHECK APPROVAL AGAIN");
-        check.setAllCaps(false);
+        checkButton.setOnClickListener(v -> {
 
-        root.addView(
-                check,
-                new LinearLayout.LayoutParams(-1, 60)
-        );
+            FirebaseAuth currentAuth =
+                    FirebaseAuth.getInstance();
 
-        check.setOnClickListener(v -> {
-
-            FirebaseUser user = auth.getCurrentUser();
-
-            if (user != null) {
-                loadUserAndOpen(user);
+            if (currentAuth.getCurrentUser() == null) {
+                showLoginScreen();
+                return;
             }
+
+            String uid =
+                    currentAuth.getCurrentUser().getUid();
+
+            db.collection("users")
+                    .document(uid)
+                    .get()
+                    .addOnSuccessListener(document -> {
+
+                        Boolean approved =
+                                document.getBoolean("approved");
+
+                        Boolean canAcceptRides =
+                                document.getBoolean(
+                                        "canAcceptRides"
+                                );
+
+                        String driverStatus =
+                                document.getString(
+                                        "driverStatus"
+                                );
+
+                        boolean approvedDriver =
+                                Boolean.TRUE.equals(approved)
+                                        &&
+                                Boolean.TRUE.equals(
+                                        canAcceptRides
+                                )
+                                        &&
+                                "APPROVED".equals(
+                                        driverStatus
+                                );
+
+                        if (approvedDriver) {
+
+                            startActivity(
+                                    new android.content.Intent(
+                                            this,
+                                            DriverActivity.class
+                                    )
+                            );
+
+                            finish();
+
+                        } else {
+
+                            Toast.makeText(
+                                    this,
+                                    "Still waiting for admin approval.",
+                                    Toast.LENGTH_LONG
+                            ).show();
+                        }
+                    });
         });
 
-        addSpace(15);
+        Button logoutButton =
+                createOutlineButton("LOG OUT");
 
-        Button logout = new Button(this);
-        logout.setText("LOG OUT");
-        logout.setAllCaps(false);
+        LinearLayout.LayoutParams logoutParams =
+                new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        58
+                );
 
-        root.addView(
-                logout,
-                new LinearLayout.LayoutParams(-1, 60)
-        );
+        logoutParams.setMargins(0, 14, 0, 0);
+        root.addView(logoutButton, logoutParams);
 
-        logout.setOnClickListener(v -> logout());
-    }
+        logoutButton.setOnClickListener(v -> {
 
-    private void openPassenger() {
+            FirebaseAuth.getInstance().signOut();
 
-        startActivity(
-                new Intent(
-                        MainActivity.this,
-                        PassengerActivity.class
-                )
-        );
+            showLoginScreen();
+        });
 
-        finish();
-    }
-
-    private void openDriver() {
-
-        startActivity(
-                new Intent(
-                        MainActivity.this,
-                        DriverActivity.class
-                )
-        );
-
-        finish();
-    }
-
-    private void openAdmin() {
-
-        startActivity(
-                new Intent(
-                        MainActivity.this,
-                        AdminActivity.class
-                )
-        );
-
-        finish();
-    }
-
-    private void logout() {
-
-        auth.signOut();
-
-        buildMainPage();
-
-        Toast.makeText(
-                this,
-                "Logged out",
-                Toast.LENGTH_SHORT
-        ).show();
+        setContentView(root);
     }
 }
