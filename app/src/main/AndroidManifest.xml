@@ -2,7 +2,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
-
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
@@ -20,11 +19,27 @@
             android:exported="false" />
 
         <activity
+            android:name=".DriverOnboardingActivity"
+            android:exported="false" />
+
+        <activity
             android:name=".PassengerActivity"
             android:exported="false" />
 
         <activity
             android:name=".PassengerGpsActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".MapActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".RideChatActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".RideCompletionActivity"
             android:exported="false" />
 
         <activity
