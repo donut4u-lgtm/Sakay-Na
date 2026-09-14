@@ -2,25 +2,21 @@
 package com.sakyna.app;
 
 import android.app.Activity;
-import android.content.Intent;
-import android.graphics.Color;
 import android.os.Bundle;
-import android.text.InputType;
+import android.graphics.Color;
+import android.graphics.Typeface;
+import android.content.Intent;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
-import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.FirebaseFirestore;
-
-import java.util.HashMap;
-import java.util.Map;
 
 public class MainActivity extends Activity {
 
@@ -30,1065 +26,482 @@ public class MainActivity extends Activity {
     private EditText emailInput;
     private EditText passwordInput;
 
-    private TextView modeText;
-
-    private Button actionButton;
-    private Button switchButton;
-
-    private ProgressBar progressBar;
-
-    private boolean registerMode = false;
+    private LinearLayout root;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
         auth = FirebaseAuth.getInstance();
-
         db = FirebaseFirestore.getInstance();
 
-        showLoginScreen();
+        buildMainPage();
 
-        checkExistingUser();
-    }
+        FirebaseUser user = auth.getCurrentUser();
 
-    private void checkExistingUser() {
-
-        FirebaseUser user =
-                auth.getCurrentUser();
-
-        if (user == null) {
-            return;
+        if (user != null) {
+            loadUserAndOpen(user);
         }
-
-        showLoading(
-                "Checking account..."
-        );
-
-        loadUserRole(
-                user.getUid()
-        );
     }
 
-    private void showLoginScreen() {
+    private void buildMainPage() {
 
-        registerMode = false;
+        root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setGravity(Gravity.CENTER_HORIZONTAL);
+        root.setPadding(40, 50, 40, 40);
+        root.setBackgroundColor(Color.WHITE);
 
-        LinearLayout root =
-                createRoot();
+        TextView logo = new TextView(this);
+        logo.setText("🛺");
+        logo.setTextSize(58);
+        logo.setGravity(Gravity.CENTER);
 
-        TextView title =
-                text(
-                        "🛺 SAKAY NA",
-                        30,
-                        Color.rgb(20, 20, 20)
-                );
-
-        title.setGravity(
-                Gravity.CENTER
+        root.addView(
+                logo,
+                new LinearLayout.LayoutParams(
+                        -1,
+                        100
+                )
         );
 
-        root.addView(title);
+        TextView title = new TextView(this);
+        title.setText("SAKAY NA");
+        title.setTextSize(34);
+        title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        title.setTextColor(Color.rgb(20, 20, 20));
+        title.setGravity(Gravity.CENTER);
 
-        TextView subtitle =
-                text(
-                        "Ride anywhere. Ride safely.",
-                        16,
-                        Color.DKGRAY
-                );
-
-        subtitle.setGravity(
-                Gravity.CENTER
+        root.addView(
+                title,
+                new LinearLayout.LayoutParams(
+                        -1,
+                        70
+                )
         );
 
-        root.addView(subtitle);
+        TextView subtitle = new TextView(this);
+        subtitle.setText("Your local tricycle ride, made simple.");
+        subtitle.setTextSize(16);
+        subtitle.setTextColor(Color.DKGRAY);
+        subtitle.setGravity(Gravity.CENTER);
 
-        modeText =
-                text(
-                        "LOGIN",
-                        22,
-                        Color.rgb(20, 120, 70)
-                );
-
-        modeText.setGravity(
-                Gravity.CENTER
+        root.addView(
+                subtitle,
+                new LinearLayout.LayoutParams(
+                        -1,
+                        60
+                )
         );
 
-        root.addView(modeText);
+        addSpace(20);
 
-        emailInput =
-                new EditText(this);
-
-        emailInput.setHint(
-                "Email"
-        );
-
+        emailInput = new EditText(this);
+        emailInput.setHint("Email");
+        emailInput.setSingleLine(true);
         emailInput.setInputType(
-                InputType.TYPE_CLASS_TEXT |
-                InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS
+                android.text.InputType.TYPE_CLASS_TEXT
+                        | android.text.InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS
         );
 
         root.addView(
                 emailInput,
-                inputParams()
+                new LinearLayout.LayoutParams(
+                        -1,
+                        60
+                )
         );
 
-        passwordInput =
-                new EditText(this);
+        addSpace(10);
 
-        passwordInput.setHint(
-                "Password"
-        );
-
+        passwordInput = new EditText(this);
+        passwordInput.setHint("Password");
+        passwordInput.setSingleLine(true);
         passwordInput.setInputType(
-                InputType.TYPE_CLASS_TEXT |
-                InputType.TYPE_TEXT_VARIATION_PASSWORD
+                android.text.InputType.TYPE_CLASS_TEXT
+                        | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
         );
 
         root.addView(
                 passwordInput,
-                inputParams()
+                new LinearLayout.LayoutParams(
+                        -1,
+                        60
+                )
         );
 
-        actionButton =
-                button(
-                        "LOGIN"
-                );
+        addSpace(20);
 
-        actionButton.setOnClickListener(
-                v -> performLogin()
+        Button loginButton = new Button(this);
+        loginButton.setText("LOGIN");
+        loginButton.setTextSize(16);
+        loginButton.setAllCaps(false);
+
+        root.addView(
+                loginButton,
+                new LinearLayout.LayoutParams(
+                        -1,
+                        60
+                )
         );
 
-        root.addView(actionButton);
+        loginButton.setOnClickListener(v -> loginUser());
 
-        switchButton =
-                button(
-                        "CREATE NEW ACCOUNT"
-                );
+        addSpace(10);
 
-        switchButton.setOnClickListener(
-                v -> showRegisterScreen()
+        Button registerButton = new Button(this);
+        registerButton.setText("CREATE ACCOUNT");
+        registerButton.setTextSize(16);
+        registerButton.setAllCaps(false);
+
+        root.addView(
+                registerButton,
+                new LinearLayout.LayoutParams(
+                        -1,
+                        60
+                )
         );
 
-        root.addView(switchButton);
+        registerButton.setOnClickListener(v -> registerUser());
 
-        progressBar =
-                new ProgressBar(this);
+        addSpace(30);
 
-        progressBar.setVisibility(
-                View.GONE
+        TextView footer = new TextView(this);
+        footer.setText("Passenger • Driver • Admin");
+        footer.setTextSize(14);
+        footer.setTextColor(Color.GRAY);
+        footer.setGravity(Gravity.CENTER);
+
+        root.addView(
+                footer,
+                new LinearLayout.LayoutParams(
+                        -1,
+                        50
+                )
         );
-
-        root.addView(progressBar);
 
         setContentView(root);
     }
 
-    private void showRegisterScreen() {
-
-        registerMode = true;
-
-        LinearLayout root =
-                createRoot();
-
-        TextView title =
-                text(
-                        "🛺 SAKAY NA",
-                        30,
-                        Color.rgb(20, 20, 20)
-                );
-
-        title.setGravity(
-                Gravity.CENTER
-        );
-
-        root.addView(title);
-
-        TextView subtitle =
-                text(
-                        "Create your Sakay Na account",
-                        16,
-                        Color.DKGRAY
-                );
-
-        subtitle.setGravity(
-                Gravity.CENTER
-        );
-
-        root.addView(subtitle);
-
-        modeText =
-                text(
-                        "REGISTER",
-                        22,
-                        Color.rgb(20, 120, 70)
-                );
-
-        modeText.setGravity(
-                Gravity.CENTER
-        );
-
-        root.addView(modeText);
-
-        emailInput =
-                new EditText(this);
-
-        emailInput.setHint(
-                "Email"
-        );
-
-        emailInput.setInputType(
-                InputType.TYPE_CLASS_TEXT |
-                InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS
-        );
+    private void addSpace(int height) {
+        View space = new View(this);
 
         root.addView(
-                emailInput,
-                inputParams()
-        );
-
-        passwordInput =
-                new EditText(this);
-
-        passwordInput.setHint(
-                "Password - minimum 6 characters"
-        );
-
-        passwordInput.setInputType(
-                InputType.TYPE_CLASS_TEXT |
-                InputType.TYPE_TEXT_VARIATION_PASSWORD
-        );
-
-        root.addView(
-                passwordInput,
-                inputParams()
-        );
-
-        actionButton =
-                button(
-                        "CREATE PASSENGER ACCOUNT"
-                );
-
-        actionButton.setOnClickListener(
-                v -> registerAccount(
-                        "PASSENGER"
+                space,
+                new LinearLayout.LayoutParams(
+                        1,
+                        height
                 )
         );
-
-        root.addView(actionButton);
-
-        Button driverButton =
-                button(
-                        "CREATE DRIVER ACCOUNT"
-                );
-
-        driverButton.setOnClickListener(
-                v -> registerAccount(
-                        "DRIVER"
-                )
-        );
-
-        root.addView(driverButton);
-
-        switchButton =
-                button(
-                        "BACK TO LOGIN"
-                );
-
-        switchButton.setOnClickListener(
-                v -> showLoginScreen()
-        );
-
-        root.addView(switchButton);
-
-        progressBar =
-                new ProgressBar(this);
-
-        progressBar.setVisibility(
-                View.GONE
-        );
-
-        root.addView(progressBar);
-
-        TextView info =
-                text(
-                        "🛺 Driver accounts require " +
-                        "Admin approval before the driver " +
-                        "can accept rides.",
-                        13,
-                        Color.GRAY
-                );
-
-        info.setGravity(
-                Gravity.CENTER
-        );
-
-        root.addView(info);
-
-        setContentView(root);
     }
 
-    private void performLogin() {
+    private void loginUser() {
 
-        String email =
-                emailInput
-                        .getText()
-                        .toString()
-                        .trim();
-
-        String password =
-                passwordInput
-                        .getText()
-                        .toString();
+        String email = emailInput.getText().toString().trim();
+        String password = passwordInput.getText().toString();
 
         if (email.isEmpty()) {
-
-            showMessage(
-                    "Enter your email."
-            );
-
+            emailInput.setError("Enter your email");
             return;
         }
 
         if (password.isEmpty()) {
-
-            showMessage(
-                    "Enter your password."
-            );
-
+            passwordInput.setError("Enter your password");
             return;
         }
 
-        showLoading(
-                "Signing in..."
-        );
+        Toast.makeText(
+                this,
+                "Signing in...",
+                Toast.LENGTH_SHORT
+        ).show();
 
-        auth.signInWithEmailAndPassword(
-                email,
-                password
-        ).addOnCompleteListener(
-                task -> {
+        auth.signInWithEmailAndPassword(email, password)
+                .addOnSuccessListener(result -> {
 
-                    if (!task.isSuccessful()) {
+                    FirebaseUser user = auth.getCurrentUser();
 
-                        hideLoading();
-
-                        String message =
-                                "Login failed.";
-
-                        if (task.getException() != null) {
-
-                            message =
-                                    task.getException()
-                                            .getMessage();
-                        }
-
-                        showMessage(message);
-
-                        return;
+                    if (user != null) {
+                        loadUserAndOpen(user);
                     }
 
-                    FirebaseUser user =
-                            auth.getCurrentUser();
-
-                    if (user == null) {
-
-                        hideLoading();
-
-                        showMessage(
-                                "Account not found."
-                        );
-
-                        return;
-                    }
-
-                    loadUserRole(
-                            user.getUid()
-                    );
-                }
-        );
+                })
+                .addOnFailureListener(e ->
+                        Toast.makeText(
+                                this,
+                                "Login failed: " + e.getMessage(),
+                                Toast.LENGTH_LONG
+                        ).show()
+                );
     }
 
-    private void registerAccount(
-            String role) {
+    private void registerUser() {
 
-        String email =
-                emailInput
-                        .getText()
-                        .toString()
-                        .trim();
-
-        String password =
-                passwordInput
-                        .getText()
-                        .toString();
+        String email = emailInput.getText().toString().trim();
+        String password = passwordInput.getText().toString();
 
         if (email.isEmpty()) {
-
-            showMessage(
-                    "Enter your email."
-            );
-
+            emailInput.setError("Enter your email");
             return;
         }
 
         if (password.length() < 6) {
-
-            showMessage(
-                    "Password must be at least 6 characters."
-            );
-
+            passwordInput.setError("Password must be at least 6 characters");
             return;
         }
 
-        showLoading(
-                "Creating account..."
-        );
+        Toast.makeText(
+                this,
+                "Creating account...",
+                Toast.LENGTH_SHORT
+        ).show();
 
-        auth.createUserWithEmailAndPassword(
-                email,
-                password
-        ).addOnCompleteListener(
-                task -> {
+        auth.createUserWithEmailAndPassword(email, password)
+                .addOnSuccessListener(result -> {
 
-                    if (!task.isSuccessful()) {
-
-                        hideLoading();
-
-                        String message =
-                                "Registration failed.";
-
-                        if (task.getException() != null) {
-
-                            message =
-                                    task.getException()
-                                            .getMessage();
-                        }
-
-                        showMessage(message);
-
-                        return;
-                    }
-
-                    FirebaseUser user =
-                            auth.getCurrentUser();
+                    FirebaseUser user = auth.getCurrentUser();
 
                     if (user == null) {
-
-                        hideLoading();
-
-                        showMessage(
-                                "Account creation failed."
-                        );
-
                         return;
                     }
 
-                    saveUserProfile(
-                            user,
-                            role
-                    );
-                }
-        );
-    }
+                    saveNewPassenger(user);
 
-    private void saveUserProfile(
-            FirebaseUser user,
-            String role) {
-
-        String uid =
-                user.getUid();
-
-        Map<String, Object> profile =
-                new HashMap<>();
-
-        profile.put(
-                "uid",
-                uid
-        );
-
-        profile.put(
-                "email",
-                user.getEmail()
-        );
-
-        profile.put(
-                "role",
-                role
-        );
-
-        profile.put(
-                "active",
-                true
-        );
-
-        /*
-         * Passenger:
-         * immediately approved.
-         *
-         * Driver:
-         * MUST wait for Admin approval.
-         */
-        profile.put(
-                "approved",
-                role.equals("PASSENGER")
-        );
-
-        /*
-         * Driver onboarding state.
-         */
-        if (role.equals("DRIVER")) {
-
-            profile.put(
-                    "driverStatus",
-                    "PENDING_APPROVAL"
-            );
-
-            profile.put(
-                    "canAcceptRides",
-                    false
-            );
-
-        } else {
-
-            profile.put(
-                    "driverStatus",
-                    "NOT_DRIVER"
-            );
-
-            profile.put(
-                    "canAcceptRides",
-                    false
-            );
-        }
-
-        profile.put(
-                "createdAt",
-                com.google.firebase.firestore.FieldValue
-                        .serverTimestamp()
-        );
-
-        db.collection("users")
-                .document(uid)
-                .set(profile)
-                .addOnSuccessListener(
-                        unused -> {
-
-                            if (role.equals(
-                                    "DRIVER"
-                            )) {
-
-                                auth.signOut();
-
-                                hideLoading();
-
-                                showLoginScreen();
-
-                                showMessage(
-                                        "🟡 Driver account created. " +
-                                        "Wait for Admin approval."
-                                );
-
-                            } else {
-
-                                openPassenger();
-                            }
-                        }
-                )
-                .addOnFailureListener(
-                        e -> {
-
-                            hideLoading();
-
-                            showMessage(
-                                    "Profile save failed: " +
-                                    e.getMessage()
-                            );
-                        }
+                })
+                .addOnFailureListener(e ->
+                        Toast.makeText(
+                                this,
+                                "Registration failed: " + e.getMessage(),
+                                Toast.LENGTH_LONG
+                        ).show()
                 );
     }
 
-    private void loadUserRole(
-            String uid) {
+    private void saveNewPassenger(FirebaseUser user) {
+
+        java.util.HashMap<String, Object> data =
+                new java.util.HashMap<>();
+
+        data.put("email", user.getEmail());
+        data.put("role", "PASSENGER");
+        data.put("approved", true);
+        data.put("driverStatus", "NOT_DRIVER");
+        data.put("canAcceptRides", false);
+        data.put("createdAt",
+                com.google.firebase.firestore.FieldValue.serverTimestamp());
 
         db.collection("users")
-                .document(uid)
+                .document(user.getUid())
+                .set(data)
+                .addOnSuccessListener(v -> {
+
+                    Toast.makeText(
+                            this,
+                            "Account created!",
+                            Toast.LENGTH_SHORT
+                    ).show();
+
+                    openPassenger();
+
+                })
+                .addOnFailureListener(e ->
+                        Toast.makeText(
+                                this,
+                                "Profile error: " + e.getMessage(),
+                                Toast.LENGTH_LONG
+                        ).show()
+                );
+    }
+
+    private void loadUserAndOpen(FirebaseUser user) {
+
+        db.collection("users")
+                .document(user.getUid())
                 .get()
-                .addOnSuccessListener(
-                        document -> {
-
-                            if (!document.exists()) {
-
-                                hideLoading();
-
-                                showMessage(
-                                        "User profile not found."
-                                );
-
-                                auth.signOut();
-
-                                showLoginScreen();
-
-                                return;
-                            }
-
-                            String role =
-                                    document.getString(
-                                            "role"
-                                    );
-
-                            Boolean active =
-                                    document.getBoolean(
-                                            "active"
-                                    );
-
-                            if (active != null &&
-                                    !active) {
-
-                                hideLoading();
-
-                                showMessage(
-                                        "⛔ This account is disabled."
-                                );
-
-                                auth.signOut();
-
-                                showLoginScreen();
-
-                                return;
-                            }
-
-                            if (role == null) {
-
-                                hideLoading();
-
-                                showMessage(
-                                        "Account role is missing."
-                                );
-
-                                auth.signOut();
-
-                                showLoginScreen();
-
-                                return;
-                            }
-
-                            if (role.equals(
-                                    "DRIVER"
-                            )) {
-
-                                checkDriverApproval(
-                                        document
-                                );
-
-                                return;
-                            }
-
-                            switch (role) {
-
-                                case "PASSENGER":
-
-                                    openPassenger();
-
-                                    break;
-
-                                case "ADMIN":
-
-                                    openAdmin();
-
-                                    break;
-
-                                default:
-
-                                    hideLoading();
-
-                                    showMessage(
-                                            "Unknown account role."
-                                    );
-
-                                    auth.signOut();
-
-                                    showLoginScreen();
-                            }
-                        }
-                )
-                .addOnFailureListener(
-                        e -> {
-
-                            hideLoading();
-
-                            showMessage(
-                                    "Unable to load account: " +
-                                    e.getMessage()
-                            );
-                        }
-                );
-    }
-
-    private void checkDriverApproval(
-            com.google.firebase.firestore.DocumentSnapshot document) {
-
-        Boolean approved =
-                document.getBoolean(
-                        "approved"
-                );
-
-        Boolean canAccept =
-                document.getBoolean(
-                        "canAcceptRides"
-                );
-
-        String driverStatus =
-                document.getString(
-                        "driverStatus"
-                );
-
-        boolean isApproved =
-                approved != null &&
-                approved;
-
-        boolean canOperate =
-                canAccept != null &&
-                canAccept;
-
-        if (!isApproved ||
-                !canOperate ||
-                !"APPROVED".equals(
-                        driverStatus
-                )) {
-
-            hideLoading();
-
-            showDriverPendingScreen(
-                    driverStatus
-            );
-
-            return;
-        }
-
-        openDriver();
-    }
-
-    private void showDriverPendingScreen(
-            String status) {
-
-        LinearLayout root =
-                createRoot();
-
-        TextView title =
-                text(
-                        "🛺 SAKAY NA",
-                        30,
-                        Color.rgb(20, 20, 20)
-                );
-
-        title.setGravity(
-                Gravity.CENTER
-        );
-
-        root.addView(title);
-
-        TextView heading =
-                text(
-                        "🟡 DRIVER APPROVAL PENDING",
-                        22,
-                        Color.rgb(180, 120, 0)
-                );
-
-        heading.setGravity(
-                Gravity.CENTER
-        );
-
-        root.addView(heading);
-
-        String displayStatus =
-                status == null ||
-                status.isEmpty()
-                        ? "PENDING_APPROVAL"
-                        : status;
-
-        TextView message =
-                text(
-                        "Your driver account is registered.\n\n" +
-                        "Current status:\n" +
-                        displayStatus +
-                        "\n\n" +
-                        "An Admin must approve your " +
-                        "driver account before you can " +
-                        "accept passenger rides.",
-                        16,
-                        Color.DKGRAY
-                );
-
-        message.setGravity(
-                Gravity.CENTER
-        );
-
-        root.addView(message);
-
-        Button refresh =
-                button(
-                        "🔄 CHECK APPROVAL AGAIN"
-                );
-
-        refresh.setOnClickListener(
-                v -> {
-
-                    FirebaseUser user =
-                            auth.getCurrentUser();
-
-                    if (user == null) {
-
-                        showLoginScreen();
+                .addOnSuccessListener(document -> {
+
+                    if (!document.exists()) {
+
+                        Toast.makeText(
+                                this,
+                                "User profile not found.",
+                                Toast.LENGTH_LONG
+                        ).show();
 
                         return;
                     }
 
-                    showLoading(
-                            "Checking approval..."
-                    );
+                    String role = document.getString("role");
 
-                    loadUserRole(
-                            user.getUid()
-                    );
-                }
-        );
+                    if (role == null) {
+                        Toast.makeText(
+                                this,
+                                "User role is missing.",
+                                Toast.LENGTH_LONG
+                        ).show();
 
-        root.addView(refresh);
+                        return;
+                    }
 
-        Button logout =
-                button(
-                        "🚪 LOGOUT"
+                    if ("ADMIN".equals(role)) {
+
+                        openAdmin();
+
+                    } else if ("DRIVER".equals(role)) {
+
+                        Boolean approved =
+                                document.getBoolean("approved");
+
+                        Boolean canAccept =
+                                document.getBoolean("canAcceptRides");
+
+                        String driverStatus =
+                                document.getString("driverStatus");
+
+                        if (Boolean.TRUE.equals(approved)
+                                && Boolean.TRUE.equals(canAccept)
+                                && "APPROVED".equals(driverStatus)) {
+
+                            openDriver();
+
+                        } else {
+
+                            showDriverPending();
+
+                        }
+
+                    } else {
+
+                        openPassenger();
+                    }
+                })
+                .addOnFailureListener(e ->
+                        Toast.makeText(
+                                this,
+                                "Unable to load profile: "
+                                        + e.getMessage(),
+                                Toast.LENGTH_LONG
+                        ).show()
                 );
+    }
 
-        logout.setOnClickListener(
-                v -> {
+    private void showDriverPending() {
 
-                    auth.signOut();
+        root.removeAllViews();
 
-                    showLoginScreen();
-                }
+        TextView icon = new TextView(this);
+        icon.setText("🧑‍✈️");
+        icon.setTextSize(60);
+        icon.setGravity(Gravity.CENTER);
+
+        root.addView(
+                icon,
+                new LinearLayout.LayoutParams(-1, 100)
         );
 
-        root.addView(logout);
+        TextView title = new TextView(this);
+        title.setText("DRIVER APPROVAL");
+        title.setTextSize(26);
+        title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        title.setGravity(Gravity.CENTER);
 
-        setContentView(root);
+        root.addView(
+                title,
+                new LinearLayout.LayoutParams(-1, 70)
+        );
+
+        TextView message = new TextView(this);
+        message.setText(
+                "Your driver account is waiting for approval.\n\n"
+                        + "You cannot accept rides until an administrator approves your driver account."
+        );
+        message.setTextSize(17);
+        message.setGravity(Gravity.CENTER);
+        message.setPadding(10, 20, 10, 20);
+
+        root.addView(
+                message,
+                new LinearLayout.LayoutParams(-1, 180)
+        );
+
+        Button check = new Button(this);
+        check.setText("CHECK APPROVAL AGAIN");
+        check.setAllCaps(false);
+
+        root.addView(
+                check,
+                new LinearLayout.LayoutParams(-1, 60)
+        );
+
+        check.setOnClickListener(v -> {
+
+            FirebaseUser user = auth.getCurrentUser();
+
+            if (user != null) {
+                loadUserAndOpen(user);
+            }
+        });
+
+        addSpace(15);
+
+        Button logout = new Button(this);
+        logout.setText("LOG OUT");
+        logout.setAllCaps(false);
+
+        root.addView(
+                logout,
+                new LinearLayout.LayoutParams(-1, 60)
+        );
+
+        logout.setOnClickListener(v -> logout());
     }
 
     private void openPassenger() {
 
-        hideLoading();
-
-        Intent intent =
+        startActivity(
                 new Intent(
-                        this,
+                        MainActivity.this,
                         PassengerActivity.class
-                );
-
-        startActivity(intent);
+                )
+        );
 
         finish();
     }
 
     private void openDriver() {
 
-        hideLoading();
-
-        Intent intent =
+        startActivity(
                 new Intent(
-                        this,
+                        MainActivity.this,
                         DriverActivity.class
-                );
-
-        startActivity(intent);
+                )
+        );
 
         finish();
     }
 
     private void openAdmin() {
 
-        hideLoading();
-
-        Intent intent =
+        startActivity(
                 new Intent(
-                        this,
+                        MainActivity.this,
                         AdminActivity.class
-                );
-
-        startActivity(intent);
+                )
+        );
 
         finish();
     }
 
-    private void showLoading(
-            String message) {
+    private void logout() {
 
-        if (progressBar != null) {
+        auth.signOut();
 
-            progressBar.setVisibility(
-                    View.VISIBLE
-            );
-        }
-
-        if (actionButton != null) {
-
-            actionButton.setEnabled(
-                    false
-            );
-        }
-
-        if (switchButton != null) {
-
-            switchButton.setEnabled(
-                    false
-            );
-        }
-
-        if (modeText != null) {
-
-            modeText.setText(
-                    message
-            );
-        }
-    }
-
-    private void hideLoading() {
-
-        if (progressBar != null) {
-
-            progressBar.setVisibility(
-                    View.GONE
-            );
-        }
-
-        if (actionButton != null) {
-
-            actionButton.setEnabled(
-                    true
-            );
-        }
-
-        if (switchButton != null) {
-
-            switchButton.setEnabled(
-                    true
-            );
-        }
-
-        if (modeText != null) {
-
-            modeText.setText(
-                    registerMode
-                            ? "REGISTER"
-                            : "LOGIN"
-            );
-        }
-    }
-
-    private void showMessage(
-            String message) {
+        buildMainPage();
 
         Toast.makeText(
                 this,
-                message,
-                Toast.LENGTH_LONG
+                "Logged out",
+                Toast.LENGTH_SHORT
         ).show();
-    }
-
-    private LinearLayout createRoot() {
-
-        LinearLayout root =
-                new LinearLayout(this);
-
-        root.setOrientation(
-                LinearLayout.VERTICAL
-        );
-
-        root.setGravity(
-                Gravity.CENTER_HORIZONTAL
-        );
-
-        root.setPadding(
-                32,
-                60,
-                32,
-                32
-        );
-
-        root.setBackgroundColor(
-                Color.WHITE
-        );
-
-        return root;
-    }
-
-    private TextView text(
-            String value,
-            int size,
-            int color) {
-
-        TextView view =
-                new TextView(this);
-
-        view.setText(
-                value
-        );
-
-        view.setTextSize(
-                size
-        );
-
-        view.setTextColor(
-                color
-        );
-
-        view.setPadding(
-                10,
-                12,
-                10,
-                12
-        );
-
-        return view;
-    }
-
-    private Button button(
-            String label) {
-
-        Button button =
-                new Button(this);
-
-        button.setText(
-                label
-        );
-
-        button.setTextSize(
-                15
-        );
-
-        button.setAllCaps(
-                false
-        );
-
-        return button;
-    }
-
-    private LinearLayout.LayoutParams
-    inputParams() {
-
-        LinearLayout.LayoutParams params =
-                new LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT
-                );
-
-        params.setMargins(
-                0,
-                8,
-                0,
-                8
-        );
-
-        return params;
     }
 }
