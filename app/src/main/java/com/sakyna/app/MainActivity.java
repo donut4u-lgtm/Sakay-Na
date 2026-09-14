@@ -28,12 +28,12 @@ public class MainActivity extends Activity {
     private FirebaseAuth auth;
     private FirebaseFirestore db;
 
-    private EditText emailInput;
+    private EditText phoneInput;
     private EditText passwordInput;
 
-    private int darkText = Color.rgb(35, 35, 35);
-    private int grayText = Color.rgb(90, 90, 90);
-    private int green = Color.rgb(0, 150, 80);
+    private final int darkText = Color.rgb(35, 35, 35);
+    private final int grayText = Color.rgb(90, 90, 90);
+    private final int green = Color.rgb(0, 150, 80);
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -59,10 +59,6 @@ public class MainActivity extends Activity {
 
         scrollView.addView(root);
 
-        // ---------------------------------------------------------
-        // LOGO
-        // ---------------------------------------------------------
-
         TextView logo = new TextView(this);
         logo.setText("🛺");
         logo.setTextSize(54);
@@ -76,17 +72,12 @@ public class MainActivity extends Activity {
                 )
         );
 
-        // ---------------------------------------------------------
-        // TITLE
-        // ---------------------------------------------------------
-
         TextView title = new TextView(this);
         title.setText("SAKAY NA");
         title.setTextColor(Color.rgb(20, 20, 20));
         title.setTextSize(34);
         title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         title.setGravity(Gravity.CENTER);
-        title.setIncludeFontPadding(true);
 
         LinearLayout.LayoutParams titleParams =
                 new LinearLayout.LayoutParams(
@@ -97,16 +88,11 @@ public class MainActivity extends Activity {
         titleParams.setMargins(0, 4, 0, 4);
         root.addView(title, titleParams);
 
-        // ---------------------------------------------------------
-        // SUBTITLE
-        // ---------------------------------------------------------
-
         TextView subtitle = new TextView(this);
         subtitle.setText("Your local tricycle ride, made simple.");
         subtitle.setTextColor(grayText);
         subtitle.setTextSize(18);
         subtitle.setGravity(Gravity.CENTER);
-        subtitle.setIncludeFontPadding(true);
 
         LinearLayout.LayoutParams subtitleParams =
                 new LinearLayout.LayoutParams(
@@ -118,17 +104,16 @@ public class MainActivity extends Activity {
         root.addView(subtitle, subtitleParams);
 
         // ---------------------------------------------------------
-        // EMAIL
+        // PHONE NUMBER
         // ---------------------------------------------------------
 
-        emailInput = createInput(
-                "Email",
-                InputType.TYPE_CLASS_TEXT |
-                        InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS
+        phoneInput = createInput(
+                "Phone Number",
+                InputType.TYPE_CLASS_PHONE
         );
 
         root.addView(
-                emailInput,
+                phoneInput,
                 new LinearLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         60
@@ -155,7 +140,7 @@ public class MainActivity extends Activity {
         root.addView(passwordInput, passwordParams);
 
         // ---------------------------------------------------------
-        // LOGIN BUTTON
+        // LOGIN
         // ---------------------------------------------------------
 
         Button loginButton = createButton("LOGIN");
@@ -172,10 +157,11 @@ public class MainActivity extends Activity {
         loginButton.setOnClickListener(v -> loginUser());
 
         // ---------------------------------------------------------
-        // CREATE ACCOUNT BUTTON
+        // CREATE ACCOUNT
         // ---------------------------------------------------------
 
-        Button createButton = createOutlineButton("CREATE ACCOUNT");
+        Button createButton =
+                createOutlineButton("CREATE ACCOUNT");
 
         LinearLayout.LayoutParams createParams =
                 new LinearLayout.LayoutParams(
@@ -189,7 +175,7 @@ public class MainActivity extends Activity {
         createButton.setOnClickListener(v -> createAccount());
 
         // ---------------------------------------------------------
-        // ROLE INFORMATION
+        // ROLES
         // ---------------------------------------------------------
 
         TextView roles = new TextView(this);
@@ -197,7 +183,6 @@ public class MainActivity extends Activity {
         roles.setTextColor(Color.rgb(110, 110, 110));
         roles.setTextSize(17);
         roles.setGravity(Gravity.CENTER);
-        roles.setTypeface(Typeface.DEFAULT, Typeface.NORMAL);
 
         LinearLayout.LayoutParams rolesParams =
                 new LinearLayout.LayoutParams(
@@ -207,10 +192,6 @@ public class MainActivity extends Activity {
 
         rolesParams.setMargins(0, 30, 0, 0);
         root.addView(roles, rolesParams);
-
-        // ---------------------------------------------------------
-        // FOOTER
-        // ---------------------------------------------------------
 
         TextView footer = new TextView(this);
         footer.setText("Safe rides. Simple booking. Local service.");
@@ -231,7 +212,7 @@ public class MainActivity extends Activity {
     }
 
     // =============================================================
-    // INPUT STYLE
+    // INPUT
     // =============================================================
 
     private EditText createInput(String hint, int inputType) {
@@ -308,25 +289,75 @@ public class MainActivity extends Activity {
     }
 
     // =============================================================
+    // NORMALIZE PHONE NUMBER
+    // =============================================================
+
+    private String normalizePhone(String phone) {
+
+        String digits = phone.replaceAll("[^0-9]", "");
+
+        if (digits.startsWith("0") && digits.length() == 11) {
+            digits = "63" + digits.substring(1);
+        }
+
+        if (digits.startsWith("9") && digits.length() == 10) {
+            digits = "63" + digits;
+        }
+
+        return digits;
+    }
+
+    // =============================================================
+    // INTERNAL FIREBASE AUTH IDENTIFIER
+    //
+    // The user never sees or enters an email.
+    // This is only an internal Firebase identifier derived
+    // from the phone number so Firebase Auth can use its
+    // existing password authentication mechanism.
+    // =============================================================
+
+    private String firebaseIdentifier(String phone) {
+
+        return phone + "@sakyna.app";
+    }
+
+    // =============================================================
     // LOGIN
     // =============================================================
 
     private void loginUser() {
 
-        String email = emailInput.getText().toString().trim();
-        String password = passwordInput.getText().toString();
+        String phone =
+                normalizePhone(
+                        phoneInput.getText().toString().trim()
+                );
 
-        if (email.isEmpty()) {
-            emailInput.setError("Enter your email");
-            emailInput.requestFocus();
+        String password =
+                passwordInput.getText().toString();
+
+        if (phone.isEmpty()) {
+
+            phoneInput.setError("Enter your phone number");
+            phoneInput.requestFocus();
+            return;
+        }
+
+        if (phone.length() < 11) {
+
+            phoneInput.setError("Enter a valid phone number");
+            phoneInput.requestFocus();
             return;
         }
 
         if (password.isEmpty()) {
+
             passwordInput.setError("Enter your password");
             passwordInput.requestFocus();
             return;
         }
+
+        String firebaseIdentifier =
+                firebaseIdentifier(phone);
 
         Toast.makeText(
                 this,
@@ -334,19 +365,25 @@ public class MainActivity extends Activity {
                 Toast.LENGTH_SHORT
         ).show();
 
-        auth.signInWithEmailAndPassword(email, password)
+        auth.signInWithEmailAndPassword(
+                firebaseIdentifier,
+                password
+        )
                 .addOnSuccessListener(result -> {
 
                     if (auth.getCurrentUser() == null) {
+
                         Toast.makeText(
                                 this,
                                 "Login error.",
                                 Toast.LENGTH_LONG
                         ).show();
+
                         return;
                     }
 
-                    String uid = auth.getCurrentUser().getUid();
+                    String uid =
+                            auth.getCurrentUser().getUid();
 
                     db.collection("users")
                             .document(uid)
@@ -354,11 +391,13 @@ public class MainActivity extends Activity {
                             .addOnSuccessListener(document -> {
 
                                 if (!document.exists()) {
+
                                     Toast.makeText(
                                             this,
                                             "User profile not found.",
                                             Toast.LENGTH_LONG
                                     ).show();
+
                                     return;
                                 }
 
@@ -369,10 +408,7 @@ public class MainActivity extends Activity {
                                     role = "PASSENGER";
                                 }
 
-                                // -------------------------------------------------
                                 // ADMIN
-                                // -------------------------------------------------
-
                                 if (role.equals("ADMIN")) {
 
                                     startActivity(
@@ -386,14 +422,13 @@ public class MainActivity extends Activity {
                                     return;
                                 }
 
-                                // -------------------------------------------------
                                 // DRIVER
-                                // -------------------------------------------------
-
                                 if (role.equals("DRIVER")) {
 
                                     Boolean approved =
-                                            document.getBoolean("approved");
+                                            document.getBoolean(
+                                                    "approved"
+                                            );
 
                                     Boolean canAcceptRides =
                                             document.getBoolean(
@@ -406,7 +441,9 @@ public class MainActivity extends Activity {
                                             );
 
                                     boolean driverApproved =
-                                            Boolean.TRUE.equals(approved)
+                                            Boolean.TRUE.equals(
+                                                    approved
+                                            )
                                                     &&
                                             Boolean.TRUE.equals(
                                                     canAcceptRides
@@ -435,10 +472,7 @@ public class MainActivity extends Activity {
                                     return;
                                 }
 
-                                // -------------------------------------------------
                                 // PASSENGER
-                                // -------------------------------------------------
-
                                 startActivity(
                                         new android.content.Intent(
                                                 this,
@@ -474,22 +508,40 @@ public class MainActivity extends Activity {
 
     private void createAccount() {
 
-        String email = emailInput.getText().toString().trim();
-        String password = passwordInput.getText().toString();
+        String phone =
+                normalizePhone(
+                        phoneInput.getText().toString().trim()
+                );
 
-        if (email.isEmpty()) {
-            emailInput.setError("Enter your email");
-            emailInput.requestFocus();
+        String password =
+                passwordInput.getText().toString();
+
+        if (phone.isEmpty()) {
+
+            phoneInput.setError("Enter your phone number");
+            phoneInput.requestFocus();
+            return;
+        }
+
+        if (phone.length() < 11) {
+
+            phoneInput.setError("Enter a valid phone number");
+            phoneInput.requestFocus();
             return;
         }
 
         if (password.length() < 6) {
+
             passwordInput.setError(
                     "Password must be at least 6 characters"
             );
+
             passwordInput.requestFocus();
             return;
         }
+
+        String firebaseIdentifier =
+                firebaseIdentifier(phone);
 
         Toast.makeText(
                 this,
@@ -497,15 +549,20 @@ public class MainActivity extends Activity {
                 Toast.LENGTH_SHORT
         ).show();
 
-        auth.createUserWithEmailAndPassword(email, password)
+        auth.createUserWithEmailAndPassword(
+                firebaseIdentifier,
+                password
+        )
                 .addOnSuccessListener(result -> {
 
                     if (auth.getCurrentUser() == null) {
+
                         Toast.makeText(
                                 this,
                                 "Account creation error.",
                                 Toast.LENGTH_LONG
                         ).show();
+
                         return;
                     }
 
@@ -516,10 +573,11 @@ public class MainActivity extends Activity {
                             new HashMap<>();
 
                     user.put("role", "PASSENGER");
+                    user.put("phone", phone);
                     user.put("approved", true);
                     user.put("driverStatus", "NOT_DRIVER");
                     user.put("canAcceptRides", false);
-                    user.put("email", email);
+
                     user.put(
                             "createdAt",
                             com.google.firebase.firestore.FieldValue
@@ -641,16 +699,14 @@ public class MainActivity extends Activity {
 
         checkButton.setOnClickListener(v -> {
 
-            FirebaseAuth currentAuth =
-                    FirebaseAuth.getInstance();
+            if (auth.getCurrentUser() == null) {
 
-            if (currentAuth.getCurrentUser() == null) {
                 showLoginScreen();
                 return;
             }
 
             String uid =
-                    currentAuth.getCurrentUser().getUid();
+                    auth.getCurrentUser().getUid();
 
             db.collection("users")
                     .document(uid)
@@ -717,7 +773,7 @@ public class MainActivity extends Activity {
 
         logoutButton.setOnClickListener(v -> {
 
-            FirebaseAuth.getInstance().signOut();
+            auth.signOut();
 
             showLoginScreen();
         });
