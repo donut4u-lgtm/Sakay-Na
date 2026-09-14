@@ -1,46 +1,61 @@
 package com.sakyna.app;
 
+import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
-import android.graphics.Color;
+import android.content.pm.PackageManager;
+import android.location.Address;
+import android.location.Geocoder;
+import android.location.Location;
+import android.location.LocationListener;
+import android.location.LocationManager;
 import android.os.Bundle;
-import android.view.Gravity;
-import android.view.ViewGroup;
 import android.webkit.JavascriptInterface;
+import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
-import android.widget.Toast;
+import android.view.Gravity;
+import android.view.ViewGroup;
+import android.graphics.Color;
 
-import com.google.firebase.firestore.DocumentSnapshot;
+import androidx.annotation.NonNull;
+
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
 
+import java.io.IOException;
+import java.util.List;
 import java.util.Locale;
 
 public class MapActivity extends Activity {
 
+    private static final int LOCATION_PERMISSION_REQUEST = 5001;
+
     private WebView webView;
     private TextView statusText;
+
+    private LocationManager locationManager;
+    private LocationListener locationListener;
 
     private FirebaseFirestore db;
     private ListenerRegistration rideListener;
 
-    private double pickupLat;
-    private double pickupLng;
+    private double currentLat = 0.0;
+    private double currentLng = 0.0;
 
-    private double destinationLat;
-    private double destinationLng;
+    private double destinationLat = 0.0;
+    private double destinationLng = 0.0;
 
-    private boolean destinationSelected = false;
+    private String destinationAddress = "";
 
-    private String mode = "";
+    private String mode = "SELECT_DESTINATION";
     private String rideId = "";
 
-    private Button confirmButton;
+    private boolean mapLoaded = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -50,61 +65,69 @@ public class MapActivity extends Activity {
 
         Intent intent = getIntent();
 
-        mode = intent.getStringExtra("mode");
-        if (mode == null) {
-            mode = "";
+        if (intent != null) {
+
+            String receivedMode =
+                    intent.getStringExtra("mode");
+
+            if (receivedMode != null &&
+                    !receivedMode.trim().isEmpty()) {
+
+                mode = receivedMode;
+            }
+
+            String receivedRideId =
+                    intent.getStringExtra("ride_id");
+
+            if (receivedRideId != null &&
+                    !receivedRideId.trim().isEmpty()) {
+
+                rideId = receivedRideId;
+                mode = "LIVE_RIDE";
+            }
+
+            destinationLat =
+                    intent.getDoubleExtra(
+                            "destination_latitude",
+                            0.0
+                    );
+
+            destinationLng =
+                    intent.getDoubleExtra(
+                            "destination_longitude",
+                            0.0
+                    );
         }
-
-        rideId = intent.getStringExtra("ride_id");
-        if (rideId == null) {
-            rideId = "";
-        }
-
-        pickupLat = intent.getDoubleExtra(
-                "passenger_latitude",
-                0.0
-        );
-
-        pickupLng = intent.getDoubleExtra(
-                "passenger_longitude",
-                0.0
-        );
 
         buildScreen();
-
-        if ("LIVE_RIDE".equals(mode)
-                || !rideId.isEmpty()) {
-
-            setupLiveRide();
-
-        } else {
-
-            setupDestinationSelection();
-        }
+        setupLocation();
     }
 
     private void buildScreen() {
 
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(Color.WHITE);
+        LinearLayout root =
+                new LinearLayout(this);
 
-        TextView title = new TextView(this);
+        root.setOrientation(
+                LinearLayout.VERTICAL
+        );
 
-        if ("LIVE_RIDE".equals(mode)
-                || !rideId.isEmpty()) {
+        root.setBackgroundColor(
+                Color.WHITE
+        );
 
+        TextView title =
+                new TextView(this);
+
+        if ("LIVE_RIDE".equals(mode)) {
             title.setText("🗺️ LIVE RIDE MAP");
-
         } else {
-
-            title.setText("🗺️ CHOOSE DESTINATION");
+            title.setText("📍 SELECT DESTINATION");
         }
 
         title.setTextSize(21);
-        title.setTextColor(Color.rgb(0, 110, 70));
         title.setGravity(Gravity.CENTER);
-        title.setPadding(10, 20, 10, 15);
+        title.setPadding(10, 15, 10, 10);
 
         root.addView(
                 title,
@@ -114,10 +137,16 @@ public class MapActivity extends Activity {
                 )
         );
 
-        statusText = new TextView(this);
-        statusText.setTextSize(16);
+        statusText =
+                new TextView(this);
+
+        statusText.setText(
+                "📍 Finding your exact location..."
+        );
+
+        statusText.setTextSize(15);
         statusText.setGravity(Gravity.CENTER);
-        statusText.setPadding(10, 5, 10, 15);
+        statusText.setPadding(10, 5, 10, 10);
 
         root.addView(
                 statusText,
@@ -129,16 +158,28 @@ public class MapActivity extends Activity {
 
         webView = new WebView(this);
 
-        WebSettings settings = webView.getSettings();
+        WebSettings settings =
+                webView.getSettings();
 
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
-        settings.setBuiltInZoomControls(true);
+        settings.setDatabaseEnabled(true);
+        settings.setGeolocationEnabled(true);
+        settings.setBuiltInZoomControls(false);
         settings.setDisplayZoomControls(false);
-        settings.setLoadWithOverviewMode(false);
-        settings.setUseWideViewPort(true);
 
-        webView.setWebViewClient(new WebViewClient());
+        webView.setWebViewClient(
+                new WebViewClient()
+        );
+
+        webView.setWebChromeClient(
+                new WebChromeClient()
+        );
+
+        webView.addJavascriptInterface(
+                new MapBridge(),
+                "Android"
+        );
 
         root.addView(
                 webView,
@@ -149,17 +190,33 @@ public class MapActivity extends Activity {
                 )
         );
 
-        if (!"LIVE_RIDE".equals(mode)
-                && rideId.isEmpty()) {
+        if ("SELECT_DESTINATION".equals(mode)) {
 
-            confirmButton = new Button(this);
+            Button useLocationButton =
+                    new Button(this);
 
-            confirmButton.setText(
-                    "✅ CONFIRM DESTINATION"
+            useLocationButton.setText(
+                    "📍 USE MY CURRENT LOCATION"
             );
 
-            confirmButton.setTextSize(17);
-            confirmButton.setEnabled(false);
+            useLocationButton.setOnClickListener(
+                    v -> centerOnCurrentLocation()
+            );
+
+            root.addView(
+                    useLocationButton,
+                    new LinearLayout.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.WRAP_CONTENT
+                    )
+            );
+
+            Button confirmButton =
+                    new Button(this);
+
+            confirmButton.setText(
+                    "🏁 CONFIRM DESTINATION"
+            );
 
             confirmButton.setOnClickListener(
                     v -> confirmDestination()
@@ -172,94 +229,36 @@ public class MapActivity extends Activity {
                             ViewGroup.LayoutParams.WRAP_CONTENT
                     )
             );
-
-        } else {
-
-            Button closeButton = new Button(this);
-
-            closeButton.setText(
-                    "⬅️ BACK"
-            );
-
-            closeButton.setOnClickListener(
-                    v -> finish()
-            );
-
-            root.addView(
-                    closeButton,
-                    new LinearLayout.LayoutParams(
-                            ViewGroup.LayoutParams.MATCH_PARENT,
-                            ViewGroup.LayoutParams.WRAP_CONTENT
-                    )
-            );
         }
+
+        Button backButton =
+                new Button(this);
+
+        backButton.setText("⬅️ BACK");
+
+        backButton.setOnClickListener(
+                v -> finish()
+        );
+
+        root.addView(
+                backButton,
+                new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT
+                )
+        );
 
         setContentView(root);
+
+        loadMap();
     }
 
-    private void setupDestinationSelection() {
+    private void loadMap() {
 
-        if (pickupLat == 0.0
-                && pickupLng == 0.0) {
-
-            statusText.setText(
-                    "⚠️ Pickup location unavailable."
-            );
-
-            Toast.makeText(
-                    this,
-                    "Your current location was not received.",
-                    Toast.LENGTH_LONG
-            ).show();
-
-            return;
-        }
-
-        statusText.setText(
-                "👆 Tap the map to choose your destination."
-        );
-
-        loadDestinationMap();
-    }
-
-    private void loadDestinationMap() {
-
-        String html = createDestinationMapHtml();
-
-        webView.addJavascriptInterface(
-                new DestinationBridge(),
-                "Android"
-        );
-
-        webView.loadDataWithBaseURL(
-                "https://sakyna.app/",
-                html,
-                "text/html",
-                "UTF-8",
-                null
-        );
-    }
-
-    private String createDestinationMapHtml() {
-
-        String lat =
-                String.format(
-                        Locale.US,
-                        "%.8f",
-                        pickupLat
-                );
-
-        String lng =
-                String.format(
-                        Locale.US,
-                        "%.8f",
-                        pickupLng
-                );
-
-        return "<!DOCTYPE html>" +
+        String html =
+                "<!DOCTYPE html>" +
                 "<html>" +
                 "<head>" +
-
                 "<meta name='viewport' " +
                 "content='width=device-width, initial-scale=1.0'>" +
 
@@ -270,18 +269,15 @@ public class MapActivity extends Activity {
                 "</script>" +
 
                 "<style>" +
-
                 "html,body,#map{" +
                 "height:100%;" +
                 "width:100%;" +
                 "margin:0;" +
                 "padding:0;" +
                 "}" +
-
                 ".leaflet-control-attribution{" +
                 "font-size:9px;" +
                 "}" +
-
                 "</style>" +
 
                 "</head>" +
@@ -292,11 +288,18 @@ public class MapActivity extends Activity {
 
                 "<script>" +
 
-                "var pickupLat=" + lat + ";" +
-                "var pickupLng=" + lng + ";" +
+                "var map = L.map('map');" +
 
-                "var map=L.map('map').setView(" +
-                "[pickupLat,pickupLng],16);" +
+                "var userMarker = null;" +
+                "var destinationMarker = null;" +
+                "var driverMarker = null;" +
+
+                "var defaultLat = 14.5995;" +
+                "var defaultLng = 120.9842;" +
+
+                "map.setView([" +
+                "defaultLat,defaultLng" +
+                "],16);" +
 
                 "L.tileLayer(" +
                 "'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'," +
@@ -306,85 +309,425 @@ public class MapActivity extends Activity {
                 "}" +
                 ").addTo(map);" +
 
-                "var pickupMarker=L.marker(" +
-                "[pickupLat,pickupLng]" +
-                ").addTo(map);" +
+                "function setUser(lat,lng) {" +
 
-                "pickupMarker.bindPopup(" +
-                "'📍 YOUR PICKUP LOCATION'" +
-                ").openPopup();" +
+                " if(userMarker !== null) {" +
+                "   map.removeLayer(userMarker);" +
+                " }" +
 
-                "var destinationMarker=null;" +
+                " userMarker = L.marker([lat,lng])" +
+                ".addTo(map)" +
+                ".bindPopup('📍 Your current location')" +
+                ".openPopup();" +
 
-                "map.on('click',function(e){" +
+                " map.setView([lat,lng],17);" +
 
-                "var lat=e.latlng.lat;" +
-                "var lng=e.latlng.lng;" +
-
-                "if(destinationMarker!==null){" +
-                "map.removeLayer(destinationMarker);" +
                 "}" +
 
-                "destinationMarker=L.marker([lat,lng]).addTo(map);" +
+                "function setDestination(lat,lng,address) {" +
 
-                "destinationMarker.bindPopup(" +
-                "'🏁 YOUR DESTINATION'" +
-                ").openPopup();" +
+                " if(destinationMarker !== null) {" +
+                "   map.removeLayer(destinationMarker);" +
+                " }" +
 
-                "Android.destinationSelected(lat,lng);" +
+                " destinationMarker = L.marker([lat,lng])" +
+                ".addTo(map)" +
+                ".bindPopup('🏁 ' + address);" +
+
+                "}" +
+
+                "function setDriver(lat,lng) {" +
+
+                " if(driverMarker === null) {" +
+
+                "   driverMarker = L.marker([lat,lng])" +
+                ".addTo(map)" +
+                ".bindPopup('🛺 Driver');" +
+
+                " } else {" +
+
+                "   driverMarker.setLatLng([lat,lng]);" +
+
+                " }" +
+
+                "}" +
+
+                "map.on('click', function(e) {" +
+
+                " if(window.Android) {" +
+
+                "   Android.mapClicked(" +
+                "e.latlng.lat,e.latlng.lng" +
+                ");" +
+                " }" +
 
                 "});" +
+
+                "window.mapReady = true;" +
 
                 "</script>" +
 
                 "</body>" +
                 "</html>";
+
+        webView.loadDataWithBaseURL(
+                "https://sakyna.local/",
+                html,
+                "text/html",
+                "UTF-8",
+                null
+        );
     }
 
-    private class DestinationBridge {
+    private void setupLocation() {
+
+        locationManager =
+                (LocationManager)
+                        getSystemService(
+                                LOCATION_SERVICE
+                        );
+
+        if (checkSelfPermission(
+                Manifest.permission.ACCESS_FINE_LOCATION
+        ) != PackageManager.PERMISSION_GRANTED &&
+                checkSelfPermission(
+                        Manifest.permission.ACCESS_COARSE_LOCATION
+                ) != PackageManager.PERMISSION_GRANTED) {
+
+            requestPermissions(
+                    new String[]{
+                            Manifest.permission.ACCESS_FINE_LOCATION,
+                            Manifest.permission.ACCESS_COARSE_LOCATION
+                    },
+                    LOCATION_PERMISSION_REQUEST
+            );
+
+            statusText.setText(
+                    "📍 Please allow location permission."
+            );
+
+            return;
+        }
+
+        startLocationUpdates();
+    }
+
+    private void startLocationUpdates() {
+
+        if (locationManager == null) {
+            statusText.setText(
+                    "❌ Location service unavailable."
+            );
+            return;
+        }
+
+        locationListener =
+                new LocationListener() {
+
+                    @Override
+                    public void onLocationChanged(
+                            @NonNull Location location
+                    ) {
+
+                        currentLat =
+                                location.getLatitude();
+
+                        currentLng =
+                                location.getLongitude();
+
+                        statusText.setText(
+                                String.format(
+                                        Locale.US,
+                                        "📍 Current location: %.6f, %.6f",
+                                        currentLat,
+                                        currentLng
+                                )
+                        );
+
+                        updateUserMarker();
+
+                        if ("LIVE_RIDE".equals(mode)) {
+                            updateLivePassengerLocation();
+                        }
+                    }
+                };
+
+        try {
+
+            if (locationManager.isProviderEnabled(
+                    LocationManager.GPS_PROVIDER
+            )) {
+
+                locationManager.requestLocationUpdates(
+                        LocationManager.GPS_PROVIDER,
+                        2000,
+                        2,
+                        locationListener
+                );
+            }
+
+            if (locationManager.isProviderEnabled(
+                    LocationManager.NETWORK_PROVIDER
+            )) {
+
+                locationManager.requestLocationUpdates(
+                        LocationManager.NETWORK_PROVIDER,
+                        3000,
+                        5,
+                        locationListener
+                );
+            }
+
+            Location gps =
+                    locationManager.getLastKnownLocation(
+                            LocationManager.GPS_PROVIDER
+                    );
+
+            Location network =
+                    locationManager.getLastKnownLocation(
+                            LocationManager.NETWORK_PROVIDER
+                    );
+
+            Location best =
+                    chooseBestLocation(
+                            gps,
+                            network
+                    );
+
+            if (best != null) {
+
+                currentLat =
+                        best.getLatitude();
+
+                currentLng =
+                        best.getLongitude();
+
+                statusText.setText(
+                        String.format(
+                                Locale.US,
+                                "📍 Current location: %.6f, %.6f",
+                                currentLat,
+                                currentLng
+                        )
+                );
+
+                updateUserMarker();
+            }
+
+        } catch (SecurityException e) {
+
+            statusText.setText(
+                    "❌ Location permission denied."
+            );
+        }
+    }
+
+    private Location chooseBestLocation(
+            Location a,
+            Location b
+    ) {
+
+        if (a == null) return b;
+        if (b == null) return a;
+
+        return a.getTime() >= b.getTime()
+                ? a
+                : b;
+    }
+
+    private void updateUserMarker() {
+
+        if (!mapLoaded &&
+                webView.getUrl() == null) {
+            return;
+        }
+
+        if (currentLat == 0.0 ||
+                currentLng == 0.0) {
+            return;
+        }
+
+        webView.post(() -> {
+
+            String javascript =
+                    "if(typeof setUser === 'function')" +
+                    "{setUser(" +
+                    currentLat + "," +
+                    currentLng +
+                    ");}";
+
+            webView.evaluateJavascript(
+                    javascript,
+                    null
+            );
+
+            mapLoaded = true;
+        });
+    }
+
+    private void centerOnCurrentLocation() {
+
+        if (currentLat == 0.0 ||
+                currentLng == 0.0) {
+
+            statusText.setText(
+                    "📍 Still waiting for GPS..."
+            );
+
+            return;
+        }
+
+        webView.post(() -> {
+
+            String javascript =
+                    "map.setView([" +
+                    currentLat + "," +
+                    currentLng +
+                    "],18);";
+
+            webView.evaluateJavascript(
+                    javascript,
+                    null
+            );
+
+            updateUserMarker();
+        });
+    }
+
+    private class MapBridge {
 
         @JavascriptInterface
-        public void destinationSelected(
+        public void mapClicked(
                 double lat,
-                double lng) {
+                double lng
+        ) {
 
             runOnUiThread(() -> {
+
+                if (!"SELECT_DESTINATION".equals(mode)) {
+                    return;
+                }
 
                 destinationLat = lat;
                 destinationLng = lng;
 
-                destinationSelected = true;
+                destinationAddress =
+                        getAddress(
+                                lat,
+                                lng
+                        );
 
-                if (confirmButton != null) {
-                    confirmButton.setEnabled(true);
+                if (destinationAddress == null ||
+                        destinationAddress.trim().isEmpty()) {
+
+                    destinationAddress =
+                            String.format(
+                                    Locale.US,
+                                    "%.6f, %.6f",
+                                    lat,
+                                    lng
+                            );
                 }
 
                 statusText.setText(
                         String.format(
                                 Locale.US,
-                                "🏁 Destination selected\n%.6f, %.6f",
+                                "🏁 Destination selected: %.6f, %.6f",
                                 lat,
                                 lng
                         )
+                );
+
+                String safeAddress =
+                        destinationAddress
+                                .replace(
+                                        "\\",
+                                        "\\\\"
+                                )
+                                .replace(
+                                        "'",
+                                        "\\'"
+                                )
+                                .replace(
+                                        "\n",
+                                        " "
+                                );
+
+                String javascript =
+                        "setDestination(" +
+                        lat + "," +
+                        lng + ",'" +
+                        safeAddress +
+                        "');";
+
+                webView.evaluateJavascript(
+                        javascript,
+                        null
                 );
             });
         }
     }
 
+    private String getAddress(
+            double lat,
+            double lng
+    ) {
+
+        try {
+
+            Geocoder geocoder =
+                    new Geocoder(
+                            this,
+                            Locale.getDefault()
+                    );
+
+            List<Address> addresses =
+                    geocoder.getFromLocation(
+                            lat,
+                            lng,
+                            1
+                    );
+
+            if (addresses != null &&
+                    !addresses.isEmpty()) {
+
+                Address address =
+                        addresses.get(0);
+
+                String line =
+                        address.getAddressLine(0);
+
+                if (line != null) {
+                    return line;
+                }
+            }
+
+        } catch (IOException ignored) {
+        } catch (Exception ignored) {
+        }
+
+        return String.format(
+                Locale.US,
+                "%.6f, %.6f",
+                lat,
+                lng
+        );
+    }
+
     private void confirmDestination() {
 
-        if (!destinationSelected) {
+        if (destinationLat == 0.0 ||
+                destinationLng == 0.0) {
 
-            Toast.makeText(
-                    this,
-                    "Please tap the map first.",
-                    Toast.LENGTH_SHORT
-            ).show();
+            statusText.setText(
+                    "🏁 Tap the map to select a destination."
+            );
 
             return;
         }
 
-        Intent result = new Intent();
+        Intent result =
+                new Intent();
 
         result.putExtra(
                 "destination_latitude",
@@ -398,12 +741,7 @@ public class MapActivity extends Activity {
 
         result.putExtra(
                 "destination_address",
-                String.format(
-                        Locale.US,
-                        "Selected location (%.6f, %.6f)",
-                        destinationLat,
-                        destinationLng
-                )
+                destinationAddress
         );
 
         setResult(
@@ -414,23 +752,12 @@ public class MapActivity extends Activity {
         finish();
     }
 
-    private void setupLiveRide() {
+    private void startLiveRideListener() {
 
-        statusText.setText(
-                "⏳ Connecting to live ride..."
-        );
-
-        if (rideId == null
-                || rideId.isEmpty()) {
-
-            statusText.setText(
-                    "⚠️ Ride ID unavailable."
-            );
-
+        if (rideId == null ||
+                rideId.trim().isEmpty()) {
             return;
         }
-
-        loadLiveMap();
 
         rideListener =
                 db.collection("rides")
@@ -438,266 +765,131 @@ public class MapActivity extends Activity {
                         .addSnapshotListener(
                                 (snapshot, error) -> {
 
-                                    if (error != null) {
-
-                                        statusText.setText(
-                                                "⚠️ Unable to update live ride."
-                                        );
-
+                                    if (error != null ||
+                                            snapshot == null ||
+                                            !snapshot.exists()) {
                                         return;
                                     }
 
-                                    if (snapshot == null
-                                            || !snapshot.exists()) {
+                                    Double driverLat =
+                                            getDouble(
+                                                    snapshot,
+                                                    "driverLatitude"
+                                            );
 
-                                        statusText.setText(
-                                                "⚠️ Ride not found."
+                                    Double driverLng =
+                                            getDouble(
+                                                    snapshot,
+                                                    "driverLongitude"
+                                            );
+
+                                    if (driverLat != null &&
+                                            driverLng != null) {
+
+                                        showDriverLocation(
+                                                driverLat,
+                                                driverLng
                                         );
-
-                                        return;
                                     }
-
-                                    updateLiveRide(snapshot);
                                 }
                         );
     }
 
-    private void loadLiveMap() {
-
-        String startLat =
-                String.format(
-                        Locale.US,
-                        "%.8f",
-                        pickupLat == 0.0
-                                ? 14.5995
-                                : pickupLat
-                );
-
-        String startLng =
-                String.format(
-                        Locale.US,
-                        "%.8f",
-                        pickupLng == 0.0
-                                ? 120.9842
-                                : pickupLng
-                );
-
-        String html =
-                createLiveMapHtml(
-                        startLat,
-                        startLng
-                );
-
-        webView.addJavascriptInterface(
-                new LiveMapBridge(),
-                "Android"
-        );
-
-        webView.loadDataWithBaseURL(
-                "https://sakyna.app/",
-                html,
-                "text/html",
-                "UTF-8",
-                null
-        );
-    }
-
-    private String createLiveMapHtml(
-            String startLat,
-            String startLng) {
-
-        return "<!DOCTYPE html>" +
-                "<html>" +
-                "<head>" +
-
-                "<meta name='viewport' " +
-                "content='width=device-width, initial-scale=1.0'>" +
-
-                "<link rel='stylesheet' " +
-                "href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'>" +
-
-                "<script src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'>" +
-                "</script>" +
-
-                "<style>" +
-
-                "html,body,#map{" +
-                "height:100%;" +
-                "width:100%;" +
-                "margin:0;" +
-                "padding:0;" +
-                "}" +
-
-                "</style>" +
-
-                "</head>" +
-
-                "<body>" +
-
-                "<div id='map'></div>" +
-
-                "<script>" +
-
-                "var map=L.map('map').setView([" +
-                startLat + "," +
-                startLng + "],15);" +
-
-                "L.tileLayer(" +
-                "'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'," +
-                "{" +
-                "maxZoom:19," +
-                "attribution:'© OpenStreetMap contributors'" +
-                "}" +
-                ").addTo(map);" +
-
-                "var passengerMarker=L.marker([" +
-                startLat + "," +
-                startLng +
-                "]).addTo(map);" +
-
-                "passengerMarker.bindPopup(" +
-                "'📍 Passenger pickup'" +
-                ");" +
-
-                "var driverMarker=null;" +
-
-                "function updateDriver(lat,lng){" +
-
-                "if(driverMarker===null){" +
-
-                "driverMarker=L.marker([lat,lng])" +
-                ".addTo(map);" +
-
-                "driverMarker.bindPopup(" +
-                "'🛺 Driver location'" +
-                ").openPopup();" +
-
-                "}else{" +
-
-                "driverMarker.setLatLng([lat,lng]);" +
-
-                "}" +
-
-                "map.panTo([lat,lng]);" +
-
-                "}" +
-
-                "</script>" +
-
-                "</body>" +
-                "</html>";
-    }
-
-    private class LiveMapBridge {
-
-        @JavascriptInterface
-        public void updateDriverLocation(
-                double lat,
-                double lng) {
-
-            runOnUiThread(() -> {
-
-                if (webView != null) {
-
-                    String javascript =
-                            "updateDriver(" +
-                                    lat +
-                                    "," +
-                                    lng +
-                                    ");";
-
-                    webView.evaluateJavascript(
-                            javascript,
-                            null
-                    );
-                }
-            });
-        }
-    }
-
-    private void updateLiveRide(
-            DocumentSnapshot snapshot) {
-
-        String status =
-                snapshot.getString("status");
-
-        if (status == null) {
-            status = "UNKNOWN";
-        }
-
-        statusText.setText(
-                "Ride status: " + status
-        );
-
-        Double driverLat =
-                getDouble(snapshot, "driverLatitude");
-
-        Double driverLng =
-                getDouble(snapshot, "driverLongitude");
-
-        if (driverLat != null
-                && driverLng != null
-                && driverLat != 0.0
-                && driverLng != 0.0) {
-
-            String javascript =
-                    "updateDriver(" +
-                            driverLat +
-                            "," +
-                            driverLng +
-                            ");";
-
-            if (webView != null) {
-
-                webView.evaluateJavascript(
-                        javascript,
-                        null
-                );
-            }
-
-            statusText.setText(
-                    String.format(
-                            Locale.US,
-                            "🛺 Driver location\n%.6f, %.6f\nStatus: %s",
-                            driverLat,
-                            driverLng,
-                            status
-                    )
-            );
-        }
-
-        if ("COMPLETED".equals(status)) {
-
-            statusText.setText(
-                    "✅ Ride completed."
-            );
-        }
-
-        if ("CANCELLED".equals(status)) {
-
-            statusText.setText(
-                    "❌ Ride cancelled."
-            );
-        }
-    }
-
     private Double getDouble(
-            DocumentSnapshot snapshot,
-            String field) {
+            com.google.firebase.firestore.DocumentSnapshot snapshot,
+            String field
+    ) {
 
         Object value =
                 snapshot.get(field);
 
         if (value instanceof Number) {
-
             return ((Number) value).doubleValue();
         }
 
         return null;
     }
 
+    private void showDriverLocation(
+            double lat,
+            double lng
+    ) {
+
+        runOnUiThread(() -> {
+
+            String javascript =
+                    "setDriver(" +
+                    lat + "," +
+                    lng +
+                    ");";
+
+            webView.evaluateJavascript(
+                    javascript,
+                    null
+            );
+
+            statusText.setText(
+                    String.format(
+                            Locale.US,
+                            "🛺 Driver location: %.6f, %.6f",
+                            lat,
+                            lng
+                    )
+            );
+        });
+    }
+
+    private void updateLivePassengerLocation() {
+        // Passenger GPS is displayed locally.
+        // Driver GPS will come from Firestore.
+    }
+
+    @Override
+    public void onRequestPermissionsResult(
+            int requestCode,
+            @NonNull String[] permissions,
+            @NonNull int[] grantResults
+    ) {
+
+        super.onRequestPermissionsResult(
+                requestCode,
+                permissions,
+                grantResults
+        );
+
+        if (requestCode ==
+                LOCATION_PERMISSION_REQUEST) {
+
+            if (grantResults.length > 0 &&
+                    grantResults[0] ==
+                            PackageManager.PERMISSION_GRANTED) {
+
+                startLocationUpdates();
+
+            } else {
+
+                statusText.setText(
+                        "❌ Location permission denied."
+                );
+            }
+        }
+    }
+
     @Override
     protected void onDestroy() {
+
+        super.onDestroy();
+
+        if (locationManager != null &&
+                locationListener != null) {
+
+            try {
+                locationManager.removeUpdates(
+                        locationListener
+                );
+            } catch (Exception ignored) {
+            }
+        }
 
         if (rideListener != null) {
             rideListener.remove();
@@ -705,11 +897,7 @@ public class MapActivity extends Activity {
         }
 
         if (webView != null) {
-            webView.stopLoading();
             webView.destroy();
-            webView = null;
         }
-
-        super.onDestroy();
     }
 }
