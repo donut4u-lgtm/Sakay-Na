@@ -29,7 +29,6 @@ import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -270,7 +269,7 @@ public class PassengerActivity extends Activity {
         backButton = new Button(this);
         backButton.setText("⬅️ BACK");
         backButton.setOnClickListener(
-                v -> finish()
+                v -> returnToHome()
         );
         root.addView(backButton);
 
@@ -336,7 +335,6 @@ public class PassengerActivity extends Activity {
             public void onLocationChanged(
                     @NonNull Location location
             ) {
-
                 updateLocation(location);
             }
         };
@@ -1263,6 +1261,29 @@ public class PassengerActivity extends Activity {
                                 Toast.LENGTH_LONG
                         ).show()
                 );
+    }
+
+    /*
+     * BACK BUTTON
+     *
+     * This is intentionally different from LOG OUT.
+     * It does NOT call auth.signOut().
+     */
+    private void returnToHome() {
+
+        Intent intent =
+                new Intent(
+                        PassengerActivity.this,
+                        MainActivity.class
+                );
+
+        intent.addFlags(
+                Intent.FLAG_ACTIVITY_CLEAR_TOP |
+                        Intent.FLAG_ACTIVITY_SINGLE_TOP
+        );
+
+        startActivity(intent);
+        finish();
     }
 
     private void logout() {
