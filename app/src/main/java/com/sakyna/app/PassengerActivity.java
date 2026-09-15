@@ -1,4 +1,4 @@
-. 
+
 package com.sakyna.app;
 
 import android.Manifest;
