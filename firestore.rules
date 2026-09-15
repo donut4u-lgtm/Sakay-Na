@@ -1,293 +1,262 @@
+
 rules_version = '2';
 
 service cloud.firestore {
-match /databases/{database}/documents {
 
-// --------------------------------------------------
-// HELPER FUNCTIONS
-// --------------------------------------------------
+  match /databases/{database}/documents {
 
-function signedIn() {
-  return request.auth != null;
-}
+    // --------------------------------------------------
+    // HELPERS
+    // --------------------------------------------------
 
-function currentUser() {
-  return get(
-    /databases/$(database)/documents/users/$(request.auth.uid)
-  ).data;
-}
+    function signedIn() {
+      return request.auth != null;
+    }
 
-function isAdmin() {
-  return signedIn()
-    && currentUser().role == "ADMIN";
-}
+    function userDoc() {
+      return get(
+        /databases/$(database)/documents/users/$(request.auth.uid)
+      );
+    }
 
-function isDriver() {
-  return signedIn()
-    && currentUser().role == "DRIVER";
-}
+    function isAdmin() {
+      return signedIn()
+        && userDoc().data.role == "ADMIN";
+    }
 
-function isPassenger() {
-  return signedIn()
-    && currentUser().role == "PASSENGER";
-}
+    function isDriver() {
+      return signedIn()
+        && userDoc().data.role == "DRIVER";
+    }
 
-function isRideOwner() {
-  return signedIn()
-    && resource.data.passengerId == request.auth.uid;
-}
+    function isPassenger() {
+      return signedIn()
+        && userDoc().data.role == "PASSENGER";
+    }
 
-function isAssignedDriver() {
-  return signedIn()
-    && resource.data.driverId == request.auth.uid;
-}
+    // --------------------------------------------------
+    // USERS
+    // --------------------------------------------------
 
-// --------------------------------------------------
-// USERS
-// --------------------------------------------------
+    match /users/{userId} {
 
-match /users/{userId} {
+      allow read: if signedIn()
+        && (
+          request.auth.uid == userId
+          || isAdmin()
+        );
 
-  // A logged-in user can read their own profile.
-  // Admin can read all user profiles.
-  allow read: if signedIn()
-    && (
-      request.auth.uid == userId
-      || isAdmin()
-    );
+      allow create: if signedIn()
+        && request.auth.uid == userId
+        && request.resource.data.role in [
+          "PASSENGER",
+          "DRIVER"
+        ];
 
-  // User registration.
-  allow create: if signedIn()
-    && request.auth.uid == userId
-    && request.resource.data.role in [
-      "PASSENGER",
-      "DRIVER"
-    ];
+      allow update: if signedIn()
+        && (
+          isAdmin()
+          ||
+          (
+            request.auth.uid == userId
+            && request.resource.data.role == resource.data.role
+            && request.resource.data.approved == resource.data.approved
+            && request.resource.data.driverStatus == resource.data.driverStatus
+            && request.resource.data.canAcceptRides == resource.data.canAcceptRides
+          )
+        );
 
-  // Users may update normal profile information,
-  // but cannot change their own security/approval role.
-  allow update: if signedIn()
-    && request.auth.uid == userId
-    && (
-      isAdmin()
-      ||
-      (
-        request.resource.data.role == resource.data.role
-        && request.resource.data.approved == resource.data.approved
-        && request.resource.data.driverStatus == resource.data.driverStatus
-        && request.resource.data.canAcceptRides == resource.data.canAcceptRides
-      )
-    );
+      allow delete: if isAdmin();
+    }
 
-  // Only admin can delete users.
-  allow delete: if isAdmin();
-}
+    // --------------------------------------------------
+    // SETTINGS
+    // --------------------------------------------------
 
-// --------------------------------------------------
-// FARE SETTINGS
-// --------------------------------------------------
+    match /settings/{settingId} {
 
-match /settings/{settingId} {
+      allow read: if signedIn();
 
-  // Logged-in users can read fare settings.
-  allow read: if signedIn();
+      allow create, update, delete: if isAdmin();
+    }
 
-  // Only admin can change fares.
-  allow create, update, delete: if isAdmin();
-}
+    // --------------------------------------------------
+    // RIDES
+    // --------------------------------------------------
 
-// --------------------------------------------------
-// RIDES
-// --------------------------------------------------
+    match /rides/{rideId} {
 
-match /rides/{rideId} {
+      allow read: if signedIn()
+        && (
+          isAdmin()
+          || resource.data.passengerId == request.auth.uid
+          || resource.data.driverId == request.auth.uid
+          || (
+            isDriver()
+            && resource.data.status == "REQUESTED"
+          )
+        );
 
-  // Passengers can read their own rides.
-  // Drivers can read rides assigned to them.
-  // Drivers may also read REQUESTED rides so they can
-  // see available requests.
-  // Admin can read everything.
-  allow read: if signedIn()
-    && (
-      isAdmin()
-      || resource.data.passengerId == request.auth.uid
-      || resource.data.driverId == request.auth.uid
-      || (
-        isDriver()
+      allow create: if signedIn()
+        && isPassenger()
+        && request.resource.data.passengerId == request.auth.uid
+        && request.resource.data.status == "REQUESTED"
+        && request.resource.data.paymentStatus == "PENDING";
+
+      allow update, delete: if isAdmin();
+
+      // Passenger cancellation
+      allow update: if signedIn()
+        && isPassenger()
+        && resource.data.passengerId == request.auth.uid
+        && resource.data.status in [
+          "REQUESTED",
+          "ACCEPTED",
+          "DRIVER_ON_THE_WAY"
+        ]
+        && request.resource.data.status == "CANCELLED"
+        && request.resource.data.cancelledBy == "PASSENGER"
+        && request.resource.data.passengerId == resource.data.passengerId
+        && request.resource.data.driverId == resource.data.driverId;
+
+      // Driver accepts ride
+      allow update: if signedIn()
+        && isDriver()
         && resource.data.status == "REQUESTED"
-      )
-    );
+        && request.resource.data.driverId == request.auth.uid
+        && request.resource.data.status == "ACCEPTED"
+        && request.resource.data.passengerId == resource.data.passengerId;
 
-  // Passenger creates a new ride.
-  allow create: if signedIn()
-    && isPassenger()
-    && request.resource.data.passengerId == request.auth.uid
-    && request.resource.data.status == "REQUESTED"
-    && request.resource.data.paymentStatus == "PENDING";
+      // Driver progresses ride
+      allow update: if signedIn()
+        && isDriver()
+        && resource.data.driverId == request.auth.uid
+        && (
+          (
+            resource.data.status == "ACCEPTED"
+            && request.resource.data.status == "DRIVER_ON_THE_WAY"
+          )
+          ||
+          (
+            resource.data.status == "DRIVER_ON_THE_WAY"
+            && request.resource.data.status == "DRIVER_ARRIVED"
+          )
+          ||
+          (
+            resource.data.status == "DRIVER_ARRIVED"
+            && request.resource.data.status == "IN_PROGRESS"
+          )
+          ||
+          (
+            resource.data.status == "IN_PROGRESS"
+            && request.resource.data.status == "FINISHED"
+          )
+        )
+        && request.resource.data.passengerId == resource.data.passengerId
+        && request.resource.data.driverId == resource.data.driverId;
 
-  // ------------------------------------------------
-  // RIDE UPDATES
-  // ------------------------------------------------
+      // Driver declines ride
+      allow update: if signedIn()
+        && isDriver()
+        && resource.data.status == "REQUESTED"
+        && request.resource.data.status == "DECLINED"
+        && request.resource.data.passengerId == resource.data.passengerId;
 
-  // Admin has full ride control.
-  allow update, delete: if isAdmin();
+      // Passenger confirms payment
+      allow update: if signedIn()
+        && isPassenger()
+        && resource.data.passengerId == request.auth.uid
+        && resource.data.status == "FINISHED"
+        && request.resource.data.status == "COMPLETED"
+        && request.resource.data.paymentStatus == "CONFIRMED"
+        && request.resource.data.passengerId == resource.data.passengerId
+        && request.resource.data.driverId == resource.data.driverId;
 
-  // Passenger cancellation.
-  allow update: if signedIn()
-    && isPassenger()
-    && resource.data.passengerId == request.auth.uid
-    && resource.data.status in [
-      "REQUESTED",
-      "ACCEPTED",
-      "DRIVER_ON_THE_WAY"
-    ]
-    && request.resource.data.status == "CANCELLED"
-    && request.resource.data.cancelledBy == "PASSENGER"
-    && request.resource.data.passengerId == resource.data.passengerId
-    && request.resource.data.driverId == resource.data.driverId;
+      // Passenger submits rating
+      allow update: if signedIn()
+        && isPassenger()
+        && resource.data.passengerId == request.auth.uid
+        && resource.data.status == "COMPLETED"
+        && request.resource.data.passengerId == resource.data.passengerId
+        && request.resource.data.driverId == resource.data.driverId;
+    }
 
-  // Driver accepts a requested ride.
-  allow update: if signedIn()
-    && isDriver()
-    && resource.data.status == "REQUESTED"
-    && request.resource.data.driverId == request.auth.uid
-    && request.resource.data.status == "ACCEPTED"
-    && request.resource.data.passengerId == resource.data.passengerId;
+    // --------------------------------------------------
+    // DRIVER LOCATIONS
+    // --------------------------------------------------
 
-  // Driver progresses the ride.
-  allow update: if signedIn()
-    && isDriver()
-    && resource.data.driverId == request.auth.uid
-    && (
-      (
-        resource.data.status == "ACCEPTED"
-        && request.resource.data.status == "DRIVER_ON_THE_WAY"
-      )
-      ||
-      (
-        resource.data.status == "DRIVER_ON_THE_WAY"
-        && request.resource.data.status == "DRIVER_ARRIVED"
-      )
-      ||
-      (
-        resource.data.status == "DRIVER_ARRIVED"
-        && request.resource.data.status == "IN_PROGRESS"
-      )
-      ||
-      (
-        resource.data.status == "IN_PROGRESS"
-        && request.resource.data.status == "FINISHED"
-      )
-    )
-    && request.resource.data.passengerId == resource.data.passengerId
-    && request.resource.data.driverId == resource.data.driverId;
+    match /driverLocations/{driverId} {
 
-  // Driver can decline a requested ride.
-  allow update: if signedIn()
-    && isDriver()
-    && resource.data.status == "REQUESTED"
-    && request.resource.data.status == "DECLINED"
-    && request.resource.data.passengerId == resource.data.passengerId;
+      allow read: if signedIn();
 
-  // ------------------------------------------------
-  // PAYMENT / COMPLETION
-  // ------------------------------------------------
+      allow create, update: if signedIn()
+        && isDriver()
+        && request.auth.uid == driverId
+        && request.resource.data.driverId == request.auth.uid;
 
-  // Passenger can confirm payment and complete
-  // a finished ride.
-  allow update: if signedIn()
-    && isPassenger()
-    && resource.data.passengerId == request.auth.uid
-    && resource.data.status == "FINISHED"
-    && request.resource.data.status == "COMPLETED"
-    && request.resource.data.paymentStatus == "CONFIRMED"
-    && request.resource.data.passengerId == resource.data.passengerId
-    && request.resource.data.driverId == resource.data.driverId;
+      allow delete: if signedIn()
+        && (
+          (isDriver() && request.auth.uid == driverId)
+          || isAdmin()
+        );
+    }
 
-  // Passenger can submit driver rating after
-  // completion.
-  allow update: if signedIn()
-    && isPassenger()
-    && resource.data.passengerId == request.auth.uid
-    && resource.data.status == "COMPLETED"
-    && request.resource.data.passengerId == resource.data.passengerId
-    && request.resource.data.driverId == resource.data.driverId;
+    // --------------------------------------------------
+    // RIDE CHAT
+    // --------------------------------------------------
 
-}
+    match /rides/{rideId}/messages/{messageId} {
 
-// --------------------------------------------------
-// DRIVER LOCATIONS
-// --------------------------------------------------
+      // Passenger, assigned driver, or admin can read messages.
+      allow read: if signedIn()
+        && (
+          get(
+            /databases/$(database)/documents/rides/$(rideId)
+          ).data.passengerId == request.auth.uid
 
-match /driverLocations/{driverId} {
+          ||
 
-  // Logged-in users can see driver locations.
-  allow read: if signedIn();
+          get(
+            /databases/$(database)/documents/rides/$(rideId)
+          ).data.driverId == request.auth.uid
 
-  // Driver can update only their own location.
-  allow create, update: if signedIn()
-    && isDriver()
-    && request.auth.uid == driverId
-    && request.resource.data.driverId == request.auth.uid;
+          ||
 
-  // Driver can remove their own location.
-  // Admin can also remove locations.
-  allow delete: if signedIn()
-    && (
-      (isDriver() && request.auth.uid == driverId)
-      || isAdmin()
-    );
-}
+          isAdmin()
+        );
 
-// --------------------------------------------------
-// RIDE CHAT
-// --------------------------------------------------
+      // Passenger, assigned driver, or admin can send messages.
+      //
+      // IMPORTANT:
+      // We deliberately do NOT require senderRole here.
+      // The authenticated Firebase UID is the authority.
+      allow create: if signedIn()
+        && (
+          get(
+            /databases/$(database)/documents/rides/$(rideId)
+          ).data.passengerId == request.auth.uid
 
-match /rides/{rideId}/messages/{messageId} {
+          ||
 
-  // Only the passenger or assigned driver can read chat.
-  allow read: if signedIn()
-    && (
-      get(
-        /databases/$(database)/documents/rides/$(rideId)
-      ).data.passengerId == request.auth.uid
-      ||
-      get(
-        /databases/$(database)/documents/rides/$(rideId)
-      ).data.driverId == request.auth.uid
-      ||
-      isAdmin()
-    );
+          get(
+            /databases/$(database)/documents/rides/$(rideId)
+          ).data.driverId == request.auth.uid
 
-  // Passenger or assigned driver can send messages.
-  allow create: if signedIn()
-    && (
-      get(
-        /databases/$(database)/documents/rides/$(rideId)
-      ).data.passengerId == request.auth.uid
-      ||
-      get(
-        /databases/$(database)/documents/rides/$(rideId)
-      ).data.driverId == request.auth.uid
-    )
-    && request.resource.data.senderId == request.auth.uid
-    && request.resource.data.senderRole in [
-      "PASSENGER",
-      "DRIVER"
-    ];
+          ||
 
-  // Messages cannot be edited or deleted by normal users.
-  allow update, delete: if isAdmin();
-}
+          isAdmin()
+        )
+        && request.resource.data.senderId == request.auth.uid;
 
-// --------------------------------------------------
-// EVERYTHING ELSE
-// --------------------------------------------------
+      allow update, delete: if isAdmin();
+    }
 
-// Deny anything not explicitly allowed above.
-match /{document=**} {
-  allow read, write: if false;
-}
+    // --------------------------------------------------
+    // DENY EVERYTHING ELSE
+    // --------------------------------------------------
 
-}
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
 }
