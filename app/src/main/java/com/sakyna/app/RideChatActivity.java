@@ -34,6 +34,7 @@ public class RideChatActivity extends Activity {
     private LinearLayout messagesLayout;
     private EditText messageInput;
     private ScrollView scrollView;
+    private Button sendButton;
 
     private ListenerRegistration messageListener;
 
@@ -44,7 +45,10 @@ public class RideChatActivity extends Activity {
         auth = FirebaseAuth.getInstance();
         db = FirebaseFirestore.getInstance();
 
-        rideId = getIntent().getStringExtra("ride_id");
+        rideId =
+                getIntent().getStringExtra(
+                        "ride_id"
+                );
 
         if (rideId == null) {
             rideId = "";
@@ -68,16 +72,40 @@ public class RideChatActivity extends Activity {
 
     private void buildScreen() {
 
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(Color.WHITE);
+        LinearLayout root =
+                new LinearLayout(this);
 
-        TextView title = new TextView(this);
-        title.setText("Sakay Na Ride Chat");
+        root.setOrientation(
+                LinearLayout.VERTICAL
+        );
+
+        root.setBackgroundColor(
+                Color.WHITE
+        );
+
+        TextView title =
+                new TextView(this);
+
+        title.setText(
+                "Sakay Na Ride Chat"
+        );
+
         title.setTextSize(23);
-        title.setTextColor(Color.BLACK);
-        title.setGravity(Gravity.CENTER);
-        title.setPadding(16, 20, 16, 20);
+
+        title.setTextColor(
+                Color.BLACK
+        );
+
+        title.setGravity(
+                Gravity.CENTER
+        );
+
+        title.setPadding(
+                16,
+                20,
+                16,
+                20
+        );
 
         root.addView(
                 title,
@@ -87,12 +115,16 @@ public class RideChatActivity extends Activity {
                 )
         );
 
-        scrollView = new ScrollView(this);
+        scrollView =
+                new ScrollView(this);
 
-        messagesLayout = new LinearLayout(this);
+        messagesLayout =
+                new LinearLayout(this);
+
         messagesLayout.setOrientation(
                 LinearLayout.VERTICAL
         );
+
         messagesLayout.setPadding(
                 16,
                 16,
@@ -100,7 +132,9 @@ public class RideChatActivity extends Activity {
                 16
         );
 
-        scrollView.addView(messagesLayout);
+        scrollView.addView(
+                messagesLayout
+        );
 
         root.addView(
                 scrollView,
@@ -117,6 +151,7 @@ public class RideChatActivity extends Activity {
         bottom.setOrientation(
                 LinearLayout.HORIZONTAL
         );
+
         bottom.setPadding(
                 12,
                 12,
@@ -124,10 +159,18 @@ public class RideChatActivity extends Activity {
                 12
         );
 
-        messageInput = new EditText(this);
-        messageInput.setHint("Type a message...");
+        messageInput =
+                new EditText(this);
+
+        messageInput.setHint(
+                "Type a message..."
+        );
+
         messageInput.setTextSize(16);
-        messageInput.setSingleLine(true);
+
+        messageInput.setSingleLine(
+                true
+        );
 
         bottom.addView(
                 messageInput,
@@ -138,8 +181,16 @@ public class RideChatActivity extends Activity {
                 )
         );
 
-        Button sendButton = new Button(this);
-        sendButton.setText("SEND");
+        sendButton =
+                new Button(this);
+
+        sendButton.setText(
+                "SEND"
+        );
+
+        sendButton.setEnabled(
+                false
+        );
 
         bottom.addView(
                 sendButton,
@@ -150,12 +201,7 @@ public class RideChatActivity extends Activity {
         );
 
         sendButton.setOnClickListener(
-                new View.OnClickListener() {
-                    @Override
-                    public void onClick(View view) {
-                        sendMessage();
-                    }
-                }
+                v -> sendMessage()
         );
 
         root.addView(
@@ -215,8 +261,20 @@ public class RideChatActivity extends Activity {
                             String uid =
                                     user.getUid();
 
-                            if (!uid.equals(passengerId)
-                                    && !uid.equals(driverId)) {
+                            boolean passengerMatch =
+                                    passengerId != null
+                                            && uid.equals(
+                                            passengerId
+                                    );
+
+                            boolean driverMatch =
+                                    driverId != null
+                                            && uid.equals(
+                                            driverId
+                                    );
+
+                            if (!passengerMatch
+                                    && !driverMatch) {
 
                                 Toast.makeText(
                                         this,
@@ -227,13 +285,17 @@ public class RideChatActivity extends Activity {
                                 return;
                             }
 
+                            sendButton.setEnabled(
+                                    true
+                            );
+
                             listenForMessages();
                         }
                 )
                 .addOnFailureListener(
                         e -> Toast.makeText(
                                 this,
-                                "Ride check failed: "
+                                "Unable to open ride chat: "
                                         + e.getMessage(),
                                 Toast.LENGTH_LONG
                         ).show()
@@ -278,8 +340,10 @@ public class RideChatActivity extends Activity {
                                             : snapshots.getDocumentChanges()
                                     ) {
 
-                                        if (change.getType()
-                                                == DocumentChange.Type.ADDED) {
+                                        if (
+                                                change.getType()
+                                                        == DocumentChange.Type.ADDED
+                                        ) {
 
                                             addMessage(
                                                     change.getDocument()
@@ -321,7 +385,9 @@ public class RideChatActivity extends Activity {
         }
 
         boolean mine =
-                user.getUid().equals(senderId);
+                user.getUid().equals(
+                        senderId
+                );
 
         LinearLayout messageBox =
                 new LinearLayout(this);
@@ -346,7 +412,9 @@ public class RideChatActivity extends Activity {
                     "You"
             );
 
-        } else if ("DRIVER".equals(senderRole)) {
+        } else if (
+                "DRIVER".equals(senderRole)
+        ) {
 
             senderText.setText(
                     "Driver"
@@ -360,7 +428,10 @@ public class RideChatActivity extends Activity {
         }
 
         senderText.setTextSize(13);
-        senderText.setTextColor(Color.GRAY);
+
+        senderText.setTextColor(
+                Color.GRAY
+        );
 
         TextView messageText =
                 new TextView(this);
@@ -370,7 +441,11 @@ public class RideChatActivity extends Activity {
         );
 
         messageText.setTextSize(17);
-        messageText.setTextColor(Color.BLACK);
+
+        messageText.setTextColor(
+                Color.BLACK
+        );
+
         messageText.setPadding(
                 0,
                 4,
@@ -378,8 +453,13 @@ public class RideChatActivity extends Activity {
                 4
         );
 
-        messageBox.addView(senderText);
-        messageBox.addView(messageText);
+        messageBox.addView(
+                senderText
+        );
+
+        messageBox.addView(
+                messageText
+        );
 
         LinearLayout.LayoutParams params =
                 new LinearLayout.LayoutParams(
@@ -401,14 +481,9 @@ public class RideChatActivity extends Activity {
         );
 
         scrollView.post(
-                new Runnable() {
-                    @Override
-                    public void run() {
-                        scrollView.fullScroll(
-                                View.FOCUS_DOWN
-                        );
-                    }
-                }
+                () -> scrollView.fullScroll(
+                        View.FOCUS_DOWN
+                )
         );
     }
 
@@ -437,6 +512,10 @@ public class RideChatActivity extends Activity {
             return;
         }
 
+        sendButton.setEnabled(
+                false
+        );
+
         db.collection("rides")
                 .document(rideId)
                 .get()
@@ -444,6 +523,10 @@ public class RideChatActivity extends Activity {
                         rideSnapshot -> {
 
                             if (!rideSnapshot.exists()) {
+
+                                sendButton.setEnabled(
+                                        true
+                                );
 
                                 Toast.makeText(
                                         this,
@@ -466,17 +549,29 @@ public class RideChatActivity extends Activity {
 
                             String role;
 
-                            if (user.getUid().equals(driverId)) {
+                            if (
+                                    driverId != null
+                                            && user.getUid().equals(
+                                            driverId
+                                    )
+                            ) {
 
                                 role = "DRIVER";
 
                             } else if (
-                                    user.getUid().equals(passengerId)
+                                    passengerId != null
+                                            && user.getUid().equals(
+                                            passengerId
+                                    )
                             ) {
 
                                 role = "PASSENGER";
 
                             } else {
+
+                                sendButton.setEnabled(
+                                        true
+                                );
 
                                 Toast.makeText(
                                         this,
@@ -487,7 +582,8 @@ public class RideChatActivity extends Activity {
                                 return;
                             }
 
-                            Map<String, Object> chatMessage =
+                            Map<String, Object>
+                                    chatMessage =
                                     new HashMap<>();
 
                             chatMessage.put(
@@ -519,16 +615,44 @@ public class RideChatActivity extends Activity {
 
                                                 messageInput
                                                         .setText("");
+
+                                                sendButton
+                                                        .setEnabled(
+                                                                true
+                                                        );
                                             }
                                     )
                                     .addOnFailureListener(
-                                            e -> Toast.makeText(
-                                                    this,
-                                                    "Message failed: "
-                                                            + e.getMessage(),
-                                                    Toast.LENGTH_LONG
-                                            ).show()
+                                            e -> {
+
+                                                sendButton
+                                                        .setEnabled(
+                                                                true
+                                                        );
+
+                                                Toast.makeText(
+                                                        this,
+                                                        "Message failed: "
+                                                                + e.getMessage(),
+                                                        Toast.LENGTH_LONG
+                                                ).show();
+                                            }
                                     );
+                        }
+                )
+                .addOnFailureListener(
+                        e -> {
+
+                            sendButton.setEnabled(
+                                    true
+                            );
+
+                            Toast.makeText(
+                                    this,
+                                    "Unable to check ride: "
+                                            + e.getMessage(),
+                                    Toast.LENGTH_LONG
+                            ).show();
                         }
                 );
     }
