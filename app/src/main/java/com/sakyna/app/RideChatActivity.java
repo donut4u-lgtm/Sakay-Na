@@ -31,6 +31,10 @@ public class RideChatActivity extends Activity {
 
     private String rideId = "";
 
+    private String passengerId = "";
+    private String driverId = "";
+    private String myRole = "";
+
     private LinearLayout messagesLayout;
     private EditText messageInput;
     private ScrollView scrollView;
@@ -45,10 +49,7 @@ public class RideChatActivity extends Activity {
         auth = FirebaseAuth.getInstance();
         db = FirebaseFirestore.getInstance();
 
-        rideId =
-                getIntent().getStringExtra(
-                        "ride_id"
-                );
+        rideId = getIntent().getStringExtra("ride_id");
 
         if (rideId == null) {
             rideId = "";
@@ -56,11 +57,11 @@ public class RideChatActivity extends Activity {
 
         buildScreen();
 
-        if (rideId.isEmpty()) {
+        if (rideId.trim().isEmpty()) {
 
             Toast.makeText(
                     this,
-                    "Ride ID is missing.",
+                    "Chat error: Ride ID is missing.",
                     Toast.LENGTH_LONG
             ).show();
 
@@ -222,11 +223,9 @@ public class RideChatActivity extends Activity {
 
         if (user == null) {
 
-            Toast.makeText(
-                    this,
-                    "Please login again.",
-                    Toast.LENGTH_LONG
-            ).show();
+            showError(
+                    "Chat error: You are not logged in."
+            );
 
             return;
         }
@@ -239,21 +238,21 @@ public class RideChatActivity extends Activity {
 
                             if (!snapshot.exists()) {
 
-                                Toast.makeText(
-                                        this,
-                                        "Ride not found.",
-                                        Toast.LENGTH_LONG
-                                ).show();
+                                showError(
+                                        "Chat error: Ride "
+                                                + rideId
+                                                + " was not found."
+                                );
 
                                 return;
                             }
 
-                            String passengerId =
+                            passengerId =
                                     snapshot.getString(
                                             "passengerId"
                                     );
 
-                            String driverId =
+                            driverId =
                                     snapshot.getString(
                                             "driverId"
                                     );
@@ -261,26 +260,29 @@ public class RideChatActivity extends Activity {
                             String uid =
                                     user.getUid();
 
-                            boolean passengerMatch =
+                            if (
                                     passengerId != null
                                             && uid.equals(
                                             passengerId
-                                    );
+                                    )
+                            ) {
 
-                            boolean driverMatch =
+                                myRole = "PASSENGER";
+
+                            } else if (
                                     driverId != null
                                             && uid.equals(
                                             driverId
-                                    );
+                                    )
+                            ) {
 
-                            if (!passengerMatch
-                                    && !driverMatch) {
+                                myRole = "DRIVER";
 
-                                Toast.makeText(
-                                        this,
-                                        "You are not part of this ride.",
-                                        Toast.LENGTH_LONG
-                                ).show();
+                            } else {
+
+                                showError(
+                                        "Chat error: This account is not assigned to this ride."
+                                );
 
                                 return;
                             }
@@ -293,12 +295,13 @@ public class RideChatActivity extends Activity {
                         }
                 )
                 .addOnFailureListener(
-                        e -> Toast.makeText(
-                                this,
-                                "Unable to open ride chat: "
-                                        + e.getMessage(),
-                                Toast.LENGTH_LONG
-                        ).show()
+                        e -> {
+
+                            showError(
+                                    "Chat ride check failed: "
+                                            + firebaseError(e)
+                            );
+                        }
                 );
     }
 
@@ -321,12 +324,10 @@ public class RideChatActivity extends Activity {
 
                                     if (error != null) {
 
-                                        Toast.makeText(
-                                                this,
-                                                "Chat error: "
-                                                        + error.getMessage(),
-                                                Toast.LENGTH_LONG
-                                        ).show();
+                                        showError(
+                                                "Chat read failed: "
+                                                        + firebaseError(error)
+                                        );
 
                                         return;
                                     }
@@ -334,6 +335,8 @@ public class RideChatActivity extends Activity {
                                     if (snapshots == null) {
                                         return;
                                     }
+
+                                    messagesLayout.removeAllViews();
 
                                     for (
                                             DocumentChange change
@@ -494,11 +497,27 @@ public class RideChatActivity extends Activity {
 
         if (user == null) {
 
-            Toast.makeText(
-                    this,
-                    "Please login again.",
-                    Toast.LENGTH_LONG
-            ).show();
+            showError(
+                    "Message failed: You are not logged in."
+            );
+
+            return;
+        }
+
+        if (rideId.trim().isEmpty()) {
+
+            showError(
+                    "Message failed: Ride ID is missing."
+            );
+
+            return;
+        }
+
+        if (myRole.isEmpty()) {
+
+            showError(
+                    "Message failed: Ride has not been verified yet."
+            );
 
             return;
         }
@@ -516,128 +535,42 @@ public class RideChatActivity extends Activity {
                 false
         );
 
+        Map<String, Object>
+                chatMessage =
+                new HashMap<>();
+
+        chatMessage.put(
+                "senderId",
+                user.getUid()
+        );
+
+        chatMessage.put(
+                "senderRole",
+                myRole
+        );
+
+        chatMessage.put(
+                "message",
+                message
+        );
+
+        chatMessage.put(
+                "createdAt",
+                FieldValue.serverTimestamp()
+        );
+
         db.collection("rides")
                 .document(rideId)
-                .get()
+                .collection("messages")
+                .add(chatMessage)
                 .addOnSuccessListener(
-                        rideSnapshot -> {
+                        documentReference -> {
 
-                            if (!rideSnapshot.exists()) {
+                            messageInput.setText("");
 
-                                sendButton.setEnabled(
-                                        true
-                                );
-
-                                Toast.makeText(
-                                        this,
-                                        "Ride no longer exists.",
-                                        Toast.LENGTH_LONG
-                                ).show();
-
-                                return;
-                            }
-
-                            String passengerId =
-                                    rideSnapshot.getString(
-                                            "passengerId"
-                                    );
-
-                            String driverId =
-                                    rideSnapshot.getString(
-                                            "driverId"
-                                    );
-
-                            String role;
-
-                            if (
-                                    driverId != null
-                                            && user.getUid().equals(
-                                            driverId
-                                    )
-                            ) {
-
-                                role = "DRIVER";
-
-                            } else if (
-                                    passengerId != null
-                                            && user.getUid().equals(
-                                            passengerId
-                                    )
-                            ) {
-
-                                role = "PASSENGER";
-
-                            } else {
-
-                                sendButton.setEnabled(
-                                        true
-                                );
-
-                                Toast.makeText(
-                                        this,
-                                        "You are not part of this ride.",
-                                        Toast.LENGTH_LONG
-                                ).show();
-
-                                return;
-                            }
-
-                            Map<String, Object>
-                                    chatMessage =
-                                    new HashMap<>();
-
-                            chatMessage.put(
-                                    "senderId",
-                                    user.getUid()
+                            sendButton.setEnabled(
+                                    true
                             );
-
-                            chatMessage.put(
-                                    "senderRole",
-                                    role
-                            );
-
-                            chatMessage.put(
-                                    "message",
-                                    message
-                            );
-
-                            chatMessage.put(
-                                    "createdAt",
-                                    FieldValue.serverTimestamp()
-                            );
-
-                            db.collection("rides")
-                                    .document(rideId)
-                                    .collection("messages")
-                                    .add(chatMessage)
-                                    .addOnSuccessListener(
-                                            documentReference -> {
-
-                                                messageInput
-                                                        .setText("");
-
-                                                sendButton
-                                                        .setEnabled(
-                                                                true
-                                                        );
-                                            }
-                                    )
-                                    .addOnFailureListener(
-                                            e -> {
-
-                                                sendButton
-                                                        .setEnabled(
-                                                                true
-                                                        );
-
-                                                Toast.makeText(
-                                                        this,
-                                                        "Message failed: "
-                                                                + e.getMessage(),
-                                                        Toast.LENGTH_LONG
-                                                ).show();
-                                            }
-                                    );
                         }
                 )
                 .addOnFailureListener(
@@ -647,14 +580,43 @@ public class RideChatActivity extends Activity {
                                     true
                             );
 
-                            Toast.makeText(
-                                    this,
-                                    "Unable to check ride: "
-                                            + e.getMessage(),
-                                    Toast.LENGTH_LONG
-                            ).show();
+                            showError(
+                                    "Message failed: "
+                                            + firebaseError(e)
+                            );
                         }
                 );
+    }
+
+    private String firebaseError(
+            Exception e
+    ) {
+
+        if (e == null) {
+            return "Unknown Firebase error.";
+        }
+
+        String message =
+                e.getMessage();
+
+        if (message == null
+                || message.trim().isEmpty()) {
+
+            return e.toString();
+        }
+
+        return message;
+    }
+
+    private void showError(
+            String message
+    ) {
+
+        Toast.makeText(
+                this,
+                message,
+                Toast.LENGTH_LONG
+        ).show();
     }
 
     @Override
