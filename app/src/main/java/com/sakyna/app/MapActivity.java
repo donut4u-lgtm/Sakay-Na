@@ -1,4 +1,5 @@
 
+        
 package com.sakyna.app;
 
 import android.Manifest;
@@ -12,13 +13,15 @@ import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.view.Gravity;
+import android.view.View;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
-import android.view.Gravity;
-import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -30,36 +33,47 @@ import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
-import java.util.concurrent.Executors;
 
 public class MapActivity extends Activity {
 
-    private static final int LOCATION_REQUEST = 8001;
+    private static final int LOCATION_PERMISSION_REQUEST = 5001;
 
     private WebView webView;
-    private TextView titleText;
-    private TextView selectedText;
+    private TextView addressText;
+    private TextView statusText;
+    private Button selectButton;
+    private Button currentLocationButton;
+    private Button backButton;
 
     private LocationManager locationManager;
-    private Location currentLocation;
+    private LocationListener locationListener;
 
     private FirebaseFirestore db;
     private ListenerRegistration rideListener;
+    private ListenerRegistration driverListener;
 
-    private String rideId;
-    private String mode;
+    private String mode = "SELECT_DESTINATION";
+    private String rideId = "";
 
-    private double pickupLatitude;
-    private double pickupLongitude;
+    private double pickupLatitude = 0;
+    private double pickupLongitude = 0;
 
-    private double destinationLatitude;
-    private double destinationLongitude;
+    private double destinationLatitude = 0;
+    private double destinationLongitude = 0;
 
+    private double driverLatitude = 0;
+    private double driverLongitude = 0;
+
+    private String pickupAddress = "";
     private String destinationAddress = "";
 
     private boolean mapReady = false;
+    private boolean destinationChosen = false;
+
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -67,329 +81,289 @@ public class MapActivity extends Activity {
 
         db = FirebaseFirestore.getInstance();
 
-        rideId = getIntent().getStringExtra("rideId");
-        mode = getIntent().getStringExtra("mode");
+        readIntent();
+        buildScreen();
+        setupWebView();
+        requestLocation();
+    }
 
-        if (mode == null) {
-            mode = "";
+    private void readIntent() {
+
+        Intent intent = getIntent();
+
+        if (intent == null) {
+            return;
         }
+
+        String incomingMode = intent.getStringExtra("mode");
+
+        if (incomingMode != null && !incomingMode.trim().isEmpty()) {
+            mode = incomingMode;
+        }
+
+        rideId = intent.getStringExtra("ride_id");
 
         pickupLatitude =
-                getIntent().getDoubleExtra(
-                        "pickup_latitude", 0.0);
+                intent.getDoubleExtra("pickup_latitude", 0);
 
         pickupLongitude =
-                getIntent().getDoubleExtra(
-                        "pickup_longitude", 0.0);
+                intent.getDoubleExtra("pickup_longitude", 0);
 
         destinationLatitude =
-                getIntent().getDoubleExtra(
-                        "destination_latitude", 0.0);
+                intent.getDoubleExtra("destination_latitude", 0);
 
         destinationLongitude =
-                getIntent().getDoubleExtra(
-                        "destination_longitude", 0.0);
+                intent.getDoubleExtra("destination_longitude", 0);
+
+        pickupAddress =
+                safe(intent.getStringExtra("pickup_address"));
 
         destinationAddress =
-                getIntent().getStringExtra(
-                        "destination_address");
+                safe(intent.getStringExtra("destination_address"));
 
-        if (destinationAddress == null) {
-            destinationAddress = "";
-        }
+        destinationChosen =
+                destinationLatitude != 0 &&
+                destinationLongitude != 0;
+    }
 
-        buildScreen();
-        setupLocation();
-
-        if ("SELECT_DESTINATION".equals(mode)) {
-            setupDestinationMode();
-        } else if (rideId != null && !rideId.isEmpty()) {
-            setupLiveRideMode();
-        } else {
-            setupDestinationMode();
-        }
+    private String safe(String value) {
+        return value == null ? "" : value;
     }
 
     private void buildScreen() {
 
-        LinearLayout root =
-                new LinearLayout(this);
-
-        root.setOrientation(
-                LinearLayout.VERTICAL);
-
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(Color.WHITE);
 
-        titleText =
-                new TextView(this);
+        TextView title = new TextView(this);
 
-        titleText.setTextSize(20);
-        titleText.setGravity(Gravity.CENTER);
-        titleText.setPadding(
-                12, 14, 12, 14);
+        if ("LIVE_RIDE".equalsIgnoreCase(mode)) {
+            title.setText("Sakay Na • Live Ride");
+        } else {
+            title.setText("Sakay Na • Ride Location");
+        }
 
-        root.addView(
-                titleText,
-                new LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.WRAP_CONTENT));
+        title.setTextSize(22);
+        title.setTypeface(null, android.graphics.Typeface.BOLD);
+        title.setTextColor(Color.rgb(0, 120, 70));
+        title.setGravity(Gravity.CENTER);
+        title.setPadding(12, 16, 12, 10);
 
-        selectedText =
-                new TextView(this);
+        root.addView(title);
 
-        selectedText.setTextSize(15);
-        selectedText.setPadding(
-                16, 8, 16, 8);
+        addressText = new TextView(this);
+        addressText.setTextSize(15);
+        addressText.setTextColor(Color.DKGRAY);
+        addressText.setPadding(16, 6, 16, 6);
+        addressText.setGravity(Gravity.CENTER);
 
-        root.addView(
-                selectedText,
-                new LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.WRAP_CONTENT));
+        if ("LIVE_RIDE".equalsIgnoreCase(mode)) {
+            addressText.setText("Loading live ride map...");
+        } else {
+            addressText.setText(
+                    destinationChosen
+                            ? destinationAddress
+                            : "Tap the map to choose a destination."
+            );
+        }
 
-        webView =
-                new WebView(this);
+        root.addView(addressText);
 
+        statusText = new TextView(this);
+        statusText.setTextSize(14);
+        statusText.setTextColor(Color.GRAY);
+        statusText.setGravity(Gravity.CENTER);
+        statusText.setPadding(10, 4, 10, 8);
+
+        root.addView(statusText);
+
+        webView = new WebView(this);
+
+        /*
+         * IMPORTANT:
+         * The WebView is NOT placed inside a ScrollView.
+         * No touch listener is attached to the WebView.
+         * This allows Leaflet to receive normal Android touch events:
+         * drag, pinch zoom, tap and map movement.
+         */
         LinearLayout.LayoutParams mapParams =
                 new LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.MATCH_PARENT,
                         0,
-                        1);
+                        1
+                );
 
-        root.addView(
-                webView,
-                mapParams);
+        root.addView(webView, mapParams);
 
-        LinearLayout buttonRow =
-                new LinearLayout(this);
+        LinearLayout controls = new LinearLayout(this);
+        controls.setOrientation(LinearLayout.HORIZONTAL);
+        controls.setGravity(Gravity.CENTER);
+        controls.setPadding(8, 8, 8, 8);
 
-        buttonRow.setOrientation(
-                LinearLayout.HORIZONTAL);
+        currentLocationButton = new Button(this);
+        currentLocationButton.setText("CURRENT GPS");
 
-        Button myLocation =
-                new Button(this);
+        currentLocationButton.setOnClickListener(
+                v -> centerOnCurrentLocation()
+        );
 
-        myLocation.setText(
-                "My Location");
-
-        buttonRow.addView(
-                myLocation,
+        controls.addView(
+                currentLocationButton,
                 new LinearLayout.LayoutParams(
                         0,
-                        ViewGroup.LayoutParams.WRAP_CONTENT,
-                        1));
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        1
+                )
+        );
 
-        Button confirm =
-                new Button(this);
+        if ("SELECT_DESTINATION".equalsIgnoreCase(mode)) {
 
-        confirm.setText(
-                "Confirm Destination");
+            selectButton = new Button(this);
+            selectButton.setText("SET DESTINATION");
+            selectButton.setEnabled(false);
 
-        buttonRow.addView(
-                confirm,
+            selectButton.setOnClickListener(
+                    v -> returnDestination()
+            );
+
+            controls.addView(
+                    selectButton,
+                    new LinearLayout.LayoutParams(
+                            0,
+                            LinearLayout.LayoutParams.WRAP_CONTENT,
+                            1
+                    )
+            );
+        }
+
+        backButton = new Button(this);
+        backButton.setText("BACK");
+
+        backButton.setOnClickListener(
+                v -> finish()
+        );
+
+        controls.addView(
+                backButton,
                 new LinearLayout.LayoutParams(
                         0,
-                        ViewGroup.LayoutParams.WRAP_CONTENT,
-                        1));
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        1
+                )
+        );
 
-        root.addView(buttonRow);
-
-        Button back =
-                new Button(this);
-
-        back.setText("Back");
-
-        root.addView(
-                back,
-                new LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.WRAP_CONTENT));
+        root.addView(controls);
 
         setContentView(root);
-
-        myLocation.setOnClickListener(
-                v -> centerOnMyLocation());
-
-        confirm.setOnClickListener(
-                v -> confirmDestination());
-
-        back.setOnClickListener(
-                v -> finish());
-
-        setupWebView();
-    }
-
-    private void setupDestinationMode() {
-
-        titleText.setText(
-                "Choose Your Destination");
-
-        selectedText.setText(
-                "TAP THE MAP TO CHOOSE YOUR DESTINATION");
-    }
-
-    private void setupLiveRideMode() {
-
-        titleText.setText(
-                "Live Ride Map");
-
-        selectedText.setText(
-                "Driver location will appear on the map.");
-
-        listenForRide();
     }
 
     private void setupWebView() {
 
-        WebSettings settings =
-                webView.getSettings();
+        WebSettings settings = webView.getSettings();
 
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
-        settings.setLoadsImagesAutomatically(true);
-        settings.setBlockNetworkImage(false);
-        settings.setBlockNetworkLoads(false);
+        settings.setDatabaseEnabled(true);
         settings.setAllowFileAccess(true);
         settings.setAllowContentAccess(true);
         settings.setBuiltInZoomControls(false);
         settings.setDisplayZoomControls(false);
-        settings.setUseWideViewPort(false);
         settings.setLoadWithOverviewMode(false);
+        settings.setUseWideViewPort(false);
+        settings.setSupportZoom(true);
 
-        webView.setWebViewClient(
-                new WebViewClient());
+        webView.setFocusable(true);
+        webView.setFocusableInTouchMode(true);
+        webView.setClickable(true);
+        webView.setLongClickable(true);
+        webView.setVerticalScrollBarEnabled(false);
+        webView.setHorizontalScrollBarEnabled(false);
 
-        webView.setWebChromeClient(
-                new WebChromeClient());
+        webView.setWebViewClient(new WebViewClient());
+
+        webView.setWebChromeClient(new WebChromeClient());
 
         webView.addJavascriptInterface(
                 new MapBridge(),
-                "Android");
+                "Android"
+        );
 
-        webView.setBackgroundColor(
-                Color.rgb(225, 225, 225));
-
-        loadMapHtml();
+        webView.loadDataWithBaseURL(
+                "https://sakyna-map.local/",
+                buildMapHtml(),
+                "text/html",
+                "UTF-8",
+                null
+        );
     }
 
-    private void loadMapHtml() {
+    private String buildMapHtml() {
 
-        double startLat =
-                getInitialLatitude();
+        String initialLat;
+        String initialLng;
 
-        double startLng =
-                getInitialLongitude();
+        if (pickupLatitude != 0 && pickupLongitude != 0) {
+            initialLat = String.format(
+                    Locale.US,
+                    "%.7f",
+                    pickupLatitude
+            );
 
-        String html =
-                "<!DOCTYPE html>" +
+            initialLng = String.format(
+                    Locale.US,
+                    "%.7f",
+                    pickupLongitude
+            );
+        } else if (
+                destinationLatitude != 0 &&
+                destinationLongitude != 0
+        ) {
+            initialLat = String.format(
+                    Locale.US,
+                    "%.7f",
+                    destinationLatitude
+            );
+
+            initialLng = String.format(
+                    Locale.US,
+                    "%.7f",
+                    destinationLongitude
+            );
+        } else {
+            initialLat = "14.000000";
+            initialLng = "121.000000";
+        }
+
+        return "<!DOCTYPE html>" +
                 "<html>" +
                 "<head>" +
 
                 "<meta name='viewport' " +
-                "content='width=device-width," +
-                "initial-scale=1.0," +
-                "maximum-scale=1.0," +
-                "user-scalable=no'>" +
+                "content='width=device-width, " +
+                "initial-scale=1.0, " +
+                "maximum-scale=1.0, " +
+                "user-scalable=yes'>" +
+
+                "<link rel='stylesheet' " +
+                "href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'>" +
+
+                "<script src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'>" +
+                "</script>" +
 
                 "<style>" +
 
-                "html,body{" +
+                "html,body,#map{" +
+                "height:100%;" +
+                "width:100%;" +
                 "margin:0;" +
                 "padding:0;" +
-                "width:100%;" +
-                "height:100%;" +
                 "overflow:hidden;" +
-                "background:#d9d9d9;" +
-                "}" +
-
-                "#map{" +
-                "position:absolute;" +
-                "left:0;" +
-                "top:0;" +
-                "width:100%;" +
-                "height:100%;" +
-                "overflow:hidden;" +
-                "background:#d9d9d9;" +
                 "touch-action:none;" +
                 "}" +
 
-                "#tiles{" +
-                "position:absolute;" +
-                "left:0;" +
-                "top:0;" +
-                "width:100%;" +
-                "height:100%;" +
-                "z-index:1;" +
-                "pointer-events:none;" +
-                "}" +
-
-                ".tile{" +
-                "position:absolute;" +
-                "width:256px;" +
-                "height:256px;" +
-                "border:0;" +
-                "display:block;" +
-                "pointer-events:none;" +
-                "}" +
-
-                "#touchLayer{" +
-                "position:absolute;" +
-                "left:0;" +
-                "top:0;" +
-                "width:100%;" +
-                "height:100%;" +
-                "z-index:500;" +
-                "background:transparent;" +
-                "touch-action:none;" +
-                "}" +
-
-                ".marker{" +
-                "position:absolute;" +
-                "width:30px;" +
-                "height:30px;" +
-                "margin-left:-15px;" +
-                "margin-top:-30px;" +
-                "font-size:30px;" +
-                "line-height:30px;" +
-                "text-align:center;" +
-                "z-index:1000;" +
-                "pointer-events:none;" +
-                "text-shadow:1px 1px 2px white;" +
-                "}" +
-
-                "#zoom{" +
-                "position:absolute;" +
-                "right:12px;" +
-                "top:12px;" +
-                "z-index:2000;" +
-                "background:white;" +
-                "border-radius:5px;" +
-                "box-shadow:0 1px 5px rgba(0,0,0,.4);" +
-                "overflow:hidden;" +
-                "}" +
-
-                ".zoomButton{" +
-                "width:48px;" +
-                "height:48px;" +
-                "border:0;" +
-                "border-bottom:1px solid #ccc;" +
-                "background:white;" +
-                "font-size:27px;" +
-                "font-weight:bold;" +
-                "}" +
-
-                ".zoomButton:last-child{" +
-                "border-bottom:0;" +
-                "}" +
-
-                "#copyright{" +
-                "position:absolute;" +
-                "bottom:3px;" +
-                "right:3px;" +
-                "z-index:2000;" +
-                "background:rgba(255,255,255,.8);" +
-                "font-size:10px;" +
-                "padding:2px 4px;" +
+                ".leaflet-control-attribution{" +
+                "font-size:9px;" +
                 "}" +
 
                 "</style>" +
@@ -398,751 +372,513 @@ public class MapActivity extends Activity {
 
                 "<body>" +
 
-                "<div id='map'>" +
-
-                "<div id='tiles'></div>" +
-
-                "<div id='touchLayer'></div>" +
-
-                "<div id='destination' " +
-                "class='marker' " +
-                "style='display:none;'>📍</div>" +
-
-                "<div id='pickup' " +
-                "class='marker' " +
-                "style='display:none;'>🟢</div>" +
-
-                "<div id='driver' " +
-                "class='marker' " +
-                "style='display:none;'>🛺</div>" +
-
-                "<div id='zoom'>" +
-
-                "<button class='zoomButton' " +
-                "onclick='changeZoom(1)'>+</button>" +
-
-                "<button class='zoomButton' " +
-                "onclick='changeZoom(-1)'>−</button>" +
-
-                "</div>" +
-
-                "<div id='copyright'>" +
-                "© OpenStreetMap contributors" +
-                "</div>" +
-
-                "</div>" +
+                "<div id='map'></div>" +
 
                 "<script>" +
 
-                "var lat=" + startLat + ";" +
-                "var lng=" + startLng + ";" +
-                "var zoom=15;" +
+                "var map=L.map('map'," +
+                "{zoomControl:true," +
+                "touchZoom:true," +
+                "scrollWheelZoom:true," +
+                "doubleClickZoom:true," +
+                "dragging:true," +
+                "boxZoom:true," +
+                "keyboard:true});" +
 
-                "var centerX=0;" +
-                "var centerY=0;" +
+                "var userMarker=null;" +
+                "var destinationMarker=null;" +
+                "var driverMarker=null;" +
 
-                "var dragging=false;" +
-                "var moved=false;" +
-                "var downX=0;" +
-                "var downY=0;" +
+                "map.setView([" +
+                initialLat +
+                "," +
+                initialLng +
+                "],15);" +
 
-                "var destinationLat=null;" +
-                "var destinationLng=null;" +
-                "var pickupLat=null;" +
-                "var pickupLng=null;" +
-                "var driverLat=null;" +
-                "var driverLng=null;" +
+                "L.tileLayer(" +
+                "'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'," +
+                "{maxZoom:19," +
+                "attribution:'&copy; OpenStreetMap contributors'}" +
+                ").addTo(map);" +
 
-                "function tileX(lon,z){" +
-                "return (lon+180)/360*Math.pow(2,z);" +
-                "}" +
+                "function updateUser(lat,lng,center){" +
 
-                "function tileY(la,z){" +
-                "var r=la*Math.PI/180;" +
-                "return (1-Math.asinh(Math.tan(r))/Math.PI)/2*Math.pow(2,z);" +
-                "}" +
+                "if(userMarker===null){" +
 
-                "function lonFromX(x,z){" +
-                "return x/Math.pow(2,z)*360-180;" +
-                "}" +
+                "userMarker=L.marker([lat,lng])" +
+                ".addTo(map)" +
+                ".bindPopup('You are here');" +
 
-                "function latFromY(y,z){" +
-                "var n=Math.PI-2*Math.PI*y/" +
-                "Math.pow(2,z);" +
-                "return 180/Math.PI*" +
-                "Math.atan(Math.sinh(n));" +
-                "}" +
+                "}else{" +
 
-                "function render(){" +
-
-                "var map=document.getElementById('map');" +
-                "var tiles=document.getElementById('tiles');" +
-
-                "tiles.innerHTML='';" +
-
-                "var w=map.clientWidth;" +
-                "var h=map.clientHeight;" +
-
-                "centerX=" +
-                "tileX(lng,zoom)*256;" +
-
-                "centerY=" +
-                "tileY(lat,zoom)*256;" +
-
-                "var left=centerX-w/2;" +
-                "var top=centerY-h/2;" +
-
-                "var firstX=Math.floor(left/256)-1;" +
-                "var lastX=Math.floor((left+w)/256)+1;" +
-
-                "var firstY=Math.floor(top/256)-1;" +
-                "var lastY=Math.floor((top+h)/256)+1;" +
-
-                "for(var x=firstX;x<=lastX;x++){" +
-
-                "for(var y=firstY;y<=lastY;y++){" +
-
-                "var max=Math.pow(2,zoom);" +
-
-                "var xx=((x%max)+max)%max;" +
-
-                "if(y<0||y>=max)continue;" +
-
-                "var img=document.createElement('img');" +
-
-                "img.className='tile';" +
-                "img.draggable=false;" +
-                "img.src=" +
-                "'https://tile.openstreetmap.org/'" +
-                "+zoom+'/'+xx+'/'+y+'.png';" +
-
-                "img.style.left=" +
-                "(x*256-left)+'px';" +
-
-                "img.style.top=" +
-                "(y*256-top)+'px';" +
-
-                "tiles.appendChild(img);" +
-
-                "}" +
-                "}" +
-
-                "positionMarker(" +
-                "'destination'," +
-                "destinationLat," +
-                "destinationLng);" +
-
-                "positionMarker(" +
-                "'pickup'," +
-                "pickupLat," +
-                "pickupLng);" +
-
-                "positionMarker(" +
-                "'driver'," +
-                "driverLat," +
-                "driverLng);" +
+                "userMarker.setLatLng([lat,lng]);" +
 
                 "}" +
 
-                "function positionMarker(id,la,lo){" +
-
-                "if(la===null||lo===null)return;" +
-
-                "var marker=" +
-                "document.getElementById(id);" +
-
-                "var map=" +
-                "document.getElementById('map');" +
-
-                "var left=" +
-                "centerX-map.clientWidth/2;" +
-
-                "var top=" +
-                "centerY-map.clientHeight/2;" +
-
-                "var px=" +
-                "tileX(lo,zoom)*256-left;" +
-
-                "var py=" +
-                "tileY(la,zoom)*256-top;" +
-
-                "marker.style.left=px+'px';" +
-                "marker.style.top=py+'px';" +
-                "marker.style.display='block';" +
+                "if(center===true){" +
+                "map.setView([lat,lng],17);" +
+                "}" +
 
                 "}" +
 
-                "function selectPoint(x,y){" +
+                "function setDestination(lat,lng,address){" +
 
-                "var map=" +
-                "document.getElementById('map');" +
+                "if(destinationMarker!==null){" +
+                "map.removeLayer(destinationMarker);" +
+                "}" +
 
-                "var left=" +
-                "centerX-map.clientWidth/2;" +
+                "destinationMarker=" +
+                "L.marker([lat,lng])" +
+                ".addTo(map)" +
+                ".bindPopup(address || 'Destination')" +
+                ".openPopup();" +
 
-                "var top=" +
-                "centerY-map.clientHeight/2;" +
-
-                "var worldX=x+left;" +
-                "var worldY=y+top;" +
-
-                "var la=" +
-                "latFromY(worldY/256,zoom);" +
-
-                "var lo=" +
-                "lonFromX(worldX/256,zoom);" +
-
-                "destinationLat=la;" +
-                "destinationLng=lo;" +
-
-                "positionMarker(" +
-                "'destination',la,lo);" +
-
-                "Android.mapClicked(la,lo);" +
+                "map.setView([lat,lng],17);" +
 
                 "}" +
 
-                "function changeZoom(amount){" +
+                "function setDriver(lat,lng){" +
 
-                "zoom+=amount;" +
+                "if(driverMarker===null){" +
 
-                "if(zoom<3)zoom=3;" +
-                "if(zoom>19)zoom=19;" +
+                "driverMarker=" +
+                "L.marker([lat,lng])" +
+                ".addTo(map)" +
+                ".bindPopup('Driver');" +
 
-                "render();" +
+                "}else{" +
 
-                "}" +
-
-                "function centerMap(la,lo){" +
-
-                "lat=la;" +
-                "lng=lo;" +
-
-                "render();" +
+                "driverMarker.setLatLng([lat,lng]);" +
 
                 "}" +
 
-                "function setDestination(la,lo){" +
-
-                "destinationLat=la;" +
-                "destinationLng=lo;" +
-
-                "render();" +
-
                 "}" +
 
-                "function setPickup(la,lo){" +
+                "map.on('click',function(e){" +
 
-                "pickupLat=la;" +
-                "pickupLng=lo;" +
+                "if(window.Android){" +
 
-                "render();" +
-
-                "}" +
-
-                "function setDriver(la,lo){" +
-
-                "driverLat=la;" +
-                "driverLng=lo;" +
-
-                "lat=la;" +
-                "lng=lo;" +
-
-                "render();" +
-
-                "}" +
-
-                "var touchLayer=" +
-                "document.getElementById('touchLayer');" +
-
-                "touchLayer.addEventListener(" +
-                "'touchstart'," +
-
-                "function(e){" +
-
-                "if(e.touches.length!==1)return;" +
-
-                "dragging=true;" +
-                "moved=false;" +
-
-                "downX=" +
-                "e.touches[0].clientX;" +
-
-                "downY=" +
-                "e.touches[0].clientY;" +
-
-                "e.preventDefault();" +
-
-                "}," +
-
-                "{passive:false});" +
-
-                "touchLayer.addEventListener(" +
-                "'touchmove'," +
-
-                "function(e){" +
-
-                "if(!dragging)return;" +
-
-                "if(e.touches.length!==1)return;" +
-
-                "var dx=" +
-                "e.touches[0].clientX-downX;" +
-
-                "var dy=" +
-                "e.touches[0].clientY-downY;" +
-
-                "if(Math.abs(dx)>8||Math.abs(dy)>8){" +
-                "moved=true;" +
-                "}" +
-
-                "e.preventDefault();" +
-
-                "}," +
-
-                "{passive:false});" +
-
-                "touchLayer.addEventListener(" +
-                "'touchend'," +
-
-                "function(e){" +
-
-                "if(!dragging)return;" +
-
-                "var touch=e.changedTouches[0];" +
-
-                "if(!moved){" +
-
-                "selectPoint(" +
-                "touch.clientX," +
-                "touch.clientY" +
+                "Android.mapClicked(" +
+                "e.latlng.lat," +
+                "e.latlng.lng" +
                 ");" +
 
                 "}" +
-
-                "dragging=false;" +
-
-                "e.preventDefault();" +
-
-                "}," +
-
-                "{passive:false});" +
-
-                "touchLayer.addEventListener(" +
-                "'click'," +
-
-                "function(e){" +
-
-                "selectPoint(" +
-                "e.clientX," +
-                "e.clientY" +
-                ");" +
 
                 "});" +
 
-                "window.onload=function(){" +
+                "map.whenReady(function(){" +
 
-                "render();" +
-
-                "setTimeout(function(){" +
-                "render();" +
+                "if(window.Android){" +
                 "Android.mapReady();" +
-                "},500);" +
+                "}" +
 
-                "};" +
+                "});" +
 
                 "</script>" +
 
                 "</body>" +
                 "</html>";
-
-        webView.loadDataWithBaseURL(
-                "https://www.openstreetmap.org/",
-                html,
-                "text/html",
-                "UTF-8",
-                null);
     }
 
-    private double getInitialLatitude() {
-
-        if (pickupLatitude != 0.0) {
-            return pickupLatitude;
-        }
-
-        if (destinationLatitude != 0.0) {
-            return destinationLatitude;
-        }
-
-        return 14.35;
-    }
-
-    private double getInitialLongitude() {
-
-        if (pickupLongitude != 0.0) {
-            return pickupLongitude;
-        }
-
-        if (destinationLongitude != 0.0) {
-            return destinationLongitude;
-        }
-
-        return 121.05;
-    }
-
-    private class MapBridge {
-
-        @JavascriptInterface
-        public void mapReady() {
-
-            runOnUiThread(() -> {
-
-                mapReady = true;
-
-                if (pickupLatitude != 0.0 &&
-                        pickupLongitude != 0.0) {
-
-                    webView.loadUrl(
-                            "javascript:setPickup(" +
-                                    pickupLatitude +
-                                    "," +
-                                    pickupLongitude +
-                                    ")");
-                }
-
-                if ("SELECT_DESTINATION".equals(mode) &&
-                        destinationLatitude != 0.0 &&
-                        destinationLongitude != 0.0) {
-
-                    webView.loadUrl(
-                            "javascript:setDestination(" +
-                                    destinationLatitude +
-                                    "," +
-                                    destinationLongitude +
-                                    ")");
-                }
-            });
-        }
-
-        @JavascriptInterface
-        public void mapClicked(
-                double lat,
-                double lng) {
-
-            runOnUiThread(() -> {
-
-                destinationLatitude = lat;
-                destinationLongitude = lng;
-
-                selectedText.setText(
-                        String.format(
-                                Locale.US,
-                                "Selected: %.6f, %.6f\n" +
-                                "Getting address...",
-                                lat,
-                                lng));
-
-                reverseGeocode(lat, lng);
-            });
-        }
-
-        @JavascriptInterface
-        public void mapError(
-                String message) {
-
-            runOnUiThread(() -> {
-
-                selectedText.setText(
-                        "OpenStreetMap could not load.");
-
-                Toast.makeText(
-                        MapActivity.this,
-                        "Map loading error.",
-                        Toast.LENGTH_LONG).show();
-            });
-        }
-    }
-
-    private void reverseGeocode(
-            double lat,
-            double lng) {
-
-        Executors.newSingleThreadExecutor()
-                .execute(() -> {
-
-                    String address =
-                            getAddressText(lat, lng);
-
-                    runOnUiThread(() -> {
-
-                        if (address == null ||
-                                address.trim().isEmpty()) {
-
-                            destinationAddress =
-                                    String.format(
-                                            Locale.US,
-                                            "%.6f, %.6f",
-                                            lat,
-                                            lng);
-
-                        } else {
-
-                            destinationAddress =
-                                    address;
-                        }
-
-                        selectedText.setText(
-                                "Destination:\n" +
-                                destinationAddress);
-                    });
-                });
-    }
-
-    private String getAddressText(
-            double lat,
-            double lng) {
-
-        if (!Geocoder.isPresent()) {
-            return null;
-        }
-
-        try {
-
-            Geocoder geocoder =
-                    new Geocoder(
-                            this,
-                            Locale.getDefault());
-
-            List<Address> addresses =
-                    geocoder.getFromLocation(
-                            lat,
-                            lng,
-                            1);
-
-            if (addresses != null &&
-                    !addresses.isEmpty()) {
-
-                Address address =
-                        addresses.get(0);
-
-                String line =
-                        address.getAddressLine(0);
-
-                if (line != null &&
-                        !line.isEmpty()) {
-
-                    return line;
-                }
-            }
-
-        } catch (Exception ignored) {
-        }
-
-        return null;
-    }
-
-    private void centerOnMyLocation() {
-
-        if (currentLocation == null) {
-
-            Toast.makeText(
-                    this,
-                    "Waiting for your GPS location.",
-                    Toast.LENGTH_SHORT).show();
-
-            return;
-        }
-
-        double lat =
-                currentLocation.getLatitude();
-
-        double lng =
-                currentLocation.getLongitude();
-
-        pickupLatitude = lat;
-        pickupLongitude = lng;
-
-        if (mapReady) {
-
-            webView.loadUrl(
-                    "javascript:centerMap(" +
-                            lat +
-                            "," +
-                            lng +
-                            ")");
-
-            webView.loadUrl(
-                    "javascript:setPickup(" +
-                            lat +
-                            "," +
-                            lng +
-                            ")");
-        }
-    }
-
-    private void confirmDestination() {
-
-        if (destinationLatitude == 0.0 &&
-                destinationLongitude == 0.0) {
-
-            Toast.makeText(
-                    this,
-                    "Tap the map to select a destination first.",
-                    Toast.LENGTH_LONG).show();
-
-            return;
-        }
-
-        Intent result =
-                new Intent();
-
-        result.putExtra(
-                "destination_latitude",
-                destinationLatitude);
-
-        result.putExtra(
-                "destination_longitude",
-                destinationLongitude);
-
-        result.putExtra(
-                "destination_address",
-                destinationAddress);
-
-        result.putExtra(
-                "pickup_latitude",
-                pickupLatitude);
-
-        result.putExtra(
-                "pickup_longitude",
-                pickupLongitude);
-
-        result.putExtra(
-                "pickup_address",
-                getIntent().getStringExtra(
-                        "pickup_address"));
-
-        setResult(
-                RESULT_OK,
-                result);
-
-        finish();
-    }
-
-    private void setupLocation() {
-
-        locationManager =
-                (LocationManager)
-                        getSystemService(
-                                LOCATION_SERVICE);
-
-        if (locationManager == null) {
-            return;
-        }
-
-        if (checkSelfPermission(
-                Manifest.permission.ACCESS_FINE_LOCATION)
-                != PackageManager.PERMISSION_GRANTED
+    private void requestLocation() {
+
+        if (
+                checkSelfPermission(
+                        Manifest.permission.ACCESS_FINE_LOCATION
+                ) != PackageManager.PERMISSION_GRANTED
                 &&
                 checkSelfPermission(
-                        Manifest.permission.ACCESS_COARSE_LOCATION)
-                        != PackageManager.PERMISSION_GRANTED) {
+                        Manifest.permission.ACCESS_COARSE_LOCATION
+                ) != PackageManager.PERMISSION_GRANTED
+        ) {
 
             requestPermissions(
                     new String[]{
                             Manifest.permission.ACCESS_FINE_LOCATION,
                             Manifest.permission.ACCESS_COARSE_LOCATION
                     },
-                    LOCATION_REQUEST);
+                    LOCATION_PERMISSION_REQUEST
+            );
 
             return;
         }
+
+        startLocationUpdates();
+    }
+
+    private void startLocationUpdates() {
+
+        locationManager =
+                (LocationManager)
+                        getSystemService(LOCATION_SERVICE);
+
+        if (locationManager == null) {
+            return;
+        }
+
+        locationListener =
+                new LocationListener() {
+
+                    @Override
+                    public void onLocationChanged(
+                            @NonNull Location location
+                    ) {
+
+                        pickupLatitude =
+                                location.getLatitude();
+
+                        pickupLongitude =
+                                location.getLongitude();
+
+                        if (mapReady) {
+                            sendUserLocationToMap(
+                                    pickupLatitude,
+                                    pickupLongitude,
+                                    false
+                            );
+                        }
+
+                        if (
+                                "SELECT_DESTINATION"
+                                        .equalsIgnoreCase(mode)
+                                &&
+                                pickupAddress.isEmpty()
+                        ) {
+
+                            reverseGeocodePickup(
+                                    pickupLatitude,
+                                    pickupLongitude
+                            );
+                        }
+                    }
+                };
 
         try {
 
-            Location last =
-                    locationManager.getLastKnownLocation(
-                            LocationManager.GPS_PROVIDER);
+            if (
+                    checkSelfPermission(
+                            Manifest.permission.ACCESS_FINE_LOCATION
+                    ) == PackageManager.PERMISSION_GRANTED
+                    ||
+                    checkSelfPermission(
+                            Manifest.permission.ACCESS_COARSE_LOCATION
+                    ) == PackageManager.PERMISSION_GRANTED
+            ) {
 
-            if (last == null) {
+                if (
+                        locationManager.isProviderEnabled(
+                                LocationManager.GPS_PROVIDER
+                        )
+                ) {
 
-                last =
-                        locationManager.getLastKnownLocation(
-                                LocationManager.NETWORK_PROVIDER);
-            }
+                    locationManager.requestLocationUpdates(
+                            LocationManager.GPS_PROVIDER,
+                            3000,
+                            5,
+                            locationListener
+                    );
+                }
 
-            if (last != null) {
-                currentLocation = last;
-            }
+                if (
+                        locationManager.isProviderEnabled(
+                                LocationManager.NETWORK_PROVIDER
+                        )
+                ) {
 
-            if (locationManager.isProviderEnabled(
-                    LocationManager.GPS_PROVIDER)) {
-
-                locationManager.requestLocationUpdates(
-                        LocationManager.GPS_PROVIDER,
-                        2000,
-                        5,
-                        locationListener);
-
-            } else if (
-                    locationManager.isProviderEnabled(
-                            LocationManager.NETWORK_PROVIDER)) {
-
-                locationManager.requestLocationUpdates(
-                        LocationManager.NETWORK_PROVIDER,
-                        2000,
-                        5,
-                        locationListener);
+                    locationManager.requestLocationUpdates(
+                            LocationManager.NETWORK_PROVIDER,
+                            3000,
+                            5,
+                            locationListener
+                    );
+                }
             }
 
         } catch (SecurityException ignored) {
-        } catch (Exception ignored) {
+        }
+
+        if ("LIVE_RIDE".equalsIgnoreCase(mode)) {
+            startLiveRideListener();
         }
     }
 
-    private final LocationListener locationListener =
-            new LocationListener() {
+    private void sendUserLocationToMap(
+            double lat,
+            double lng,
+            boolean center
+    ) {
 
-        @Override
-        public void onLocationChanged(
-                @NonNull Location location) {
+        if (webView == null) {
+            return;
+        }
 
-            currentLocation = location;
+        String js =
+                "updateUser(" +
+                lat +
+                "," +
+                lng +
+                "," +
+                center +
+                ");";
 
-            if ("SELECT_DESTINATION".equals(mode)
-                    && pickupLatitude == 0.0
-                    && pickupLongitude == 0.0) {
+        webView.post(
+                () -> webView.evaluateJavascript(
+                        js,
+                        null
+                )
+        );
+    }
 
-                pickupLatitude =
-                        location.getLatitude();
+    private void centerOnCurrentLocation() {
 
-                pickupLongitude =
-                        location.getLongitude();
+        if (pickupLatitude == 0 ||
+                pickupLongitude == 0) {
 
-                if (mapReady) {
+            Toast.makeText(
+                    this,
+                    "Waiting for your current location...",
+                    Toast.LENGTH_SHORT
+            ).show();
 
-                    webView.loadUrl(
-                            "javascript:centerMap(" +
-                                    pickupLatitude +
-                                    "," +
-                                    pickupLongitude +
-                                    ")");
+            requestLocation();
+            return;
+        }
 
-                    webView.loadUrl(
-                            "javascript:setPickup(" +
-                                    pickupLatitude +
-                                    "," +
-                                    pickupLongitude +
-                                    ")");
+        sendUserLocationToMap(
+                pickupLatitude,
+                pickupLongitude,
+                true
+        );
+    }
+
+    private void reverseGeocodePickup(
+            double lat,
+            double lng
+    ) {
+
+        new Thread(() -> {
+
+            String address =
+                    getAddress(lat, lng);
+
+            mainHandler.post(() -> {
+
+                if (!address.isEmpty()) {
+
+                    pickupAddress = address;
+
+                    if (
+                            "SELECT_DESTINATION"
+                                    .equalsIgnoreCase(mode)
+                            &&
+                            addressText != null
+                    ) {
+
+                        addressText.setText(
+                                "Pickup: " + address
+                        );
+                    }
+                }
+            });
+
+        }).start();
+    }
+
+    private void reverseGeocodeDestination(
+            double lat,
+            double lng
+    ) {
+
+        if (statusText != null) {
+            statusText.setText(
+                    "Getting destination address..."
+            );
+        }
+
+        new Thread(() -> {
+
+            String address =
+                    getAddress(lat, lng);
+
+            mainHandler.post(() -> {
+
+                destinationLatitude = lat;
+                destinationLongitude = lng;
+
+                destinationAddress =
+                        address.isEmpty()
+                                ? String.format(
+                                Locale.US,
+                                "%.6f, %.6f",
+                                lat,
+                                lng
+                        )
+                                : address;
+
+                destinationChosen = true;
+
+                if (addressText != null) {
+
+                    addressText.setText(
+                            "Destination: " +
+                            destinationAddress
+                    );
+                }
+
+                if (statusText != null) {
+
+                    statusText.setText(
+                            "Destination selected."
+                    );
+                }
+
+                if (selectButton != null) {
+                    selectButton.setEnabled(true);
+                }
+
+                setDestinationOnMap(
+                        lat,
+                        lng,
+                        destinationAddress
+                );
+            });
+
+        }).start();
+    }
+
+    private String getAddress(
+            double lat,
+            double lng
+    ) {
+
+        try {
+
+            Geocoder geocoder =
+                    new Geocoder(
+                            this,
+                            Locale.getDefault()
+                    );
+
+            List<Address> addresses =
+                    geocoder.getFromLocation(
+                            lat,
+                            lng,
+                            1
+                    );
+
+            if (
+                    addresses != null &&
+                    !addresses.isEmpty()
+            ) {
+
+                Address a =
+                        addresses.get(0);
+
+                String line =
+                        a.getAddressLine(0);
+
+                if (
+                        line != null &&
+                        !line.trim().isEmpty()
+                ) {
+
+                    return line;
                 }
             }
+
+        } catch (IOException ignored) {
+        } catch (Exception ignored) {
         }
-    };
 
-    private void listenForRide() {
+        return "";
+    }
 
-        if (rideId == null ||
-                rideId.isEmpty()) {
+    private void setDestinationOnMap(
+            double lat,
+            double lng,
+            String address
+    ) {
+
+        if (webView == null) {
             return;
+        }
+
+        String safeAddress =
+                address
+                        .replace("\\", "\\\\")
+                        .replace("'", "\\'")
+                        .replace("\n", " ")
+                        .replace("\r", " ");
+
+        String js =
+                "setDestination(" +
+                lat +
+                "," +
+                lng +
+                ",'" +
+                safeAddress +
+                "');";
+
+        webView.post(
+                () -> webView.evaluateJavascript(
+                        js,
+                        null
+                )
+        );
+    }
+
+    private void returnDestination() {
+
+        if (!destinationChosen ||
+                destinationLatitude == 0 ||
+                destinationLongitude == 0) {
+
+            Toast.makeText(
+                    this,
+                    "Please choose your destination on the map.",
+                    Toast.LENGTH_SHORT
+            ).show();
+
+            return;
+        }
+
+        Intent result = new Intent();
+
+        result.putExtra(
+                "destination_latitude",
+                destinationLatitude
+        );
+
+        result.putExtra(
+                "destination_longitude",
+                destinationLongitude
+        );
+
+        result.putExtra(
+                "destination_address",
+                destinationAddress
+        );
+
+        setResult(
+                RESULT_OK,
+                result
+        );
+
+        finish();
+    }
+
+    private void startLiveRideListener() {
+
+        if (
+                rideId == null ||
+                rideId.trim().isEmpty()
+        ) {
+            return;
+        }
+
+        if (rideListener != null) {
+            rideListener.remove();
         }
 
         rideListener =
@@ -1157,61 +893,254 @@ public class MapActivity extends Activity {
                                         return;
                                     }
 
-                                    updateLiveRide(snapshot);
-                                });
+                                    Double pLat =
+                                            snapshot.getDouble(
+                                                    "pickupLatitude"
+                                            );
+
+                                    Double pLng =
+                                            snapshot.getDouble(
+                                                    "pickupLongitude"
+                                            );
+
+                                    Double dLat =
+                                            snapshot.getDouble(
+                                                    "destinationLatitude"
+                                            );
+
+                                    Double dLng =
+                                            snapshot.getDouble(
+                                                    "destinationLongitude"
+                                            );
+
+                                    if (pLat != null &&
+                                            pLng != null) {
+
+                                        pickupLatitude = pLat;
+                                        pickupLongitude = pLng;
+
+                                        sendUserLocationToMap(
+                                                pLat,
+                                                pLng,
+                                                false
+                                        );
+                                    }
+
+                                    if (dLat != null &&
+                                            dLng != null) {
+
+                                        destinationLatitude = dLat;
+                                        destinationLongitude = dLng;
+
+                                        setDestinationOnMap(
+                                                dLat,
+                                                dLng,
+                                                safe(
+                                                        snapshot.getString(
+                                                                "destination"
+                                                        )
+                                                )
+                                        );
+                                    }
+
+                                    String status =
+                                            snapshot.getString(
+                                                    "status"
+                                            );
+
+                                    if (status != null &&
+                                            statusText != null) {
+
+                                        statusText.setText(
+                                                "Ride status: " +
+                                                status
+                                        );
+                                    }
+
+                                    String driverId =
+                                            snapshot.getString(
+                                                    "driverId"
+                                            );
+
+                                    if (
+                                            driverId != null &&
+                                            !driverId.trim().isEmpty()
+                                    ) {
+
+                                        listenForDriver(
+                                                driverId
+                                        );
+                                    }
+                                }
+                        );
     }
 
-    private void updateLiveRide(
-            DocumentSnapshot ride) {
+    private void listenForDriver(
+            String driverId
+    ) {
 
-        Double driverLat =
-                ride.getDouble(
-                        "driverLatitude");
-
-        Double driverLng =
-                ride.getDouble(
-                        "driverLongitude");
-
-        if (driverLat == null) {
-
-            driverLat =
-                    ride.getDouble(
-                            "driverLat");
+        if (driverListener != null) {
+            driverListener.remove();
         }
 
-        if (driverLng == null) {
+        driverListener =
+                db.collection("driverLocations")
+                        .document(driverId)
+                        .addSnapshotListener(
+                                (snapshot, error) -> {
 
-            driverLng =
-                    ride.getDouble(
-                            "driverLng");
-        }
+                                    if (
+                                            error != null ||
+                                            snapshot == null ||
+                                            !snapshot.exists()
+                                    ) {
+                                        return;
+                                    }
 
-        if (driverLat == null ||
-                driverLng == null) {
+                                    Double lat =
+                                            snapshot.getDouble(
+                                                    "latitude"
+                                            );
+
+                                    Double lng =
+                                            snapshot.getDouble(
+                                                    "longitude"
+                                            );
+
+                                    if (
+                                            lat == null ||
+                                            lng == null
+                                    ) {
+                                        return;
+                                    }
+
+                                    driverLatitude = lat;
+                                    driverLongitude = lng;
+
+                                    setDriverOnMap(
+                                            lat,
+                                            lng
+                                    );
+                                }
+                        );
+    }
+
+    private void setDriverOnMap(
+            double lat,
+            double lng
+    ) {
+
+        if (webView == null) {
             return;
         }
 
-        if (mapReady) {
+        String js =
+                "setDriver(" +
+                lat +
+                "," +
+                lng +
+                ");";
 
-            final double lat = driverLat;
-            final double lng = driverLng;
+        webView.post(
+                () -> webView.evaluateJavascript(
+                        js,
+                        null
+                )
+        );
+    }
 
-            runOnUiThread(() -> {
+    private void mapReady() {
 
-                webView.loadUrl(
-                        "javascript:setDriver(" +
-                                lat +
-                                "," +
-                                lng +
-                                ")");
+        mapReady = true;
 
-                selectedText.setText(
-                        String.format(
-                                Locale.US,
-                                "Driver location: %.6f, %.6f",
-                                lat,
-                                lng));
-            });
+        if (pickupLatitude != 0 &&
+                pickupLongitude != 0) {
+
+            sendUserLocationToMap(
+                    pickupLatitude,
+                    pickupLongitude,
+                    true
+            );
+        }
+
+        if (destinationChosen) {
+
+            setDestinationOnMap(
+                    destinationLatitude,
+                    destinationLongitude,
+                    destinationAddress
+            );
+        }
+
+        if (driverLatitude != 0 &&
+                driverLongitude != 0) {
+
+            setDriverOnMap(
+                    driverLatitude,
+                    driverLongitude
+            );
+        }
+
+        if (statusText != null) {
+
+            if (
+                    "SELECT_DESTINATION"
+                            .equalsIgnoreCase(mode)
+            ) {
+
+                statusText.setText(
+                        "Tap the map to choose a destination."
+                );
+
+            } else {
+
+                statusText.setText(
+                        "Live map ready."
+                );
+            }
+        }
+    }
+
+    private void mapClicked(
+            double lat,
+            double lng
+    ) {
+
+        if (
+                !"SELECT_DESTINATION"
+                        .equalsIgnoreCase(mode)
+        ) {
+            return;
+        }
+
+        reverseGeocodeDestination(
+                lat,
+                lng
+        );
+    }
+
+    public class MapBridge {
+
+        @JavascriptInterface
+        public void mapReady() {
+
+            runOnUiThread(
+                    () -> MapActivity.this.mapReady()
+            );
+        }
+
+        @JavascriptInterface
+        public void mapClicked(
+                double lat,
+                double lng
+        ) {
+
+            runOnUiThread(
+                    () -> MapActivity.this.mapClicked(
+                            lat,
+                            lng
+                    )
+            );
         }
     }
 
@@ -1219,30 +1148,26 @@ public class MapActivity extends Activity {
     public void onRequestPermissionsResult(
             int requestCode,
             @NonNull String[] permissions,
-            @NonNull int[] grantResults) {
+            @NonNull int[] grantResults
+    ) {
 
         super.onRequestPermissionsResult(
                 requestCode,
                 permissions,
-                grantResults);
+                grantResults
+        );
 
-        if (requestCode == LOCATION_REQUEST) {
+        if (
+                requestCode ==
+                        LOCATION_PERMISSION_REQUEST
+                &&
+                grantResults.length > 0
+                &&
+                grantResults[0] ==
+                        PackageManager.PERMISSION_GRANTED
+        ) {
 
-            boolean granted = false;
-
-            for (int result : grantResults) {
-
-                if (result ==
-                        PackageManager.PERMISSION_GRANTED) {
-
-                    granted = true;
-                    break;
-                }
-            }
-
-            if (granted) {
-                setupLocation();
-            }
+            startLocationUpdates();
         }
     }
 
@@ -1254,22 +1179,34 @@ public class MapActivity extends Activity {
             rideListener = null;
         }
 
-        if (locationManager != null) {
+        if (driverListener != null) {
+            driverListener.remove();
+            driverListener = null;
+        }
+
+        if (
+                locationManager != null &&
+                locationListener != null
+        ) {
 
             try {
 
                 locationManager.removeUpdates(
-                        locationListener);
+                        locationListener
+                );
 
             } catch (SecurityException ignored) {
-            } catch (Exception ignored) {
             }
         }
 
         if (webView != null) {
 
             webView.stopLoading();
+            webView.removeJavascriptInterface(
+                    "Android"
+            );
             webView.destroy();
+            webView = null;
         }
 
         super.onDestroy();
