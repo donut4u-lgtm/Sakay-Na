@@ -6,33 +6,31 @@ import android.content.Intent;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.view.Gravity;
+import android.view.View;
 import android.widget.Button;
-import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
-
-import java.util.HashMap;
-import java.util.Map;
 
 public class AdminActivity extends Activity {
 
     private FirebaseAuth auth;
     private FirebaseFirestore db;
 
-    private TextView statisticsText;
-    private LinearLayout usersContainer;
-    private LinearLayout ridesContainer;
+    private LinearLayout driverContainer;
+    private TextView statusText;
 
-    private EditText baseFareInput;
-    private EditText perKmInput;
-    private EditText minimumFareInput;
-    private EditText maximumFareInput;
+    private final int GREEN = Color.rgb(0, 125, 80);
+    private final int DARK = Color.rgb(35, 35, 35);
+    private final int LIGHT_GREEN = Color.rgb(232, 247, 238);
+    private final int LIGHT_RED = Color.rgb(255, 235, 235);
+    private final int LIGHT_YELLOW = Color.rgb(255, 248, 220);
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -41,998 +39,335 @@ public class AdminActivity extends Activity {
         auth = FirebaseAuth.getInstance();
         db = FirebaseFirestore.getInstance();
 
-        showAdminDashboard();
-
-        loadFareSettings();
-        loadStatistics();
-        loadUsers();
-        loadRides();
+        buildScreen();
+        loadDrivers();
     }
 
-    private void showAdminDashboard() {
-
-        ScrollView scrollView = new ScrollView(this);
+    private void buildScreen() {
 
         LinearLayout root = new LinearLayout(this);
-
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(25, 30, 25, 30);
+        root.setPadding(20, 20, 20, 20);
         root.setBackgroundColor(Color.WHITE);
 
-        scrollView.addView(root);
-
-        TextView title = text(
-                "🛺 SAKAY NA",
-                30,
-                Color.BLACK
-        );
-
+        TextView title = new TextView(this);
+        title.setText("🛺 Sakay Na ADMIN");
+        title.setTextSize(28);
+        title.setTextColor(GREEN);
         title.setGravity(Gravity.CENTER);
+        title.setPadding(0, 10, 0, 10);
         root.addView(title);
 
-        TextView heading = text(
-                "ADMIN CONTROL CENTER",
-                22,
-                Color.rgb(20, 120, 70)
-        );
+        TextView subtitle = new TextView(this);
+        subtitle.setText("Driver Approval Dashboard");
+        subtitle.setTextSize(18);
+        subtitle.setTextColor(DARK);
+        subtitle.setGravity(Gravity.CENTER);
+        subtitle.setPadding(0, 0, 0, 15);
+        root.addView(subtitle);
 
-        heading.setGravity(Gravity.CENTER);
-        root.addView(heading);
+        statusText = new TextView(this);
+        statusText.setText("Loading drivers...");
+        statusText.setTextSize(16);
+        statusText.setTextColor(DARK);
+        statusText.setGravity(Gravity.CENTER);
+        statusText.setPadding(0, 10, 0, 15);
+        root.addView(statusText);
 
-        TextView info = text(
-                "Manage fares, drivers, passengers and rides.",
-                15,
-                Color.DKGRAY
-        );
-
-        info.setGravity(Gravity.CENTER);
-        root.addView(info);
-
-        addSpace(root, 15);
-
-        TextView statisticsTitle = text(
-                "📊 SYSTEM STATISTICS",
-                20,
-                Color.BLACK
-        );
-
-        root.addView(statisticsTitle);
-
-        statisticsText = text(
-                "Loading statistics...",
-                16,
-                Color.DKGRAY
-        );
-
-        root.addView(statisticsText);
-
-        addSpace(root, 20);
-
-        TextView fareTitle = text(
-                "💰 FARE SETTINGS",
-                20,
-                Color.BLACK
-        );
-
-        root.addView(fareTitle);
-
-        TextView fareInfo = text(
-                "Changes here become the central fare settings " +
-                "used by the Sakay Na system.",
-                14,
-                Color.DKGRAY
-        );
-
-        root.addView(fareInfo);
-
-        baseFareInput = input("Base fare");
-        root.addView(baseFareInput);
-
-        perKmInput = input("Fare per kilometer");
-        root.addView(perKmInput);
-
-        minimumFareInput = input("Minimum fare");
-        root.addView(minimumFareInput);
-
-        maximumFareInput = input("Maximum fare");
-        root.addView(maximumFareInput);
-
-        Button saveFare = button(
-                "💾 SAVE FARE SETTINGS"
-        );
-
-        saveFare.setOnClickListener(
-                v -> saveFareSettings()
-        );
-
-        root.addView(saveFare);
-
-        addSpace(root, 25);
-
-        TextView usersTitle = text(
-                "👥 USERS / DRIVERS",
-                20,
-                Color.BLACK
-        );
-
-        root.addView(usersTitle);
-
-        usersContainer = new LinearLayout(this);
-
-        usersContainer.setOrientation(
-                LinearLayout.VERTICAL
-        );
-
-        root.addView(usersContainer);
-
-        addSpace(root, 25);
-
-        TextView ridesTitle = text(
-                "🚕 RECENT RIDES",
-                20,
-                Color.BLACK
-        );
-
-        root.addView(ridesTitle);
-
-        ridesContainer = new LinearLayout(this);
-
-        ridesContainer.setOrientation(
-                LinearLayout.VERTICAL
-        );
-
-        root.addView(ridesContainer);
-
-        addSpace(root, 25);
-
-        Button refresh = button(
-                "🔄 REFRESH ADMIN DATA"
-        );
-
-        refresh.setOnClickListener(
-                v -> {
-                    loadFareSettings();
-                    loadStatistics();
-                    loadUsers();
-                    loadRides();
-                }
-        );
-
+        Button refresh = new Button(this);
+        refresh.setText("🔄 REFRESH DRIVERS");
+        refresh.setTextSize(16);
+        refresh.setOnClickListener(v -> loadDrivers());
         root.addView(refresh);
 
-        Button logout = button(
-                "🚪 LOGOUT"
+        ScrollView scroll = new ScrollView(this);
+
+        driverContainer = new LinearLayout(this);
+        driverContainer.setOrientation(LinearLayout.VERTICAL);
+        driverContainer.setPadding(0, 15, 0, 15);
+
+        scroll.addView(driverContainer);
+
+        root.addView(
+                scroll,
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        0,
+                        1f
+                )
         );
 
-        logout.setOnClickListener(
-                v -> logout()
-        );
-
+        Button logout = new Button(this);
+        logout.setText("🚪 LOGOUT");
+        logout.setTextSize(17);
+        logout.setOnClickListener(v -> logout());
         root.addView(logout);
 
-        setContentView(scrollView);
+        setContentView(root);
     }
 
-    private void loadFareSettings() {
+    private void loadDrivers() {
 
-        db.collection("settings")
-                .document("fare")
-                .get()
-                .addOnSuccessListener(
-                        document -> {
-
-                            if (!document.exists()) {
-
-                                baseFareInput.setText("50");
-                                perKmInput.setText("10");
-                                minimumFareInput.setText("50");
-                                maximumFareInput.setText("500");
-
-                                return;
-                            }
-
-                            Double baseFare =
-                                    document.getDouble("baseFare");
-
-                            Double perKm =
-                                    document.getDouble("perKm");
-
-                            Double minimumFare =
-                                    document.getDouble("minimumFare");
-
-                            Double maximumFare =
-                                    document.getDouble("maximumFare");
-
-                            if (baseFare != null) {
-                                baseFareInput.setText(
-                                        String.valueOf(baseFare)
-                                );
-                            }
-
-                            if (perKm != null) {
-                                perKmInput.setText(
-                                        String.valueOf(perKm)
-                                );
-                            }
-
-                            if (minimumFare != null) {
-                                minimumFareInput.setText(
-                                        String.valueOf(minimumFare)
-                                );
-                            }
-
-                            if (maximumFare != null) {
-                                maximumFareInput.setText(
-                                        String.valueOf(maximumFare)
-                                );
-                            }
-                        }
-                )
-                .addOnFailureListener(
-                        e -> showMessage(
-                                "Could not load fare settings: " +
-                                e.getMessage()
-                        )
-                );
-    }
-
-    private void saveFareSettings() {
-
-        String baseText =
-                baseFareInput
-                        .getText()
-                        .toString()
-                        .trim();
-
-        String perKmText =
-                perKmInput
-                        .getText()
-                        .toString()
-                        .trim();
-
-        String minimumText =
-                minimumFareInput
-                        .getText()
-                        .toString()
-                        .trim();
-
-        String maximumText =
-                maximumFareInput
-                        .getText()
-                        .toString()
-                        .trim();
-
-        if (baseText.isEmpty() ||
-                perKmText.isEmpty() ||
-                minimumText.isEmpty() ||
-                maximumText.isEmpty()) {
-
-            showMessage(
-                    "Please complete all fare fields."
-            );
-
-            return;
-        }
-
-        double baseFare;
-        double perKm;
-        double minimumFare;
-        double maximumFare;
-
-        try {
-
-            baseFare =
-                    Double.parseDouble(baseText);
-
-            perKm =
-                    Double.parseDouble(perKmText);
-
-            minimumFare =
-                    Double.parseDouble(minimumText);
-
-            maximumFare =
-                    Double.parseDouble(maximumText);
-
-        } catch (NumberFormatException e) {
-
-            showMessage(
-                    "Enter valid numbers for the fare."
-            );
-
-            return;
-        }
-
-        if (baseFare < 0 ||
-                perKm < 0 ||
-                minimumFare < 0 ||
-                maximumFare < 0) {
-
-            showMessage(
-                    "Fare values cannot be negative."
-            );
-
-            return;
-        }
-
-        if (maximumFare < minimumFare) {
-
-            showMessage(
-                    "Maximum fare must be greater than minimum fare."
-            );
-
-            return;
-        }
-
-        Map<String, Object> fare =
-                new HashMap<>();
-
-        fare.put(
-                "baseFare",
-                baseFare
-        );
-
-        fare.put(
-                "perKm",
-                perKm
-        );
-
-        fare.put(
-                "minimumFare",
-                minimumFare
-        );
-
-        fare.put(
-                "maximumFare",
-                maximumFare
-        );
-
-        fare.put(
-                "updatedAt",
-                com.google.firebase.firestore.FieldValue
-                        .serverTimestamp()
-        );
-
-        db.collection("settings")
-                .document("fare")
-                .set(fare)
-                .addOnSuccessListener(
-                        unused -> showMessage(
-                                "🟢 Fare settings saved."
-                        )
-                )
-                .addOnFailureListener(
-                        e -> showMessage(
-                                "Fare save failed: " +
-                                e.getMessage()
-                        )
-                );
-    }
-
-    private void loadStatistics() {
+        driverContainer.removeAllViews();
+        statusText.setText("Loading drivers...");
 
         db.collection("users")
+                .whereEqualTo("role", "DRIVER")
                 .get()
-                .addOnSuccessListener(
-                        snapshot -> {
+                .addOnSuccessListener(snapshot -> {
 
-                            int passengers = 0;
-                            int drivers = 0;
-                            int approvedDrivers = 0;
-                            int pendingDrivers = 0;
-                            int activeUsers = 0;
+                    driverContainer.removeAllViews();
 
-                            for (DocumentSnapshot document :
-                                    snapshot.getDocuments()) {
-
-                                String role =
-                                        document.getString("role");
-
-                                Boolean approved =
-                                        document.getBoolean("approved");
-
-                                Boolean active =
-                                        document.getBoolean("active");
-
-                                if ("PASSENGER".equals(role)) {
-                                    passengers++;
-                                }
-
-                                if ("DRIVER".equals(role)) {
-
-                                    drivers++;
-
-                                    if (Boolean.TRUE.equals(approved)) {
-                                        approvedDrivers++;
-                                    } else {
-                                        pendingDrivers++;
-                                    }
-                                }
-
-                                if (active == null ||
-                                        Boolean.TRUE.equals(active)) {
-
-                                    activeUsers++;
-                                }
-                            }
-
-                            final int finalPassengers =
-                                    passengers;
-
-                            final int finalDrivers =
-                                    drivers;
-
-                            final int finalApprovedDrivers =
-                                    approvedDrivers;
-
-                            final int finalPendingDrivers =
-                                    pendingDrivers;
-
-                            final int finalActiveUsers =
-                                    activeUsers;
-
-                            db.collection("rides")
-                                    .get()
-                                    .addOnSuccessListener(
-                                            rideSnapshot -> {
-
-                                                int totalRides =
-                                                        rideSnapshot.size();
-
-                                                statisticsText.setText(
-                                                        "Passengers: " +
-                                                        finalPassengers +
-                                                        "\nDrivers: " +
-                                                        finalDrivers +
-                                                        "\nApproved drivers: " +
-                                                        finalApprovedDrivers +
-                                                        "\nPending drivers: " +
-                                                        finalPendingDrivers +
-                                                        "\nActive users: " +
-                                                        finalActiveUsers +
-                                                        "\nTotal rides: " +
-                                                        totalRides
-                                                );
-                                            }
-                                    )
-                                    .addOnFailureListener(
-                                            e -> statisticsText.setText(
-                                                    "Passengers: " +
-                                                    finalPassengers +
-                                                    "\nDrivers: " +
-                                                    finalDrivers +
-                                                    "\nApproved drivers: " +
-                                                    finalApprovedDrivers +
-                                                    "\nPending drivers: " +
-                                                    finalPendingDrivers +
-                                                    "\nActive users: " +
-                                                    finalActiveUsers +
-                                                    "\nTotal rides: unavailable"
-                                            )
-                                    );
-                        }
-                )
-                .addOnFailureListener(
-                        e -> statisticsText.setText(
-                                "Unable to load statistics:\n" +
-                                e.getMessage()
-                        )
-                );
-    }
-
-    private void loadUsers() {
-
-        usersContainer.removeAllViews();
-
-        TextView loading = text(
-                "Loading users...",
-                15,
-                Color.DKGRAY
-        );
-
-        usersContainer.addView(loading);
-
-        db.collection("users")
-                .get()
-                .addOnSuccessListener(
-                        snapshot -> {
-
-                            usersContainer.removeAllViews();
-
-                            if (snapshot.isEmpty()) {
-
-                                usersContainer.addView(
-                                        text(
-                                                "No users found.",
-                                                15,
-                                                Color.DKGRAY
-                                        )
-                                );
-
-                                return;
-                            }
-
-                            for (DocumentSnapshot document :
-                                    snapshot.getDocuments()) {
-
-                                addUserCard(document);
-                            }
-                        }
-                )
-                .addOnFailureListener(
-                        e -> {
-
-                            usersContainer.removeAllViews();
-
-                            usersContainer.addView(
-                                    text(
-                                            "Unable to load users: " +
-                                            e.getMessage(),
-                                            15,
-                                            Color.RED
-                                    )
-                            );
-                        }
-                );
-    }
-
-    private void addUserCard(
-            DocumentSnapshot document) {
-
-        String uid =
-                document.getId();
-
-        String email =
-                document.getString("email");
-
-        String role =
-                document.getString("role");
-
-        String driverName =
-                document.getString("driverName");
-
-        String phone =
-                document.getString("phone");
-
-        Boolean approved =
-                document.getBoolean("approved");
-
-        Boolean canAcceptRides =
-                document.getBoolean("canAcceptRides");
-
-        String driverStatus =
-                document.getString("driverStatus");
-
-        String displayName =
-                driverName;
-
-        if (displayName == null ||
-                displayName.trim().isEmpty()) {
-
-            displayName =
-                    document.getString("name");
-        }
-
-        if (displayName == null ||
-                displayName.trim().isEmpty()) {
-
-            displayName = "User";
-        }
-
-        StringBuilder details =
-                new StringBuilder();
-
-        details.append(displayName);
-
-        if (email != null &&
-                !email.isEmpty()) {
-
-            details.append("\n")
-                    .append(email);
-        }
-
-        if (phone != null &&
-                !phone.isEmpty()) {
-
-            details.append("\n")
-                    .append(phone);
-        }
-
-        details.append("\nRole: ")
-                .append(
-                        role == null
-                                ? "UNKNOWN"
-                                : role
-                );
-
-        if ("DRIVER".equals(role)) {
-
-            details.append("\nApproved: ")
-                    .append(
-                            Boolean.TRUE.equals(approved)
-                    );
-
-            details.append("\nDriver status: ")
-                    .append(
-                            driverStatus == null
-                                    ? "UNKNOWN"
-                                    : driverStatus
-                    );
-
-            details.append("\nCan accept rides: ")
-                    .append(
-                            Boolean.TRUE.equals(
-                                    canAcceptRides
-                            )
-                    );
-        }
-
-        TextView userText =
-                text(
-                        details.toString(),
-                        15,
-                        Color.DKGRAY
-                );
-
-        usersContainer.addView(userText);
-
-        if ("DRIVER".equals(role)) {
-
-            Button approvalButton =
-                    button(
-                            Boolean.TRUE.equals(approved)
-                                    ? "❌ REVOKE DRIVER APPROVAL"
-                                    : "✅ APPROVE DRIVER"
-                    );
-
-            approvalButton.setOnClickListener(
-                    v -> {
-
-                        boolean newApproved =
-                                !Boolean.TRUE.equals(
-                                        approved
-                                );
-
-                        updateDriverApproval(
-                                uid,
-                                newApproved
-                        );
+                    if (snapshot.isEmpty()) {
+                        statusText.setText("No driver accounts found.");
+                        return;
                     }
-            );
 
-            usersContainer.addView(
-                    approvalButton
-            );
-        }
+                    int pending = 0;
+                    int approved = 0;
+                    int rejected = 0;
 
-        addSpace(
-                usersContainer,
-                10
-        );
-    }
+                    for (DocumentSnapshot d : snapshot.getDocuments()) {
 
-    private void updateDriverApproval(
-            String uid,
-            boolean approved) {
+                        String approvalStatus = d.getString("approvalStatus");
 
-        Map<String, Object> update =
-                new HashMap<>();
+                        if (approvalStatus == null) {
+                            Boolean approvedValue = d.getBoolean("approved");
 
-        update.put(
-                "approved",
-                approved
-        );
-
-        if (approved) {
-
-            update.put(
-                    "driverStatus",
-                    "APPROVED"
-            );
-
-            update.put(
-                    "canAcceptRides",
-                    true
-            );
-
-        } else {
-
-            update.put(
-                    "driverStatus",
-                    "PENDING_APPROVAL"
-            );
-
-            update.put(
-                    "canAcceptRides",
-                    false
-            );
-        }
-
-        db.collection("users")
-                .document(uid)
-                .update(update)
-                .addOnSuccessListener(
-                        unused -> {
-
-                            showMessage(
-                                    approved
-                                            ? "🟢 Driver approved."
-                                            : "Driver approval revoked."
-                            );
-
-                            loadStatistics();
-                            loadUsers();
+                            if (approvedValue != null && approvedValue) {
+                                approvalStatus = "APPROVED";
+                            } else {
+                                approvalStatus = "PENDING_APPROVAL";
+                            }
                         }
-                )
-                .addOnFailureListener(
-                        e -> showMessage(
-                                "Approval update failed: " +
-                                e.getMessage()
+
+                        if ("APPROVED".equalsIgnoreCase(approvalStatus)) {
+                            approved++;
+                        } else if ("REJECTED".equalsIgnoreCase(approvalStatus)) {
+                            rejected++;
+                        } else {
+                            pending++;
+                        }
+
+                        addDriverCard(d, approvalStatus);
+                    }
+
+                    statusText.setText(
+                            "Drivers: " + snapshot.size()
+                                    + "   •   Pending: " + pending
+                                    + "   •   Approved: " + approved
+                                    + "   •   Rejected: " + rejected
+                    );
+
+                })
+                .addOnFailureListener(e ->
+                        statusText.setText(
+                                "Unable to load drivers: " + safeMessage(e)
                         )
                 );
     }
 
-    private void loadRides() {
+    private void addDriverCard(DocumentSnapshot d, String approvalStatus) {
 
-        ridesContainer.removeAllViews();
+        String phone = d.getString("phone");
 
-        ridesContainer.addView(
-                text(
-                        "Loading rides...",
-                        15,
-                        Color.DKGRAY
-                )
-        );
+        if (phone == null || phone.trim().isEmpty()) {
+            phone = "Phone not available";
+        }
 
-        db.collection("rides")
-                .get()
-                .addOnSuccessListener(
-                        snapshot -> {
+        String role = d.getString("role");
 
-                            ridesContainer.removeAllViews();
+        if (role == null) {
+            role = "DRIVER";
+        }
 
-                            if (snapshot.isEmpty()) {
+        Boolean approvedValue = d.getBoolean("approved");
+        boolean approved = approvedValue != null && approvedValue;
 
-                                ridesContainer.addView(
-                                        text(
-                                                "No rides found.",
-                                                15,
-                                                Color.DKGRAY
-                                        )
-                                );
+        Boolean onlineValue = d.getBoolean("online");
+        boolean online = onlineValue != null && onlineValue;
 
-                                return;
-                            }
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(20, 20, 20, 20);
 
-                            for (DocumentSnapshot document :
-                                    snapshot.getDocuments()) {
+        if ("APPROVED".equalsIgnoreCase(approvalStatus)) {
+            card.setBackgroundColor(LIGHT_GREEN);
+        } else if ("REJECTED".equalsIgnoreCase(approvalStatus)) {
+            card.setBackgroundColor(LIGHT_RED);
+        } else {
+            card.setBackgroundColor(LIGHT_YELLOW);
+        }
 
-                                String rideId =
-                                        document.getId();
-
-                                String status =
-                                        document.getString("status");
-
-                                String paymentMethod =
-                                        document.getString(
-                                                "paymentMethod"
-                                        );
-
-                                String pickup =
-                                        document.getString("pickup");
-
-                                String destination =
-                                        document.getString(
-                                                "destination"
-                                        );
-
-                                Double fare =
-                                        document.getDouble("fare");
-
-                                StringBuilder ride =
-                                        new StringBuilder();
-
-                                ride.append(
-                                        "Ride ID: "
-                                ).append(
-                                        rideId
-                                );
-
-                                ride.append(
-                                        "\nStatus: "
-                                ).append(
-                                        status == null
-                                                ? "UNKNOWN"
-                                                : status
-                                );
-
-                                if (pickup != null) {
-
-                                    ride.append(
-                                            "\nPickup: "
-                                    ).append(
-                                            pickup
-                                    );
-                                }
-
-                                if (destination != null) {
-
-                                    ride.append(
-                                            "\nDestination: "
-                                    ).append(
-                                            destination
-                                    );
-                                }
-
-                                if (fare != null) {
-
-                                    ride.append(
-                                            "\nFare: ₱"
-                                    ).append(
-                                            String.format(
-                                                    "%.2f",
-                                                    fare
-                                            )
-                                    );
-                                }
-
-                                if (paymentMethod != null) {
-
-                                    ride.append(
-                                            "\nPayment: "
-                                    ).append(
-                                            paymentMethod
-                                    );
-                                }
-
-                                TextView rideText =
-                                        text(
-                                                ride.toString(),
-                                                15,
-                                                Color.DKGRAY
-                                        );
-
-                                ridesContainer.addView(
-                                        rideText
-                                );
-
-                                addSpace(
-                                        ridesContainer,
-                                        10
-                                );
-                            }
-                        }
-                )
-                .addOnFailureListener(
-                        e -> {
-
-                            ridesContainer.removeAllViews();
-
-                            ridesContainer.addView(
-                                    text(
-                                            "Unable to load rides: " +
-                                            e.getMessage(),
-                                            15,
-                                            Color.RED
-                                    )
-                            );
-                        }
-                );
-    }
-
-    private EditText input(
-            String hint) {
-
-        EditText input =
-                new EditText(this);
-
-        input.setHint(hint);
-        input.setTextSize(16);
-        input.setSingleLine(true);
-        input.setInputType(
-                android.text.InputType.TYPE_CLASS_NUMBER |
-                android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
-        );
-
-        input.setPadding(
-                15,
-                12,
-                15,
-                12
-        );
-
-        LinearLayout.LayoutParams params =
+        LinearLayout.LayoutParams cardParams =
                 new LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.MATCH_PARENT,
                         LinearLayout.LayoutParams.WRAP_CONTENT
                 );
 
-        params.setMargins(
-                0,
-                6,
-                0,
-                6
+        cardParams.setMargins(0, 0, 0, 20);
+        driverContainer.addView(card, cardParams);
+
+        TextView driverTitle = new TextView(this);
+        driverTitle.setText("🛺 DRIVER");
+        driverTitle.setTextSize(21);
+        driverTitle.setTextColor(GREEN);
+        driverTitle.setGravity(Gravity.CENTER);
+        card.addView(driverTitle);
+
+        TextView phoneText = new TextView(this);
+        phoneText.setText("Phone: " + phone);
+        phoneText.setTextSize(17);
+        phoneText.setTextColor(DARK);
+        phoneText.setPadding(0, 8, 0, 8);
+        card.addView(phoneText);
+
+        TextView roleText = new TextView(this);
+        roleText.setText("Role: " + role);
+        roleText.setTextSize(16);
+        roleText.setTextColor(DARK);
+        card.addView(roleText);
+
+        TextView approvalText = new TextView(this);
+        approvalText.setText(
+                "Approval: " + approvalStatus
         );
+        approvalText.setTextSize(17);
+        approvalText.setTextColor(DARK);
+        approvalText.setPadding(0, 8, 0, 8);
+        card.addView(approvalText);
 
-        input.setLayoutParams(params);
-
-        return input;
-    }
-
-    private Button button(
-            String label) {
-
-        Button button =
-                new Button(this);
-
-        button.setText(label);
-        button.setTextSize(15);
-        button.setAllCaps(false);
-
-        return button;
-    }
-
-    private TextView text(
-            String value,
-            int size,
-            int color) {
-
-        TextView view =
-                new TextView(this);
-
-        view.setText(value);
-        view.setTextSize(size);
-        view.setTextColor(color);
-
-        view.setPadding(
-                10,
-                10,
-                10,
-                10
+        TextView onlineText = new TextView(this);
+        onlineText.setText(
+                "Online: " + (online ? "YES" : "NO")
         );
+        onlineText.setTextSize(16);
+        onlineText.setTextColor(DARK);
+        card.addView(onlineText);
 
-        return view;
+        if ("APPROVED".equalsIgnoreCase(approvalStatus)) {
+
+            Button reject = new Button(this);
+            reject.setText("❌ REJECT DRIVER");
+            reject.setTextSize(15);
+            card.addView(reject);
+
+            reject.setOnClickListener(v ->
+                    rejectDriver(d.getId())
+            );
+
+        } else if ("REJECTED".equalsIgnoreCase(approvalStatus)) {
+
+            Button approve = new Button(this);
+            approve.setText("✅ APPROVE DRIVER");
+            approve.setTextSize(15);
+            card.addView(approve);
+
+            approve.setOnClickListener(v ->
+                    approveDriver(d.getId())
+            );
+
+        } else {
+
+            Button approve = new Button(this);
+            approve.setText("✅ APPROVE DRIVER");
+            approve.setTextSize(16);
+            card.addView(approve);
+
+            approve.setOnClickListener(v ->
+                    approveDriver(d.getId())
+            );
+
+            Button reject = new Button(this);
+            reject.setText("❌ REJECT DRIVER");
+            reject.setTextSize(16);
+            card.addView(reject);
+
+            reject.setOnClickListener(v ->
+                    rejectDriver(d.getId())
+            );
+        }
     }
 
-    private void addSpace(
-            LinearLayout parent,
-            int height) {
+    private void approveDriver(String driverId) {
 
-        TextView space =
-                new TextView(this);
+        db.collection("users")
+                .document(driverId)
+                .update(
+                        "approved", true,
+                        "approvalStatus", "APPROVED",
+                        "online", false,
+                        "approvedAt", System.currentTimeMillis()
+                )
+                .addOnSuccessListener(v -> {
+                    Toast.makeText(
+                            this,
+                            "Driver approved successfully.",
+                            Toast.LENGTH_LONG
+                    ).show();
 
-        space.setHeight(height);
-
-        parent.addView(space);
+                    loadDrivers();
+                })
+                .addOnFailureListener(e ->
+                        Toast.makeText(
+                                this,
+                                "Approval failed: " + safeMessage(e),
+                                Toast.LENGTH_LONG
+                        ).show()
+                );
     }
 
-    private void showMessage(
-            String message) {
+    private void rejectDriver(String driverId) {
 
-        Toast.makeText(
-                this,
-                message,
-                Toast.LENGTH_LONG
-        ).show();
+        db.collection("users")
+                .document(driverId)
+                .update(
+                        "approved", false,
+                        "approvalStatus", "REJECTED",
+                        "online", false,
+                        "rejectedAt", System.currentTimeMillis()
+                )
+                .addOnSuccessListener(v -> {
+                    Toast.makeText(
+                            this,
+                            "Driver rejected.",
+                            Toast.LENGTH_LONG
+                    ).show();
+
+                    loadDrivers();
+                })
+                .addOnFailureListener(e ->
+                        Toast.makeText(
+                                this,
+                                "Rejection failed: " + safeMessage(e),
+                                Toast.LENGTH_LONG
+                        ).show()
+                );
     }
 
     private void logout() {
 
         auth.signOut();
 
-        Intent intent =
-                new Intent(
-                        this,
-                        MainActivity.class
-                );
-
-        intent.addFlags(
-                Intent.FLAG_ACTIVITY_CLEAR_TOP |
+        Intent i = new Intent(this, MainActivity.class);
+        i.addFlags(
                 Intent.FLAG_ACTIVITY_NEW_TASK |
                 Intent.FLAG_ACTIVITY_CLEAR_TASK
         );
 
-        startActivity(intent);
-
+        startActivity(i);
         finish();
+    }
+
+    private String safeMessage(Exception e) {
+
+        if (e == null ||
+                e.getMessage() == null ||
+                e.getMessage().trim().isEmpty()) {
+
+            return "Unknown Firebase error.";
+        }
+
+        return e.getMessage();
     }
 }
