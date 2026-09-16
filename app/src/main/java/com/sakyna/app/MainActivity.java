@@ -423,30 +423,21 @@ public class MainActivity extends Activity {
 
         role = role.trim().toUpperCase();
 
-        /*
-         * IMPORTANT:
-         *
-         * Login destination is determined ONLY by the
-         * Firestore profile role.
-         *
-         * The login screen's selected button does NOT
-         * change the account's role.
-         */
+        // IMPORTANT:
+        // The account destination is determined ONLY
+        // by the role stored in Firestore.
 
         if ("DRIVER".equals(role)) {
-
             openActivity(DriverActivity.class);
             return;
         }
 
         if ("PASSENGER".equals(role)) {
-
             openActivity(PassengerActivity.class);
             return;
         }
 
         if ("ADMIN".equals(role)) {
-
             openActivity(AdminActivity.class);
             return;
         }
@@ -462,11 +453,6 @@ public class MainActivity extends Activity {
             return;
         }
 
-        /*
-         * Capture the role NOW.
-         * This prevents the role from accidentally changing
-         * while Firebase is creating the account.
-         */
         final String accountRole =
                 selectedRole == null
                         ? "PASSENGER"
@@ -485,12 +471,6 @@ public class MainActivity extends Activity {
         final String password =
                 passwordField.getText().toString();
 
-        /*
-         * Phone number + password only.
-         *
-         * The Firebase identifier is internal.
-         * The user interface remains phone + password.
-         */
         auth.createUserWithEmailAndPassword(
                 firebaseIdentifier(phone),
                 password
@@ -511,12 +491,6 @@ public class MainActivity extends Activity {
 
             if ("DRIVER".equals(accountRole)) {
 
-                /*
-                 * DRIVER:
-                 * Can create account.
-                 * Can login.
-                 * Cannot GO ONLINE until Admin approval.
-                 */
                 profile.put("approved", false);
                 profile.put(
                         "approvalStatus",
@@ -526,10 +500,6 @@ public class MainActivity extends Activity {
 
             } else {
 
-                /*
-                 * PASSENGER:
-                 * Normal passenger account.
-                 */
                 profile.put("approved", true);
                 profile.put(
                         "approvalStatus",
@@ -549,7 +519,6 @@ public class MainActivity extends Activity {
                     .addOnSuccessListener(v -> {
 
                         auth.signOut();
-
                         passwordField.setText("");
 
                         if ("DRIVER".equals(accountRole)) {
@@ -557,14 +526,14 @@ public class MainActivity extends Activity {
                             toast(
                                     "DRIVER account created.\n" +
                                     "You can LOGIN now.\n" +
-                                    "GO ONLINE will require Admin approval."
+                                    "GO ONLINE requires Admin approval."
                             );
 
                         } else {
 
                             toast(
                                     "PASSENGER account created.\n" +
-                                    "Please login."
+                                    "Please LOGIN."
                             );
                         }
 
