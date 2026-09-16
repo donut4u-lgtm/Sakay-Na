@@ -2,7 +2,6 @@
 package com.sakyna.app;
 
 import android.Manifest;
-import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.location.Address;
@@ -17,6 +16,9 @@ import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.View;
+import android.webkit.JavascriptInterface;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -27,8 +29,6 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.activity.ComponentActivity;
-import androidx.activity.result.ActivityResultLauncher;
-import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 
 import com.google.firebase.auth.FirebaseAuth;
@@ -56,12 +56,12 @@ public class PassengerActivity extends ComponentActivity {
     private LocationManager locationManager;
     private Location currentLocation;
 
+    private WebView mapWebView;
     private EditText pickupInput;
     private EditText destinationInput;
     private TextView gpsText;
     private TextView fareText;
     private TextView statusText;
-    private Button chooseDestinationButton;
     private Button bookButton;
     private Button cancelButton;
     private Button mapButton;
@@ -84,39 +84,7 @@ public class PassengerActivity extends ComponentActivity {
     private double destinationLongitude = 0.0;
 
     private boolean ignoreDestinationTextChange = false;
-
-    // Modern ActivityResultLauncher replacing deprecated startActivityForResult
-    private final ActivityResultLauncher<Intent> mapLauncher = registerForActivityResult(
-            new ActivityResultContracts.StartActivityForResult(),
-            result -> {
-                if (result.getResultCode() == RESULT_OK && result.getData() != null) {
-                    Intent data = result.getData();
-                    double lat = data.getDoubleExtra("destination_latitude", 0.0);
-                    double lng = data.getDoubleExtra("destination_longitude", 0.0);
-                    String address = data.getStringExtra("destination_address");
-
-                    if (lat == 0.0 && lng == 0.0) {
-                        Toast.makeText(this, "No destination was selected.", Toast.LENGTH_SHORT).show();
-                        return;
-                    }
-
-                    destinationLatitude = lat;
-                    destinationLongitude = lng;
-
-                    if (address == null || address.trim().isEmpty()) {
-                        address = String.format(Locale.US, "%.6f, %.6f", lat, lng);
-                    }
-
-                    ignoreDestinationTextChange = true;
-                    destinationInput.setText(address);
-                    destinationInput.setSelection(destinationInput.getText().length());
-                    ignoreDestinationTextChange = false;
-
-                    updateEstimatedFare();
-                    Toast.makeText(this, "Destination selected.", Toast.LENGTH_SHORT).show();
-                }
-            }
-    );
+    private boolean mapInitialized = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -138,31 +106,64 @@ public class PassengerActivity extends ComponentActivity {
     }
 
     private void buildScreen() {
+        LinearLayout mainLayout = new LinearLayout(this);
+        mainLayout.setOrientation(LinearLayout.VERTICAL);
+
+        // 1. Embedded Map WebView taking top 40% of the screen
+        mapWebView = new WebView(this);
+        LinearLayout.LayoutParams mapParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                0,
+                0.40f
+        );
+        mapWebView.setLayoutParams(mapParams);
+        mapWebView.getSettings().setJavaScriptEnabled(true);
+        mapWebView.addJavascriptInterface(new MapBridge(), "AndroidBridge");
+        mapWebView.setWebViewClient(new WebViewClient() {
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                mapInitialized = true;
+                if (pickupLatitude != 0.0 && pickupLongitude != 0.0) {
+                    updateMapCenter(pickupLatitude, pickupLongitude);
+                }
+            }
+        });
+
+        loadEmbeddedMapHtml();
+        mainLayout.addView(mapWebView);
+
+        // 2. Scrollable Form Layout taking bottom 60% of the screen
         ScrollView scrollView = new ScrollView(this);
+        LinearLayout.LayoutParams scrollParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                0,
+                0.60f
+        );
+        scrollView.setLayoutParams(scrollParams);
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(32, 32, 32, 32);
+        root.setPadding(32, 24, 32, 32);
         scrollView.addView(root);
 
         TextView title = new TextView(this);
         title.setText("Sakay Na");
-        title.setTextSize(30);
+        title.setTextSize(26);
         title.setGravity(Gravity.CENTER);
-        title.setPadding(0, 0, 0, 12);
+        title.setPadding(0, 0, 0, 4);
         root.addView(title);
 
         TextView subtitle = new TextView(this);
-        subtitle.setText("Passenger • Book a Tricycle Ride");
-        subtitle.setTextSize(17);
+        subtitle.setText("Tap map or enter destination below");
+        subtitle.setTextSize(14);
         subtitle.setGravity(Gravity.CENTER);
-        subtitle.setPadding(0, 0, 0, 24);
+        subtitle.setPadding(0, 0, 0, 16);
         root.addView(subtitle);
 
         gpsText = new TextView(this);
         gpsText.setText("Getting your location...");
-        gpsText.setTextSize(15);
-        gpsText.setPadding(0, 8, 0, 16);
+        gpsText.setTextSize(14);
+        gpsText.setPadding(0, 4, 0, 12);
         root.addView(gpsText);
 
         pickupInput = new EditText(this);
@@ -172,7 +173,7 @@ public class PassengerActivity extends ComponentActivity {
         root.addView(pickupInput);
 
         destinationInput = new EditText(this);
-        destinationInput.setHint("Destination");
+        destinationInput.setHint("Destination (or tap map above)");
         destinationInput.setSingleLine(false);
         destinationInput.setMinLines(2);
 
@@ -180,12 +181,8 @@ public class PassengerActivity extends ComponentActivity {
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
         );
-        destinationParams.topMargin = 16;
+        destinationParams.topMargin = 12;
         root.addView(destinationInput, destinationParams);
-
-        chooseDestinationButton = new Button(this);
-        chooseDestinationButton.setText("Choose Destination on Map");
-        root.addView(chooseDestinationButton);
 
         destinationInput.addTextChangedListener(new TextWatcher() {
             @Override
@@ -203,16 +200,14 @@ public class PassengerActivity extends ComponentActivity {
             }
         });
 
-        chooseDestinationButton.setOnClickListener(v -> openDestinationMap());
-
         TextView paymentTitle = new TextView(this);
-        paymentTitle.setText("Payment");
-        paymentTitle.setTextSize(18);
-        paymentTitle.setPadding(0, 24, 0, 8);
+        paymentTitle.setText("Payment Method");
+        paymentTitle.setTextSize(16);
+        paymentTitle.setPadding(0, 16, 0, 8);
         root.addView(paymentTitle);
 
         paymentGroup = new RadioGroup(this);
-        paymentGroup.setOrientation(RadioGroup.VERTICAL);
+        paymentGroup.setOrientation(RadioGroup.HORIZONTAL);
 
         RadioButton cash = new RadioButton(this);
         cash.setText("Cash");
@@ -235,14 +230,14 @@ public class PassengerActivity extends ComponentActivity {
 
         fareText = new TextView(this);
         fareText.setText("Estimated fare: ₱50.00");
-        fareText.setTextSize(20);
-        fareText.setPadding(0, 20, 0, 12);
+        fareText.setTextSize(18);
+        fareText.setPadding(0, 16, 0, 8);
         root.addView(fareText);
 
         statusText = new TextView(this);
         statusText.setText("No active ride.");
-        statusText.setTextSize(16);
-        statusText.setPadding(0, 8, 0, 20);
+        statusText.setTextSize(14);
+        statusText.setPadding(0, 4, 0, 16);
         root.addView(statusText);
 
         bookButton = new Button(this);
@@ -255,12 +250,12 @@ public class PassengerActivity extends ComponentActivity {
         root.addView(cancelButton);
 
         mapButton = new Button(this);
-        mapButton.setText("Live Ride Map");
+        mapButton.setText("Full Live Ride Map");
         mapButton.setEnabled(false);
         root.addView(mapButton);
 
         chatButton = new Button(this);
-        chatButton.setText("Chat");
+        chatButton.setText("Chat Driver");
         chatButton.setEnabled(false);
         root.addView(chatButton);
 
@@ -272,7 +267,8 @@ public class PassengerActivity extends ComponentActivity {
         logoutButton.setText("Logout");
         root.addView(logoutButton);
 
-        setContentView(scrollView);
+        mainLayout.addView(scrollView);
+        setContentView(mainLayout);
 
         bookButton.setOnClickListener(v -> bookRide());
         cancelButton.setOnClickListener(v -> cancelRide());
@@ -284,20 +280,73 @@ public class PassengerActivity extends ComponentActivity {
         logoutButton.setOnClickListener(v -> logout());
     }
 
-    private void openDestinationMap() {
-        try {
-            Intent intent = new Intent(PassengerActivity.this, MapActivity.class);
-            intent.putExtra("mode", "SELECT_DESTINATION");
-            intent.putExtra("pickup_latitude", pickupLatitude);
-            intent.putExtra("pickup_longitude", pickupLongitude);
-            intent.putExtra("pickup_address", pickupInput.getText().toString().trim());
-            intent.putExtra("destination_latitude", destinationLatitude);
-            intent.putExtra("destination_longitude", destinationLongitude);
-            intent.putExtra("destination_address", destinationInput.getText().toString().trim());
+    private void loadEmbeddedMapHtml() {
+        String html = "<!DOCTYPE html><html><head>" +
+                "<meta name='viewport' content='width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no' />" +
+                "<link rel='stylesheet' href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'/>" +
+                "<script src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'></script>" +
+                "<style>html, body, #map { height: 100%; width: 100%; margin: 0; padding: 0; }</style>" +
+                "</head><body><div id='map'></div><script>" +
+                "var map = L.map('map').setView([13.964882, 121.527412], 15);" +
+                "L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {" +
+                "   attribution: '&copy; OpenStreetMap'" +
+                "}).addTo(map);" +
+                "var pickupMarker;" +
+                "var destMarker;" +
+                "function setCenter(lat, lng) {" +
+                "   map.setView([lat, lng], 16);" +
+                "   if (pickupMarker) map.removeLayer(pickupMarker);" +
+                "   pickupMarker = L.marker([lat, lng]).addTo(map).bindPopup('Your Pickup').openPopup();" +
+                "}" +
+                "function setDestinationPin(lat, lng) {" +
+                "   if (destMarker) map.removeLayer(destMarker);" +
+                "   destMarker = L.marker([lat, lng]).addTo(map).bindPopup('Destination').openPopup();" +
+                "}" +
+                "map.on('click', function(e) {" +
+                "   var lat = e.latlng.lat;" +
+                "   var lng = e.latlng.lng;" +
+                "   setDestinationPin(lat, lng);" +
+                "   AndroidBridge.onMapTapped(lat, lng);" +
+                "});" +
+                "</script></body></html>";
 
-            mapLauncher.launch(intent);
-        } catch (Exception e) {
-            Toast.makeText(this, "Unable to open the map.", Toast.LENGTH_LONG).show();
+        mapWebView.loadDataWithBaseURL("https://openstreetmap.org", html, "text/html", "UTF-8", null);
+    }
+
+    private void updateMapCenter(double lat, double lng) {
+        if (!mapInitialized) return;
+        mapWebView.post(() -> mapWebView.evaluateJavascript("setCenter(" + lat + ", " + lng + ");", null));
+    }
+
+    private void updateMapDestinationPin(double lat, double lng) {
+        if (!mapInitialized) return;
+        mapWebView.post(() -> mapWebView.evaluateJavascript("setDestinationPin(" + lat + ", " + lng + ");", null));
+    }
+
+    // JS Bridge class to handle user tap on embedded Leaflet map
+    private class MapBridge {
+        @JavascriptInterface
+        public void onMapTapped(double lat, double lng) {
+            runOnUiThread(() -> {
+                destinationLatitude = lat;
+                destinationLongitude = lng;
+
+                Executors.newSingleThreadExecutor().execute(() -> {
+                    String address = getAddressText(lat, lng);
+                    if (address == null || address.isEmpty()) {
+                        address = String.format(Locale.US, "%.6f, %.6f", lat, lng);
+                    }
+
+                    String finalAddress = address;
+                    runOnUiThread(() -> {
+                        ignoreDestinationTextChange = true;
+                        destinationInput.setText(finalAddress);
+                        destinationInput.setSelection(destinationInput.getText().length());
+                        ignoreDestinationTextChange = false;
+                        updateEstimatedFare();
+                    });
+                });
+            });
         }
     }
 
@@ -318,6 +367,7 @@ public class PassengerActivity extends ComponentActivity {
                     Address address = addresses.get(0);
                     destinationLatitude = address.getLatitude();
                     destinationLongitude = address.getLongitude();
+                    updateMapDestinationPin(destinationLatitude, destinationLongitude);
                 } else {
                     destinationLatitude = 0.0;
                     destinationLongitude = 0.0;
@@ -422,6 +472,7 @@ public class PassengerActivity extends ComponentActivity {
         pickupLongitude = location.getLongitude();
 
         gpsText.setText(String.format(Locale.US, "Current location: %.6f, %.6f", pickupLatitude, pickupLongitude));
+        updateMapCenter(pickupLatitude, pickupLongitude);
 
         Executors.newSingleThreadExecutor().execute(() -> {
             String locationText = getAddressText(pickupLatitude, pickupLongitude);
@@ -490,12 +541,12 @@ public class PassengerActivity extends ComponentActivity {
         }
 
         if (destination.isEmpty()) {
-            Toast.makeText(this, "Please enter your destination.", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Please select or enter a destination.", Toast.LENGTH_SHORT).show();
             return;
         }
 
         if (pickupLatitude == 0.0 && pickupLongitude == 0.0) {
-            Toast.makeText(this, "Waiting for your GPS location. Please try again.", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Waiting for GPS location. Please try again.", Toast.LENGTH_SHORT).show();
             return;
         }
 
@@ -523,7 +574,7 @@ public class PassengerActivity extends ComponentActivity {
         db.collection("rides").add(ride)
                 .addOnSuccessListener(documentReference -> {
                     activeRideId = documentReference.getId();
-                    statusText.setText("Ride request is waiting for a driver.");
+                    statusText.setText("Ride request sent. Waiting for a driver...");
                     cancelButton.setEnabled(true);
                     mapButton.setEnabled(false);
                     chatButton.setEnabled(false);
