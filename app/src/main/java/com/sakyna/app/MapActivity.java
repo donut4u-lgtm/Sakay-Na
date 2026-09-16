@@ -1,3 +1,4 @@
+
 package com.sakyna.app;
 
 import android.Manifest;
@@ -85,8 +86,9 @@ protected void onCreate(Bundle savedInstanceState) {
     destinationLongitude = getIntent().getDoubleExtra(
             "destination_longitude", 0.0);
 
-    destinationAddress = getIntent().getStringExtra(
-            "destination_address");
+    destinationAddress =
+            getIntent().getStringExtra(
+                    "destination_address");
 
     if (destinationAddress == null) {
         destinationAddress = "";
@@ -113,7 +115,8 @@ private void buildScreen() {
     titleText = new TextView(this);
     titleText.setTextSize(20);
     titleText.setGravity(Gravity.CENTER);
-    titleText.setPadding(12, 18, 12, 18);
+    titleText.setPadding(12, 14, 12, 14);
+
     root.addView(
             titleText,
             new LinearLayout.LayoutParams(
@@ -123,6 +126,7 @@ private void buildScreen() {
     selectedText = new TextView(this);
     selectedText.setTextSize(15);
     selectedText.setPadding(16, 8, 16, 8);
+
     root.addView(
             selectedText,
             new LinearLayout.LayoutParams(
@@ -131,44 +135,44 @@ private void buildScreen() {
 
     webView = new WebView(this);
 
-    LinearLayout.LayoutParams webParams =
+    LinearLayout.LayoutParams mapParams =
             new LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     0,
                     1);
 
-    root.addView(webView, webParams);
+    root.addView(webView, mapParams);
 
-    LinearLayout buttons = new LinearLayout(this);
-    buttons.setOrientation(LinearLayout.HORIZONTAL);
+    LinearLayout buttonRow = new LinearLayout(this);
+    buttonRow.setOrientation(LinearLayout.HORIZONTAL);
 
     Button myLocation = new Button(this);
     myLocation.setText("My Location");
 
-    buttons.addView(
+    buttonRow.addView(
             myLocation,
             new LinearLayout.LayoutParams(
                     0,
                     ViewGroup.LayoutParams.WRAP_CONTENT,
                     1));
 
-    Button confirmButton = new Button(this);
-    confirmButton.setText("Confirm Destination");
+    Button confirm = new Button(this);
+    confirm.setText("Confirm Destination");
 
-    buttons.addView(
-            confirmButton,
+    buttonRow.addView(
+            confirm,
             new LinearLayout.LayoutParams(
                     0,
                     ViewGroup.LayoutParams.WRAP_CONTENT,
                     1));
 
-    root.addView(buttons);
+    root.addView(buttonRow);
 
-    Button backButton = new Button(this);
-    backButton.setText("Back");
+    Button back = new Button(this);
+    back.setText("Back");
 
     root.addView(
-            backButton,
+            back,
             new LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.WRAP_CONTENT));
@@ -178,10 +182,10 @@ private void buildScreen() {
     myLocation.setOnClickListener(
             v -> centerOnMyLocation());
 
-    confirmButton.setOnClickListener(
+    confirm.setOnClickListener(
             v -> confirmDestination());
 
-    backButton.setOnClickListener(
+    back.setOnClickListener(
             v -> finish());
 
     setupWebView();
@@ -192,7 +196,7 @@ private void setupDestinationMode() {
     titleText.setText("Choose Your Destination");
 
     selectedText.setText(
-            "Tap anywhere on the map to choose your destination.");
+            "Tap the map to choose your destination.");
 }
 
 private void setupLiveRideMode() {
@@ -207,32 +211,41 @@ private void setupLiveRideMode() {
 
 private void setupWebView() {
 
-    WebSettings settings = webView.getSettings();
+    WebSettings settings =
+            webView.getSettings();
 
     settings.setJavaScriptEnabled(true);
     settings.setDomStorageEnabled(true);
-    settings.setDatabaseEnabled(true);
-    settings.setBuiltInZoomControls(false);
-    settings.setDisplayZoomControls(false);
+    settings.setLoadsImagesAutomatically(true);
+    settings.setBlockNetworkImage(false);
+    settings.setBlockNetworkLoads(false);
     settings.setAllowFileAccess(true);
     settings.setAllowContentAccess(true);
-    settings.setLoadsImagesAutomatically(true);
+    settings.setBuiltInZoomControls(false);
+    settings.setDisplayZoomControls(false);
+    settings.setUseWideViewPort(false);
     settings.setLoadWithOverviewMode(false);
-    settings.setUseWideViewPort(true);
 
-    webView.setWebViewClient(new WebViewClient());
-    webView.setWebChromeClient(new WebChromeClient());
+    webView.setWebViewClient(
+            new WebViewClient());
+
+    webView.setWebChromeClient(
+            new WebChromeClient());
 
     webView.addJavascriptInterface(
             new MapBridge(),
             "Android");
 
-    webView.setBackgroundColor(Color.WHITE);
+    webView.setBackgroundColor(
+            Color.rgb(225, 225, 225));
 
     loadMapHtml();
 }
 
 private void loadMapHtml() {
+
+    double startLat = getInitialLatitude();
+    double startLng = getInitialLongitude();
 
     String html =
             "<!DOCTYPE html>" +
@@ -240,147 +253,359 @@ private void loadMapHtml() {
             "<head>" +
 
             "<meta name='viewport' " +
-            "content='width=device-width, initial-scale=1.0, " +
-            "maximum-scale=1.0, user-scalable=no'>" +
-
-            "<link rel='stylesheet' " +
-            "href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'>" +
+            "content='width=device-width,initial-scale=1.0," +
+            "maximum-scale=1.0,user-scalable=no'>" +
 
             "<style>" +
+
+            "*{" +
+            "box-sizing:border-box;" +
+            "}" +
+
             "html,body{" +
-            "height:100%;" +
-            "width:100%;" +
             "margin:0;" +
             "padding:0;" +
+            "width:100%;" +
+            "height:100%;" +
             "overflow:hidden;" +
+            "background:#d9d9d9;" +
             "}" +
 
             "#map{" +
             "position:absolute;" +
-            "top:0;" +
             "left:0;" +
-            "right:0;" +
-            "bottom:0;" +
+            "top:0;" +
             "width:100%;" +
             "height:100%;" +
+            "overflow:hidden;" +
             "background:#d9d9d9;" +
+            "touch-action:none;" +
             "}" +
+
+            "#tiles{" +
+            "position:absolute;" +
+            "left:0;" +
+            "top:0;" +
+            "}" +
+
+            ".tile{" +
+            "position:absolute;" +
+            "width:256px;" +
+            "height:256px;" +
+            "border:0;" +
+            "display:block;" +
+            "}" +
+
+            ".marker{" +
+            "position:absolute;" +
+            "width:26px;" +
+            "height:26px;" +
+            "margin-left:-13px;" +
+            "margin-top:-26px;" +
+            "font-size:28px;" +
+            "line-height:26px;" +
+            "text-align:center;" +
+            "z-index:1000;" +
+            "text-shadow:1px 1px 2px white;" +
+            "}" +
+
+            "#zoom{" +
+            "position:absolute;" +
+            "right:12px;" +
+            "top:12px;" +
+            "z-index:2000;" +
+            "background:white;" +
+            "border-radius:5px;" +
+            "box-shadow:0 1px 5px rgba(0,0,0,.4);" +
+            "overflow:hidden;" +
+            "}" +
+
+            ".zoomButton{" +
+            "width:44px;" +
+            "height:44px;" +
+            "border:0;" +
+            "border-bottom:1px solid #ccc;" +
+            "background:white;" +
+            "font-size:25px;" +
+            "font-weight:bold;" +
+            "}" +
+
+            ".zoomButton:last-child{" +
+            "border-bottom:0;" +
+            "}" +
+
+            "#copyright{" +
+            "position:absolute;" +
+            "bottom:3px;" +
+            "right:3px;" +
+            "z-index:2000;" +
+            "background:rgba(255,255,255,.75);" +
+            "font-size:10px;" +
+            "padding:2px 4px;" +
+            "}" +
+
             "</style>" +
 
             "</head>" +
 
             "<body>" +
 
-            "<div id='map'></div>" +
+            "<div id='map'>" +
 
-            "<script " +
-            "src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js' " +
-            "onload='startMap()' " +
-            "onerror='mapLoadFailed()'>" +
-            "</script>" +
+            "<div id='tiles'></div>" +
+
+            "<div id='destination' " +
+            "class='marker' " +
+            "style='display:none;'>📍</div>" +
+
+            "<div id='pickup' " +
+            "class='marker' " +
+            "style='display:none;'>🟢</div>" +
+
+            "<div id='driver' " +
+            "class='marker' " +
+            "style='display:none;'>🛺</div>" +
+
+            "<div id='zoom'>" +
+            "<button class='zoomButton' " +
+            "onclick='changeZoom(1)'>+</button>" +
+            "<button class='zoomButton' " +
+            "onclick='changeZoom(-1)'>−</button>" +
+            "</div>" +
+
+            "<div id='copyright'>" +
+            "© OpenStreetMap contributors" +
+            "</div>" +
+
+            "</div>" +
 
             "<script>" +
 
-            "var map=null;" +
-            "var destinationMarker=null;" +
-            "var pickupMarker=null;" +
-            "var driverMarker=null;" +
+            "var lat=" + startLat + ";" +
+            "var lng=" + startLng + ";" +
+            "var zoom=15;" +
+            "var centerX=0;" +
+            "var centerY=0;" +
+            "var dragging=false;" +
+            "var moved=false;" +
+            "var downX=0;" +
+            "var downY=0;" +
 
-            "function mapLoadFailed(){" +
-            "Android.mapError('Leaflet failed to load');" +
+            "function tileX(lon,z){" +
+            "return (lon+180)/360*Math.pow(2,z);" +
             "}" +
 
-            "function startMap(){" +
-
-            "try{" +
-
-            "var lat=" +
-            getInitialLatitude() +
-            ";" +
-
-            "var lng=" +
-            getInitialLongitude() +
-            ";" +
-
-            "map=L.map('map',{zoomControl:true}).setView([lat,lng],15);" +
-
-            "L.tileLayer(" +
-            "'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'," +
-            "{" +
-            "maxZoom:19," +
-            "attribution:'© OpenStreetMap contributors'" +
+            "function tileY(la,z){" +
+            "var r=la*Math.PI/180;" +
+            "return (1-Math.asinh(Math.tan(r))/Math.PI)/2*Math.pow(2,z);" +
             "}" +
-            ").addTo(map);" +
 
-            "map.on('click',function(e){" +
-            "Android.mapClicked(e.latlng.lat,e.latlng.lng);" +
+            "function lonFromX(x,z){" +
+            "return x/Math.pow(2,z)*360-180;" +
+            "}" +
+
+            "function latFromY(y,z){" +
+            "var n=Math.PI-2*Math.PI*y/Math.pow(2,z);" +
+            "return 180/Math.PI*Math.atan(Math.sinh(n));" +
+            "}" +
+
+            "function render(){" +
+
+            "var map=document.getElementById('map');" +
+            "var tiles=document.getElementById('tiles');" +
+
+            "tiles.innerHTML='';" +
+
+            "var w=map.clientWidth;" +
+            "var h=map.clientHeight;" +
+
+            "var world=Math.pow(2,zoom)*256;" +
+
+            "centerX=tileX(lng,zoom)*256;" +
+            "centerY=tileY(lat,zoom)*256;" +
+
+            "var left=centerX-w/2;" +
+            "var top=centerY-h/2;" +
+
+            "var firstX=Math.floor(left/256)-1;" +
+            "var lastX=Math.floor((left+w)/256)+1;" +
+            "var firstY=Math.floor(top/256)-1;" +
+            "var lastY=Math.floor((top+h)/256)+1;" +
+
+            "for(var x=firstX;x<=lastX;x++){" +
+            "for(var y=firstY;y<=lastY;y++){" +
+
+            "var max=Math.pow(2,zoom);" +
+            "var xx=((x%max)+max)%max;" +
+
+            "if(y<0||y>=max)continue;" +
+
+            "var img=document.createElement('img');" +
+            "img.className='tile';" +
+            "img.draggable=false;" +
+
+            "img.src='https://tile.openstreetmap.org/'" +
+            "+zoom+'/'+xx+'/'+y+'.png';" +
+
+            "img.style.left=(x*256-left)+'px';" +
+            "img.style.top=(y*256-top)+'px';" +
+
+            "tiles.appendChild(img);" +
+            "}" +
+            "}" +
+
+            "positionMarker('destination',destinationLat,destinationLng);" +
+            "positionMarker('pickup',pickupLat,pickupLng);" +
+            "positionMarker('driver',driverLat,driverLng);" +
+
+            "}" +
+
+            "var destinationLat=null;" +
+            "var destinationLng=null;" +
+            "var pickupLat=null;" +
+            "var pickupLng=null;" +
+            "var driverLat=null;" +
+            "var driverLng=null;" +
+
+            "function positionMarker(id,la,lo){" +
+
+            "if(la===null||lo===null)return;" +
+
+            "var marker=document.getElementById(id);" +
+
+            "var map=document.getElementById('map');" +
+
+            "var left=centerX-map.clientWidth/2;" +
+            "var top=centerY-map.clientHeight/2;" +
+
+            "var px=tileX(lo,zoom)*256-left;" +
+            "var py=tileY(la,zoom)*256-top;" +
+
+            "marker.style.left=px+'px';" +
+            "marker.style.top=py+'px';" +
+            "marker.style.display='block';" +
+
+            "}" +
+
+            "function selectPoint(x,y){" +
+
+            "var map=document.getElementById('map');" +
+
+            "var left=centerX-map.clientWidth/2;" +
+            "var top=centerY-map.clientHeight/2;" +
+
+            "var worldX=(x+left);" +
+            "var worldY=(y+top);" +
+
+            "var la=latFromY(worldY/256,zoom);" +
+            "var lo=lonFromX(worldX/256,zoom);" +
+
+            "destinationLat=la;" +
+            "destinationLng=lo;" +
+
+            "positionMarker('destination',la,lo);" +
+
+            "Android.mapClicked(la,lo);" +
+
+            "}" +
+
+            "function changeZoom(amount){" +
+
+            "zoom+=amount;" +
+
+            "if(zoom<3)zoom=3;" +
+            "if(zoom>19)zoom=19;" +
+
+            "render();" +
+            "}" +
+
+            "function centerMap(la,lo){" +
+
+            "lat=la;" +
+            "lng=lo;" +
+
+            "render();" +
+
+            "}" +
+
+            "function setDestination(la,lo){" +
+
+            "destinationLat=la;" +
+            "destinationLng=lo;" +
+
+            "render();" +
+            "}" +
+
+            "function setPickup(la,lo){" +
+
+            "pickupLat=la;" +
+            "pickupLng=lo;" +
+
+            "render();" +
+            "}" +
+
+            "function setDriver(la,lo){" +
+
+            "driverLat=la;" +
+            "driverLng=lo;" +
+
+            "lat=la;" +
+            "lng=lo;" +
+
+            "render();" +
+            "}" +
+
+            "var map=document.getElementById('map');" +
+
+            "map.addEventListener('pointerdown'," +
+            "function(e){" +
+
+            "if(e.target.closest('#zoom'))return;" +
+
+            "dragging=true;" +
+            "moved=false;" +
+            "downX=e.clientX;" +
+            "downY=e.clientY;" +
+
             "});" +
 
+            "map.addEventListener('pointermove'," +
+            "function(e){" +
+
+            "if(!dragging)return;" +
+
+            "var dx=e.clientX-downX;" +
+            "var dy=e.clientY-downY;" +
+
+            "if(Math.abs(dx)>5||Math.abs(dy)>5)moved=true;" +
+
+            "});" +
+
+            "map.addEventListener('pointerup'," +
+            "function(e){" +
+
+            "if(e.target.closest('#zoom')){" +
+            "dragging=false;" +
+            "return;" +
+            "}" +
+
+            "if(!moved){" +
+            "selectPoint(e.clientX,e.clientY);" +
+            "}" +
+
+            "dragging=false;" +
+            "});" +
+
+            "window.onload=function(){" +
+
+            "render();" +
+
             "setTimeout(function(){" +
-            "map.invalidateSize();" +
+            "render();" +
             "Android.mapReady();" +
-            "},300);" +
+            "},500);" +
 
-            "}catch(e){" +
-            "Android.mapError(String(e));" +
-            "}" +
-            "}" +
-
-            "function setDestination(lat,lng){" +
-
-            "if(!map)return;" +
-
-            "if(destinationMarker){" +
-            "map.removeLayer(destinationMarker);" +
-            "}" +
-
-            "destinationMarker=L.marker([lat,lng]).addTo(map);" +
-
-            "destinationMarker" +
-            ".bindPopup('Destination')" +
-            ".openPopup();" +
-
-            "map.panTo([lat,lng]);" +
-
-            "}" +
-
-            "function setPickup(lat,lng){" +
-
-            "if(!map)return;" +
-
-            "if(pickupMarker){" +
-            "map.removeLayer(pickupMarker);" +
-            "}" +
-
-            "pickupMarker=L.marker([lat,lng]).addTo(map);" +
-
-            "pickupMarker.bindPopup('Pickup');" +
-
-            "}" +
-
-            "function setDriver(lat,lng){" +
-
-            "if(!map)return;" +
-
-            "if(driverMarker){" +
-            "map.removeLayer(driverMarker);" +
-            "}" +
-
-            "driverMarker=L.marker([lat,lng]).addTo(map);" +
-
-            "driverMarker.bindPopup('Driver').openPopup();" +
-
-            "map.setView([lat,lng],16);" +
-
-            "}" +
-
-            "function centerMap(lat,lng){" +
-
-            "if(!map)return;" +
-
-            "map.setView([lat,lng],16);" +
-
-            "}" +
+            "};" +
 
             "</script>" +
 
@@ -388,7 +613,7 @@ private void loadMapHtml() {
             "</html>";
 
     webView.loadDataWithBaseURL(
-            "https://openstreetmap.org/",
+            "https://www.openstreetmap.org/",
             html,
             "text/html",
             "UTF-8",
@@ -465,13 +690,6 @@ private class MapBridge {
             destinationLatitude = lat;
             destinationLongitude = lng;
 
-            webView.loadUrl(
-                    "javascript:setDestination("
-                            + lat
-                            + ","
-                            + lng
-                            + ")");
-
             selectedText.setText(
                     String.format(
                             Locale.US,
@@ -484,18 +702,17 @@ private class MapBridge {
     }
 
     @JavascriptInterface
-    public void mapError(String message) {
+    public void mapError(
+            String message) {
 
         runOnUiThread(() -> {
 
-            mapReady = false;
-
             selectedText.setText(
-                    "Map failed to load. Please check your internet connection.");
+                    "OpenStreetMap could not load.");
 
             Toast.makeText(
                     MapActivity.this,
-                    "OpenStreetMap could not load.",
+                    "Map loading error.",
                     Toast.LENGTH_LONG).show();
         });
     }
@@ -596,6 +813,9 @@ private void centerOnMyLocation() {
     double lng =
             currentLocation.getLongitude();
 
+    pickupLatitude = lat;
+    pickupLongitude = lng;
+
     if (mapReady) {
 
         webView.loadUrl(
@@ -605,15 +825,12 @@ private void centerOnMyLocation() {
                         + lng
                         + ")");
 
-        if ("SELECT_DESTINATION".equals(mode)) {
-
-            webView.loadUrl(
-                    "javascript:setPickup("
-                            + lat
-                            + ","
-                            + lng
-                            + ")");
-        }
+        webView.loadUrl(
+                "javascript:setPickup("
+                        + lat
+                        + ","
+                        + lng
+                        + ")");
     }
 }
 
@@ -899,6 +1116,7 @@ protected void onDestroy() {
     }
 
     if (webView != null) {
+        webView.stopLoading();
         webView.destroy();
     }
 
