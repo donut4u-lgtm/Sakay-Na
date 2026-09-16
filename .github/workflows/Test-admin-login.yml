@@ -1,0 +1,60 @@
+name: Test Sakay Na Admin Login
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-login:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Test Firebase Authentication
+        env:
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+        run: |
+          python3 <<'PY'
+          import os
+          import json
+          import urllib.request
+          import urllib.error
+
+          api_key = "AIzaSyCnoDs8C3SaP0ApQZRuHtT5fMceHp1VDz0"
+
+          email = "639306455676@sakyna.app"
+          password = os.environ["ADMIN_PASSWORD"]
+
+          url = (
+              "https://identitytoolkit.googleapis.com/v1/"
+              "accounts:signInWithPassword?key=" + api_key
+          )
+
+          data = json.dumps({
+              "email": email,
+              "password": password,
+              "returnSecureToken": True
+          }).encode("utf-8")
+
+          request = urllib.request.Request(
+              url,
+              data=data,
+              headers={"Content-Type": "application/json"},
+              method="POST"
+          )
+
+          try:
+              with urllib.request.urlopen(request) as response:
+                  result = json.loads(response.read().decode("utf-8"))
+
+                  print("LOGIN TEST: SUCCESS")
+                  print("Firebase UID:", result.get("localId"))
+                  print("Firebase email:", result.get("email"))
+
+          except urllib.error.HTTPError as e:
+              body = e.read().decode("utf-8")
+              print("LOGIN TEST: FAILED")
+              print(body)
+              raise SystemExit(1)
+          PY
