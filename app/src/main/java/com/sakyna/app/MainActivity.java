@@ -7,6 +7,7 @@ import android.graphics.Color;
 import android.os.Bundle;
 import android.text.InputType;
 import android.view.Gravity;
+import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -141,6 +142,12 @@ public class MainActivity extends Activity {
         phoneField.setTextSize(18);
         phoneField.setSingleLine(true);
         phoneField.setInputType(InputType.TYPE_CLASS_PHONE);
+
+        // Prevent Android Autofill from interacting with the phone field.
+        phoneField.setImportantForAutofill(
+                View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS
+        );
+
         root.addView(phoneField);
 
         TextView passwordLabel = new TextView(this);
@@ -158,6 +165,13 @@ public class MainActivity extends Activity {
                 InputType.TYPE_CLASS_TEXT
                         | InputType.TYPE_TEXT_VARIATION_PASSWORD
         );
+
+        // Prevent Android Autofill/password suggestions from
+        // interacting with the password field.
+        passwordField.setImportantForAutofill(
+                View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS
+        );
+
         root.addView(passwordField);
 
         Button loginButton = new Button(this);
