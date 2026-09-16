@@ -1,5 +1,5 @@
 
-package com.sakyna.app;
+        package com.sakyna.app;
 
 import android.app.Activity;
 import android.content.Intent;
@@ -7,7 +7,6 @@ import android.graphics.Color;
 import android.os.Bundle;
 import android.text.InputType;
 import android.view.Gravity;
-import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -77,7 +76,7 @@ public class MainActivity extends Activity {
         root.addView(subtitle);
 
         TextView roleLabel = new TextView(this);
-        roleLabel.setText("ACCOUNT TYPE");
+        roleLabel.setText("SELECT ACCOUNT TYPE");
         roleLabel.setTextSize(15);
         roleLabel.setTextColor(Color.DKGRAY);
         roleLabel.setGravity(Gravity.CENTER);
@@ -126,9 +125,17 @@ public class MainActivity extends Activity {
 
         root.addView(roleRow);
 
-        passengerButton.setOnClickListener(v -> selectRole("PASSENGER"));
-        driverButton.setOnClickListener(v -> selectRole("DRIVER"));
-        adminButton.setOnClickListener(v -> selectRole("ADMIN"));
+        passengerButton.setOnClickListener(
+                v -> selectRole("PASSENGER")
+        );
+
+        driverButton.setOnClickListener(
+                v -> selectRole("DRIVER")
+        );
+
+        adminButton.setOnClickListener(
+                v -> selectRole("ADMIN")
+        );
 
         selectRole("PASSENGER");
 
@@ -166,7 +173,9 @@ public class MainActivity extends Activity {
         Button loginButton = new Button(this);
         loginButton.setText("LOGIN");
         loginButton.setTextSize(18);
-        loginButton.setOnClickListener(v -> login());
+        loginButton.setOnClickListener(
+                v -> login()
+        );
 
         root.addView(
                 loginButton,
@@ -179,7 +188,9 @@ public class MainActivity extends Activity {
         Button registerButton = new Button(this);
         registerButton.setText("CREATE ACCOUNT");
         registerButton.setTextSize(17);
-        registerButton.setOnClickListener(v -> register());
+        registerButton.setOnClickListener(
+                v -> register()
+        );
 
         root.addView(
                 registerButton,
@@ -190,7 +201,9 @@ public class MainActivity extends Activity {
         );
 
         TextView info = new TextView(this);
-        info.setText("\nPhone number + password only\nNo email • No OTP");
+        info.setText(
+                "\nPhone number + password only\nNo email • No OTP"
+        );
         info.setTextSize(14);
         info.setTextColor(Color.GRAY);
         info.setGravity(Gravity.CENTER);
@@ -211,19 +224,29 @@ public class MainActivity extends Activity {
         driverButton.setTextColor(Color.DKGRAY);
         adminButton.setTextColor(Color.DKGRAY);
 
+        passengerButton.setBackgroundColor(Color.LTGRAY);
+        driverButton.setBackgroundColor(Color.LTGRAY);
+        adminButton.setBackgroundColor(Color.LTGRAY);
+
         if (role.equals("PASSENGER")) {
-            passengerButton.setText("✓ PASSENGER");
             passengerButton.setTextColor(Color.rgb(0, 120, 70));
+            passengerButton.setBackgroundColor(
+                    Color.rgb(210, 245, 225)
+            );
         }
 
         if (role.equals("DRIVER")) {
-            driverButton.setText("✓ DRIVER");
             driverButton.setTextColor(Color.rgb(0, 120, 70));
+            driverButton.setBackgroundColor(
+                    Color.rgb(210, 245, 225)
+            );
         }
 
         if (role.equals("ADMIN")) {
-            adminButton.setText("✓ ADMIN");
             adminButton.setTextColor(Color.rgb(0, 120, 70));
+            adminButton.setBackgroundColor(
+                    Color.rgb(210, 245, 225)
+            );
         }
     }
 
@@ -260,9 +283,11 @@ public class MainActivity extends Activity {
                 phoneField.getText().toString()
         );
 
-        String password = passwordField.getText().toString();
+        String password =
+                passwordField.getText().toString();
 
-        if (phone.length() != 12 || !phone.startsWith("63")) {
+        if (phone.length() != 12 ||
+                !phone.startsWith("63")) {
 
             Toast.makeText(
                     this,
@@ -297,9 +322,11 @@ public class MainActivity extends Activity {
                 phoneField.getText().toString()
         );
 
-        String password = passwordField.getText().toString();
+        String password =
+                passwordField.getText().toString();
 
-        String identifier = firebaseIdentifier(phone);
+        String identifier =
+                firebaseIdentifier(phone);
 
         auth.signInWithEmailAndPassword(
                         identifier,
@@ -307,10 +334,13 @@ public class MainActivity extends Activity {
                 )
                 .addOnSuccessListener(result -> {
 
-                    FirebaseUser user = auth.getCurrentUser();
+                    FirebaseUser user =
+                            auth.getCurrentUser();
 
                     if (user == null) {
-                        showError("Login failed. Please try again.");
+                        showError(
+                                "Login failed. Please try again."
+                        );
                         return;
                     }
 
@@ -338,7 +368,9 @@ public class MainActivity extends Activity {
     private void loadUserProfile(FirebaseUser user) {
 
         if (user == null) {
-            showError("User account is not available.");
+            showError(
+                    "User account is not available."
+            );
             return;
         }
 
@@ -349,13 +381,11 @@ public class MainActivity extends Activity {
                 .get()
                 .addOnSuccessListener(document -> {
 
-                    if (!document.exists()) {
-
+                    if (document.exists()) {
+                        openUserProfile(document);
+                    } else {
                         findUserByPhone(user);
-                        return;
                     }
-
-                    openUserProfile(document);
                 })
                 .addOnFailureListener(e -> {
 
@@ -367,23 +397,47 @@ public class MainActivity extends Activity {
 
     private void findUserByPhone(FirebaseUser user) {
 
-        String phone = normalizePhone(
-                phoneField != null
-                        ? phoneField.getText().toString()
-                        : ""
-        );
+        String phone = "";
+
+        if (phoneField != null) {
+            phone = normalizePhone(
+                    phoneField.getText().toString()
+            );
+        }
+
+        if (phone.isEmpty() &&
+                user.getEmail() != null) {
+
+            String email = user.getEmail();
+
+            if (email.endsWith("@sakyna.app")) {
+
+                phone = normalizePhone(
+                        email.substring(
+                                0,
+                                email.length()
+                                        - "@sakyna.app".length()
+                        )
+                );
+            }
+        }
 
         if (phone.isEmpty()) {
 
             auth.signOut();
             buildLoginScreen();
 
-            showError("User profile was not found.");
+            showError(
+                    "User profile was not found."
+            );
+
             return;
         }
 
+        final String finalPhone = phone;
+
         db.collection("users")
-                .whereEqualTo("phone", phone)
+                .whereEqualTo("phone", finalPhone)
                 .limit(1)
                 .get()
                 .addOnSuccessListener(query -> {
@@ -417,16 +471,21 @@ public class MainActivity extends Activity {
     }
 
     private void openUserProfile(
-            DocumentSnapshot document) {
+            DocumentSnapshot document
+    ) {
 
-        String role = document.getString("role");
+        String role =
+                document.getString("role");
 
         if (role == null) {
 
             auth.signOut();
             buildLoginScreen();
 
-            showError("User role is not found.");
+            showError(
+                    "User role is not found."
+            );
+
             return;
         }
 
@@ -434,4 +493,194 @@ public class MainActivity extends Activity {
 
         if (role.equals("ADMIN")) {
 
-            openActivity(hubby
+            openActivity(
+                    AdminActivity.class
+            );
+
+            return;
+        }
+
+        if (role.equals("DRIVER")) {
+
+            Boolean approved =
+                    document.getBoolean("approved");
+
+            if (approved == null) {
+                approved = false;
+            }
+
+            if (!approved) {
+
+                auth.signOut();
+                buildLoginScreen();
+
+                showError(
+                        "Driver account is waiting for Admin approval."
+                );
+
+                return;
+            }
+
+            openActivity(
+                    DriverActivity.class
+            );
+
+            return;
+        }
+
+        if (role.equals("PASSENGER")) {
+
+            openActivity(
+                    PassengerActivity.class
+            );
+
+            return;
+        }
+
+        auth.signOut();
+        buildLoginScreen();
+
+        showError(
+                "Unknown account role: " + role
+        );
+    }
+
+    private void register() {
+
+        if (!validateFields()) {
+            return;
+        }
+
+        if (selectedRole.equals("ADMIN")) {
+
+            Toast.makeText(
+                    this,
+                    "Admin accounts cannot be created here.",
+                    Toast.LENGTH_LONG
+            ).show();
+
+            return;
+        }
+
+        String phone = normalizePhone(
+                phoneField.getText().toString()
+        );
+
+        String password =
+                passwordField.getText().toString();
+
+        String identifier =
+                firebaseIdentifier(phone);
+
+        auth.createUserWithEmailAndPassword(
+                        identifier,
+                        password
+                )
+                .addOnSuccessListener(result -> {
+
+                    FirebaseUser user =
+                            auth.getCurrentUser();
+
+                    if (user == null) {
+
+                        showError(
+                                "Account creation failed."
+                        );
+
+                        return;
+                    }
+
+                    Map<String, Object> profile =
+                            new HashMap<>();
+
+                    profile.put(
+                            "phone",
+                            phone
+                    );
+
+                    profile.put(
+                            "role",
+                            selectedRole
+                    );
+
+                    profile.put(
+                            "approved",
+                            selectedRole.equals("PASSENGER")
+                    );
+
+                    profile.put(
+                            "createdAt",
+                            com.google.firebase.firestore
+                                    .FieldValue
+                                    .serverTimestamp()
+                    );
+
+                    db.collection("users")
+                            .document(user.getUid())
+                            .set(profile)
+                            .addOnSuccessListener(v -> {
+
+                                auth.signOut();
+
+                                passwordField.setText("");
+
+                                Toast.makeText(
+                                        this,
+                                        "Account created successfully. Please login.",
+                                        Toast.LENGTH_LONG
+                                ).show();
+                            })
+                            .addOnFailureListener(e -> {
+
+                                auth.signOut();
+
+                                showError(
+                                        "Account created but profile failed."
+                                );
+                            });
+                })
+                .addOnFailureListener(e -> {
+
+                    String message =
+                            e.getMessage();
+
+                    if (message == null ||
+                            message.trim().isEmpty()) {
+
+                        message =
+                                "Unable to create account.";
+                    }
+
+                    Toast.makeText(
+                            this,
+                            message,
+                            Toast.LENGTH_LONG
+                    ).show();
+                });
+    }
+
+    private void openActivity(
+            Class<?> activityClass
+    ) {
+
+        Intent intent =
+                new Intent(
+                        this,
+                        activityClass
+                );
+
+        startActivity(intent);
+        finish();
+    }
+
+    private void showError(
+            String message
+    ) {
+
+        Toast.makeText(
+                this,
+                message,
+                Toast.LENGTH_LONG
+        ).show();
+    }
+}    
