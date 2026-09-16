@@ -26,6 +26,9 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.activity.ComponentActivity;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 
 import com.google.firebase.auth.FirebaseAuth;
@@ -43,9 +46,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Executors;
 
-public class PassengerActivity extends Activity {
+public class PassengerActivity extends ComponentActivity {
 
     private static final int LOCATION_PERMISSION_REQUEST = 1001;
+
     private FirebaseAuth auth;
     private FirebaseFirestore db;
     private FirebaseUser currentUser;
@@ -57,6 +61,7 @@ public class PassengerActivity extends Activity {
     private TextView gpsText;
     private TextView fareText;
     private TextView statusText;
+    private Button chooseDestinationButton;
     private Button bookButton;
     private Button cancelButton;
     private Button mapButton;
@@ -78,9 +83,45 @@ public class PassengerActivity extends Activity {
     private double destinationLatitude = 0.0;
     private double destinationLongitude = 0.0;
 
+    private boolean ignoreDestinationTextChange = false;
+
+    // Modern ActivityResultLauncher replacing deprecated startActivityForResult
+    private final ActivityResultLauncher<Intent> mapLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                if (result.getResultCode() == RESULT_OK && result.getData() != null) {
+                    Intent data = result.getData();
+                    double lat = data.getDoubleExtra("destination_latitude", 0.0);
+                    double lng = data.getDoubleExtra("destination_longitude", 0.0);
+                    String address = data.getStringExtra("destination_address");
+
+                    if (lat == 0.0 && lng == 0.0) {
+                        Toast.makeText(this, "No destination was selected.", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+
+                    destinationLatitude = lat;
+                    destinationLongitude = lng;
+
+                    if (address == null || address.trim().isEmpty()) {
+                        address = String.format(Locale.US, "%.6f, %.6f", lat, lng);
+                    }
+
+                    ignoreDestinationTextChange = true;
+                    destinationInput.setText(address);
+                    destinationInput.setSelection(destinationInput.getText().length());
+                    ignoreDestinationTextChange = false;
+
+                    updateEstimatedFare();
+                    Toast.makeText(this, "Destination selected.", Toast.LENGTH_SHORT).show();
+                }
+            }
+    );
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
         auth = FirebaseAuth.getInstance();
         db = FirebaseFirestore.getInstance();
         currentUser = auth.getCurrentUser();
@@ -98,6 +139,7 @@ public class PassengerActivity extends Activity {
 
     private void buildScreen() {
         ScrollView scrollView = new ScrollView(this);
+
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(32, 32, 32, 32);
@@ -133,6 +175,7 @@ public class PassengerActivity extends Activity {
         destinationInput.setHint("Destination");
         destinationInput.setSingleLine(false);
         destinationInput.setMinLines(2);
+
         LinearLayout.LayoutParams destinationParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
@@ -140,7 +183,10 @@ public class PassengerActivity extends Activity {
         destinationParams.topMargin = 16;
         root.addView(destinationInput, destinationParams);
 
-        // Geocode destination on user typing
+        chooseDestinationButton = new Button(this);
+        chooseDestinationButton.setText("Choose Destination on Map");
+        root.addView(chooseDestinationButton);
+
         destinationInput.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
@@ -150,9 +196,14 @@ public class PassengerActivity extends Activity {
 
             @Override
             public void afterTextChanged(Editable s) {
+                if (ignoreDestinationTextChange) {
+                    return;
+                }
                 geocodeDestination(s.toString().trim());
             }
         });
+
+        chooseDestinationButton.setOnClickListener(v -> openDestinationMap());
 
         TextView paymentTitle = new TextView(this);
         paymentTitle.setText("Payment");
@@ -162,12 +213,15 @@ public class PassengerActivity extends Activity {
 
         paymentGroup = new RadioGroup(this);
         paymentGroup.setOrientation(RadioGroup.VERTICAL);
+
         RadioButton cash = new RadioButton(this);
         cash.setText("Cash");
         cash.setId(View.generateViewId());
+
         RadioButton gcash = new RadioButton(this);
         gcash.setText("GCash");
         gcash.setId(View.generateViewId());
+
         RadioButton maya = new RadioButton(this);
         maya.setText("Maya");
         maya.setId(View.generateViewId());
@@ -176,6 +230,7 @@ public class PassengerActivity extends Activity {
         paymentGroup.addView(gcash);
         paymentGroup.addView(maya);
         cash.setChecked(true);
+
         root.addView(paymentGroup);
 
         fareText = new TextView(this);
@@ -223,12 +278,27 @@ public class PassengerActivity extends Activity {
         cancelButton.setOnClickListener(v -> cancelRide());
         mapButton.setOnClickListener(v -> openMapSafely());
         chatButton.setOnClickListener(v -> openChatSafely());
-        historyButton.setOnClickListener(v -> Toast.makeText(
-                PassengerActivity.this,
-                "Ride history is available from your ride records.",
-                Toast.LENGTH_SHORT
-        ).show());
+        historyButton.setOnClickListener(v ->
+                Toast.makeText(PassengerActivity.this, "Ride history is available from your ride records.", Toast.LENGTH_SHORT).show()
+        );
         logoutButton.setOnClickListener(v -> logout());
+    }
+
+    private void openDestinationMap() {
+        try {
+            Intent intent = new Intent(PassengerActivity.this, MapActivity.class);
+            intent.putExtra("mode", "SELECT_DESTINATION");
+            intent.putExtra("pickup_latitude", pickupLatitude);
+            intent.putExtra("pickup_longitude", pickupLongitude);
+            intent.putExtra("pickup_address", pickupInput.getText().toString().trim());
+            intent.putExtra("destination_latitude", destinationLatitude);
+            intent.putExtra("destination_longitude", destinationLongitude);
+            intent.putExtra("destination_address", destinationInput.getText().toString().trim());
+
+            mapLauncher.launch(intent);
+        } catch (Exception e) {
+            Toast.makeText(this, "Unable to open the map.", Toast.LENGTH_LONG).show();
+        }
     }
 
     private void geocodeDestination(String destinationName) {
@@ -243,6 +313,7 @@ public class PassengerActivity extends Activity {
             try {
                 Geocoder geocoder = new Geocoder(this, Locale.getDefault());
                 List<Address> addresses = geocoder.getFromLocationName(destinationName, 1);
+
                 if (addresses != null && !addresses.isEmpty()) {
                     Address address = addresses.get(0);
                     destinationLatitude = address.getLatitude();
@@ -255,22 +326,24 @@ public class PassengerActivity extends Activity {
                 destinationLatitude = 0.0;
                 destinationLongitude = 0.0;
             }
+
             new Handler(Looper.getMainLooper()).post(this::updateEstimatedFare);
         });
     }
 
     private void loadFareSettings() {
-        db.collection("settings")
-                .document("fare")
-                .get()
+        db.collection("settings").document("fare").get()
                 .addOnSuccessListener(document -> {
                     if (document.exists()) {
                         Double value = document.getDouble("baseFare");
                         if (value != null) baseFare = value;
+
                         value = document.getDouble("perKm");
                         if (value != null) perKm = value;
+
                         value = document.getDouble("minimum");
                         if (value != null) minimumFare = value;
+
                         value = document.getDouble("maximum");
                         if (value != null) maximumFare = value;
                     }
@@ -281,6 +354,7 @@ public class PassengerActivity extends Activity {
 
     private void startLocationUpdates() {
         locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
+
         if (locationManager == null) {
             gpsText.setText("Location service unavailable.");
             return;
@@ -288,11 +362,9 @@ public class PassengerActivity extends Activity {
 
         if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
                 && checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+
             requestPermissions(
-                    new String[]{
-                            Manifest.permission.ACCESS_FINE_LOCATION,
-                            Manifest.permission.ACCESS_COARSE_LOCATION
-                    },
+                    new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION},
                     LOCATION_PERMISSION_REQUEST
             );
             return;
@@ -303,13 +375,9 @@ public class PassengerActivity extends Activity {
             boolean networkEnabled = locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER);
 
             if (gpsEnabled) {
-                locationManager.requestLocationUpdates(
-                        LocationManager.GPS_PROVIDER, 2000, 5, locationListener
-                );
+                locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 2000, 5, locationListener);
             } else if (networkEnabled) {
-                locationManager.requestLocationUpdates(
-                        LocationManager.NETWORK_PROVIDER, 2000, 5, locationListener
-                );
+                locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 2000, 5, locationListener);
             } else {
                 gpsText.setText("Please turn on Location/GPS.");
             }
@@ -353,9 +421,7 @@ public class PassengerActivity extends Activity {
         pickupLatitude = location.getLatitude();
         pickupLongitude = location.getLongitude();
 
-        gpsText.setText(String.format(
-                Locale.US, "Current location: %.6f, %.6f", pickupLatitude, pickupLongitude
-        ));
+        gpsText.setText(String.format(Locale.US, "Current location: %.6f, %.6f", pickupLatitude, pickupLongitude));
 
         Executors.newSingleThreadExecutor().execute(() -> {
             String locationText = getAddressText(pickupLatitude, pickupLongitude);
@@ -370,19 +436,19 @@ public class PassengerActivity extends Activity {
 
     private String getAddressText(double latitude, double longitude) {
         if (!Geocoder.isPresent()) return null;
+
         try {
             Geocoder geocoder = new Geocoder(this, Locale.getDefault());
             List<Address> addresses = geocoder.getFromLocation(latitude, longitude, 1);
             if (addresses != null && !addresses.isEmpty()) {
                 Address address = addresses.get(0);
                 String line = address.getAddressLine(0);
-                if (line != null && !line.isEmpty()) {
-                    return line;
-                }
+                if (line != null && !line.isEmpty()) return line;
             }
         } catch (IOException ignored) {
         } catch (Exception ignored) {
         }
+
         return null;
     }
 
@@ -393,19 +459,17 @@ public class PassengerActivity extends Activity {
 
     private double calculateFare() {
         double fare = baseFare;
+
         if (currentLocation != null && destinationLatitude != 0.0 && destinationLongitude != 0.0) {
             float[] distance = new float[1];
-            Location.distanceBetween(
-                    pickupLatitude, pickupLongitude,
-                    destinationLatitude, destinationLongitude,
-                    distance
-            );
+            Location.distanceBetween(pickupLatitude, pickupLongitude, destinationLatitude, destinationLongitude, distance);
             double kilometers = distance[0] / 1000.0;
             fare = baseFare + (kilometers * perKm);
         }
 
         if (fare < minimumFare) fare = minimumFare;
         if (fare > maximumFare) fare = maximumFare;
+
         return fare;
     }
 
@@ -456,8 +520,7 @@ public class PassengerActivity extends Activity {
 
         bookButton.setEnabled(false);
 
-        db.collection("rides")
-                .add(ride)
+        db.collection("rides").add(ride)
                 .addOnSuccessListener(documentReference -> {
                     activeRideId = documentReference.getId();
                     statusText.setText("Ride request is waiting for a driver.");
@@ -520,8 +583,7 @@ public class PassengerActivity extends Activity {
     private void cancelRide() {
         if (activeRideId == null) return;
 
-        db.collection("rides")
-                .document(activeRideId)
+        db.collection("rides").document(activeRideId)
                 .update("status", "CANCELLED")
                 .addOnSuccessListener(unused -> {
                     Toast.makeText(PassengerActivity.this, "Ride cancelled.", Toast.LENGTH_SHORT).show();
@@ -532,11 +594,7 @@ public class PassengerActivity extends Activity {
                     mapButton.setEnabled(false);
                     chatButton.setEnabled(false);
                 })
-                .addOnFailureListener(e -> Toast.makeText(
-                        PassengerActivity.this,
-                        "Could not cancel the ride.",
-                        Toast.LENGTH_LONG
-                ).show());
+                .addOnFailureListener(e -> Toast.makeText(PassengerActivity.this, "Could not cancel the ride.", Toast.LENGTH_LONG).show());
     }
 
     private void openMapSafely() {
@@ -544,6 +602,7 @@ public class PassengerActivity extends Activity {
             Toast.makeText(this, "There is no active ride.", Toast.LENGTH_SHORT).show();
             return;
         }
+
         try {
             Intent intent = new Intent(PassengerActivity.this, MapActivity.class);
             intent.putExtra("rideId", activeRideId);
@@ -558,6 +617,7 @@ public class PassengerActivity extends Activity {
             Toast.makeText(this, "There is no active ride.", Toast.LENGTH_SHORT).show();
             return;
         }
+
         try {
             Intent intent = new Intent(PassengerActivity.this, RideChatActivity.class);
             intent.putExtra("rideId", activeRideId);
@@ -572,8 +632,10 @@ public class PassengerActivity extends Activity {
             activeRideListener.remove();
             activeRideListener = null;
         }
+
         stopLocationUpdates();
         auth.signOut();
+
         Intent intent = new Intent(PassengerActivity.this, MainActivity.class);
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
         startActivity(intent);
@@ -582,6 +644,7 @@ public class PassengerActivity extends Activity {
 
     private void stopLocationUpdates() {
         if (locationManager == null) return;
+
         try {
             locationManager.removeUpdates(locationListener);
         } catch (SecurityException ignored) {
@@ -592,6 +655,7 @@ public class PassengerActivity extends Activity {
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+
         if (requestCode == LOCATION_PERMISSION_REQUEST) {
             boolean granted = false;
             for (int result : grantResults) {
@@ -600,6 +664,7 @@ public class PassengerActivity extends Activity {
                     break;
                 }
             }
+
             if (granted) {
                 startLocationUpdates();
             } else {
