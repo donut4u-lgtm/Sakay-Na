@@ -129,6 +129,7 @@ public class MainActivity extends Activity {
         passwordInput = new EditText(this);
         passwordInput.setHint("Password");
         passwordInput.setTextSize(18);
+        passwordInput.setTextSize(18);
         passwordInput.setSingleLine(true);
         passwordInput.setInputType(
                 InputType.TYPE_CLASS_TEXT |
@@ -317,24 +318,19 @@ public class MainActivity extends Activity {
                 return;
             }
 
-            /*
-             * IMPORTANT:
-             *
-             * We DO NOT use the selected login button
-             * to decide the destination.
-             *
-             * Firestore role decides the destination.
-             */
             loadUserRole(user);
         })
         .addOnFailureListener(e -> {
 
-            toast(
-                    "Invalid phone number or password."
-            );
+            toast("Invalid phone number or password.");
         });
     }
 
+    /*
+     * Load the profile using the AUTHENTICATED Firebase UID.
+     *
+     * This is the important Admin fix.
+     */
     private void loadUserRole(FirebaseUser user) {
 
         if (user == null) {
@@ -342,20 +338,42 @@ public class MainActivity extends Activity {
             return;
         }
 
-        String uid = user.getUid();
+        final String uid = user.getUid();
 
         db.collection("users")
                 .document(uid)
                 .get()
                 .addOnSuccessListener(document -> {
 
-                    if (!document.exists()) {
+                    if (document.exists()) {
 
-                        findProfileByPhone(user);
+                        String role =
+                                document.getString("role");
+
+                        /*
+                         * If the UID document has a role,
+                         * route immediately.
+                         */
+                        if (role != null &&
+                                !role.trim().isEmpty()) {
+
+                            routeUsingRole(document);
+                            return;
+                        }
+
+                        /*
+                         * Existing document but missing role.
+                         * Try the phone profile before failing.
+                         */
+                        findProfileByPhone(user, uid);
                         return;
                     }
 
-                    routeUsingRole(document);
+                    /*
+                     * UID document doesn't exist.
+                     * Try finding the profile by phone.
+                     */
+                    findProfileByPhone(user, uid);
                 })
                 .addOnFailureListener(e -> {
 
@@ -365,7 +383,9 @@ public class MainActivity extends Activity {
                 });
     }
 
-    private void findProfileByPhone(FirebaseUser user) {
+    private void findProfileByPhone(
+            FirebaseUser user,
+            String authenticatedUid) {
 
         String phone = "";
 
@@ -400,7 +420,7 @@ public class MainActivity extends Activity {
 
         db.collection("users")
                 .whereEqualTo("phone", searchedPhone)
-                .limit(1)
+                .limit(5)
                 .get()
                 .addOnSuccessListener(query -> {
 
@@ -409,13 +429,46 @@ public class MainActivity extends Activity {
                         showLoginError(
                                 "User profile was not found."
                         );
-
-                    } else {
-
-                        routeUsingRole(
-                                query.getDocuments().get(0)
-                        );
+                        return;
                     }
+
+                    /*
+                     * Prefer the document belonging to
+                     * the currently authenticated Firebase UID.
+                     */
+                    for (DocumentSnapshot doc :
+                            query.getDocuments()) {
+
+                        if (authenticatedUid.equals(
+                                doc.getId())) {
+
+                            routeUsingRole(doc);
+                            return;
+                        }
+                    }
+
+                    /*
+                     * If no matching UID was found,
+                     * use a profile that actually contains
+                     * a valid role.
+                     */
+                    for (DocumentSnapshot doc :
+                            query.getDocuments()) {
+
+                        String role =
+                                doc.getString("role");
+
+                        if (role != null &&
+                                !role.trim().isEmpty()) {
+
+                            routeUsingRole(doc);
+                            return;
+                        }
+                    }
+
+                    showLoginError(
+                            "This account has no role."
+                    );
                 })
                 .addOnFailureListener(e -> {
 
@@ -437,9 +490,11 @@ public class MainActivity extends Activity {
             return;
         }
 
-        String role = document.getString("role");
+        String role =
+                document.getString("role");
 
-        if (role == null) {
+        if (role == null ||
+                role.trim().isEmpty()) {
 
             showLoginError(
                     "This account has no role."
@@ -450,22 +505,20 @@ public class MainActivity extends Activity {
         role = role.trim().toUpperCase();
 
         /*
-         * FINAL ROUTING:
-         *
-         * DRIVER     -> DriverActivity
-         * PASSENGER  -> PassengerActivity
-         * ADMIN      -> AdminActivity
+         * PASSENGER -> PassengerActivity
+         * DRIVER    -> DriverActivity
+         * ADMIN     -> AdminActivity
          */
-
-        if ("DRIVER".equals(role)) {
-
-            openScreen(DriverActivity.class);
-            return;
-        }
 
         if ("PASSENGER".equals(role)) {
 
             openScreen(PassengerActivity.class);
+            return;
+        }
+
+        if ("DRIVER".equals(role)) {
+
+            openScreen(DriverActivity.class);
             return;
         }
 
@@ -489,6 +542,9 @@ public class MainActivity extends Activity {
         final String role =
                 selectedRole.trim().toUpperCase();
 
+        /*
+         * Admin creation remains separate.
+         */
         if ("ADMIN".equals(role)) {
 
             toast(
@@ -532,11 +588,6 @@ public class MainActivity extends Activity {
             Map<String, Object> profile =
                     new HashMap<>();
 
-            /*
-             * THIS IS THE IMPORTANT PART.
-             *
-             * The selected role is explicitly saved.
-             */
             profile.put("phone", phone);
             profile.put("role", role);
 
