@@ -1,34 +1,42 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // USERS
+    // CONFIRMED SAKAY NA ADMIN UID
+    function isAdmin() {
+      return request.auth != null
+             && request.auth.uid == "Ld3rzaCvAGNlXBDCofB3mWjgXWp2";
+    }
+
     match /users/{userId} {
 
-      // Every signed-in user can read/update their own profile.
+      // Users can create their own profile.
       allow create: if request.auth != null
                     && request.auth.uid == userId;
 
+      // User can read own profile.
+      // Confirmed Admin can read all user profiles.
       allow read: if request.auth != null
                   && (
                     request.auth.uid == userId
-                    || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.Admin == true
+                    || isAdmin()
                   );
 
+      // User can update own profile.
+      // Confirmed Admin can update user profiles.
       allow update: if request.auth != null
                     && (
                       request.auth.uid == userId
-                      || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.Admin == true
-                    );
+                      || isAdmin()
+                  );
     }
 
-    // RIDES
     match /rides/{rideId} {
       allow read, write: if request.auth != null;
     }
 
-    // DRIVER LOCATIONS
     match /driverLocations/{driverId} {
       allow read, write: if request.auth != null;
     }
