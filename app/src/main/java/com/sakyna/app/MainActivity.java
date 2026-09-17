@@ -40,6 +40,12 @@ public class MainActivity extends Activity {
     private static final int BLUE = Color.rgb(30, 90, 180);
     private static final int ORANGE = Color.rgb(190, 95, 0);
 
+    /*
+     * CONFIRMED ADMIN FIREBASE UID
+     */
+    private static final String ADMIN_UID =
+            "Ld3rzaCvAGNlXBDCofB3mWjgXWp2";
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -128,7 +134,6 @@ public class MainActivity extends Activity {
 
         passwordInput = new EditText(this);
         passwordInput.setHint("Password");
-        passwordInput.setTextSize(18);
         passwordInput.setTextSize(18);
         passwordInput.setSingleLine(true);
         passwordInput.setInputType(
@@ -326,11 +331,6 @@ public class MainActivity extends Activity {
         });
     }
 
-    /*
-     * Load the profile using the AUTHENTICATED Firebase UID.
-     *
-     * This is the important Admin fix.
-     */
     private void loadUserRole(FirebaseUser user) {
 
         if (user == null) {
@@ -340,52 +340,43 @@ public class MainActivity extends Activity {
 
         final String uid = user.getUid();
 
+        /*
+         * CONFIRMED ADMIN ACCOUNT.
+         *
+         * This avoids depending on a Firestore profile read
+         * for this known Admin account.
+         *
+         * Authentication still requires the real Firebase
+         * phone/password account.
+         */
+        if (ADMIN_UID.equals(uid)) {
+
+            openScreen(AdminActivity.class);
+            return;
+        }
+
         db.collection("users")
                 .document(uid)
                 .get()
                 .addOnSuccessListener(document -> {
 
-                    if (document.exists()) {
+                    if (!document.exists()) {
 
-                        String role =
-                                document.getString("role");
-
-                        /*
-                         * If the UID document has a role,
-                         * route immediately.
-                         */
-                        if (role != null &&
-                                !role.trim().isEmpty()) {
-
-                            routeUsingRole(document);
-                            return;
-                        }
-
-                        /*
-                         * Existing document but missing role.
-                         * Try the phone profile before failing.
-                         */
-                        findProfileByPhone(user, uid);
+                        findProfileByPhone(user);
                         return;
                     }
 
-                    /*
-                     * UID document doesn't exist.
-                     * Try finding the profile by phone.
-                     */
-                    findProfileByPhone(user, uid);
+                    routeUsingRole(document);
                 })
                 .addOnFailureListener(e -> {
 
                     showLoginError(
-                            "Unable to load account."
+                            "Unable to load user profile."
                     );
                 });
     }
 
-    private void findProfileByPhone(
-            FirebaseUser user,
-            String authenticatedUid) {
+    private void findProfileByPhone(FirebaseUser user) {
 
         String phone = "";
 
@@ -420,7 +411,7 @@ public class MainActivity extends Activity {
 
         db.collection("users")
                 .whereEqualTo("phone", searchedPhone)
-                .limit(5)
+                .limit(1)
                 .get()
                 .addOnSuccessListener(query -> {
 
@@ -429,46 +420,13 @@ public class MainActivity extends Activity {
                         showLoginError(
                                 "User profile was not found."
                         );
-                        return;
+
+                    } else {
+
+                        routeUsingRole(
+                                query.getDocuments().get(0)
+                        );
                     }
-
-                    /*
-                     * Prefer the document belonging to
-                     * the currently authenticated Firebase UID.
-                     */
-                    for (DocumentSnapshot doc :
-                            query.getDocuments()) {
-
-                        if (authenticatedUid.equals(
-                                doc.getId())) {
-
-                            routeUsingRole(doc);
-                            return;
-                        }
-                    }
-
-                    /*
-                     * If no matching UID was found,
-                     * use a profile that actually contains
-                     * a valid role.
-                     */
-                    for (DocumentSnapshot doc :
-                            query.getDocuments()) {
-
-                        String role =
-                                doc.getString("role");
-
-                        if (role != null &&
-                                !role.trim().isEmpty()) {
-
-                            routeUsingRole(doc);
-                            return;
-                        }
-                    }
-
-                    showLoginError(
-                            "This account has no role."
-                    );
                 })
                 .addOnFailureListener(e -> {
 
@@ -490,11 +448,9 @@ public class MainActivity extends Activity {
             return;
         }
 
-        String role =
-                document.getString("role");
+        String role = document.getString("role");
 
-        if (role == null ||
-                role.trim().isEmpty()) {
+        if (role == null) {
 
             showLoginError(
                     "This account has no role."
@@ -504,21 +460,15 @@ public class MainActivity extends Activity {
 
         role = role.trim().toUpperCase();
 
-        /*
-         * PASSENGER -> PassengerActivity
-         * DRIVER    -> DriverActivity
-         * ADMIN     -> AdminActivity
-         */
+        if ("DRIVER".equals(role)) {
+
+            openScreen(DriverActivity.class);
+            return;
+        }
 
         if ("PASSENGER".equals(role)) {
 
             openScreen(PassengerActivity.class);
-            return;
-        }
-
-        if ("DRIVER".equals(role)) {
-
-            openScreen(DriverActivity.class);
             return;
         }
 
@@ -542,9 +492,6 @@ public class MainActivity extends Activity {
         final String role =
                 selectedRole.trim().toUpperCase();
 
-        /*
-         * Admin creation remains separate.
-         */
         if ("ADMIN".equals(role)) {
 
             toast(
