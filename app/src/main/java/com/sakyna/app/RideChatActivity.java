@@ -1,3 +1,4 @@
+
 package com.sakyna.app;
 
 import android.app.Activity;
@@ -16,7 +17,6 @@ import com.google.firebase.Timestamp;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentSnapshot;
-import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
 
@@ -33,7 +33,6 @@ public class RideChatActivity extends Activity {
     private FirebaseFirestore db;
 
     private String rideId = "";
-
     private String passengerId = "";
     private String driverId = "";
 
@@ -84,10 +83,7 @@ public class RideChatActivity extends Activity {
         title.setGravity(Gravity.CENTER);
         title.setPadding(16, 20, 16, 20);
 
-        root.addView(title, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-        ));
+        root.addView(title);
 
         scrollView = new ScrollView(this);
 
@@ -97,11 +93,14 @@ public class RideChatActivity extends Activity {
 
         scrollView.addView(messagesLayout);
 
-        root.addView(scrollView, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                0,
-                1
-        ));
+        root.addView(
+                scrollView,
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        0,
+                        1
+                )
+        );
 
         LinearLayout bottom = new LinearLayout(this);
         bottom.setOrientation(LinearLayout.HORIZONTAL);
@@ -112,27 +111,30 @@ public class RideChatActivity extends Activity {
         messageInput.setTextSize(16);
         messageInput.setSingleLine(true);
 
-        bottom.addView(messageInput, new LinearLayout.LayoutParams(
-                0,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                1
-        ));
+        bottom.addView(
+                messageInput,
+                new LinearLayout.LayoutParams(
+                        0,
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        1
+                )
+        );
 
         sendButton = new Button(this);
         sendButton.setText("SEND");
         sendButton.setEnabled(false);
 
-        bottom.addView(sendButton, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-        ));
+        bottom.addView(
+                sendButton,
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+        );
 
         sendButton.setOnClickListener(v -> sendMessage());
 
-        root.addView(bottom, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-        ));
+        root.addView(bottom);
 
         setContentView(root);
     }
@@ -146,7 +148,7 @@ public class RideChatActivity extends Activity {
             return;
         }
 
-        final String uid = user.getUid();
+        String uid = user.getUid();
 
         db.collection("rides")
                 .document(rideId)
@@ -154,24 +156,24 @@ public class RideChatActivity extends Activity {
                 .addOnSuccessListener(snapshot -> {
 
                     if (!snapshot.exists()) {
-                        showError("Chat error: Ride was not found.");
+                        showError("Chat error: Ride not found.");
                         return;
                     }
 
                     passengerId = snapshot.getString("passengerId");
                     driverId = snapshot.getString("driverId");
 
-                    boolean passenger =
+                    boolean isPassenger =
                             passengerId != null &&
                             passengerId.equals(uid);
 
-                    boolean driver =
+                    boolean isDriver =
                             driverId != null &&
                             driverId.equals(uid);
 
-                    if (!passenger && !driver) {
+                    if (!isPassenger && !isDriver) {
                         showError(
-                                "Chat error: You are not a participant in this ride."
+                                "Chat error: You are not a participant."
                         );
                         return;
                     }
@@ -181,8 +183,9 @@ public class RideChatActivity extends Activity {
                     startMessageListener();
                 })
                 .addOnFailureListener(error -> {
+
                     showError(
-                            "Chat ride read failed:\n"
+                            "Ride read failed:\n"
                                     + firebaseError(error)
                     );
                 });
@@ -192,84 +195,84 @@ public class RideChatActivity extends Activity {
 
         if (messageListener != null) {
             messageListener.remove();
-            messageListener = null;
         }
 
-        /*
-         * IMPORTANT:
-         *
-         * Do NOT use orderBy("createdAt") here.
-         *
-         * Firestore server timestamps can temporarily be null while
-         * the message is being written. Reading the whole subcollection
-         * and sorting locally makes chat immediately visible and avoids
-         * timestamp/index problems.
-         */
+        messageListener =
+                db.collection("rides")
+                        .document(rideId)
+                        .collection("messages")
+                        .addSnapshotListener(
+                                (snapshot, error) -> {
 
-        messageListener = db.collection("rides")
-                .document(rideId)
-                .collection("messages")
-                .addSnapshotListener((snapshot, error) -> {
-
-                    if (error != null) {
-                        showError(
-                                "Chat messages read failed:\n"
-                                        + firebaseError(error)
-                        );
-                        return;
-                    }
-
-                    if (snapshot == null) {
-                        return;
-                    }
-
-                    List<DocumentSnapshot> messages =
-                            new ArrayList<>(snapshot.getDocuments());
-
-                    Collections.sort(
-                            messages,
-                            new Comparator<DocumentSnapshot>() {
-                                @Override
-                                public int compare(
-                                        DocumentSnapshot a,
-                                        DocumentSnapshot b) {
-
-                                    Timestamp ta =
-                                            a.getTimestamp("createdAt");
-
-                                    Timestamp tb =
-                                            b.getTimestamp("createdAt");
-
-                                    if (ta == null && tb == null) {
-                                        return 0;
+                                    if (error != null) {
+                                        showError(
+                                                "CHAT READ ERROR:\n"
+                                                        + firebaseError(error)
+                                        );
+                                        return;
                                     }
 
-                                    if (ta == null) {
-                                        return 1;
+                                    if (snapshot == null) {
+                                        return;
                                     }
 
-                                    if (tb == null) {
-                                        return -1;
+                                    List<DocumentSnapshot> list =
+                                            new ArrayList<>(
+                                                    snapshot.getDocuments()
+                                            );
+
+                                    Collections.sort(
+                                            list,
+                                            new Comparator<DocumentSnapshot>() {
+                                                @Override
+                                                public int compare(
+                                                        DocumentSnapshot a,
+                                                        DocumentSnapshot b) {
+
+                                                    Timestamp ta =
+                                                            a.getTimestamp(
+                                                                    "createdAt"
+                                                            );
+
+                                                    Timestamp tb =
+                                                            b.getTimestamp(
+                                                                    "createdAt"
+                                                            );
+
+                                                    if (ta == null &&
+                                                            tb == null) {
+                                                        return 0;
+                                                    }
+
+                                                    if (ta == null) {
+                                                        return 1;
+                                                    }
+
+                                                    if (tb == null) {
+                                                        return -1;
+                                                    }
+
+                                                    return ta.compareTo(tb);
+                                                }
+                                            }
+                                    );
+
+                                    messagesLayout.removeAllViews();
+
+                                    for (DocumentSnapshot doc : list) {
+                                        addMessage(doc);
                                     }
 
-                                    return ta.compareTo(tb);
+                                    scrollView.post(
+                                            () -> scrollView.fullScroll(
+                                                    View.FOCUS_DOWN
+                                            )
+                                    );
                                 }
-                            }
-                    );
-
-                    messagesLayout.removeAllViews();
-
-                    for (DocumentSnapshot document : messages) {
-                        addMessage(document);
-                    }
-
-                    scrollView.post(() ->
-                            scrollView.fullScroll(View.FOCUS_DOWN)
-                    );
-                });
+                        );
     }
 
-    private void addMessage(DocumentSnapshot snapshot) {
+    private void addMessage(DocumentSnapshot doc) {
 
         FirebaseUser user = auth.getCurrentUser();
 
@@ -277,9 +280,14 @@ public class RideChatActivity extends Activity {
             return;
         }
 
-        String senderId = snapshot.getString("senderId");
-        String senderRole = snapshot.getString("senderRole");
-        String message = snapshot.getString("message");
+        String senderId =
+                doc.getString("senderId");
+
+        String senderRole =
+                doc.getString("senderRole");
+
+        String message =
+                doc.getString("message");
 
         if (message == null) {
             message = "";
@@ -288,31 +296,43 @@ public class RideChatActivity extends Activity {
         boolean mine =
                 user.getUid().equals(senderId);
 
-        LinearLayout messageBox = new LinearLayout(this);
-        messageBox.setOrientation(LinearLayout.VERTICAL);
-        messageBox.setPadding(14, 10, 14, 10);
+        LinearLayout box =
+                new LinearLayout(this);
 
-        TextView senderText = new TextView(this);
+        box.setOrientation(
+                LinearLayout.VERTICAL
+        );
+
+        box.setPadding(
+                14,
+                10,
+                14,
+                10
+        );
+
+        TextView sender =
+                new TextView(this);
 
         if (mine) {
-            senderText.setText("You");
+            sender.setText("You");
         } else if ("DRIVER".equals(senderRole)) {
-            senderText.setText("Driver");
+            sender.setText("Driver");
         } else {
-            senderText.setText("Passenger");
+            sender.setText("Passenger");
         }
 
-        senderText.setTextSize(13);
-        senderText.setTextColor(Color.GRAY);
+        sender.setTextSize(13);
+        sender.setTextColor(Color.GRAY);
 
-        TextView messageText = new TextView(this);
-        messageText.setText(message);
-        messageText.setTextSize(17);
-        messageText.setTextColor(Color.BLACK);
-        messageText.setPadding(0, 4, 0, 4);
+        TextView text =
+                new TextView(this);
 
-        messageBox.addView(senderText);
-        messageBox.addView(messageText);
+        text.setText(message);
+        text.setTextSize(17);
+        text.setTextColor(Color.BLACK);
+
+        box.addView(sender);
+        box.addView(text);
 
         LinearLayout.LayoutParams params =
                 new LinearLayout.LayoutParams(
@@ -328,31 +348,41 @@ public class RideChatActivity extends Activity {
             params.gravity = Gravity.START;
         }
 
-        messagesLayout.addView(messageBox, params);
+        messagesLayout.addView(
+                box,
+                params
+        );
     }
 
     private void sendMessage() {
 
-        FirebaseUser user = auth.getCurrentUser();
+        FirebaseUser user =
+                auth.getCurrentUser();
 
         if (user == null) {
-            showError("Message failed: You are not logged in.");
+            showError(
+                    "MESSAGE FAILED: Not logged in."
+            );
             return;
         }
 
         if (rideId.trim().isEmpty()) {
-            showError("Message failed: Ride ID is missing.");
+            showError(
+                    "MESSAGE FAILED: Ride ID missing."
+            );
             return;
         }
 
         String message =
-                messageInput.getText().toString().trim();
+                messageInput.getText()
+                        .toString()
+                        .trim();
 
         if (message.isEmpty()) {
             return;
         }
 
-        final String uid = user.getUid();
+        String uid = user.getUid();
 
         boolean participant =
                 uid.equals(passengerId)
@@ -360,54 +390,61 @@ public class RideChatActivity extends Activity {
 
         if (!participant) {
             showError(
-                    "Message failed: You are not a participant in this ride."
+                    "MESSAGE FAILED: Not a ride participant."
             );
             return;
         }
 
         sendButton.setEnabled(false);
 
-        Map<String, Object> chatMessage =
+        Map<String, Object> data =
                 new HashMap<>();
 
-        chatMessage.put(
+        data.put(
                 "senderId",
                 uid
         );
 
-        chatMessage.put(
+        data.put(
                 "senderRole",
                 uid.equals(driverId)
                         ? "DRIVER"
                         : "PASSENGER"
         );
 
-        chatMessage.put(
+        data.put(
                 "message",
                 message
         );
 
-        chatMessage.put(
+        // Use a normal Timestamp for this test.
+        data.put(
                 "createdAt",
-                FieldValue.serverTimestamp()
+                Timestamp.now()
         );
 
         db.collection("rides")
                 .document(rideId)
                 .collection("messages")
-                .add(chatMessage)
+                .add(data)
                 .addOnSuccessListener(documentReference -> {
 
                     messageInput.setText("");
 
                     sendButton.setEnabled(true);
+
+                    Toast.makeText(
+                            RideChatActivity.this,
+                            "MESSAGE SAVED",
+                            Toast.LENGTH_SHORT
+                    ).show();
                 })
                 .addOnFailureListener(error -> {
 
                     sendButton.setEnabled(true);
 
                     showError(
-                            "Message send failed:\n"
+                            "MESSAGE WRITE ERROR:\n"
                                     + firebaseError(error)
                     );
                 });
