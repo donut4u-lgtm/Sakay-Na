@@ -1,4 +1,3 @@
-
 package com.sakyna.app;
 
 import android.app.Activity;
@@ -13,15 +12,19 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.google.firebase.Timestamp;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
-import com.google.firebase.firestore.Query;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class RideChatActivity extends Activity {
@@ -71,133 +74,65 @@ public class RideChatActivity extends Activity {
     private void buildScreen() {
 
         LinearLayout root = new LinearLayout(this);
-
-        root.setOrientation(
-                LinearLayout.VERTICAL
-        );
-
-        root.setBackgroundColor(
-                Color.WHITE
-        );
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setBackgroundColor(Color.WHITE);
 
         TextView title = new TextView(this);
-
-        title.setText(
-                "Sakay Na Ride Chat"
-        );
-
+        title.setText("Sakay Na Ride Chat");
         title.setTextSize(23);
+        title.setTextColor(Color.BLACK);
+        title.setGravity(Gravity.CENTER);
+        title.setPadding(16, 20, 16, 20);
 
-        title.setTextColor(
-                Color.BLACK
-        );
-
-        title.setGravity(
-                Gravity.CENTER
-        );
-
-        title.setPadding(
-                16,
-                20,
-                16,
-                20
-        );
-
-        root.addView(
-                title,
-                new LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT
-                )
-        );
+        root.addView(title, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        ));
 
         scrollView = new ScrollView(this);
 
         messagesLayout = new LinearLayout(this);
+        messagesLayout.setOrientation(LinearLayout.VERTICAL);
+        messagesLayout.setPadding(16, 16, 16, 16);
 
-        messagesLayout.setOrientation(
-                LinearLayout.VERTICAL
-        );
+        scrollView.addView(messagesLayout);
 
-        messagesLayout.setPadding(
-                16,
-                16,
-                16,
-                16
-        );
-
-        scrollView.addView(
-                messagesLayout
-        );
-
-        root.addView(
-                scrollView,
-                new LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT,
-                        0,
-                        1
-                )
-        );
+        root.addView(scrollView, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                0,
+                1
+        ));
 
         LinearLayout bottom = new LinearLayout(this);
-
-        bottom.setOrientation(
-                LinearLayout.HORIZONTAL
-        );
-
-        bottom.setPadding(
-                12,
-                12,
-                12,
-                12
-        );
+        bottom.setOrientation(LinearLayout.HORIZONTAL);
+        bottom.setPadding(12, 12, 12, 12);
 
         messageInput = new EditText(this);
-
-        messageInput.setHint(
-                "Type a message..."
-        );
-
+        messageInput.setHint("Type a message...");
         messageInput.setTextSize(16);
-
         messageInput.setSingleLine(true);
 
-        bottom.addView(
-                messageInput,
-                new LinearLayout.LayoutParams(
-                        0,
-                        LinearLayout.LayoutParams.WRAP_CONTENT,
-                        1
-                )
-        );
+        bottom.addView(messageInput, new LinearLayout.LayoutParams(
+                0,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                1
+        ));
 
         sendButton = new Button(this);
-
-        sendButton.setText(
-                "SEND"
-        );
-
+        sendButton.setText("SEND");
         sendButton.setEnabled(false);
 
-        bottom.addView(
-                sendButton,
-                new LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.WRAP_CONTENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT
-                )
-        );
+        bottom.addView(sendButton, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        ));
 
-        sendButton.setOnClickListener(
-                v -> sendMessage()
-        );
+        sendButton.setOnClickListener(v -> sendMessage());
 
-        root.addView(
-                bottom,
-                new LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT
-                )
-        );
+        root.addView(bottom, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        ));
 
         setContentView(root);
     }
@@ -207,9 +142,7 @@ public class RideChatActivity extends Activity {
         FirebaseUser user = auth.getCurrentUser();
 
         if (user == null) {
-            showError(
-                    "Chat error: You are not logged in."
-            );
+            showError("Chat error: You are not logged in.");
             return;
         }
 
@@ -221,54 +154,33 @@ public class RideChatActivity extends Activity {
                 .addOnSuccessListener(snapshot -> {
 
                     if (!snapshot.exists()) {
-
-                        showError(
-                                "Chat error: Ride was not found."
-                        );
-
+                        showError("Chat error: Ride was not found.");
                         return;
                     }
 
-                    passengerId =
-                            snapshot.getString(
-                                    "passengerId"
-                            );
-
-                    driverId =
-                            snapshot.getString(
-                                    "driverId"
-                            );
+                    passengerId = snapshot.getString("passengerId");
+                    driverId = snapshot.getString("driverId");
 
                     boolean passenger =
-                            passengerId != null
-                                    && passengerId.equals(uid);
+                            passengerId != null &&
+                            passengerId.equals(uid);
 
                     boolean driver =
-                            driverId != null
-                                    && driverId.equals(uid);
+                            driverId != null &&
+                            driverId.equals(uid);
 
                     if (!passenger && !driver) {
-
                         showError(
                                 "Chat error: You are not a participant in this ride."
                         );
-
                         return;
                     }
-
-                    /*
-                     * We deliberately do not make Firestore authorization
-                     * depend on senderRole. The authenticated Firebase UID
-                     * is the authority.
-                     */
 
                     sendButton.setEnabled(true);
 
                     startMessageListener();
-
                 })
                 .addOnFailureListener(error -> {
-
                     showError(
                             "Chat ride read failed:\n"
                                     + firebaseError(error)
@@ -283,67 +195,91 @@ public class RideChatActivity extends Activity {
             messageListener = null;
         }
 
-        messageListener =
-                db.collection("rides")
-                        .document(rideId)
-                        .collection("messages")
-                        .orderBy(
-                                "createdAt",
-                                Query.Direction.ASCENDING
-                        )
-                        .addSnapshotListener(
-                                (snapshot, error) -> {
+        /*
+         * IMPORTANT:
+         *
+         * Do NOT use orderBy("createdAt") here.
+         *
+         * Firestore server timestamps can temporarily be null while
+         * the message is being written. Reading the whole subcollection
+         * and sorting locally makes chat immediately visible and avoids
+         * timestamp/index problems.
+         */
 
-                                    if (error != null) {
+        messageListener = db.collection("rides")
+                .document(rideId)
+                .collection("messages")
+                .addSnapshotListener((snapshot, error) -> {
 
-                                        showError(
-                                                "Chat messages read failed:\n"
-                                                        + firebaseError(error)
-                                        );
-
-                                        return;
-                                    }
-
-                                    if (snapshot == null) {
-                                        return;
-                                    }
-
-                                    messagesLayout.removeAllViews();
-
-                                    for (DocumentSnapshot document :
-                                            snapshot.getDocuments()) {
-
-                                        addMessage(document);
-                                    }
-                                }
+                    if (error != null) {
+                        showError(
+                                "Chat messages read failed:\n"
+                                        + firebaseError(error)
                         );
+                        return;
+                    }
+
+                    if (snapshot == null) {
+                        return;
+                    }
+
+                    List<DocumentSnapshot> messages =
+                            new ArrayList<>(snapshot.getDocuments());
+
+                    Collections.sort(
+                            messages,
+                            new Comparator<DocumentSnapshot>() {
+                                @Override
+                                public int compare(
+                                        DocumentSnapshot a,
+                                        DocumentSnapshot b) {
+
+                                    Timestamp ta =
+                                            a.getTimestamp("createdAt");
+
+                                    Timestamp tb =
+                                            b.getTimestamp("createdAt");
+
+                                    if (ta == null && tb == null) {
+                                        return 0;
+                                    }
+
+                                    if (ta == null) {
+                                        return 1;
+                                    }
+
+                                    if (tb == null) {
+                                        return -1;
+                                    }
+
+                                    return ta.compareTo(tb);
+                                }
+                            }
+                    );
+
+                    messagesLayout.removeAllViews();
+
+                    for (DocumentSnapshot document : messages) {
+                        addMessage(document);
+                    }
+
+                    scrollView.post(() ->
+                            scrollView.fullScroll(View.FOCUS_DOWN)
+                    );
+                });
     }
 
-    private void addMessage(
-            DocumentSnapshot snapshot
-    ) {
+    private void addMessage(DocumentSnapshot snapshot) {
 
-        FirebaseUser user =
-                auth.getCurrentUser();
+        FirebaseUser user = auth.getCurrentUser();
 
         if (user == null) {
             return;
         }
 
-        String senderId =
-                snapshot.getString(
-                        "senderId"
-                );
-
-        String senderRole =
-                snapshot.getString(
-                        "senderRole"
-                );
-
-        String message =
-                snapshot.getString(
-                        "message"
-                );
+        String senderId = snapshot.getString("senderId");
+        String senderRole = snapshot.getString("senderRole");
+        String message = snapshot.getString("message");
 
         if (message == null) {
             message = "";
@@ -352,77 +288,31 @@ public class RideChatActivity extends Activity {
         boolean mine =
                 user.getUid().equals(senderId);
 
-        LinearLayout messageBox =
-                new LinearLayout(this);
+        LinearLayout messageBox = new LinearLayout(this);
+        messageBox.setOrientation(LinearLayout.VERTICAL);
+        messageBox.setPadding(14, 10, 14, 10);
 
-        messageBox.setOrientation(
-                LinearLayout.VERTICAL
-        );
-
-        messageBox.setPadding(
-                14,
-                10,
-                14,
-                10
-        );
-
-        TextView senderText =
-                new TextView(this);
+        TextView senderText = new TextView(this);
 
         if (mine) {
-
-            senderText.setText(
-                    "You"
-            );
-
-        } else if (
-                "DRIVER".equals(senderRole)
-        ) {
-
-            senderText.setText(
-                    "Driver"
-            );
-
+            senderText.setText("You");
+        } else if ("DRIVER".equals(senderRole)) {
+            senderText.setText("Driver");
         } else {
-
-            senderText.setText(
-                    "Passenger"
-            );
+            senderText.setText("Passenger");
         }
 
         senderText.setTextSize(13);
+        senderText.setTextColor(Color.GRAY);
 
-        senderText.setTextColor(
-                Color.GRAY
-        );
-
-        TextView messageText =
-                new TextView(this);
-
-        messageText.setText(
-                message
-        );
-
+        TextView messageText = new TextView(this);
+        messageText.setText(message);
         messageText.setTextSize(17);
+        messageText.setTextColor(Color.BLACK);
+        messageText.setPadding(0, 4, 0, 4);
 
-        messageText.setTextColor(
-                Color.BLACK
-        );
-
-        messageText.setPadding(
-                0,
-                4,
-                0,
-                4
-        );
-
-        messageBox.addView(
-                senderText
-        );
-
-        messageBox.addView(
-                messageText
-        );
+        messageBox.addView(senderText);
+        messageBox.addView(messageText);
 
         LinearLayout.LayoutParams params =
                 new LinearLayout.LayoutParams(
@@ -438,45 +328,25 @@ public class RideChatActivity extends Activity {
             params.gravity = Gravity.START;
         }
 
-        messagesLayout.addView(
-                messageBox,
-                params
-        );
-
-        scrollView.post(
-                () -> scrollView.fullScroll(
-                        View.FOCUS_DOWN
-                )
-        );
+        messagesLayout.addView(messageBox, params);
     }
 
     private void sendMessage() {
 
-        FirebaseUser user =
-                auth.getCurrentUser();
+        FirebaseUser user = auth.getCurrentUser();
 
         if (user == null) {
-
-            showError(
-                    "Message failed: You are not logged in."
-            );
-
+            showError("Message failed: You are not logged in.");
             return;
         }
 
         if (rideId.trim().isEmpty()) {
-
-            showError(
-                    "Message failed: Ride ID is missing."
-            );
-
+            showError("Message failed: Ride ID is missing.");
             return;
         }
 
         String message =
-                messageInput.getText()
-                        .toString()
-                        .trim();
+                messageInput.getText().toString().trim();
 
         if (message.isEmpty()) {
             return;
@@ -489,11 +359,9 @@ public class RideChatActivity extends Activity {
                         || uid.equals(driverId);
 
         if (!participant) {
-
             showError(
                     "Message failed: You are not a participant in this ride."
             );
-
             return;
         }
 
@@ -507,10 +375,6 @@ public class RideChatActivity extends Activity {
                 uid
         );
 
-        /*
-         * Keep senderRole as information only.
-         * Firestore authorization is based on senderId.
-         */
         chatMessage.put(
                 "senderRole",
                 uid.equals(driverId)
@@ -532,30 +396,24 @@ public class RideChatActivity extends Activity {
                 .document(rideId)
                 .collection("messages")
                 .add(chatMessage)
-                .addOnSuccessListener(
-                        documentReference -> {
+                .addOnSuccessListener(documentReference -> {
 
-                            messageInput.setText("");
+                    messageInput.setText("");
 
-                            sendButton.setEnabled(true);
-                        }
-                )
-                .addOnFailureListener(
-                        error -> {
+                    sendButton.setEnabled(true);
+                })
+                .addOnFailureListener(error -> {
 
-                            sendButton.setEnabled(true);
+                    sendButton.setEnabled(true);
 
-                            showError(
-                                    "Message send failed:\n"
-                                            + firebaseError(error)
-                            );
-                        }
-                );
+                    showError(
+                            "Message send failed:\n"
+                                    + firebaseError(error)
+                    );
+                });
     }
 
-    private String firebaseError(
-            Exception e
-    ) {
+    private String firebaseError(Exception e) {
 
         if (e == null) {
             return "Unknown Firebase error.";
@@ -565,16 +423,13 @@ public class RideChatActivity extends Activity {
 
         if (message == null ||
                 message.trim().isEmpty()) {
-
             return e.toString();
         }
 
         return message;
     }
 
-    private void showError(
-            String message
-    ) {
+    private void showError(String message) {
 
         Toast.makeText(
                 this,
