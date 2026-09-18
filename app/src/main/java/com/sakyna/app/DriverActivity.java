@@ -1,4 +1,3 @@
-
 package com.sakyna.app;
 
 import android.Manifest;
@@ -112,10 +111,14 @@ public class DriverActivity extends Activity {
         onlineRow.setOrientation(LinearLayout.HORIZONTAL);
 
         onlineButton = new Button(this);
-        onlineButton.setText("GO ONLINE");
+        onlineButton.setText("🟢 GO ONLINE");
+        onlineButton.setTextColor(Color.WHITE);
+        onlineButton.setBackgroundColor(Color.rgb(0, 150, 0));
 
         offlineButton = new Button(this);
-        offlineButton.setText("GO OFFLINE");
+        offlineButton.setText("🔴 GO OFFLINE");
+        offlineButton.setTextColor(Color.WHITE);
+        offlineButton.setBackgroundColor(Color.rgb(200, 0, 0));
 
         onlineRow.addView(
                 onlineButton,
@@ -214,6 +217,15 @@ public class DriverActivity extends Activity {
         });
 
         acceptButton.setOnClickListener(v -> {
+            if (!driverOnline) {
+                Toast.makeText(
+                        DriverActivity.this,
+                        "Go ONLINE first to accept this ride.",
+                        Toast.LENGTH_SHORT
+                ).show();
+                return;
+            }
+
             if (!currentRideId.isEmpty()) {
                 acceptRide(currentRideId);
             }
@@ -354,21 +366,45 @@ public class DriverActivity extends Activity {
         if (driverOnline) {
 
             statusText.setText(
-                    "ONLINE - ACCEPTING RIDE REQUESTS"
+                    "🟢 ONLINE - ACCEPTING RIDE REQUESTS"
             );
 
             statusText.setTextColor(
                     Color.rgb(0, 130, 60)
             );
 
+            onlineButton.setText("🟢 ONLINE");
+            onlineButton.setTextColor(Color.WHITE);
+            onlineButton.setBackgroundColor(
+                    Color.rgb(0, 150, 0)
+            );
+
+            offlineButton.setText("🔴 GO OFFLINE");
+            offlineButton.setTextColor(Color.WHITE);
+            offlineButton.setBackgroundColor(
+                    Color.rgb(200, 0, 0)
+            );
+
         } else {
 
             statusText.setText(
-                    "OFFLINE - NOT ACCEPTING RIDES"
+                    "🔴 OFFLINE - NOT ACCEPTING RIDES"
             );
 
             statusText.setTextColor(
-                    Color.rgb(180, 60, 40)
+                    Color.rgb(180, 0, 0)
+            );
+
+            onlineButton.setText("🟢 GO ONLINE");
+            onlineButton.setTextColor(Color.WHITE);
+            onlineButton.setBackgroundColor(
+                    Color.rgb(0, 150, 0)
+            );
+
+            offlineButton.setText("🔴 OFFLINE");
+            offlineButton.setTextColor(Color.WHITE);
+            offlineButton.setBackgroundColor(
+                    Color.rgb(200, 0, 0)
             );
         }
     }
@@ -402,28 +438,32 @@ public class DriverActivity extends Activity {
                                         return;
                                     }
 
-                                    if (!driverOnline) {
-
-                                        requestsText.setText(
-                                                "Go ONLINE to receive ride requests."
-                                        );
-
-                                        return;
-                                    }
-
                                     if (snapshots == null
                                             || snapshots.isEmpty()) {
 
                                         requestsText.setText(
-                                                "No ride requests."
+                                                driverOnline
+                                                        ? "No ride requests."
+                                                        : "🔴 OFFLINE\nRide requests are visible below, but go ONLINE to accept."
                                         );
 
                                         return;
                                     }
 
-                                    requestsText.setText(
-                                            "Available rides:"
-                                    );
+                                    if (!driverOnline) {
+
+                                        requestsText.setText(
+                                                "🔴 DRIVER OFFLINE\n"
+                                                        + "Ride request found.\n"
+                                                        + "Go ONLINE to accept."
+                                        );
+
+                                    } else {
+
+                                        requestsText.setText(
+                                                "🟢 AVAILABLE RIDE REQUESTS"
+                                        );
+                                    }
 
                                     for (
                                             DocumentSnapshot ride :
@@ -507,6 +547,14 @@ public class DriverActivity extends Activity {
         Button decline =
                 makeButton("DECLINE");
 
+        if (driverOnline) {
+            accept.setEnabled(true);
+            accept.setText("ACCEPT");
+        } else {
+            accept.setEnabled(false);
+            accept.setText("🔴 GO ONLINE TO ACCEPT");
+        }
+
         card.addView(accept);
         card.addView(decline);
 
@@ -515,13 +563,30 @@ public class DriverActivity extends Activity {
         String rideId =
                 ride.getId();
 
-        accept.setOnClickListener(v ->
-                acceptRide(rideId)
-        );
+        accept.setOnClickListener(v -> {
 
-        decline.setOnClickListener(v ->
-                declineRide(rideId)
-        );
+            if (!driverOnline) {
+
+                Toast.makeText(
+                        DriverActivity.this,
+                        "Go ONLINE first to accept this ride.",
+                        Toast.LENGTH_SHORT
+                ).show();
+
+                return;
+            }
+
+            currentRideId = rideId;
+
+            acceptRide(rideId);
+        });
+
+        decline.setOnClickListener(v -> {
+
+            currentRideId = rideId;
+
+            declineRide(rideId);
+        });
     }
 
     private String value(
@@ -743,6 +808,17 @@ public class DriverActivity extends Activity {
             return;
         }
 
+        if (!driverOnline) {
+
+            Toast.makeText(
+                    this,
+                    "Go ONLINE first to accept this ride.",
+                    Toast.LENGTH_SHORT
+            ).show();
+
+            return;
+        }
+
         Map<String, Object> data =
                 new HashMap<>();
 
@@ -786,7 +862,7 @@ public class DriverActivity extends Activity {
                             .removeAllViews();
 
                     requestsText.setText(
-                            "Ride accepted. No pending ride requests."
+                            "🟢 Ride accepted. No pending ride requests."
                     );
 
                     Toast.makeText(
