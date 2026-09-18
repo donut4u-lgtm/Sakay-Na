@@ -33,6 +33,8 @@ public class MainActivity extends Activity {
     private Button passengerButton;
     private Button driverButton;
     private Button adminButton;
+    private Button loginButton;
+    private Button createButton;
 
     private String selectedRole = "PASSENGER";
 
@@ -40,9 +42,6 @@ public class MainActivity extends Activity {
     private static final int BLUE = Color.rgb(30, 90, 180);
     private static final int ORANGE = Color.rgb(190, 95, 0);
 
-    /*
-     * CONFIRMED ADMIN FIREBASE UID
-     */
     private static final String ADMIN_UID =
             "Ld3rzaCvAGNlXBDCofB3mWjgXWp2";
 
@@ -108,14 +107,14 @@ public class MainActivity extends Activity {
 
         root.addView(roleRow, full());
 
-        passengerButton.setOnClickListener(v ->
-                selectRole("PASSENGER"));
+        passengerButton.setOnClickListener(
+                v -> selectRole("PASSENGER"));
 
-        driverButton.setOnClickListener(v ->
-                selectRole("DRIVER"));
+        driverButton.setOnClickListener(
+                v -> selectRole("DRIVER"));
 
-        adminButton.setOnClickListener(v ->
-                selectRole("ADMIN"));
+        adminButton.setOnClickListener(
+                v -> selectRole("ADMIN"));
 
         TextView phoneLabel = label("Phone number");
         phoneLabel.setPadding(0, 18, 0, 3);
@@ -142,22 +141,20 @@ public class MainActivity extends Activity {
         );
         root.addView(passwordInput, full());
 
-        Button loginButton = new Button(this);
+        loginButton = new Button(this);
         loginButton.setText("LOGIN");
         loginButton.setTextSize(17);
         loginButton.setTextColor(Color.WHITE);
         loginButton.setBackgroundColor(GREEN);
-
         loginButton.setOnClickListener(v -> login());
 
         LinearLayout.LayoutParams loginParams = full();
         loginParams.topMargin = 18;
         root.addView(loginButton, loginParams);
 
-        Button createButton = new Button(this);
+        createButton = new Button(this);
         createButton.setText("CREATE ACCOUNT");
         createButton.setTextSize(17);
-
         createButton.setOnClickListener(v -> createAccount());
 
         root.addView(createButton, full());
@@ -284,12 +281,15 @@ public class MainActivity extends Activity {
                 ? ""
                 : passwordInput.getText().toString();
 
-        if (phone.length() != 12 || !phone.startsWith("63")) {
+        if (phone.length() != 12 ||
+                !phone.startsWith("63")) {
+
             toast("Enter a valid Philippine phone number.");
             return false;
         }
 
         if (password.length() < 6) {
+
             toast("Password must be at least 6 characters.");
             return false;
         }
@@ -310,6 +310,10 @@ public class MainActivity extends Activity {
         String password =
                 passwordInput.getText().toString();
 
+        loginButton.setEnabled(false);
+        createButton.setEnabled(false);
+        loginButton.setText("LOGGING IN...");
+
         auth.signInWithEmailAndPassword(
                 firebaseIdentifier(phone),
                 password
@@ -319,6 +323,8 @@ public class MainActivity extends Activity {
             FirebaseUser user = auth.getCurrentUser();
 
             if (user == null) {
+
+                resetLoginButtons();
                 toast("Login failed.");
                 return;
             }
@@ -327,28 +333,36 @@ public class MainActivity extends Activity {
         })
         .addOnFailureListener(e -> {
 
-            toast("Invalid phone number or password.");
+            resetLoginButtons();
+
+            toast(
+                    "Invalid phone number or password."
+            );
         });
+    }
+
+    private void resetLoginButtons() {
+
+        if (loginButton != null) {
+            loginButton.setEnabled(true);
+            loginButton.setText("LOGIN");
+        }
+
+        if (createButton != null) {
+            createButton.setEnabled(true);
+        }
     }
 
     private void loadUserRole(FirebaseUser user) {
 
         if (user == null) {
+
             showLoginError("Account not found.");
             return;
         }
 
         final String uid = user.getUid();
 
-        /*
-         * CONFIRMED ADMIN ACCOUNT.
-         *
-         * This avoids depending on a Firestore profile read
-         * for this known Admin account.
-         *
-         * Authentication still requires the real Firebase
-         * phone/password account.
-         */
         if (ADMIN_UID.equals(uid)) {
 
             openScreen(AdminActivity.class);
@@ -517,6 +531,10 @@ public class MainActivity extends Activity {
         final String password =
                 passwordInput.getText().toString();
 
+        loginButton.setEnabled(false);
+        createButton.setEnabled(false);
+        createButton.setText("CREATING...");
+
         auth.createUserWithEmailAndPassword(
                 firebaseIdentifier(phone),
                 password
@@ -528,6 +546,7 @@ public class MainActivity extends Activity {
 
             if (user == null) {
 
+                resetCreateButton();
                 toast("Account creation failed.");
                 return;
             }
@@ -571,6 +590,8 @@ public class MainActivity extends Activity {
 
                         passwordInput.setText("");
 
+                        resetCreateButton();
+
                         if ("DRIVER".equals(role)) {
 
                             toast(
@@ -591,12 +612,16 @@ public class MainActivity extends Activity {
 
                         auth.signOut();
 
+                        resetCreateButton();
+
                         toast(
                                 "Could not save account."
                         );
                     });
         })
         .addOnFailureListener(e -> {
+
+            resetCreateButton();
 
             String message = e.getMessage();
 
@@ -608,6 +633,19 @@ public class MainActivity extends Activity {
 
             toast(message);
         });
+    }
+
+    private void resetCreateButton() {
+
+        if (loginButton != null) {
+            loginButton.setEnabled(true);
+            loginButton.setText("LOGIN");
+        }
+
+        if (createButton != null) {
+            createButton.setEnabled(true);
+            createButton.setText("CREATE ACCOUNT");
+        }
     }
 
     private void openScreen(
@@ -628,7 +666,9 @@ public class MainActivity extends Activity {
     private void showLoginError(String message) {
 
         auth.signOut();
+
         showLoginScreen();
+
         toast(message);
     }
 
