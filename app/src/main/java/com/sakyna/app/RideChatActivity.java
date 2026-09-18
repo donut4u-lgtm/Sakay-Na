@@ -16,13 +16,15 @@ import androidx.appcompat.app.AppCompatActivity;
 import com.google.firebase.Timestamp;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
-import com.google.firebase.firestore.DocumentChange;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
-import com.google.firebase.firestore.Query;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class RideChatActivity extends AppCompatActivity {
@@ -36,6 +38,7 @@ public class RideChatActivity extends AppCompatActivity {
 
     private LinearLayout messageContainer;
     private EditText messageInput;
+    private Button sendButton;
     private TextView statusText;
     private ScrollView scrollView;
 
@@ -51,7 +54,11 @@ public class RideChatActivity extends AppCompatActivity {
         FirebaseUser user = auth.getCurrentUser();
 
         if (user == null) {
-            Toast.makeText(this, "Please login first.", Toast.LENGTH_LONG).show();
+            Toast.makeText(
+                    this,
+                    "Please login first.",
+                    Toast.LENGTH_LONG
+            ).show();
             finish();
             return;
         }
@@ -65,7 +72,11 @@ public class RideChatActivity extends AppCompatActivity {
         }
 
         if (TextUtils.isEmpty(rideId)) {
-            Toast.makeText(this, "No ride selected.", Toast.LENGTH_LONG).show();
+            Toast.makeText(
+                    this,
+                    "No ride selected.",
+                    Toast.LENGTH_LONG
+            ).show();
             finish();
             return;
         }
@@ -85,7 +96,7 @@ public class RideChatActivity extends AppCompatActivity {
         title.setTextSize(21);
         title.setTextColor(0xFFFFFFFF);
         title.setGravity(Gravity.CENTER_VERTICAL);
-        title.setPadding(24, 0, 24, 0);
+        title.setPadding(dp(20), 0, dp(20), 0);
         title.setBackgroundColor(0xFF008000);
 
         root.addView(
@@ -100,7 +111,12 @@ public class RideChatActivity extends AppCompatActivity {
         statusText.setText("Checking ride...");
         statusText.setTextSize(14);
         statusText.setTextColor(0xFF555555);
-        statusText.setPadding(20, 12, 20, 12);
+        statusText.setPadding(
+                dp(15),
+                dp(10),
+                dp(15),
+                dp(10)
+        );
 
         root.addView(
                 statusText,
@@ -114,7 +130,12 @@ public class RideChatActivity extends AppCompatActivity {
 
         messageContainer = new LinearLayout(this);
         messageContainer.setOrientation(LinearLayout.VERTICAL);
-        messageContainer.setPadding(16, 12, 16, 12);
+        messageContainer.setPadding(
+                dp(12),
+                dp(10),
+                dp(12),
+                dp(10)
+        );
 
         scrollView.addView(messageContainer);
 
@@ -129,13 +150,19 @@ public class RideChatActivity extends AppCompatActivity {
 
         LinearLayout bottom = new LinearLayout(this);
         bottom.setOrientation(LinearLayout.HORIZONTAL);
-        bottom.setPadding(10, 10, 10, 10);
+        bottom.setPadding(
+                dp(8),
+                dp(8),
+                dp(8),
+                dp(8)
+        );
         bottom.setBackgroundColor(0xFFFFFFFF);
 
         messageInput = new EditText(this);
         messageInput.setHint("Type a message...");
         messageInput.setSingleLine(false);
         messageInput.setMaxLines(3);
+        messageInput.setTextSize(16);
 
         bottom.addView(
                 messageInput,
@@ -146,7 +173,7 @@ public class RideChatActivity extends AppCompatActivity {
                 )
         );
 
-        Button sendButton = new Button(this);
+        sendButton = new Button(this);
         sendButton.setText("SEND");
         sendButton.setTextColor(0xFFFFFFFF);
         sendButton.setBackgroundColor(0xFF008000);
@@ -174,14 +201,23 @@ public class RideChatActivity extends AppCompatActivity {
 
     private void verifyRide() {
 
-        statusText.setText("Checking ride...");
+        statusText.setText(
+                "Checking ride...\nRide ID: " + rideId
+        );
 
         db.collection("rides")
                 .document(rideId)
                 .get()
                 .addOnSuccessListener(this::handleRide)
                 .addOnFailureListener(e -> {
-                    statusText.setText("🔴 RIDE READ ERROR: " + e.getMessage());
+
+                    statusText.setText(
+                            "🔴 RIDE READ ERROR\n" +
+                            e.getMessage()
+                    );
+
+                    messageInput.setEnabled(false);
+                    sendButton.setEnabled(false);
 
                     Toast.makeText(
                             RideChatActivity.this,
@@ -194,8 +230,21 @@ public class RideChatActivity extends AppCompatActivity {
     private void handleRide(DocumentSnapshot ride) {
 
         if (!ride.exists()) {
-            statusText.setText("🔴 Ride does not exist.");
-            Toast.makeText(this, "Ride not found.", Toast.LENGTH_LONG).show();
+
+            statusText.setText(
+                    "🔴 Ride does not exist.\n" +
+                    "Ride ID: " + rideId
+            );
+
+            messageInput.setEnabled(false);
+            sendButton.setEnabled(false);
+
+            Toast.makeText(
+                    this,
+                    "Ride not found.",
+                    Toast.LENGTH_LONG
+            ).show();
+
             return;
         }
 
@@ -212,41 +261,53 @@ public class RideChatActivity extends AppCompatActivity {
                 driverId.equals(currentUid);
 
         if (!passenger && !driver) {
-            statusText.setText("🔴 You are not a participant in this ride.");
+
+            statusText.setText(
+                    "🔴 NOT A RIDE PARTICIPANT\n" +
+                    "Ride: " + rideId
+            );
+
+            messageInput.setEnabled(false);
+            sendButton.setEnabled(false);
+
             Toast.makeText(
                     this,
                     "Chat is only available to the passenger and driver.",
                     Toast.LENGTH_LONG
             ).show();
+
             return;
         }
 
         currentRole = passenger ? "PASSENGER" : "DRIVER";
 
         /*
-         * Chat requires an actual booking.
-         *
-         * For the passenger, a driver must already be assigned.
-         * This prevents pre-booking/general chat.
+         * Chat is available only after a driver has been assigned.
          */
         if (driverId == null || driverId.trim().isEmpty()) {
 
             statusText.setText(
-                    "🟠 Waiting for a driver. Chat will open after acceptance."
+                    "🟠 WAITING FOR DRIVER\n" +
+                    "Chat opens after driver acceptance.\n" +
+                    "Ride: " + rideId
             );
 
             messageInput.setEnabled(false);
+            sendButton.setEnabled(false);
 
             return;
         }
 
         messageInput.setEnabled(true);
+        sendButton.setEnabled(true);
 
         statusText.setText(
-                "🟢 CONNECTED • " +
+                "🟢 CHAT READY\n" +
                 currentRole +
-                " • Ride: " +
-                rideId
+                "\nRide: " +
+                rideId +
+                "\nStatus: " +
+                (status == null ? "UNKNOWN" : status)
         );
 
         startMessageListener();
@@ -256,109 +317,171 @@ public class RideChatActivity extends AppCompatActivity {
 
         if (messageListener != null) {
             messageListener.remove();
+            messageListener = null;
         }
 
         messageContainer.removeAllViews();
 
         statusText.setText(
-                "🟢 CHAT CONNECTED • Waiting for messages..."
+                "🟢 CHAT CONNECTED\n" +
+                "Listening: rides/" +
+                rideId +
+                "/messages"
         );
 
         /*
          * IMPORTANT:
          *
-         * Both passenger and driver listen to this exact same path:
+         * There is deliberately NO orderBy() here.
+         *
+         * We listen directly to:
          *
          * rides/{rideId}/messages
          *
-         * Therefore a message written by one side is immediately
-         * delivered to the other side.
+         * This avoids Firestore query/index problems.
          */
-        messageListener = db.collection("rides")
-                .document(rideId)
-                .collection("messages")
-                .orderBy("createdAt", Query.Direction.ASCENDING)
-                .addSnapshotListener((snapshot, error) -> {
+        messageListener =
+                db.collection("rides")
+                        .document(rideId)
+                        .collection("messages")
+                        .addSnapshotListener((snapshot, error) -> {
 
-                    if (error != null) {
+                            if (error != null) {
 
-                        statusText.setText(
-                                "🔴 CHAT LISTENER ERROR: " +
-                                error.getMessage()
-                        );
+                                statusText.setText(
+                                        "🔴 CHAT LISTENER ERROR\n" +
+                                        error.getMessage() +
+                                        "\nRide: " +
+                                        rideId
+                                );
 
-                        Toast.makeText(
-                                RideChatActivity.this,
-                                "Chat listener error: " + error.getMessage(),
-                                Toast.LENGTH_LONG
-                        ).show();
+                                Toast.makeText(
+                                        RideChatActivity.this,
+                                        "Chat listener error: " +
+                                                error.getMessage(),
+                                        Toast.LENGTH_LONG
+                                ).show();
 
-                        return;
-                    }
+                                return;
+                            }
 
-                    if (snapshot == null) {
-                        return;
-                    }
+                            if (snapshot == null) {
+                                return;
+                            }
 
-                    if (snapshot.isEmpty()) {
+                            List<DocumentSnapshot> messages =
+                                    new ArrayList<>(
+                                            snapshot.getDocuments()
+                                    );
 
-                        messageContainer.removeAllViews();
+                            /*
+                             * Sort locally by createdAt.
+                             *
+                             * This does not require a Firestore
+                             * orderBy query or composite index.
+                             */
+                            Collections.sort(
+                                    messages,
+                                    new Comparator<DocumentSnapshot>() {
+                                        @Override
+                                        public int compare(
+                                                DocumentSnapshot a,
+                                                DocumentSnapshot b
+                                        ) {
 
-                        TextView empty = new TextView(
-                                RideChatActivity.this
-                        );
+                                            Timestamp ta =
+                                                    a.getTimestamp("createdAt");
 
-                        empty.setText(
-                                "No messages yet.\nSend the first message."
-                        );
+                                            Timestamp tb =
+                                                    b.getTimestamp("createdAt");
 
-                        empty.setTextSize(16);
-                        empty.setTextColor(0xFF777777);
-                        empty.setGravity(Gravity.CENTER);
-                        empty.setPadding(20, 40, 20, 40);
+                                            if (ta == null && tb == null) {
+                                                return 0;
+                                            }
 
-                        messageContainer.addView(
-                                empty,
-                                new LinearLayout.LayoutParams(
-                                        LinearLayout.LayoutParams.MATCH_PARENT,
-                                        LinearLayout.LayoutParams.WRAP_CONTENT
-                                )
-                        );
+                                            if (ta == null) {
+                                                return -1;
+                                            }
 
-                        statusText.setText(
-                                "🟢 CHAT CONNECTED • No messages yet"
-                        );
+                                            if (tb == null) {
+                                                return 1;
+                                            }
 
-                        return;
-                    }
+                                            return ta.compareTo(tb);
+                                        }
+                                    }
+                            );
 
-                    /*
-                     * Rebuild the visible message list from Firestore.
-                     *
-                     * This avoids duplicate messages and guarantees
-                     * both sides display the same conversation.
-                     */
-                    messageContainer.removeAllViews();
+                            messageContainer.removeAllViews();
 
-                    for (DocumentSnapshot document : snapshot.getDocuments()) {
-                        addMessageToScreen(document);
-                    }
+                            if (messages.isEmpty()) {
 
-                    statusText.setText(
-                            "🟢 CHAT CONNECTED • " +
-                            snapshot.size() +
-                            " message(s)"
-                    );
+                                TextView empty =
+                                        new TextView(
+                                                RideChatActivity.this
+                                        );
 
-                    scrollToBottom();
-                });
+                                empty.setText(
+                                        "No messages yet.\n" +
+                                        "Send the first message."
+                                );
+
+                                empty.setTextSize(16);
+                                empty.setTextColor(0xFF777777);
+                                empty.setGravity(Gravity.CENTER);
+                                empty.setPadding(
+                                        dp(20),
+                                        dp(40),
+                                        dp(20),
+                                        dp(40)
+                                );
+
+                                messageContainer.addView(
+                                        empty,
+                                        new LinearLayout.LayoutParams(
+                                                LinearLayout.LayoutParams.MATCH_PARENT,
+                                                LinearLayout.LayoutParams.WRAP_CONTENT
+                                        )
+                                );
+
+                                statusText.setText(
+                                        "🟢 CHAT CONNECTED\n" +
+                                        "No messages yet\n" +
+                                        "Ride: " +
+                                        rideId
+                                );
+
+                                return;
+                            }
+
+                            for (DocumentSnapshot document : messages) {
+                                addMessageToScreen(document);
+                            }
+
+                            statusText.setText(
+                                    "🟢 CHAT LIVE\n" +
+                                    messages.size() +
+                                    " message(s)\n" +
+                                    "Ride: " +
+                                    rideId
+                            );
+
+                            scrollToBottom();
+                        });
     }
 
-    private void addMessageToScreen(DocumentSnapshot document) {
+    private void addMessageToScreen(
+            DocumentSnapshot document
+    ) {
 
-        String senderId = document.getString("senderId");
-        String senderRole = document.getString("senderRole");
-        String message = document.getString("message");
+        String senderId =
+                document.getString("senderId");
+
+        String senderRole =
+                document.getString("senderRole");
+
+        String message =
+                document.getString("message");
 
         if (message == null) {
             return;
@@ -368,8 +491,12 @@ public class RideChatActivity extends AppCompatActivity {
                 senderId != null &&
                 senderId.equals(currentUid);
 
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout row =
+                new LinearLayout(this);
+
+        row.setOrientation(
+                LinearLayout.VERTICAL
+        );
 
         if (mine) {
             row.setGravity(Gravity.RIGHT);
@@ -377,7 +504,8 @@ public class RideChatActivity extends AppCompatActivity {
             row.setGravity(Gravity.LEFT);
         }
 
-        TextView bubble = new TextView(this);
+        TextView bubble =
+                new TextView(this);
 
         String name;
 
@@ -389,10 +517,20 @@ public class RideChatActivity extends AppCompatActivity {
             name = "Passenger";
         }
 
-        bubble.setText(name + "\n" + message);
+        bubble.setText(
+                name +
+                "\n" +
+                message
+        );
+
         bubble.setTextSize(16);
         bubble.setTextColor(0xFF000000);
-        bubble.setPadding(22, 14, 22, 14);
+        bubble.setPadding(
+                dp(20),
+                dp(12),
+                dp(20),
+                dp(12)
+        );
 
         if (mine) {
             bubble.setBackgroundColor(0xFFD7F8D7);
@@ -400,35 +538,41 @@ public class RideChatActivity extends AppCompatActivity {
             bubble.setBackgroundColor(0xFFFFFFFF);
         }
 
-        LinearLayout.LayoutParams bubbleParams =
+        LinearLayout.LayoutParams params =
                 new LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.WRAP_CONTENT,
                         LinearLayout.LayoutParams.WRAP_CONTENT
                 );
 
-        bubbleParams.setMargins(
-                8,
-                6,
-                8,
-                6
+        params.setMargins(
+                dp(6),
+                dp(5),
+                dp(6),
+                dp(5)
         );
 
-        row.addView(bubble, bubbleParams);
+        row.addView(
+                bubble,
+                params
+        );
 
         messageContainer.addView(row);
     }
 
     private void sendMessage() {
 
-        String text = messageInput.getText()
-                .toString()
-                .trim();
+        String text =
+                messageInput
+                        .getText()
+                        .toString()
+                        .trim();
 
         if (text.isEmpty()) {
             return;
         }
 
         if (TextUtils.isEmpty(rideId)) {
+
             Toast.makeText(
                     this,
                     "No ride selected.",
@@ -439,6 +583,7 @@ public class RideChatActivity extends AppCompatActivity {
         }
 
         if (TextUtils.isEmpty(currentRole)) {
+
             Toast.makeText(
                     this,
                     "Chat is not ready.",
@@ -449,23 +594,36 @@ public class RideChatActivity extends AppCompatActivity {
         }
 
         messageInput.setEnabled(false);
+        sendButton.setEnabled(false);
 
-        statusText.setText("Sending...");
+        statusText.setText(
+                "Sending message...\nRide: " +
+                rideId
+        );
 
-        Map<String, Object> data = new HashMap<>();
+        Map<String, Object> data =
+                new HashMap<>();
 
-        data.put("senderId", currentUid);
-        data.put("senderRole", currentRole);
-        data.put("message", text);
-        data.put("createdAt", Timestamp.now());
+        data.put(
+                "senderId",
+                currentUid
+        );
 
-        /*
-         * Explicit document ID.
-         *
-         * This guarantees that the message is written into:
-         *
-         * rides/{rideId}/messages/{messageId}
-         */
+        data.put(
+                "senderRole",
+                currentRole
+        );
+
+        data.put(
+                "message",
+                text
+        );
+
+        data.put(
+                "createdAt",
+                Timestamp.now()
+        );
+
         String messageId =
                 db.collection("rides")
                         .document(rideId)
@@ -482,32 +640,37 @@ public class RideChatActivity extends AppCompatActivity {
 
                     messageInput.setText("");
 
+                    messageInput.setEnabled(true);
+                    sendButton.setEnabled(true);
+
                     statusText.setText(
-                            "🟢 MESSAGE SENT • " + messageId
+                            "🟢 MESSAGE SENT\n" +
+                            "Ride: " +
+                            rideId
                     );
 
-                    messageInput.setEnabled(true);
-
                     /*
-                     * Do NOT manually add the message here.
+                     * Do not manually insert the message.
                      *
-                     * Firestore snapshot listener will receive it
-                     * and display it. The other person's device will
-                     * receive the same snapshot automatically.
+                     * The Firestore listener displays it.
                      */
                 })
                 .addOnFailureListener(e -> {
 
                     messageInput.setEnabled(true);
+                    sendButton.setEnabled(true);
 
                     statusText.setText(
                             "🔴 MESSAGE SEND FAILED\n" +
-                            e.getMessage()
+                            e.getMessage() +
+                            "\nRide: " +
+                            rideId
                     );
 
                     Toast.makeText(
                             RideChatActivity.this,
-                            "Message failed: " + e.getMessage(),
+                            "Message failed: " +
+                                    e.getMessage(),
                             Toast.LENGTH_LONG
                     ).show();
                 });
@@ -516,7 +679,9 @@ public class RideChatActivity extends AppCompatActivity {
     private void scrollToBottom() {
 
         scrollView.post(() ->
-                scrollView.fullScroll(View.FOCUS_DOWN)
+                scrollView.fullScroll(
+                        View.FOCUS_DOWN
+                )
         );
     }
 
@@ -527,7 +692,8 @@ public class RideChatActivity extends AppCompatActivity {
                         .getDisplayMetrics()
                         .density;
 
-        return (int) (value * density + 0.5f);
+        return (int)
+                (value * density + 0.5f);
     }
 
     @Override
