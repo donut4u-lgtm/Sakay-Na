@@ -1,3 +1,4 @@
+
 package com.sakyna.app;
 
 import android.Manifest;
@@ -32,7 +33,6 @@ import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -127,9 +127,7 @@ public class PassengerActivity extends Activity {
         );
 
         b.setAllCaps(false);
-
         b.setTextColor(Color.WHITE);
-
         b.setGravity(Gravity.CENTER);
 
         b.setPadding(
@@ -182,10 +180,6 @@ public class PassengerActivity extends Activity {
                 Color.rgb(245, 248, 246)
         );
 
-        /*
-         * HEADER
-         */
-
         LinearLayout header =
                 new LinearLayout(this);
 
@@ -221,13 +215,8 @@ public class PassengerActivity extends Activity {
                 Typeface.BOLD
         );
 
-        logo.setTextColor(
-                Color.WHITE
-        );
-
-        logo.setGravity(
-                Gravity.CENTER
-        );
+        logo.setTextColor(Color.WHITE);
+        logo.setGravity(Gravity.CENTER);
 
         header.addView(logo);
 
@@ -239,14 +228,8 @@ public class PassengerActivity extends Activity {
         );
 
         subtitle.setTextSize(14);
-
-        subtitle.setTextColor(
-                Color.WHITE
-        );
-
-        subtitle.setGravity(
-                Gravity.CENTER
-        );
+        subtitle.setTextColor(Color.WHITE);
+        subtitle.setGravity(Gravity.CENTER);
 
         header.addView(subtitle);
 
@@ -254,10 +237,6 @@ public class PassengerActivity extends Activity {
                 header,
                 fullParams()
         );
-
-        /*
-         * SCROLLABLE CONTENT
-         */
 
         ScrollView scroll =
                 new ScrollView(this);
@@ -277,10 +256,6 @@ public class PassengerActivity extends Activity {
                 16,
                 18
         );
-
-        /*
-         * BOOKING CARD TITLE
-         */
 
         TextView bookingTitle =
                 text(
@@ -306,10 +281,6 @@ public class PassengerActivity extends Activity {
                 fullParams()
         );
 
-        /*
-         * PICKUP
-         */
-
         TextView pickupLabel =
                 text(
                         "📍 PICKUP LOCATION",
@@ -321,9 +292,7 @@ public class PassengerActivity extends Activity {
                 Typeface.BOLD
         );
 
-        content.addView(
-                pickupLabel
-        );
+        content.addView(pickupLabel);
 
         pickupInput =
                 new EditText(this);
@@ -333,7 +302,6 @@ public class PassengerActivity extends Activity {
         );
 
         pickupInput.setTextSize(16);
-
         pickupInput.setSingleLine(false);
 
         pickupInput.setPadding(
@@ -363,10 +331,6 @@ public class PassengerActivity extends Activity {
 
         content.addView(gps);
 
-        /*
-         * DESTINATION
-         */
-
         TextView destinationLabel =
                 text(
                         "🎯 DESTINATION",
@@ -378,9 +342,7 @@ public class PassengerActivity extends Activity {
                 Typeface.BOLD
         );
 
-        content.addView(
-                destinationLabel
-        );
+        content.addView(destinationLabel);
 
         destinationInput =
                 new EditText(this);
@@ -418,10 +380,6 @@ public class PassengerActivity extends Activity {
 
         content.addView(choose);
 
-        /*
-         * RIDE TYPE
-         */
-
         TextView rideType =
                 text(
                         "🛺 RIDE TYPE",
@@ -450,9 +408,7 @@ public class PassengerActivity extends Activity {
                 Color.rgb(0, 110, 70)
         );
 
-        tricycle.setGravity(
-                Gravity.CENTER
-        );
+        tricycle.setGravity(Gravity.CENTER);
 
         tricycle.setPadding(
                 12,
@@ -469,10 +425,6 @@ public class PassengerActivity extends Activity {
                 tricycle,
                 fullParams()
         );
-
-        /*
-         * PAYMENT
-         */
 
         TextView paymentLabel =
                 text(
@@ -528,10 +480,6 @@ public class PassengerActivity extends Activity {
                 fullParams()
         );
 
-        /*
-         * FARE
-         */
-
         fareText =
                 text(
                         "💰 Estimated fare: ₱50",
@@ -567,10 +515,6 @@ public class PassengerActivity extends Activity {
                 fullParams()
         );
 
-        /*
-         * STATUS
-         */
-
         statusText =
                 text(
                         "🟢 No active ride",
@@ -598,10 +542,6 @@ public class PassengerActivity extends Activity {
                 fullParams()
         );
 
-        /*
-         * MAIN BOOK BUTTON
-         */
-
         bookButton =
                 actionButton(
                         "🛺  BOOK A RIDE"
@@ -624,13 +564,7 @@ public class PassengerActivity extends Activity {
                 v -> bookRide(payment)
         );
 
-        content.addView(
-                bookButton
-        );
-
-        /*
-         * ACTIVE RIDE CONTROLS
-         */
+        content.addView(bookButton);
 
         mapButton =
                 actionButton(
@@ -641,9 +575,7 @@ public class PassengerActivity extends Activity {
                 v -> openLiveMap()
         );
 
-        content.addView(
-                mapButton
-        );
+        content.addView(mapButton);
 
         chatButton =
                 actionButton(
@@ -654,9 +586,7 @@ public class PassengerActivity extends Activity {
                 v -> openChat()
         );
 
-        content.addView(
-                chatButton
-        );
+        content.addView(chatButton);
 
         cancelButton =
                 actionButton(
@@ -671,13 +601,7 @@ public class PassengerActivity extends Activity {
                 v -> cancelRide()
         );
 
-        content.addView(
-                cancelButton
-        );
-
-        /*
-         * HISTORY
-         */
+        content.addView(cancelButton);
 
         historyButton =
                 actionButton(
@@ -692,13 +616,7 @@ public class PassengerActivity extends Activity {
                 v -> showHistory()
         );
 
-        content.addView(
-                historyButton
-        );
-
-        /*
-         * LOGOUT
-         */
+        content.addView(historyButton);
 
         logoutButton =
                 actionButton(
@@ -713,9 +631,7 @@ public class PassengerActivity extends Activity {
                 v -> logout()
         );
 
-        content.addView(
-                logoutButton
-        );
+        content.addView(logoutButton);
 
         scroll.addView(content);
 
@@ -967,9 +883,7 @@ public class PassengerActivity extends Activity {
                     !address.trim().isEmpty()
             ) {
 
-                destinationInput.setText(
-                        address
-                );
+                destinationInput.setText(address);
             }
 
             calculateFare();
@@ -1143,7 +1057,7 @@ public class PassengerActivity extends Activity {
         bookButton.setEnabled(false);
 
         statusText.setText(
-                "🔎 Finding available driver..."
+                "🔎 Sending ride request..."
         );
 
         db.collection("rides")
@@ -1163,8 +1077,8 @@ public class PassengerActivity extends Activity {
                                     .apply();
 
                             statusText.setText(
-                                    "🚦 Ride status: REQUESTED\n" +
-                                    "Waiting for a driver"
+                                    "🚦 Ride status: REQUESTED\n"
+                                            + "Waiting for a driver"
                             );
 
                             listenToRide(
@@ -1183,14 +1097,27 @@ public class PassengerActivity extends Activity {
                 .addOnFailureListener(
                         e -> {
 
-                            updateButtons();
+                            activeRideId = null;
+
+                            preferences
+                                    .edit()
+                                    .remove("activeRideId")
+                                    .apply();
+
+                            bookButton.setEnabled(true);
+
+                            statusText.setText(
+                                    "🔴 Booking failed"
+                            );
 
                             Toast.makeText(
                                     this,
-                                    "Booking failed: " +
-                                    e.getMessage(),
+                                    "Booking failed: "
+                                            + e.getMessage(),
                                     Toast.LENGTH_LONG
                             ).show();
+
+                            updateButtons();
                         }
                 );
     }
@@ -1288,9 +1215,9 @@ public class PassengerActivity extends Activity {
 
         double fare =
                 baseFare
-                +
-                (distance[0] / 1000.0)
-                * perKm;
+                        +
+                        (distance[0] / 1000.0)
+                                * perKm;
 
         return Math.max(
                 minFare,
@@ -1398,12 +1325,53 @@ public class PassengerActivity extends Activity {
                 !savedId.isEmpty()
         ) {
 
-            activeRideId =
-                    savedId;
+            db.collection("rides")
+                    .document(savedId)
+                    .get()
+                    .addOnSuccessListener(
+                            snapshot -> {
 
-            listenToRide(
-                    savedId
-            );
+                                if (
+                                        snapshot.exists()
+                                        &&
+                                        activeStatus(
+                                                snapshot.getString(
+                                                        "status"
+                                                )
+                                        )
+                                ) {
+
+                                    activeRideId =
+                                            savedId;
+
+                                    listenToRide(
+                                            savedId
+                                    );
+
+                                } else {
+
+                                    clearActiveRide();
+
+                                    statusText.setText(
+                                            "🟢 No active ride"
+                                    );
+
+                                    updateButtons();
+                                }
+                            }
+                    )
+                    .addOnFailureListener(
+                            e -> {
+
+                                clearActiveRide();
+
+                                statusText.setText(
+                                        "🟢 No active ride"
+                                );
+
+                                updateButtons();
+                            }
+                    );
 
             return;
         }
@@ -1457,7 +1425,29 @@ public class PassengerActivity extends Activity {
                                 listenToRide(
                                         activeRideId
                                 );
+
+                            } else {
+
+                                clearActiveRide();
+
+                                statusText.setText(
+                                        "🟢 No active ride"
+                                );
+
+                                updateButtons();
                             }
+                        }
+                )
+                .addOnFailureListener(
+                        e -> {
+
+                            clearActiveRide();
+
+                            statusText.setText(
+                                    "🟢 No active ride"
+                            );
+
+                            updateButtons();
                         }
                 );
     }
@@ -1468,14 +1458,30 @@ public class PassengerActivity extends Activity {
 
         return
                 "REQUESTED".equals(status)
-                ||
-                "ACCEPTED".equals(status)
-                ||
-                "DRIVER_ON_THE_WAY".equals(status)
-                ||
-                "DRIVER_ARRIVED".equals(status)
-                ||
-                "IN_PROGRESS".equals(status);
+                        ||
+                        "ACCEPTED".equals(status)
+                        ||
+                        "DRIVER_ON_THE_WAY".equals(status)
+                        ||
+                        "DRIVER_ARRIVED".equals(status)
+                        ||
+                        "IN_PROGRESS".equals(status);
+    }
+
+    private void clearActiveRide() {
+
+        activeRideId = null;
+
+        preferences
+                .edit()
+                .remove("activeRideId")
+                .apply();
+
+        if (rideListener != null) {
+
+            rideListener.remove();
+            rideListener = null;
+        }
     }
 
     private void listenToRide(
@@ -1485,6 +1491,18 @@ public class PassengerActivity extends Activity {
         if (rideListener != null) {
 
             rideListener.remove();
+            rideListener = null;
+        }
+
+        if (
+                id == null
+                ||
+                id.trim().isEmpty()
+        ) {
+
+            clearActiveRide();
+            updateButtons();
+            return;
         }
 
         rideListener =
@@ -1493,14 +1511,31 @@ public class PassengerActivity extends Activity {
                         .addSnapshotListener(
                                 (snapshot, error) -> {
 
+                                    if (error != null) {
+
+                                        clearActiveRide();
+
+                                        statusText.setText(
+                                                "🟢 Ready to book a ride"
+                                        );
+
+                                        updateButtons();
+                                        return;
+                                    }
+
                                     if (
-                                            error != null
-                                            ||
                                             snapshot == null
                                             ||
                                             !snapshot.exists()
                                     ) {
 
+                                        clearActiveRide();
+
+                                        statusText.setText(
+                                                "🟢 Ready to book a ride"
+                                        );
+
+                                        updateButtons();
                                         return;
                                     }
 
@@ -1512,33 +1547,39 @@ public class PassengerActivity extends Activity {
                                     if (
                                             status == null
                                             ||
-                                            status.isEmpty()
+                                            status.trim().isEmpty()
                                     ) {
 
                                         status =
                                                 "REQUESTED";
                                     }
 
-                                    statusText.setText(
-                                            "🚦 Ride status: " +
-                                            status
-                                    );
-
                                     if (
-                                            !activeStatus(
-                                                    status
-                                            )
+                                            activeStatus(status)
                                     ) {
 
-                                        activeRideId =
-                                                null;
+                                        activeRideId = id;
 
                                         preferences
                                                 .edit()
-                                                .remove(
-                                                        "activeRideId"
+                                                .putString(
+                                                        "activeRideId",
+                                                        id
                                                 )
                                                 .apply();
+
+                                        statusText.setText(
+                                                "🚦 Ride status: "
+                                                        + status
+                                        );
+
+                                    } else {
+
+                                        clearActiveRide();
+
+                                        statusText.setText(
+                                                "🟢 Ready to book a ride"
+                                        );
                                     }
 
                                     updateButtons();
@@ -1550,35 +1591,27 @@ public class PassengerActivity extends Activity {
 
         boolean active =
                 activeRideId != null
-                &&
-                !activeRideId.isEmpty();
+                        &&
+                        !activeRideId.isEmpty();
 
         if (bookButton != null) {
 
-            bookButton.setEnabled(
-                    !active
-            );
+            bookButton.setEnabled(!active);
         }
 
         if (cancelButton != null) {
 
-            cancelButton.setEnabled(
-                    active
-            );
+            cancelButton.setEnabled(active);
         }
 
         if (mapButton != null) {
 
-            mapButton.setEnabled(
-                    active
-            );
+            mapButton.setEnabled(active);
         }
 
         if (chatButton != null) {
 
-            chatButton.setEnabled(
-                    active
-            );
+            chatButton.setEnabled(active);
         }
     }
 
@@ -1606,6 +1639,8 @@ public class PassengerActivity extends Activity {
                         snapshot -> {
 
                             if (!snapshot.exists()) {
+                                clearActiveRide();
+                                updateButtons();
                                 return;
                             }
 
@@ -1615,9 +1650,7 @@ public class PassengerActivity extends Activity {
                                     );
 
                             if (
-                                    !activeStatus(
-                                            status
-                                    )
+                                    !activeStatus(status)
                             ) {
 
                                 Toast.makeText(
@@ -1697,6 +1730,15 @@ public class PassengerActivity extends Activity {
 
                             startActivity(i);
                         }
+                )
+                .addOnFailureListener(
+                        e ->
+                                Toast.makeText(
+                                        this,
+                                        "Unable to open ride: "
+                                                + e.getMessage(),
+                                        Toast.LENGTH_LONG
+                                ).show()
                 );
     }
 
@@ -1707,6 +1749,12 @@ public class PassengerActivity extends Activity {
                 ||
                 activeRideId.isEmpty()
         ) {
+
+            Toast.makeText(
+                    this,
+                    "No active ride.",
+                    Toast.LENGTH_SHORT
+            ).show();
 
             return;
         }
@@ -1722,6 +1770,11 @@ public class PassengerActivity extends Activity {
                 activeRideId
         );
 
+        i.putExtra(
+                "rideId",
+                activeRideId
+        );
+
         startActivity(i);
     }
 
@@ -1732,6 +1785,12 @@ public class PassengerActivity extends Activity {
                 ||
                 activeRideId.isEmpty()
         ) {
+
+            Toast.makeText(
+                    this,
+                    "No active ride.",
+                    Toast.LENGTH_SHORT
+            ).show();
 
             return;
         }
@@ -1749,25 +1808,7 @@ public class PassengerActivity extends Activity {
                 .addOnSuccessListener(
                         v -> {
 
-                            activeRideId =
-                                    null;
-
-                            preferences
-                                    .edit()
-                                    .remove(
-                                            "activeRideId"
-                                    )
-                                    .apply();
-
-                            if (
-                                    rideListener != null
-                            ) {
-
-                                rideListener.remove();
-
-                                rideListener =
-                                        null;
-                            }
+                            clearActiveRide();
 
                             statusText.setText(
                                     "❌ Ride cancelled"
@@ -1775,6 +1816,15 @@ public class PassengerActivity extends Activity {
 
                             updateButtons();
                         }
+                )
+                .addOnFailureListener(
+                        e ->
+                                Toast.makeText(
+                                        this,
+                                        "Unable to cancel ride: "
+                                                + e.getMessage(),
+                                        Toast.LENGTH_LONG
+                                ).show()
                 );
     }
 
@@ -1818,24 +1868,30 @@ public class PassengerActivity extends Activity {
                                 history
                                         .append("📍 From: ")
                                         .append(
-                                                s.getString(
-                                                        "pickup"
+                                                safeString(
+                                                        s.getString(
+                                                                "pickup"
+                                                        )
                                                 )
                                         )
                                         .append("\n")
 
                                         .append("🎯 To: ")
                                         .append(
-                                                s.getString(
-                                                        "destination"
+                                                safeString(
+                                                        s.getString(
+                                                                "destination"
+                                                        )
                                                 )
                                         )
                                         .append("\n")
 
                                         .append("🚦 Status: ")
                                         .append(
-                                                s.getString(
-                                                        "status"
+                                                safeString(
+                                                        s.getString(
+                                                                "status"
+                                                        )
                                                 )
                                         )
                                         .append("\n")
@@ -1852,17 +1908,13 @@ public class PassengerActivity extends Activity {
                             }
 
                             TextView historyText =
-                                    new TextView(
-                                            this
-                                    );
+                                    new TextView(this);
 
                             historyText.setText(
                                     history.toString()
                             );
 
-                            historyText.setTextSize(
-                                    16
-                            );
+                            historyText.setTextSize(16);
 
                             historyText.setPadding(
                                     25,
@@ -1886,7 +1938,32 @@ public class PassengerActivity extends Activity {
                                     )
                                     .show();
                         }
+                )
+                .addOnFailureListener(
+                        e ->
+                                Toast.makeText(
+                                        this,
+                                        "Unable to load history: "
+                                                + e.getMessage(),
+                                        Toast.LENGTH_LONG
+                                ).show()
                 );
+    }
+
+    private String safeString(
+            String value
+    ) {
+
+        if (
+                value == null
+                ||
+                value.trim().isEmpty()
+        ) {
+
+            return "Not provided";
+        }
+
+        return value;
     }
 
     private double number(
@@ -1896,9 +1973,7 @@ public class PassengerActivity extends Activity {
     ) {
 
         Double value =
-                snapshot.getDouble(
-                        field
-                );
+                snapshot.getDouble(field);
 
         return value == null
                 ? defaultValue
@@ -1907,13 +1982,7 @@ public class PassengerActivity extends Activity {
 
     private void logout() {
 
-        if (rideListener != null) {
-
-            rideListener.remove();
-
-            rideListener =
-                    null;
-        }
+        clearActiveRide();
 
         auth.signOut();
 
@@ -1935,7 +2004,7 @@ public class PassengerActivity extends Activity {
         i.addFlags(
                 Intent.FLAG_ACTIVITY_NEW_TASK
                         |
-                Intent.FLAG_ACTIVITY_CLEAR_TASK
+                        Intent.FLAG_ACTIVITY_CLEAR_TASK
         );
 
         startActivity(i);
@@ -1976,9 +2045,7 @@ public class PassengerActivity extends Activity {
         if (rideListener != null) {
 
             rideListener.remove();
-
-            rideListener =
-                    null;
+            rideListener = null;
         }
 
         if (
