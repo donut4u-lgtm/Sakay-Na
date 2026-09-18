@@ -58,7 +58,6 @@ public class PassengerActivity extends Activity {
     private Button mapButton;
     private Button chatButton;
     private Button historyButton;
-    private Button logoutButton;
 
     private LocationManager locationManager;
     private LocationListener locationListener;
@@ -71,7 +70,6 @@ public class PassengerActivity extends Activity {
     private double destinationLat = 0;
     private double destinationLng = 0;
 
-    // SAKAY NA FARE
     private double baseFare = 25;
     private double perKm = 10;
     private double minFare = 25;
@@ -99,32 +97,25 @@ public class PassengerActivity extends Activity {
         TextView t = new TextView(this);
         t.setText(value);
         t.setTextSize(size);
-        t.setTextColor(Color.rgb(55, 65, 60));
-        t.setPadding(0, 6, 0, 6);
+        t.setTextColor(Color.rgb(45, 55, 50));
+        t.setPadding(0, 7, 0, 7);
         return t;
     }
 
-    private Button actionButton(String value) {
+    private Button button(String value) {
         Button b = new Button(this);
 
         b.setText(value);
-        b.setTextSize(15);
-        b.setTypeface(null, Typeface.BOLD);
+        b.setTextSize(16);
         b.setAllCaps(false);
+        b.setTypeface(null, Typeface.BOLD);
         b.setTextColor(Color.WHITE);
         b.setGravity(Gravity.CENTER);
-
         b.setPadding(10, 12, 10, 12);
-
-        b.setBackgroundColor(
-                Color.rgb(0, 125, 75)
-        );
+        b.setBackgroundColor(Color.rgb(0, 125, 75));
 
         LinearLayout.LayoutParams p =
-                new LinearLayout.LayoutParams(
-                        -1,
-                        -2
-                );
+                new LinearLayout.LayoutParams(-1, -2);
 
         p.setMargins(0, 5, 0, 5);
 
@@ -133,70 +124,57 @@ public class PassengerActivity extends Activity {
         return b;
     }
 
-    private LinearLayout.LayoutParams fullParams() {
-        return new LinearLayout.LayoutParams(
-                -1,
-                -2
-        );
+    private LinearLayout.LayoutParams full() {
+        return new LinearLayout.LayoutParams(-1, -2);
     }
 
     private void buildScreen() {
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(
-                Color.rgb(245, 248, 246)
-        );
+        root.setBackgroundColor(Color.rgb(245, 248, 246));
 
         LinearLayout header = new LinearLayout(this);
         header.setOrientation(LinearLayout.VERTICAL);
         header.setGravity(Gravity.CENTER);
         header.setPadding(12, 18, 12, 18);
-        header.setBackgroundColor(
-                Color.rgb(0, 125, 75)
-        );
+        header.setBackgroundColor(Color.rgb(0, 125, 75));
 
-        TextView logo = new TextView(this);
-        logo.setText("🛺  SAKAY NA");
-        logo.setTextSize(28);
-        logo.setTypeface(null, Typeface.BOLD);
-        logo.setTextColor(Color.WHITE);
-        logo.setGravity(Gravity.CENTER);
-        header.addView(logo);
+        TextView title = new TextView(this);
+        title.setText("🛺 SAKAY NA");
+        title.setTextSize(28);
+        title.setTypeface(null, Typeface.BOLD);
+        title.setTextColor(Color.WHITE);
+        title.setGravity(Gravity.CENTER);
 
-        TextView subtitle = new TextView(this);
-        subtitle.setText(
-                "Passenger • Your local tricycle ride made simple"
-        );
-        subtitle.setTextSize(14);
-        subtitle.setTextColor(Color.WHITE);
-        subtitle.setGravity(Gravity.CENTER);
-        header.addView(subtitle);
+        header.addView(title);
 
-        root.addView(header, fullParams());
+        TextView sub = new TextView(this);
+        sub.setText("Passenger • Local tricycle ride");
+        sub.setTextSize(14);
+        sub.setTextColor(Color.WHITE);
+        sub.setGravity(Gravity.CENTER);
+
+        header.addView(sub);
+
+        root.addView(header, full());
 
         ScrollView scroll = new ScrollView(this);
-        scroll.setFillViewport(true);
 
         LinearLayout content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(16, 12, 16, 18);
+        content.setPadding(16, 12, 16, 20);
 
-        TextView bookingTitle = text(
+        TextView booking = text(
                 "🚕 BOOK YOUR RIDE",
-                21
+                22
         );
 
-        bookingTitle.setTypeface(null, Typeface.BOLD);
-        bookingTitle.setTextColor(
-                Color.rgb(0, 110, 70)
-        );
-        bookingTitle.setGravity(Gravity.CENTER);
+        booking.setTypeface(null, Typeface.BOLD);
+        booking.setGravity(Gravity.CENTER);
+        booking.setTextColor(Color.rgb(0, 110, 70));
 
-        content.addView(
-                bookingTitle,
-                fullParams()
-        );
+        content.addView(booking, full());
 
         TextView pickupLabel = text(
                 "📍 PICKUP LOCATION",
@@ -207,28 +185,22 @@ public class PassengerActivity extends Activity {
         content.addView(pickupLabel);
 
         pickupInput = new EditText(this);
-        pickupInput.setHint(
-                "Where should we pick you up?"
-        );
+        pickupInput.setHint("Where should we pick you up?");
         pickupInput.setTextSize(16);
-        pickupInput.setSingleLine(false);
         pickupInput.setPadding(16, 12, 16, 12);
         pickupInput.setBackgroundColor(Color.WHITE);
 
-        content.addView(
-                pickupInput,
-                fullParams()
+        content.addView(pickupInput, full());
+
+        Button gpsButton = button(
+                "📍 USE MY CURRENT LOCATION"
         );
 
-        Button gps = actionButton(
-                "📍  USE MY CURRENT LOCATION"
-        );
-
-        gps.setOnClickListener(
+        gpsButton.setOnClickListener(
                 v -> useCurrentLocation()
         );
 
-        content.addView(gps);
+        content.addView(gpsButton);
 
         TextView destinationLabel = text(
                 "🎯 DESTINATION",
@@ -243,178 +215,97 @@ public class PassengerActivity extends Activity {
         content.addView(destinationLabel);
 
         destinationInput = new EditText(this);
-        destinationInput.setHint(
-                "Where are you going?"
-        );
+        destinationInput.setHint("Where are you going?");
         destinationInput.setTextSize(16);
-        destinationInput.setPadding(
-                16,
-                12,
-                16,
-                12
-        );
-        destinationInput.setBackgroundColor(
-                Color.WHITE
+        destinationInput.setPadding(16, 12, 16, 12);
+        destinationInput.setBackgroundColor(Color.WHITE);
+
+        content.addView(destinationInput, full());
+
+        Button destinationButton = button(
+                "🗺️ CHOOSE DESTINATION ON MAP"
         );
 
-        content.addView(
-                destinationInput,
-                fullParams()
-        );
-
-        Button choose = actionButton(
-                "🗺️  CHOOSE DESTINATION ON MAP"
-        );
-
-        choose.setOnClickListener(
+        destinationButton.setOnClickListener(
                 v -> chooseDestination()
         );
 
-        content.addView(choose);
+        content.addView(destinationButton);
 
-        TextView rideType = text(
+        TextView type = text(
                 "🛺 RIDE TYPE",
                 15
         );
 
-        rideType.setTypeface(
-                null,
-                Typeface.BOLD
-        );
-
-        content.addView(rideType);
+        type.setTypeface(null, Typeface.BOLD);
+        content.addView(type);
 
         TextView tricycle = text(
-                "🛺  TRICYCLE",
+                "🛺 TRICYCLE",
                 18
         );
 
-        tricycle.setTypeface(
-                null,
-                Typeface.BOLD
-        );
-
-        tricycle.setTextColor(
-                Color.rgb(0, 110, 70)
-        );
-
+        tricycle.setTypeface(null, Typeface.BOLD);
         tricycle.setGravity(Gravity.CENTER);
-        tricycle.setPadding(12, 14, 12, 14);
+        tricycle.setTextColor(Color.rgb(0, 110, 70));
         tricycle.setBackgroundColor(Color.WHITE);
 
-        content.addView(
-                tricycle,
-                fullParams()
-        );
+        content.addView(tricycle, full());
 
         TextView paymentLabel = text(
                 "💳 PAYMENT METHOD",
                 15
         );
 
-        paymentLabel.setTypeface(
-                null,
-                Typeface.BOLD
-        );
-
+        paymentLabel.setTypeface(null, Typeface.BOLD);
         content.addView(paymentLabel);
 
         RadioGroup payment = new RadioGroup(this);
-
-        payment.setOrientation(
-                RadioGroup.HORIZONTAL
-        );
-
+        payment.setOrientation(RadioGroup.HORIZONTAL);
         payment.setGravity(Gravity.CENTER);
 
         RadioButton cash = new RadioButton(this);
         cash.setText("Cash");
-        cash.setTextSize(15);
         cash.setChecked(true);
         payment.addView(cash);
 
         RadioButton gcash = new RadioButton(this);
         gcash.setText("GCash");
-        gcash.setTextSize(15);
         payment.addView(gcash);
 
         RadioButton maya = new RadioButton(this);
         maya.setText("Maya");
-        maya.setTextSize(15);
         payment.addView(maya);
 
-        content.addView(
-                payment,
-                fullParams()
-        );
+        content.addView(payment, full());
 
         fareText = text(
                 "💰 Estimated fare: ₱25",
                 23
         );
 
-        fareText.setTypeface(
-                null,
-                Typeface.BOLD
-        );
-
+        fareText.setTypeface(null, Typeface.BOLD);
         fareText.setGravity(Gravity.CENTER);
-        fareText.setTextColor(
-                Color.rgb(0, 125, 75)
-        );
+        fareText.setTextColor(Color.rgb(0, 125, 75));
+        fareText.setBackgroundColor(Color.WHITE);
 
-        fareText.setPadding(
-                10,
-                15,
-                10,
-                15
-        );
-
-        fareText.setBackgroundColor(
-                Color.WHITE
-        );
-
-        content.addView(
-                fareText,
-                fullParams()
-        );
+        content.addView(fareText, full());
 
         statusText = text(
                 "🟢 No active ride",
                 16
         );
 
+        statusText.setTypeface(null, Typeface.BOLD);
         statusText.setGravity(Gravity.CENTER);
-        statusText.setTypeface(
-                null,
-                Typeface.BOLD
-        );
 
-        statusText.setPadding(
-                12,
-                12,
-                12,
-                12
-        );
+        content.addView(statusText, full());
 
-        content.addView(
-                statusText,
-                fullParams()
-        );
-
-        bookButton = actionButton(
-                "🛺  BOOK A RIDE"
+        bookButton = button(
+                "🛺 BOOK A RIDE"
         );
 
         bookButton.setTextSize(19);
-
-        bookButton.setPadding(
-                10,
-                17,
-                10,
-                17
-        );
-
         bookButton.setBackgroundColor(
                 Color.rgb(0, 150, 80)
         );
@@ -425,8 +316,8 @@ public class PassengerActivity extends Activity {
 
         content.addView(bookButton);
 
-        mapButton = actionButton(
-                "🗺️  LIVE RIDE MAP"
+        mapButton = button(
+                "🗺️ LIVE RIDE MAP"
         );
 
         mapButton.setOnClickListener(
@@ -435,8 +326,8 @@ public class PassengerActivity extends Activity {
 
         content.addView(mapButton);
 
-        chatButton = actionButton(
-                "💬  CHAT WITH DRIVER"
+        chatButton = button(
+                "💬 CHAT WITH DRIVER"
         );
 
         chatButton.setOnClickListener(
@@ -445,8 +336,8 @@ public class PassengerActivity extends Activity {
 
         content.addView(chatButton);
 
-        cancelButton = actionButton(
-                "❌  CANCEL RIDE"
+        cancelButton = button(
+                "❌ CANCEL RIDE"
         );
 
         cancelButton.setBackgroundColor(
@@ -459,8 +350,8 @@ public class PassengerActivity extends Activity {
 
         content.addView(cancelButton);
 
-        historyButton = actionButton(
-                "📜  RIDE HISTORY"
+        historyButton = button(
+                "📜 RIDE HISTORY"
         );
 
         historyButton.setBackgroundColor(
@@ -473,8 +364,8 @@ public class PassengerActivity extends Activity {
 
         content.addView(historyButton);
 
-        logoutButton = actionButton(
-                "🚪  LOGOUT"
+        Button logoutButton = button(
+                "🚪 LOGOUT"
         );
 
         logoutButton.setBackgroundColor(
@@ -574,12 +465,10 @@ public class PassengerActivity extends Activity {
                             if (
                                     address != null
                                     &&
-                                    !address.trim().isEmpty()
+                                    !address.isEmpty()
                             ) {
 
-                                pickupInput.setText(
-                                        address
-                                );
+                                pickupInput.setText(address);
                             }
                         }
 
@@ -589,46 +478,43 @@ public class PassengerActivity extends Activity {
 
         try {
 
-            boolean fine =
+            if (
                     checkSelfPermission(
                             Manifest.permission.ACCESS_FINE_LOCATION
-                    ) == PackageManager.PERMISSION_GRANTED;
-
-            boolean coarse =
+                    ) == PackageManager.PERMISSION_GRANTED
+                    ||
                     checkSelfPermission(
                             Manifest.permission.ACCESS_COARSE_LOCATION
-                    ) == PackageManager.PERMISSION_GRANTED;
-
-            if (!fine && !coarse) {
-                return;
-            }
-
-            if (
-                    locationManager.isProviderEnabled(
-                            LocationManager.GPS_PROVIDER
-                    )
+                    ) == PackageManager.PERMISSION_GRANTED
             ) {
 
-                locationManager.requestLocationUpdates(
-                        LocationManager.GPS_PROVIDER,
-                        3000,
-                        10,
-                        locationListener
-                );
-            }
+                if (
+                        locationManager.isProviderEnabled(
+                                LocationManager.GPS_PROVIDER
+                        )
+                ) {
 
-            if (
-                    locationManager.isProviderEnabled(
-                            LocationManager.NETWORK_PROVIDER
-                    )
-            ) {
+                    locationManager.requestLocationUpdates(
+                            LocationManager.GPS_PROVIDER,
+                            3000,
+                            10,
+                            locationListener
+                    );
+                }
 
-                locationManager.requestLocationUpdates(
-                        LocationManager.NETWORK_PROVIDER,
-                        3000,
-                        10,
-                        locationListener
-                );
+                if (
+                        locationManager.isProviderEnabled(
+                                LocationManager.NETWORK_PROVIDER
+                        )
+                ) {
+
+                    locationManager.requestLocationUpdates(
+                            LocationManager.NETWORK_PROVIDER,
+                            3000,
+                            10,
+                            locationListener
+                    );
+                }
             }
 
         } catch (SecurityException ignored) {
@@ -662,7 +548,7 @@ public class PassengerActivity extends Activity {
         if (
                 address == null
                 ||
-                address.trim().isEmpty()
+                address.isEmpty()
         ) {
 
             address =
@@ -675,43 +561,41 @@ public class PassengerActivity extends Activity {
         }
 
         pickupInput.setText(address);
-
         calculateFare();
     }
 
     private void chooseDestination() {
 
-        Intent i =
+        Intent intent =
                 new Intent(
                         this,
                         MapActivity.class
                 );
 
-        i.putExtra(
+        intent.putExtra(
                 "mode",
                 "SELECT_DESTINATION"
         );
 
-        i.putExtra(
+        intent.putExtra(
                 "pickup_latitude",
                 pickupLat
         );
 
-        i.putExtra(
+        intent.putExtra(
                 "pickup_longitude",
                 pickupLng
         );
 
-        i.putExtra(
+        intent.putExtra(
                 "pickup_address",
                 pickupInput
                         .getText()
                         .toString()
-                        .trim()
         );
 
         startActivityForResult(
-                i,
+                intent,
                 MAP_REQUEST
         );
     }
@@ -823,7 +707,7 @@ public class PassengerActivity extends Activity {
 
             Toast.makeText(
                     this,
-                    "Please select your pickup location.",
+                    "Please select pickup.",
                     Toast.LENGTH_SHORT
             ).show();
 
@@ -838,7 +722,7 @@ public class PassengerActivity extends Activity {
 
             Toast.makeText(
                     this,
-                    "Please get your current location first.",
+                    "Please get your pickup GPS location.",
                     Toast.LENGTH_SHORT
             ).show();
 
@@ -849,7 +733,7 @@ public class PassengerActivity extends Activity {
 
             Toast.makeText(
                     this,
-                    "Please select your destination.",
+                    "Please select destination.",
                     Toast.LENGTH_SHORT
             ).show();
 
@@ -864,17 +748,17 @@ public class PassengerActivity extends Activity {
 
             Toast.makeText(
                     this,
-                    "Please choose the destination on the map.",
+                    "Please choose destination on the map.",
                     Toast.LENGTH_SHORT
             ).show();
 
             return;
         }
 
+        String paymentMethod = "Cash";
+
         int selectedId =
                 payment.getCheckedRadioButtonId();
-
-        String paymentMethod = "Cash";
 
         if (selectedId != -1) {
 
@@ -959,4 +843,582 @@ public class PassengerActivity extends Activity {
                 "🔎 Sending ride request..."
         );
 
-        db.collection("rides
+        db.collection("rides")
+                .add(ride)
+                .addOnSuccessListener(
+                        document -> {
+
+                            activeRideId =
+                                    document.getId();
+
+                            preferences
+                                    .edit()
+                                    .putString(
+                                            "activeRideId",
+                                            activeRideId
+                                    )
+                                    .apply();
+
+                            statusText.setText(
+                                    "🚦 REQUESTED\nWaiting for a driver"
+                            );
+
+                            listenToRide(
+                                    activeRideId
+                            );
+
+                            updateButtons();
+
+                            Toast.makeText(
+                                    this,
+                                    "🛺 Ride request sent.",
+                                    Toast.LENGTH_LONG
+                            ).show();
+                        }
+                )
+                .addOnFailureListener(
+                        error -> {
+
+                            bookButton.setEnabled(true);
+
+                            statusText.setText(
+                                    "🔴 Booking failed"
+                            );
+
+                            Toast.makeText(
+                                    this,
+                                    "Booking failed: " +
+                                            error.getMessage(),
+                                    Toast.LENGTH_LONG
+                            ).show();
+
+                            updateButtons();
+                        }
+                );
+    }
+
+    private void loadFareSettings() {
+
+        db.collection("settings")
+                .document("fare")
+                .get()
+                .addOnSuccessListener(
+                        snapshot -> {
+
+                            if (snapshot.exists()) {
+
+                                baseFare =
+                                        number(
+                                                snapshot,
+                                                "baseFare",
+                                                25
+                                        );
+
+                                perKm =
+                                        number(
+                                                snapshot,
+                                                "perKm",
+                                                10
+                                        );
+
+                                minFare =
+                                        number(
+                                                snapshot,
+                                                "minimum",
+                                                25
+                                        );
+
+                                maxFare =
+                                        number(
+                                                snapshot,
+                                                "maximum",
+                                                500
+                                        );
+                            }
+
+                            calculateFare();
+                        }
+                )
+                .addOnFailureListener(
+                        e -> calculateFare()
+                );
+    }
+
+    private void calculateFare() {
+
+        if (fareText == null) {
+            return;
+        }
+
+        fareText.setText(
+                String.format(
+                        Locale.US,
+                        "💰 Estimated fare: ₱%.0f",
+                        getCurrentFare()
+                )
+        );
+    }
+
+    private double getCurrentFare() {
+
+        if (
+                pickupLat == 0
+                ||
+                pickupLng == 0
+                ||
+                destinationLat == 0
+                ||
+                destinationLng == 0
+        ) {
+
+            return minFare;
+        }
+
+        float[] distance =
+                new float[1];
+
+        Location.distanceBetween(
+                pickupLat,
+                pickupLng,
+                destinationLat,
+                destinationLng,
+                distance
+        );
+
+        double fare =
+                baseFare
+                        +
+                (distance[0] / 1000.0)
+                        *
+                perKm;
+
+        return Math.max(
+                minFare,
+                Math.min(
+                        maxFare,
+                        fare
+                )
+        );
+    }
+
+    private String getAddress(
+            double lat,
+            double lng
+    ) {
+
+        try {
+
+            Geocoder geocoder =
+                    new Geocoder(
+                            this,
+                            Locale.getDefault()
+                    );
+
+            List<Address> addresses =
+                    geocoder.getFromLocation(
+                            lat,
+                            lng,
+                            1
+                    );
+
+            if (
+                    addresses != null
+                    &&
+                    !addresses.isEmpty()
+                    &&
+                    addresses
+                            .get(0)
+                            .getAddressLine(0) != null
+            ) {
+
+                return addresses
+                        .get(0)
+                        .getAddressLine(0);
+            }
+
+        } catch (Exception ignored) {
+        }
+
+        return "";
+    }
+
+    private void restoreActiveRide() {
+
+        String saved =
+                preferences.getString(
+                        "activeRideId",
+                        null
+                );
+
+        if (
+                saved != null
+                &&
+                !saved.isEmpty()
+        ) {
+
+            db.collection("rides")
+                    .document(saved)
+                    .get()
+                    .addOnSuccessListener(
+                            snapshot -> {
+
+                                if (
+                                        snapshot.exists()
+                                        &&
+                                        activeStatus(
+                                                snapshot.getString(
+                                                        "status"
+                                                )
+                                        )
+                                ) {
+
+                                    activeRideId =
+                                            saved;
+
+                                    listenToRide(saved);
+
+                                } else {
+
+                                    clearActiveRide();
+                                }
+
+                                updateButtons();
+                            }
+                    )
+                    .addOnFailureListener(
+                            e -> {
+
+                                clearActiveRide();
+                                updateButtons();
+                            }
+                    );
+
+            return;
+        }
+
+        FirebaseUser user =
+                auth.getCurrentUser();
+
+        if (user == null) {
+            return;
+        }
+
+        ArrayList<String> statuses =
+                new ArrayList<>();
+
+        statuses.add("REQUESTED");
+        statuses.add("ACCEPTED");
+        statuses.add("DRIVER_ON_THE_WAY");
+        statuses.add("DRIVER_ARRIVED");
+        statuses.add("IN_PROGRESS");
+
+        db.collection("rides")
+                .whereEqualTo(
+                        "passengerId",
+                        user.getUid()
+                )
+                .whereIn(
+                        "status",
+                        statuses
+                )
+                .limit(1)
+                .get()
+                .addOnSuccessListener(
+                        query -> {
+
+                            if (!query.isEmpty()) {
+
+                                activeRideId =
+                                        query
+                                                .getDocuments()
+                                                .get(0)
+                                                .getId();
+
+                                preferences
+                                        .edit()
+                                        .putString(
+                                                "activeRideId",
+                                                activeRideId
+                                        )
+                                        .apply();
+
+                                listenToRide(
+                                        activeRideId
+                                );
+
+                                updateButtons();
+                            }
+                        }
+                );
+    }
+
+    private boolean activeStatus(
+            String status
+    ) {
+
+        return
+                "REQUESTED".equals(status)
+                ||
+                "ACCEPTED".equals(status)
+                ||
+                "DRIVER_ON_THE_WAY".equals(status)
+                ||
+                "DRIVER_ARRIVED".equals(status)
+                ||
+                "IN_PROGRESS".equals(status);
+    }
+
+    private void listenToRide(
+            String rideId
+    ) {
+
+        if (rideListener != null) {
+            rideListener.remove();
+        }
+
+        rideListener =
+                db.collection("rides")
+                        .document(rideId)
+                        .addSnapshotListener(
+                                (snapshot, error) -> {
+
+                                    if (error != null) {
+
+                                        statusText.setText(
+                                                "🔴 Ride update error"
+                                        );
+
+                                        return;
+                                    }
+
+                                    if (
+                                            snapshot == null
+                                            ||
+                                            !snapshot.exists()
+                                    ) {
+
+                                        clearActiveRide();
+                                        updateButtons();
+                                        return;
+                                    }
+
+                                    String status =
+                                            snapshot.getString(
+                                                    "status"
+                                            );
+
+                                    if (
+                                            status == null
+                                            ||
+                                            status.isEmpty()
+                                    ) {
+
+                                        status = "REQUESTED";
+                                    }
+
+                                    statusText.setText(
+                                            "🚦 Ride status: " +
+                                                    status
+                                    );
+
+                                    if (
+                                            !activeStatus(status)
+                                    ) {
+
+                                        clearActiveRide();
+                                    }
+
+                                    updateButtons();
+                                }
+                        );
+    }
+
+    private void clearActiveRide() {
+
+        activeRideId = null;
+
+        preferences
+                .edit()
+                .remove("activeRideId")
+                .apply();
+
+        if (rideListener != null) {
+
+            rideListener.remove();
+            rideListener = null;
+        }
+    }
+
+    private void updateButtons() {
+
+        boolean active =
+                activeRideId != null
+                &&
+                !activeRideId.isEmpty();
+
+        if (bookButton != null) {
+            bookButton.setEnabled(!active);
+        }
+
+        if (cancelButton != null) {
+            cancelButton.setEnabled(active);
+        }
+
+        if (mapButton != null) {
+            mapButton.setEnabled(active);
+        }
+
+        if (chatButton != null) {
+            chatButton.setEnabled(active);
+        }
+    }
+
+    private void openLiveMap() {
+
+        if (
+                activeRideId == null
+                ||
+                activeRideId.isEmpty()
+        ) {
+
+            Toast.makeText(
+                    this,
+                    "No active ride.",
+                    Toast.LENGTH_SHORT
+            ).show();
+
+            return;
+        }
+
+        Intent intent =
+                new Intent(
+                        this,
+                        MapActivity.class
+                );
+
+        intent.putExtra(
+                "mode",
+                "LIVE_RIDE"
+        );
+
+        intent.putExtra(
+                "ride_id",
+                activeRideId
+        );
+
+        startActivity(intent);
+    }
+
+    private void openChat() {
+
+        if (
+                activeRideId == null
+                ||
+                activeRideId.isEmpty()
+        ) {
+
+            Toast.makeText(
+                    this,
+                    "No active ride.",
+                    Toast.LENGTH_SHORT
+            ).show();
+
+            return;
+        }
+
+        Intent intent =
+                new Intent(
+                        this,
+                        RideChatActivity.class
+                );
+
+        intent.putExtra(
+                "ride_id",
+                activeRideId
+        );
+
+        intent.putExtra(
+                "rideId",
+                activeRideId
+        );
+
+        startActivity(intent);
+    }
+
+    private void cancelRide() {
+
+        if (
+                activeRideId == null
+                ||
+                activeRideId.isEmpty()
+        ) {
+            return;
+        }
+
+        db.collection("rides")
+                .document(activeRideId)
+                .update(
+                        "status",
+                        "CANCELLED",
+                        "cancelledBy",
+                        "PASSENGER",
+                        "cancelledAt",
+                        System.currentTimeMillis()
+                )
+                .addOnSuccessListener(
+                        v -> {
+
+                            clearActiveRide();
+
+                            statusText.setText(
+                                    "❌ Ride cancelled"
+                            );
+
+                            updateButtons();
+                        }
+                )
+                .addOnFailureListener(
+                        e ->
+                                Toast.makeText(
+                                        this,
+                                        "Cancel failed: " +
+                                                e.getMessage(),
+                                        Toast.LENGTH_LONG
+                                ).show()
+                );
+    }
+
+    private void showHistory() {
+
+        FirebaseUser user =
+                auth.getCurrentUser();
+
+        if (user == null) {
+            return;
+        }
+
+        db.collection("rides")
+                .whereEqualTo(
+                        "passengerId",
+                        user.getUid()
+                )
+                .get()
+                .addOnSuccessListener(
+                        query -> {
+
+                            if (query.isEmpty()) {
+
+                                Toast.makeText(
+                                        this,
+                                        "No ride history yet.",
+                                        Toast.LENGTH_SHORT
+                                ).show();
+
+                                return;
+                            }
+
+                            StringBuilder history =
+                                    new StringBuilder();
+
+                            for (
+                                   
