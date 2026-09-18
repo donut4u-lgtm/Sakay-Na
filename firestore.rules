@@ -1,3 +1,4 @@
+
 rules_version = '2';
 
 service cloud.firestore {
@@ -9,22 +10,18 @@ service cloud.firestore {
              && request.auth.uid == "Ld3rzaCvAGNlXBDCofB3mWjgXWp2";
     }
 
+    // USER PROFILES
     match /users/{userId} {
 
-      // Users can create their own profile.
       allow create: if request.auth != null
                     && request.auth.uid == userId;
 
-      // User can read own profile.
-      // Confirmed Admin can read all user profiles.
       allow read: if request.auth != null
                   && (
                     request.auth.uid == userId
                     || isAdmin()
                   );
 
-      // User can update own profile.
-      // Confirmed Admin can update user profiles.
       allow update: if request.auth != null
                     && (
                       request.auth.uid == userId
@@ -32,15 +29,25 @@ service cloud.firestore {
                     );
     }
 
+    // DRIVER PROFILES / DRIVER ONLINE STATUS
+    match /drivers/{driverId} {
+
+      // Driver can create/update/read their own driver document.
+      // Admin can manage all driver documents.
+      allow read, write: if request.auth != null
+                         && (
+                           request.auth.uid == driverId
+                           || isAdmin()
+                         );
+    }
+
+    // RIDES
     match /rides/{rideId} {
 
       // Existing Sakay Na ride access.
       allow read, write: if request.auth != null;
 
-      // CHAT MESSAGES FOR THIS RIDE
-      //
-      // Only the passenger or driver assigned to this ride
-      // can read or create chat messages.
+      // CHAT MESSAGES
       match /messages/{messageId} {
 
         allow read: if request.auth != null
@@ -68,13 +75,16 @@ service cloud.firestore {
                         ||
                         isAdmin()
                       )
-                      && request.resource.data.senderId == request.auth.uid;
+                      && request.resource.data.senderId
+                         == request.auth.uid;
 
         allow update, delete: if isAdmin();
       }
     }
 
+    // DRIVER GPS LOCATION
     match /driverLocations/{driverId} {
+
       allow read, write: if request.auth != null;
     }
   }
