@@ -1,3 +1,4 @@
+
 package com.sakyna.app;
 
 import android.Manifest;
@@ -27,7 +28,9 @@ import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 public class DriverActivity extends Activity {
 
@@ -63,6 +66,9 @@ public class DriverActivity extends Activity {
 
     private ListenerRegistration requestListener;
     private ListenerRegistration rideListener;
+
+    private final Set<String> notifiedRideIds =
+            new HashSet<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -418,59 +424,103 @@ public class DriverActivity extends Activity {
 
         requestListener =
                 db.collection("rides")
-                        .whereEqualTo(
-                                "status",
-                                "REQUESTED"
-                        )
                         .addSnapshotListener(
                                 (snapshots, error) -> {
 
-                                    requestContainer
-                                            .removeAllViews();
+                                    requestContainer.removeAllViews();
 
                                     if (error != null) {
 
                                         requestsText.setText(
-                                                "Unable to load ride requests:\n"
+                                                "🔴 RIDE REQUEST ERROR:\n"
                                                         + error.getMessage()
                                         );
 
                                         return;
                                     }
 
-                                    if (snapshots == null
-                                            || snapshots.isEmpty()) {
+                                    if (snapshots == null) {
 
                                         requestsText.setText(
-                                                driverOnline
-                                                        ? "No ride requests."
-                                                        : "🔴 OFFLINE\nRide requests are visible below, but go ONLINE to accept."
+                                                "Waiting for ride requests..."
                                         );
 
                                         return;
                                     }
 
-                                    if (!driverOnline) {
-
-                                        requestsText.setText(
-                                                "🔴 DRIVER OFFLINE\n"
-                                                        + "Ride request found.\n"
-                                                        + "Go ONLINE to accept."
-                                        );
-
-                                    } else {
-
-                                        requestsText.setText(
-                                                "🟢 AVAILABLE RIDE REQUESTS"
-                                        );
-                                    }
+                                    int requestCount = 0;
 
                                     for (
                                             DocumentSnapshot ride :
                                             snapshots.getDocuments()
                                     ) {
 
+                                        String status =
+                                                ride.getString("status");
+
+                                        if (!"REQUESTED".equals(status)) {
+                                            continue;
+                                        }
+
+                                        requestCount++;
+
+                                        String rideId =
+                                                ride.getId();
+
+                                        if (!notifiedRideIds.contains(
+                                                rideId
+                                        )) {
+
+                                            notifiedRideIds.add(
+                                                    rideId
+                                            );
+
+                                            Toast.makeText(
+                                                    DriverActivity.this,
+                                                    "🔔 NEW RIDE REQUEST\n"
+                                                            + "Tap ACCEPT or DECLINE.",
+                                                    Toast.LENGTH_LONG
+                                            ).show();
+                                        }
+
                                         addRideCard(ride);
+                                    }
+
+                                    if (requestCount == 0) {
+
+                                        requestsText.setText(
+                                                driverOnline
+                                                        ? "🟢 No ride requests."
+                                                        : "🔴 OFFLINE\n"
+                                                        + "No pending ride requests."
+                                        );
+
+                                    } else if (!driverOnline) {
+
+                                        requestsText.setText(
+                                                "🔔 "
+                                                        + requestCount
+                                                        + " RIDE REQUEST"
+                                                        + (
+                                                        requestCount == 1
+                                                                ? ""
+                                                                : "S"
+                                                )
+                                                        + "\nGo ONLINE to accept."
+                                        );
+
+                                    } else {
+
+                                        requestsText.setText(
+                                                "🔔 "
+                                                        + requestCount
+                                                        + " AVAILABLE RIDE REQUEST"
+                                                        + (
+                                                        requestCount == 1
+                                                                ? ""
+                                                                : "S"
+                                                )
+                                        );
                                     }
                                 }
                         );
@@ -521,7 +571,8 @@ public class DriverActivity extends Activity {
         }
 
         info.setText(
-                "PICKUP\n"
+                "🔔 NEW RIDE REQUEST\n\n"
+                        + "PICKUP\n"
                         + (pickup.isEmpty()
                         ? "Not provided"
                         : pickup)
@@ -542,17 +593,22 @@ public class DriverActivity extends Activity {
         card.addView(info);
 
         Button accept =
-                makeButton("ACCEPT");
+                makeButton("🟢 ACCEPT");
 
         Button decline =
-                makeButton("DECLINE");
+                makeButton("🔴 DECLINE");
 
         if (driverOnline) {
+
             accept.setEnabled(true);
-            accept.setText("ACCEPT");
+            accept.setText("🟢 ACCEPT");
+
         } else {
+
             accept.setEnabled(false);
-            accept.setText("🔴 GO ONLINE TO ACCEPT");
+            accept.setText(
+                    "🔴 GO ONLINE TO ACCEPT"
+            );
         }
 
         card.addView(accept);
@@ -862,7 +918,8 @@ public class DriverActivity extends Activity {
                             .removeAllViews();
 
                     requestsText.setText(
-                            "🟢 Ride accepted. No pending ride requests."
+                            "🟢 Ride accepted. "
+                                    + "No pending ride requests."
                     );
 
                     Toast.makeText(
