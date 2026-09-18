@@ -32,7 +32,6 @@ import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -72,7 +71,7 @@ public class PassengerActivity extends Activity {
     private double destinationLat = 0;
     private double destinationLng = 0;
 
-    /* SAKAY NA FARE */
+    // SAKAY NA FARE
     private double baseFare = 25;
     private double perKm = 10;
     private double minFare = 25;
@@ -115,12 +114,7 @@ public class PassengerActivity extends Activity {
         b.setTextColor(Color.WHITE);
         b.setGravity(Gravity.CENTER);
 
-        b.setPadding(
-                10,
-                12,
-                10,
-                12
-        );
+        b.setPadding(10, 12, 10, 12);
 
         b.setBackgroundColor(
                 Color.rgb(0, 125, 75)
@@ -132,12 +126,7 @@ public class PassengerActivity extends Activity {
                         -2
                 );
 
-        p.setMargins(
-                0,
-                5,
-                0,
-                5
-        );
+        p.setMargins(0, 5, 0, 5);
 
         b.setLayoutParams(p);
 
@@ -162,12 +151,7 @@ public class PassengerActivity extends Activity {
         LinearLayout header = new LinearLayout(this);
         header.setOrientation(LinearLayout.VERTICAL);
         header.setGravity(Gravity.CENTER);
-        header.setPadding(
-                12,
-                18,
-                12,
-                18
-        );
+        header.setPadding(12, 18, 12, 18);
         header.setBackgroundColor(
                 Color.rgb(0, 125, 75)
         );
@@ -189,40 +173,25 @@ public class PassengerActivity extends Activity {
         subtitle.setGravity(Gravity.CENTER);
         header.addView(subtitle);
 
-        root.addView(
-                header,
-                fullParams()
-        );
+        root.addView(header, fullParams());
 
         ScrollView scroll = new ScrollView(this);
         scroll.setFillViewport(true);
 
         LinearLayout content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(
-                16,
-                12,
-                16,
-                18
-        );
+        content.setPadding(16, 12, 16, 18);
 
         TextView bookingTitle = text(
                 "🚕 BOOK YOUR RIDE",
                 21
         );
 
-        bookingTitle.setTypeface(
-                null,
-                Typeface.BOLD
-        );
-
+        bookingTitle.setTypeface(null, Typeface.BOLD);
         bookingTitle.setTextColor(
                 Color.rgb(0, 110, 70)
         );
-
-        bookingTitle.setGravity(
-                Gravity.CENTER
-        );
+        bookingTitle.setGravity(Gravity.CENTER);
 
         content.addView(
                 bookingTitle,
@@ -234,28 +203,16 @@ public class PassengerActivity extends Activity {
                 15
         );
 
-        pickupLabel.setTypeface(
-                null,
-                Typeface.BOLD
-        );
-
+        pickupLabel.setTypeface(null, Typeface.BOLD);
         content.addView(pickupLabel);
 
         pickupInput = new EditText(this);
-
         pickupInput.setHint(
                 "Where should we pick you up?"
         );
-
         pickupInput.setTextSize(16);
         pickupInput.setSingleLine(false);
-        pickupInput.setPadding(
-                16,
-                12,
-                16,
-                12
-        );
-
+        pickupInput.setPadding(16, 12, 16, 12);
         pickupInput.setBackgroundColor(Color.WHITE);
 
         content.addView(
@@ -286,11 +243,9 @@ public class PassengerActivity extends Activity {
         content.addView(destinationLabel);
 
         destinationInput = new EditText(this);
-
         destinationInput.setHint(
                 "Where are you going?"
         );
-
         destinationInput.setTextSize(16);
         destinationInput.setPadding(
                 16,
@@ -298,7 +253,6 @@ public class PassengerActivity extends Activity {
                 16,
                 12
         );
-
         destinationInput.setBackgroundColor(
                 Color.WHITE
         );
@@ -345,17 +299,8 @@ public class PassengerActivity extends Activity {
         );
 
         tricycle.setGravity(Gravity.CENTER);
-
-        tricycle.setPadding(
-                12,
-                14,
-                12,
-                14
-        );
-
-        tricycle.setBackgroundColor(
-                Color.WHITE
-        );
+        tricycle.setPadding(12, 14, 12, 14);
+        tricycle.setBackgroundColor(Color.WHITE);
 
         content.addView(
                 tricycle,
@@ -414,7 +359,6 @@ public class PassengerActivity extends Activity {
         );
 
         fareText.setGravity(Gravity.CENTER);
-
         fareText.setTextColor(
                 Color.rgb(0, 125, 75)
         );
@@ -721,12 +665,13 @@ public class PassengerActivity extends Activity {
                 address.trim().isEmpty()
         ) {
 
-            address = String.format(
-                    Locale.US,
-                    "%.6f, %.6f",
-                    pickupLat,
-                    pickupLng
-            );
+            address =
+                    String.format(
+                            Locale.US,
+                            "%.6f, %.6f",
+                            pickupLat,
+                            pickupLng
+                    );
         }
 
         pickupInput.setText(address);
@@ -735,22 +680,6 @@ public class PassengerActivity extends Activity {
     }
 
     private void chooseDestination() {
-
-        if (
-                pickupLat == 0
-                &&
-                pickupLng == 0
-        ) {
-
-            Toast.makeText(
-                    this,
-                    "Please get your pickup location first.",
-                    Toast.LENGTH_SHORT
-            ).show();
-
-            requestLocation();
-            return;
-        }
 
         Intent i =
                 new Intent(
@@ -775,8 +704,10 @@ public class PassengerActivity extends Activity {
 
         i.putExtra(
                 "pickup_address",
-                pickupInput.getText()
+                pickupInput
+                        .getText()
                         .toString()
+                        .trim()
         );
 
         startActivityForResult(
@@ -831,10 +762,11 @@ public class PassengerActivity extends Activity {
                 address.trim().isEmpty()
         ) {
 
-            address = getAddress(
-                    destinationLat,
-                    destinationLng
-            );
+            address =
+                    getAddress(
+                            destinationLat,
+                            destinationLng
+                    );
         }
 
         if (
@@ -843,12 +775,13 @@ public class PassengerActivity extends Activity {
                 address.trim().isEmpty()
         ) {
 
-            address = String.format(
-                    Locale.US,
-                    "%.6f, %.6f",
-                    destinationLat,
-                    destinationLng
-            );
+            address =
+                    String.format(
+                            Locale.US,
+                            "%.6f, %.6f",
+                            destinationLat,
+                            destinationLng
+                    );
         }
 
         destinationInput.setText(address);
@@ -951,12 +884,11 @@ public class PassengerActivity extends Activity {
             if (selected != null) {
 
                 paymentMethod =
-                        selected.getText()
+                        selected
+                                .getText()
                                 .toString();
             }
         }
-
-        double fare = getCurrentFare();
 
         Map<String, Object> ride =
                 new HashMap<>();
@@ -1008,7 +940,7 @@ public class PassengerActivity extends Activity {
 
         ride.put(
                 "fare",
-                fare
+                getCurrentFare()
         );
 
         ride.put(
@@ -1023,139 +955,8 @@ public class PassengerActivity extends Activity {
 
         bookButton.setEnabled(false);
 
-        db.collection("rides")
-                .add(ride)
-                .addOnSuccessListener(
-                        document -> {
-
-                            activeRideId =
-                                    document.getId();
-
-                            preferences
-                                    .edit()
-                                    .putString(
-                                            "activeRideId",
-                                            activeRideId
-                                    )
-                                    .apply();
-
-                            statusText.setText(
-                                    "🟡 Ride request sent. Waiting for a driver."
-                            );
-
-                            listenToRide(
-                                    activeRideId
-                            );
-
-                            updateButtons();
-
-                            Toast.makeText(
-                                    this,
-                                    "Ride request sent. Waiting for a driver.",
-                                    Toast.LENGTH_LONG
-                            ).show();
-                        }
-                )
-                .addOnFailureListener(
-                        error -> {
-
-                            bookButton.setEnabled(true);
-
-                            Toast.makeText(
-                                    this,
-                                    "Booking failed: "
-                                            + error.getMessage(),
-                                    Toast.LENGTH_LONG
-                            ).show();
-
-                            updateButtons();
-                        }
-                );
-    }
-
-    private void loadFareSettings() {
-
-        db.collection("settings")
-                .document("fare")
-                .get()
-                .addOnSuccessListener(
-                        snapshot -> {
-
-                            if (!snapshot.exists()) {
-                                calculateFare();
-                                return;
-                            }
-
-                            baseFare =
-                                    number(
-                                            snapshot,
-                                            "baseFare",
-                                            25
-                                    );
-
-                            perKm =
-                                    number(
-                                            snapshot,
-                                            "perKm",
-                                            10
-                                    );
-
-                            minFare =
-                                    number(
-                                            snapshot,
-                                            "minimum",
-                                            25
-                                    );
-
-                            maxFare =
-                                    number(
-                                            snapshot,
-                                            "maximum",
-                                            500
-                                    );
-
-                            calculateFare();
-                        }
-                )
-                .addOnFailureListener(
-                        error -> calculateFare()
-                );
-    }
-
-    private void calculateFare() {
-
-        if (
-                fareText == null
-        ) {
-            return;
-        }
-
-        double fare =
-                getCurrentFare();
-
-        fareText.setText(
-                String.format(
-                        Locale.US,
-                        "💰 Estimated fare: ₱%.0f",
-                        fare
-                )
+        statusText.setText(
+                "🔎 Sending ride request..."
         );
-    }
 
-    private double getCurrentFare() {
-
-        if (
-                pickupLat == 0
-                ||
-                pickupLng == 0
-                ||
-                destinationLat == 0
-                ||
-                destinationLng == 0
-        ) {
-
-            return minFare;
-        }
-
-        float[] distance =
-                new float
+        db.collection("rides
