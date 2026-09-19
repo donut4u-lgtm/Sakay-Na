@@ -34,8 +34,8 @@ import org.json.JSONObject;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
-import java.net.URLEncoder;
 import java.net.URL;
+import java.net.URLEncoder;
 import java.util.Locale;
 
 public class MapActivity extends Activity {
@@ -79,19 +79,11 @@ protected void onCreate(Bundle savedInstanceState) {
     Intent intent = getIntent();
 
     if (intent != null) {
-
-        mode = safe(
-                intent.getStringExtra("mode")
-        );
-
-        rideId = safe(
-                intent.getStringExtra("ride_id")
-        );
+        mode = safe(intent.getStringExtra("mode"));
+        rideId = safe(intent.getStringExtra("ride_id"));
 
         if (rideId.isEmpty()) {
-            rideId = safe(
-                    intent.getStringExtra("rideId")
-            );
+            rideId = safe(intent.getStringExtra("rideId"));
         }
     }
 
@@ -101,93 +93,49 @@ protected void onCreate(Bundle savedInstanceState) {
 
 private void buildScreen() {
 
-    LinearLayout root =
-            new LinearLayout(this);
+    LinearLayout root = new LinearLayout(this);
+    root.setOrientation(LinearLayout.VERTICAL);
+    root.setBackgroundColor(Color.WHITE);
 
-    root.setOrientation(
-            LinearLayout.VERTICAL
-    );
-
-    root.setBackgroundColor(
-            Color.WHITE
-    );
-
-    TextView title =
-            new TextView(this);
-
+    TextView title = new TextView(this);
     title.setText(
             mode.equals("LIVE_RIDE")
                     ? "🚕 LIVE RIDE MAP"
                     : "📍 SELECT DESTINATION"
     );
-
     title.setTextSize(22);
     title.setTextColor(Color.BLACK);
     title.setGravity(Gravity.CENTER);
     title.setPadding(10, 18, 10, 18);
-
     root.addView(title);
 
-    locationText =
-            new TextView(this);
-
-    locationText.setText(
-            "📡 Getting GPS location..."
-    );
-
+    locationText = new TextView(this);
+    locationText.setText("📡 Getting GPS location...");
     locationText.setTextSize(15);
-    locationText.setTextColor(
-            Color.DKGRAY
-    );
-
-    locationText.setPadding(
-            15, 5, 15, 5
-    );
-
+    locationText.setTextColor(Color.DKGRAY);
+    locationText.setPadding(15, 5, 15, 5);
     root.addView(locationText);
 
-    addressText =
-            new TextView(this);
-
-    addressText.setText(
-            "Address: waiting for GPS..."
-    );
-
+    addressText = new TextView(this);
+    addressText.setText("Address: waiting for GPS...");
     addressText.setTextSize(15);
-    addressText.setTextColor(
-            Color.DKGRAY
-    );
-
-    addressText.setPadding(
-            15, 5, 15, 10
-    );
-
+    addressText.setTextColor(Color.DKGRAY);
+    addressText.setPadding(15, 5, 15, 10);
     root.addView(addressText);
 
     if (!mode.equals("LIVE_RIDE")) {
 
-        LinearLayout searchRow =
-                new LinearLayout(this);
+        LinearLayout searchRow = new LinearLayout(this);
+        searchRow.setOrientation(LinearLayout.HORIZONTAL);
 
-        searchRow.setOrientation(
-                LinearLayout.HORIZONTAL
-        );
-
-        searchInput =
-                new EditText(this);
-
+        searchInput = new EditText(this);
         searchInput.setHint(
                 "Search Jollibee, SM, street..."
         );
-
         searchInput.setSingleLine(true);
 
-        Button searchButton =
-                new Button(this);
-
-        searchButton.setText(
-                "SEARCH"
-        );
+        Button searchButton = new Button(this);
+        searchButton.setText("SEARCH");
 
         searchButton.setOnClickListener(
                 v -> searchPlace()
@@ -202,26 +150,19 @@ private void buildScreen() {
                 )
         );
 
-        searchRow.addView(
-                searchButton
-        );
+        searchRow.addView(searchButton);
 
         root.addView(searchRow);
     }
 
-    webView =
-            new WebView(this);
+    webView = new WebView(this);
 
-    WebSettings settings =
-            webView.getSettings();
-
+    WebSettings settings = webView.getSettings();
     settings.setJavaScriptEnabled(true);
     settings.setDomStorageEnabled(true);
     settings.setGeolocationEnabled(true);
 
-    webView.setWebViewClient(
-            new WebViewClient()
-    );
+    webView.setWebViewClient(new WebViewClient());
 
     webView.addJavascriptInterface(
             new MapBridge(),
@@ -237,9 +178,7 @@ private void buildScreen() {
             )
     );
 
-    Button currentButton =
-            new Button(this);
-
+    Button currentButton = new Button(this);
     currentButton.setText(
             "📍 USE MY CURRENT LOCATION"
     );
@@ -252,9 +191,7 @@ private void buildScreen() {
 
     if (!mode.equals("LIVE_RIDE")) {
 
-        Button confirmButton =
-                new Button(this);
-
+        Button confirmButton = new Button(this);
         confirmButton.setText(
                 "✅ USE SELECTED DESTINATION"
         );
@@ -266,13 +203,8 @@ private void buildScreen() {
         root.addView(confirmButton);
     }
 
-    Button closeButton =
-            new Button(this);
-
-    closeButton.setText(
-            "CLOSE MAP"
-    );
-
+    Button closeButton = new Button(this);
+    closeButton.setText("CLOSE MAP");
     closeButton.setOnClickListener(
             v -> finish()
     );
@@ -293,9 +225,7 @@ private void loadMap() {
             "<meta name='viewport' content='width=device-width, initial-scale=1.0'>" +
             "<link rel='stylesheet' href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'>" +
             "<script src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'></script>" +
-            "<style>" +
-            "html,body,#map{height:100%;margin:0;padding:0;}" +
-            "</style>" +
+            "<style>html,body,#map{height:100%;margin:0;padding:0;}</style>" +
             "</head>" +
             "<body>" +
             "<div id='map'></div>" +
@@ -305,8 +235,7 @@ private void loadMap() {
 
             "L.tileLayer(" +
             "'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'," +
-            "{maxZoom:19," +
-            "attribution:'© OpenStreetMap contributors'}" +
+            "{maxZoom:19,attribution:'© OpenStreetMap contributors'}" +
             ").addTo(map);" +
 
             "var gpsMarker=null;" +
@@ -328,7 +257,7 @@ private void loadMap() {
             "}else{" +
             "destinationMarker.setLatLng([lat,lng]);" +
             "}" +
-            "destinationMarker.bindPopup(name || 'Destination').openPopup();" +
+            "destinationMarker.bindPopup(name||'Destination').openPopup();" +
             "map.setView([lat,lng],17);" +
             "}" +
 
@@ -425,8 +354,7 @@ private void beginLocationUpdates() {
                 public void onLocationChanged(
                         @NonNull Location location) {
 
-                    currentLocation =
-                            location;
+                    currentLocation = location;
 
                     currentLat =
                             location.getLatitude();
@@ -497,8 +425,7 @@ private void beginLocationUpdates() {
 
         if (best != null) {
 
-            currentLocation =
-                    best;
+            currentLocation = best;
 
             currentLat =
                     best.getLatitude();
@@ -629,6 +556,13 @@ private void useCurrentLocation() {
     );
 }
 
+/*
+ * SEARCH:
+ * 1. Try Photon.
+ * 2. If Photon is blocked/unavailable,
+ *    automatically try Nominatim search.
+ * 3. If both fail, GPS/map remain untouched.
+ */
 private void searchPlace() {
 
     if (searchInput == null) {
@@ -655,7 +589,7 @@ private void searchPlace() {
 
         Toast.makeText(
                 this,
-                "Search is still loading...",
+                "Search is loading...",
                 Toast.LENGTH_SHORT
         ).show();
 
@@ -665,11 +599,11 @@ private void searchPlace() {
     long now =
             System.currentTimeMillis();
 
-    if (now - lastSearchTime < 1200) {
+    if (now - lastSearchTime < 1000) {
 
         Toast.makeText(
                 this,
-                "Please wait a moment before searching again.",
+                "Please wait a moment.",
                 Toast.LENGTH_SHORT
         ).show();
 
@@ -691,232 +625,523 @@ private void searchPlace() {
 
     new Thread(() -> {
 
-        HttpURLConnection connection = null;
+        JSONObject result = null;
 
         try {
 
-            String encoded =
-                    URLEncoder.encode(
-                            query,
-                            "UTF-8"
-                    );
-
-            String urlString =
-                    "https://photon.komoot.io/api/"
-                            + "?q="
-                            + encoded
-                            + "&limit=5"
-                            + "&lat="
-                            + lat
-                            + "&lon="
-                            + lng
-                            + "&zoom=14"
-                            + "&lang=en";
-
-            URL url =
-                    new URL(urlString);
-
-            connection =
-                    (HttpURLConnection)
-                            url.openConnection();
-
-            connection.setRequestMethod(
-                    "GET"
-            );
-
-            connection.setConnectTimeout(
-                    12000
-            );
-
-            connection.setReadTimeout(
-                    12000
-            );
-
-            connection.setRequestProperty(
-                    "User-Agent",
-                    "SakayNa/1.0 Android"
-            );
-
-            int responseCode =
-                    connection.getResponseCode();
-
-            if (responseCode != 200) {
-
-                throw new Exception(
-                        "HTTP "
-                                + responseCode
-                );
-            }
-
-            BufferedReader reader =
-                    new BufferedReader(
-                            new InputStreamReader(
-                                    connection.getInputStream()
-                            )
-                    );
-
-            StringBuilder json =
-                    new StringBuilder();
-
-            String line;
-
-            while ((line =
-                    reader.readLine()) != null) {
-
-                json.append(line);
-            }
-
-            reader.close();
-
-            JSONObject root =
-                    new JSONObject(
-                            json.toString()
-                    );
-
-            JSONArray features =
-                    root.optJSONArray(
-                            "features"
-                    );
-
-            if (features == null
-                    || features.length() == 0) {
-
-                throw new Exception(
-                        "No results"
-                );
-            }
-
-            JSONObject selected =
-                    chooseBestResult(
-                            features,
+            result =
+                    searchPhoton(
                             query,
                             lat,
                             lng
                     );
 
-            JSONObject geometry =
-                    selected.getJSONObject(
-                            "geometry"
-                    );
+        } catch (Exception ignored) {
+        }
 
-            JSONArray coordinates =
-                    geometry.getJSONArray(
-                            "coordinates"
-                    );
+        if (result == null) {
 
-            double resultLng =
-                    coordinates.getDouble(0);
+            try {
 
-            double resultLat =
-                    coordinates.getDouble(1);
+                result =
+                        searchNominatim(
+                                query,
+                                lat,
+                                lng
+                        );
 
-            JSONObject properties =
-                    selected.optJSONObject(
-                            "properties"
-                    );
+            } catch (Exception ignored) {
+            }
+        }
 
-            String name =
-                    properties == null
-                            ? ""
-                            : properties.optString(
-                            "name",
-                            ""
-                    );
+        final JSONObject finalResult =
+                result;
 
-            String address =
-                    buildAddress(
-                            properties
-                    );
+        runOnUiThread(() -> {
 
-            if (name.isEmpty()) {
-                name = address;
+            searching = false;
+
+            if (finalResult == null) {
+
+                Toast.makeText(
+                        this,
+                        "Search service unavailable. Try again shortly.",
+                        Toast.LENGTH_LONG
+                ).show();
+
+                return;
             }
 
-            if (address.isEmpty()) {
-                address = name;
-            }
+            try {
 
-            final double finalLat =
-                    resultLat;
+                double resultLat =
+                        finalResult.getDouble(
+                                "lat"
+                        );
 
-            final double finalLng =
-                    resultLng;
+                double resultLng =
+                        finalResult.getDouble(
+                                "lon"
+                        );
 
-            final String finalName =
-                    name;
+                String name =
+                        finalResult.optString(
+                                "name",
+                                ""
+                        );
 
-            final String finalAddress =
-                    address;
+                String address =
+                        finalResult.optString(
+                                "address",
+                                ""
+                        );
 
-            runOnUiThread(() -> {
+                if (name.isEmpty()) {
+                    name = address;
+                }
 
-                searching = false;
+                if (address.isEmpty()) {
+                    address = name;
+                }
 
                 currentLat =
-                        finalLat;
+                        resultLat;
 
                 currentLng =
-                        finalLng;
+                        resultLng;
 
                 currentPlaceName =
-                        finalName;
+                        name;
 
                 currentAddress =
-                        finalAddress;
+                        address;
 
                 updateCoordinates(
-                        finalLat,
-                        finalLng
+                        resultLat,
+                        resultLng
                 );
 
                 addressText.setText(
                         "📍 "
-                                + finalName
+                                + name
                                 + "\n"
-                                + finalAddress
+                                + address
                 );
 
                 if (webView != null) {
 
                     webView.evaluateJavascript(
                             "setDestination("
-                                    + finalLat
+                                    + resultLat
                                     + ","
-                                    + finalLng
+                                    + resultLng
                                     + ","
                                     + JSONObject.quote(
-                                    finalName
+                                    name
                             )
                                     + ");",
                             null
                     );
                 }
-            });
 
-        } catch (Exception e) {
-
-            runOnUiThread(() -> {
-
-                searching = false;
+            } catch (Exception e) {
 
                 Toast.makeText(
                         this,
-                        "Search temporarily unavailable. Try again in a few seconds.",
-                        Toast.LENGTH_LONG
+                        "Invalid search result.",
+                        Toast.LENGTH_SHORT
                 ).show();
-            });
-
-        } finally {
-
-            if (connection != null) {
-                connection.disconnect();
             }
-        }
+        });
 
     }).start();
 }
 
-private JSONObject chooseBestResult(
+private JSONObject searchPhoton(
+        String query,
+        double lat,
+        double lng)
+        throws Exception {
+
+    String encoded =
+            URLEncoder.encode(
+                    query,
+                    "UTF-8"
+            );
+
+    String urlString =
+            "https://photon.komoot.io/api/"
+                    + "?q="
+                    + encoded
+                    + "&limit=8"
+                    + "&lat="
+                    + lat
+                    + "&lon="
+                    + lng
+                    + "&zoom=14"
+                    + "&lang=en";
+
+    JSONObject root =
+            getJson(
+                    urlString,
+                    10000
+            );
+
+    JSONArray features =
+            root.optJSONArray(
+                    "features"
+            );
+
+    if (features == null
+            || features.length() == 0) {
+
+        return null;
+    }
+
+    JSONObject best =
+            chooseBestPhoton(
+                    features,
+                    query,
+                    lat,
+                    lng
+            );
+
+    JSONObject geometry =
+            best.getJSONObject(
+                    "geometry"
+            );
+
+    JSONArray coordinates =
+            geometry.getJSONArray(
+                    "coordinates"
+            );
+
+    double resultLng =
+            coordinates.getDouble(0);
+
+    double resultLat =
+            coordinates.getDouble(1);
+
+    JSONObject properties =
+            best.optJSONObject(
+                    "properties"
+            );
+
+    String name =
+            properties == null
+                    ? ""
+                    : properties.optString(
+                    "name",
+                    ""
+            );
+
+    String address =
+            buildPhotonAddress(
+                    properties
+            );
+
+    JSONObject result =
+            new JSONObject();
+
+    result.put(
+            "lat",
+            resultLat
+    );
+
+    result.put(
+            "lon",
+            resultLng
+    );
+
+    result.put(
+            "name",
+            name
+    );
+
+    result.put(
+            "address",
+            address
+    );
+
+    return result;
+}
+
+private JSONObject searchNominatim(
+        String query,
+        double lat,
+        double lng)
+        throws Exception {
+
+    String encoded =
+            URLEncoder.encode(
+                    query,
+                    "UTF-8"
+            );
+
+    String urlString =
+            "https://nominatim.openstreetmap.org/search"
+                    + "?format=jsonv2"
+                    + "&q="
+                    + encoded
+                    + ", Philippines"
+                    + "&limit=8"
+                    + "&addressdetails=1"
+                    + "&namedetails=1"
+                    + "&accept-language=en";
+
+    JSONObject dummy =
+            new JSONObject();
+
+    String response =
+            getText(
+                    urlString,
+                    12000
+            );
+
+    JSONArray results =
+            new JSONArray(response);
+
+    if (results.length() == 0) {
+        return null;
+    }
+
+    JSONObject best =
+            results.getJSONObject(0);
+
+    double bestDistance =
+            Double.MAX_VALUE;
+
+    for (int i = 0;
+         i < results.length();
+         i++) {
+
+        JSONObject item =
+                results.getJSONObject(i);
+
+        double itemLat =
+                Double.parseDouble(
+                        item.optString(
+                                "lat",
+                                "0"
+                        )
+                );
+
+        double itemLng =
+                Double.parseDouble(
+                        item.optString(
+                                "lon",
+                                "0"
+                        )
+                );
+
+        float[] distance =
+                new float[1];
+
+        Location.distanceBetween(
+                lat,
+                lng,
+                itemLat,
+                itemLng,
+                distance
+        );
+
+        double score =
+                distance[0];
+
+        String display =
+                item.optString(
+                        "display_name",
+                        ""
+                );
+
+        if (display.toLowerCase(
+                Locale.US
+        ).contains(
+                query.toLowerCase(
+                        Locale.US
+                )
+        )) {
+
+            score -= 1000;
+        }
+
+        if (score < bestDistance) {
+
+            bestDistance = score;
+            best = item;
+        }
+    }
+
+    double resultLat =
+            Double.parseDouble(
+                    best.optString(
+                            "lat",
+                            "0"
+                    )
+            );
+
+    double resultLng =
+            Double.parseDouble(
+                    best.optString(
+                            "lon",
+                            "0"
+                    )
+            );
+
+    String name =
+            best.optString(
+                    "name",
+                    ""
+            );
+
+    if (name.isEmpty()) {
+
+        JSONObject namedetails =
+                best.optJSONObject(
+                        "namedetails"
+                );
+
+        if (namedetails != null) {
+
+            name =
+                    namedetails.optString(
+                            "name",
+                            ""
+                    );
+        }
+    }
+
+    String address =
+            buildNominatimAddress(
+                    best.optJSONObject(
+                            "address"
+                    )
+            );
+
+    if (address.isEmpty()) {
+
+        address =
+                best.optString(
+                        "display_name",
+                        ""
+                );
+    }
+
+    JSONObject result =
+            new JSONObject();
+
+    result.put(
+            "lat",
+            resultLat
+    );
+
+    result.put(
+            "lon",
+            resultLng
+    );
+
+    result.put(
+            "name",
+            name
+    );
+
+    result.put(
+            "address",
+            address
+    );
+
+    return result;
+}
+
+private JSONObject getJson(
+        String urlString,
+        int timeout)
+        throws Exception {
+
+    String text =
+            getText(
+                    urlString,
+                    timeout
+            );
+
+    return new JSONObject(text);
+}
+
+private String getText(
+        String urlString,
+        int timeout)
+        throws Exception {
+
+    HttpURLConnection connection =
+            null;
+
+    try {
+
+        URL url =
+                new URL(urlString);
+
+        connection =
+                (HttpURLConnection)
+                        url.openConnection();
+
+        connection.setRequestMethod(
+                "GET"
+        );
+
+        connection.setConnectTimeout(
+                timeout
+        );
+
+        connection.setReadTimeout(
+                timeout
+        );
+
+        connection.setRequestProperty(
+                "User-Agent",
+                "SakayNa/1.0 Android"
+        );
+
+        int code =
+                connection.getResponseCode();
+
+        if (code != 200) {
+
+            throw new Exception(
+                    "HTTP " + code
+            );
+        }
+
+        BufferedReader reader =
+                new BufferedReader(
+                        new InputStreamReader(
+                                connection.getInputStream()
+                        )
+                );
+
+        StringBuilder result =
+                new StringBuilder();
+
+        String line;
+
+        while ((line =
+                reader.readLine()) != null) {
+
+            result.append(line);
+        }
+
+        reader.close();
+
+        return result.toString();
+
+    } finally {
+
+        if (connection != null) {
+            connection.disconnect();
+        }
+    }
+}
+
+private JSONObject chooseBestPhoton(
         JSONArray features,
         String query,
         double lat,
@@ -928,7 +1153,7 @@ private JSONObject chooseBestResult(
     double bestScore =
             -Double.MAX_VALUE;
 
-    String queryLower =
+    String q =
             query.toLowerCase(
                     Locale.US
             );
@@ -944,95 +1169,67 @@ private JSONObject chooseBestResult(
             continue;
         }
 
-        JSONObject properties =
+        JSONObject p =
                 item.optJSONObject(
                         "properties"
                 );
 
-        if (properties == null) {
+        if (p == null) {
             continue;
         }
 
         String name =
-                properties.optString(
+                p.optString(
                         "name",
                         ""
                 );
 
-        String city =
-                properties.optString(
-                        "city",
+        String country =
+                p.optString(
+                        "country",
                         ""
                 );
 
-        String country =
-                properties.optString(
-                        "country",
+        String city =
+                p.optString(
+                        "city",
                         ""
                 );
 
         double score = 0;
 
-        if (!name.isEmpty()
-                && queryLower.contains(
+        String lowerName =
                 name.toLowerCase(
                         Locale.US
-                ))) {
+                );
 
-            score += 100;
+        if (!name.isEmpty()
+                && lowerName.equals(q)) {
+
+            score += 300;
         }
 
         if (!name.isEmpty()
-                && name.toLowerCase(
-                Locale.US
-        ).contains(queryLower)) {
+                && lowerName.contains(q)) {
 
-            score += 100;
+            score += 200;
+        }
+
+        if (!name.isEmpty()
+                && q.contains(lowerName)) {
+
+            score += 150;
         }
 
         if (country.equalsIgnoreCase(
                 "Philippines"
         )) {
 
-            score += 40;
+            score += 100;
         }
 
-        if (city.equalsIgnoreCase(
-                "San Pedro"
-        )) {
-
-            score += 15;
-        }
-
-        String osmValue =
-                properties.optString(
-                        "osm_value",
-                        ""
-                );
-
-        if (osmValue.equals(
-                "restaurant"
-        )
-                || osmValue.equals(
-                "fast_food"
-        )
-                || osmValue.equals(
-                "shop"
-        )
-                || osmValue.equals(
-                "supermarket"
-        )
-                || osmValue.equals(
-                "mall"
-        )
-                || osmValue.equals(
-                "school"
-        )
-                || osmValue.equals(
-                "hospital"
-        )) {
-
-            score += 25;
+        if (!city.isEmpty()) {
+            score += 10;
         }
 
         JSONObject geometry =
@@ -1042,23 +1239,19 @@ private JSONObject chooseBestResult(
 
         if (geometry != null) {
 
-            JSONArray coordinates =
+            JSONArray c =
                     geometry.optJSONArray(
                             "coordinates"
                     );
 
-            if (coordinates != null
-                    && coordinates.length() >= 2) {
+            if (c != null
+                    && c.length() >= 2) {
 
                 double itemLng =
-                        coordinates.optDouble(
-                                0
-                        );
+                        c.optDouble(0);
 
                 double itemLat =
-                        coordinates.optDouble(
-                                1
-                        );
+                        c.optDouble(1);
 
                 float[] distance =
                         new float[1];
@@ -1071,11 +1264,10 @@ private JSONObject chooseBestResult(
                         distance
                 );
 
-                score -=
-                        Math.min(
-                                distance[0] / 1000.0,
-                                20
-                        );
+                score -= Math.min(
+                        distance[0] / 1000.0,
+                        30
+                );
             }
         }
 
@@ -1089,7 +1281,7 @@ private JSONObject chooseBestResult(
     return best;
 }
 
-private String buildAddress(
+private String buildPhotonAddress(
         JSONObject properties) {
 
     if (properties == null) {
@@ -1148,8 +1340,6 @@ private void reverseGeocode(
 
     new Thread(() -> {
 
-        HttpURLConnection connection = null;
-
         try {
 
             String urlString =
@@ -1164,53 +1354,10 @@ private void reverseGeocode(
                             + "&namedetails=1"
                             + "&accept-language=en";
 
-            URL url =
-                    new URL(urlString);
-
-            connection =
-                    (HttpURLConnection)
-                            url.openConnection();
-
-            connection.setRequestMethod(
-                    "GET"
-            );
-
-            connection.setConnectTimeout(
-                    10000
-            );
-
-            connection.setReadTimeout(
-                    10000
-            );
-
-            connection.setRequestProperty(
-                    "User-Agent",
-                    "SakayNa/1.0 Android"
-            );
-
-            BufferedReader reader =
-                    new BufferedReader(
-                            new InputStreamReader(
-                                    connection.getInputStream()
-                            )
-                    );
-
-            StringBuilder json =
-                    new StringBuilder();
-
-            String line;
-
-            while ((line =
-                    reader.readLine()) != null) {
-
-                json.append(line);
-            }
-
-            reader.close();
-
             JSONObject object =
-                    new JSONObject(
-                            json.toString()
+                    getJson(
+                            urlString,
+                            10000
                     );
 
             JSONObject address =
@@ -1219,7 +1366,7 @@ private void reverseGeocode(
                     );
 
             String formatted =
-                    buildReverseAddress(
+                    buildNominatimAddress(
                             address
                     );
 
@@ -1232,15 +1379,15 @@ private void reverseGeocode(
                         );
             }
 
-            JSONObject namedetails =
-                    object.optJSONObject(
-                            "namedetails"
-                    );
-
             String name =
                     object.optString(
                             "name",
                             ""
+                    );
+
+            JSONObject namedetails =
+                    object.optJSONObject(
+                            "namedetails"
                     );
 
             if (name.isEmpty()
@@ -1296,22 +1443,15 @@ private void reverseGeocode(
 
             runOnUiThread(() ->
                     addressText.setText(
-                            "📍 GPS location active\n"
-                                    + "Address lookup unavailable"
+                            "📍 GPS location active"
                     )
             );
-
-        } finally {
-
-            if (connection != null) {
-                connection.disconnect();
-            }
         }
 
     }).start();
 }
 
-private String buildReverseAddress(
+private String buildNominatimAddress(
         JSONObject address) {
 
     if (address == null) {
@@ -1337,7 +1477,8 @@ private String buildReverseAddress(
             )
     );
 
-    String barangay =
+    addPart(
+            result,
             firstNonEmpty(
                     address.optString(
                             "neighbourhood",
@@ -1351,11 +1492,7 @@ private String buildReverseAddress(
                             "village",
                             ""
                     )
-            );
-
-    addPart(
-            result,
-            barangay
+            )
     );
 
     addPart(
@@ -1429,9 +1566,7 @@ private void addPart(
         builder.append(", ");
     }
 
-    builder.append(
-            value.trim()
-    );
+    builder.append(value.trim());
 }
 
 private void confirmDestination() {
@@ -1489,8 +1624,7 @@ private void confirmDestination() {
     finish();
 }
 
-private String safe(
-        String value) {
+private String safe(String value) {
 
     return value == null
             ? ""
