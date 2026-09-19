@@ -1,3 +1,4 @@
+
 package com.sakyna.app;
 
 import android.Manifest;
@@ -5,8 +6,6 @@ import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
-import android.location.Address;
-import android.location.Geocoder;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
@@ -35,9 +34,8 @@ import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
-import java.net.URLEncoder;
 import java.net.URL;
-import java.util.List;
+import java.net.URLEncoder;
 import java.util.Locale;
 
 public class MapActivity extends Activity {
@@ -173,9 +171,6 @@ public class MapActivity extends Activity {
 
                 mapReady = true;
 
-                // IMPORTANT:
-                // Send the real GPS position again after
-                // Leaflet has completely loaded.
                 sendCurrentLocationToMap();
 
                 statusText.setText(
@@ -367,8 +362,6 @@ public class MapActivity extends Activity {
 
                 "}" +
 
-                // This is the important part:
-                // center the map on the real GPS location.
                 "map.setView([lat,lng],16);" +
 
                 "}" +
@@ -491,7 +484,6 @@ public class MapActivity extends Activity {
                 currentLongitude =
                         location.getLongitude();
 
-                // Send only after map is actually ready.
                 sendCurrentLocationToMap();
 
                 statusText.setText(
@@ -668,7 +660,12 @@ public class MapActivity extends Activity {
                         "https://photon.komoot.io/api/?" +
                         "q=" +
                         encoded +
-                        "&limit=8";
+                        "&limit=8" +
+                        "&lat=" +
+                        currentLatitude +
+                        "&lon=" +
+                        currentLongitude +
+                        "&zoom=14";
 
                 URL url =
                         new URL(urlString);
@@ -860,6 +857,14 @@ public class MapActivity extends Activity {
                                         ""
                                 );
 
+                String houseNumber =
+                        properties == null
+                                ? ""
+                                : properties.optString(
+                                        "housenumber",
+                                        ""
+                                );
+
                 String street =
                         properties == null
                                 ? ""
@@ -892,22 +897,14 @@ public class MapActivity extends Activity {
                                         ""
                                 );
 
-                String country =
-                        properties == null
-                                ? ""
-                                : properties.optString(
-                                        "country",
-                                        ""
-                                );
-
                 String display =
                         buildPlaceName(
                                 name,
+                                houseNumber,
                                 street,
                                 district,
                                 city,
-                                state,
-                                country
+                                state
                         );
 
                 if (display.isEmpty()) {
@@ -961,24 +958,24 @@ public class MapActivity extends Activity {
 
     private String buildPlaceName(
             String name,
+            String houseNumber,
             String street,
             String district,
             String city,
-            String state,
-            String country
+            String state
     ) {
 
         StringBuilder result =
                 new StringBuilder();
 
         addPart(result, name);
+        addPart(result, houseNumber);
         addPart(result, street);
         addPart(result, district);
         addPart(result, city);
-        addPart(result, state);
 
         if (result.length() == 0) {
-            addPart(result, country);
+            addPart(result, state);
         }
 
         return result.toString();
@@ -1063,114 +1060,324 @@ public class MapActivity extends Activity {
         ).show();
     }
 
+    /*
+     * OpenStreetMap Nominatim reverse geocoding.
+     * This replaces Android Geocoder for map taps.
+     */
     private void reverseGeocode(
             double lat,
             double lng
     ) {
 
         statusText.setText(
-                "Finding place name..."
+                "📍 Finding the real address..."
         );
 
         new Thread(() -> {
 
-            String name = "";
+            HttpURLConnection connection = null;
 
             try {
 
-                Geocoder geocoder =
-                        new Geocoder(
-                                this,
-                                Locale.getDefault()
-                        );
+                String urlString =
+                        "https://nominatim.openstreetmap.org/reverse" +
+                        "?format=jsonv2" +
+                        "&lat=" + lat +
+                        "&lon=" + lng +
+                        "&zoom=18" +
+                        "&addressdetails=1" +
+                        "&namedetails=1" +
+                        "&accept-language=en";
 
-                List<Address> addresses =
-                        geocoder.getFromLocation(
-                                lat,
-                                lng,
-                                1
-                        );
+                URL url =
+                        new URL(urlString);
 
-                if (addresses != null
-                        && !addresses.isEmpty()) {
+                connection =
+                        (HttpURLConnection)
+                                url.openConnection();
 
-                    Address address =
-                            addresses.get(0);
+                connection.setRequestMethod("GET");
+                connection.setConnectTimeout(10000);
+                connection.setReadTimeout(10000);
 
-                    StringBuilder text =
-                            new StringBuilder();
+                connection.setRequestProperty(
+                        "User-Agent",
+                        "SakayNa/1.0 Android"
+                );
 
-                    addAddressPart(
-                            text,
-                            address.getFeatureName()
+                connection.setRequestProperty(
+                        "Accept",
+                        "application/json"
+                );
+
+                int response =
+                        connection.getResponseCode();
+
+                if (response != 200) {
+                    throw new Exception(
+                            "Reverse geocoder returned " +
+                            response
                     );
-
-                    addAddressPart(
-                            text,
-                            address.getThoroughfare()
-                    );
-
-                    addAddressPart(
-                            text,
-                            address.getSubLocality()
-                    );
-
-                    addAddressPart(
-                            text,
-                            address.getLocality()
-                    );
-
-                    addAddressPart(
-                            text,
-                            address.getAdminArea()
-                    );
-
-                    name = text.toString();
                 }
 
-            } catch (Exception ignored) {
-            }
+                InputStream input =
+                        connection.getInputStream();
 
-            final String finalName =
-                    name.isEmpty()
-                            ? "Selected location"
-                            : name;
+                BufferedReader reader =
+                        new BufferedReader(
+                                new InputStreamReader(
+                                        input,
+                                        "UTF-8"
+                                )
+                        );
 
-            runOnUiThread(() ->
+                StringBuilder result =
+                        new StringBuilder();
+
+                String line;
+
+                while ((line = reader.readLine()) != null) {
+                    result.append(line);
+                }
+
+                reader.close();
+                input.close();
+
+                JSONObject object =
+                        new JSONObject(
+                                result.toString()
+                        );
+
+                JSONObject address =
+                        object.optJSONObject(
+                                "address"
+                        );
+
+                String placeName =
+                        object.optString(
+                                "name",
+                                ""
+                        );
+
+                String displayName =
+                        object.optString(
+                                "display_name",
+                                ""
+                        );
+
+                String houseNumber =
+                        address == null
+                                ? ""
+                                : address.optString(
+                                        "house_number",
+                                        ""
+                                );
+
+                String road =
+                        address == null
+                                ? ""
+                                : address.optString(
+                                        "road",
+                                        ""
+                                );
+
+                String neighbourhood =
+                        address == null
+                                ? ""
+                                : address.optString(
+                                        "neighbourhood",
+                                        ""
+                                );
+
+                String suburb =
+                        address == null
+                                ? ""
+                                : address.optString(
+                                        "suburb",
+                                        ""
+                                );
+
+                String village =
+                        address == null
+                                ? ""
+                                : address.optString(
+                                        "village",
+                                        ""
+                                );
+
+                String town =
+                        address == null
+                                ? ""
+                                : address.optString(
+                                        "town",
+                                        ""
+                                );
+
+                String city =
+                        address == null
+                                ? ""
+                                : address.optString(
+                                        "city",
+                                        ""
+                                );
+
+                String municipality =
+                        address == null
+                                ? ""
+                                : address.optString(
+                                        "municipality",
+                                        ""
+                                );
+
+                String province =
+                        address == null
+                                ? ""
+                                : address.optString(
+                                        "state",
+                                        ""
+                                );
+
+                String postcode =
+                        address == null
+                                ? ""
+                                : address.optString(
+                                        "postcode",
+                                        ""
+                                );
+
+                String realName =
+                        buildReverseAddress(
+                                placeName,
+                                houseNumber,
+                                road,
+                                neighbourhood,
+                                suburb,
+                                village,
+                                town,
+                                city,
+                                municipality,
+                                province,
+                                postcode
+                        );
+
+                if (realName.isEmpty()) {
+                    realName = displayName;
+                }
+
+                if (realName == null
+                        || realName.trim().isEmpty()) {
+                    realName =
+                            "Selected location";
+                }
+
+                final String finalName =
+                        realName.trim();
+
+                runOnUiThread(() ->
+                        selectSearchResult(
+                                lat,
+                                lng,
+                                finalName
+                        )
+                );
+
+            } catch (Exception e) {
+
+                runOnUiThread(() -> {
+
+                    statusText.setText(
+                            "Address lookup failed. Location is still correct."
+                    );
+
+                    /*
+                     * Coordinates remain valid even if
+                     * the address service fails.
+                     */
                     selectSearchResult(
                             lat,
                             lng,
-                            finalName
-                    )
-            );
+                            String.format(
+                                    Locale.US,
+                                    "Selected location (%.6f, %.6f)",
+                                    lat,
+                                    lng
+                            )
+                    );
+                });
+
+            } finally {
+
+                if (connection != null) {
+                    connection.disconnect();
+                }
+            }
 
         }).start();
     }
 
-    private void addAddressPart(
-            StringBuilder builder,
-            String value
+    private String buildReverseAddress(
+            String name,
+            String houseNumber,
+            String road,
+            String neighbourhood,
+            String suburb,
+            String village,
+            String town,
+            String city,
+            String municipality,
+            String province,
+            String postcode
     ) {
 
-        if (value == null) {
-            return;
+        StringBuilder result =
+                new StringBuilder();
+
+        /*
+         * POI name first.
+         * Example:
+         * Jollibee
+         * Jollibee, Aguinaldo Highway,
+         * Imus, Cavite
+         */
+        addPart(result, name);
+
+        if (!houseNumber.isEmpty()
+                && !road.isEmpty()) {
+
+            addPart(
+                    result,
+                    houseNumber + " " + road
+            );
+
+        } else {
+
+            addPart(result, houseNumber);
+            addPart(result, road);
         }
 
-        value = value.trim();
+        addPart(result, neighbourhood);
+        addPart(result, suburb);
 
-        if (value.isEmpty()) {
-            return;
+        if (!village.isEmpty()) {
+            addPart(result, village);
         }
 
-        if (builder.toString().contains(value)) {
-            return;
+        if (!town.isEmpty()) {
+            addPart(result, town);
         }
 
-        if (builder.length() > 0) {
-            builder.append(", ");
+        if (!city.isEmpty()) {
+            addPart(result, city);
         }
 
-        builder.append(value);
+        if (!municipality.isEmpty()) {
+            addPart(result, municipality);
+        }
+
+        addPart(result, province);
+        addPart(result, postcode);
+
+        return result.toString();
     }
 
     private String escapeJS(String value) {
