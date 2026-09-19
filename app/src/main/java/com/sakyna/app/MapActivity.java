@@ -6,6 +6,8 @@ import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
+import android.location.Address;
+import android.location.Geocoder;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
@@ -36,6 +38,7 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
+import java.util.List;
 import java.util.Locale;
 
 public class MapActivity extends Activity {
@@ -557,11 +560,14 @@ private void useCurrentLocation() {
 }
 
 /*
- * SEARCH:
- * 1. Try Photon.
- * 2. If Photon is blocked/unavailable,
- *    automatically try Nominatim search.
- * 3. If both fail, GPS/map remain untouched.
+ * SEARCH ORDER:
+ *
+ * 1. Android device Geocoder.
+ * 2. Photon.
+ * 3. Nominatim.
+ *
+ * GPS and map are never changed unless a
+ * valid search result is actually found.
  */
 private void searchPlace() {
 
@@ -623,14 +629,24 @@ private void searchPlace() {
                     ? 120.9842
                     : currentLocation.getLongitude();
 
+    Toast.makeText(
+            this,
+            "🔎 Searching...",
+            Toast.LENGTH_SHORT
+    ).show();
+
     new Thread(() -> {
 
         JSONObject result = null;
 
+        /*
+         * FIRST:
+         * Android built-in geocoder.
+         */
         try {
 
             result =
-                    searchPhoton(
+                    searchAndroidGeocoder(
                             query,
                             lat,
                             lng
@@ -639,6 +655,29 @@ private void searchPlace() {
         } catch (Exception ignored) {
         }
 
+        /*
+         * SECOND:
+         * Photon fallback.
+         */
+        if (result == null) {
+
+            try {
+
+                result =
+                        searchPhoton(
+                                query,
+                                lat,
+                                lng
+                        );
+
+            } catch (Exception ignored) {
+            }
+        }
+
+        /*
+         * THIRD:
+         * Nominatim fallback.
+         */
         if (result == null) {
 
             try {
@@ -665,71 +704,328 @@ private void searchPlace() {
 
                 Toast.makeText(
                         this,
-                        "Search service unavailable. Try again shortly.",
+                        "Place not found. Try the exact place name or tap the map.",
                         Toast.LENGTH_LONG
                 ).show();
 
                 return;
             }
 
-            try {
+            applySearchResult(
+                    finalResult
+            );
+        });
 
-                double resultLat =
-                        finalResult.getDouble(
-                                "lat"
+    }).start();
+}
+
+/*
+ * Android's own place/address search.
+ *
+ * This avoids depending on Photon/Nominatim
+ * for the first search attempt.
+ */
+private JSONObject searchAndroidGeocoder(
+        String query,
+        double lat,
+        double lng)
+        throws Exception {
+
+    if (!Geocoder.isPresent()) {
+        return null;
+    }
+
+    Geocoder geocoder =
+            new Geocoder(
+                    this,
+                    Locale.ENGLISH
+            );
+
+    List<Address> results =
+            geocoder.getFromLocationName(
+                    query,
+                    10,
+                    0,
+                    30
+            );
+
+    if (results == null
+            || results.isEmpty()) {
+
+        return null;
+    }
+
+    Address best =
+            chooseBestAndroidAddress(
+                    results,
+                    query,
+                    lat,
+                    lng
+            );
+
+    if (best == null) {
+        return null;
+    }
+
+    double resultLat =
+            best.getLatitude();
+
+    double resultLng =
+            best.getLongitude();
+
+    String name =
+            "";
+
+    if (best.getFeatureName() != null) {
+        name =
+                best.getFeatureName();
+    }
+
+    if (name.isEmpty()
+            && best.getLocality() != null) {
+        name =
+                best.getLocality();
+    }
+
+    String address =
+            buildAndroidAddress(
+                    best
+            );
+
+    if (address.isEmpty()) {
+
+        String line =
+                best.getAddressLine(0);
+
+        if (line != null) {
+            address = line;
+        }
+    }
+
+    if (name.isEmpty()) {
+        name = query;
+    }
+
+    JSONObject result =
+            new JSONObject();
+
+    result.put(
+            "lat",
+            resultLat
+    );
+
+    result.put(
+            "lon",
+            resultLng
+    );
+
+    result.put(
+            "name",
+            name
+    );
+
+    result.put(
+            "address",
+            address
+    );
+
+    return result;
+}
+
+private Address chooseBestAndroidAddress(
+        List<Address> results,
+        String query,
+        double lat,
+        double lng) {
+
+    Address best = null;
+    double bestScore =
+            -Double.MAX_VALUE;
+
+    String q =
+            query.toLowerCase(
+                    Locale.US
+            );
+
+    for (Address address : results) {
+
+        if (address == null) {
+            continue;
+        }
+
+        double score = 0;
+
+        String text =
+                address.toString()
+                        .toLowerCase(
+                                Locale.US
                         );
 
-                double resultLng =
-                        finalResult.getDouble(
-                                "lon"
-                        );
+        if (text.contains(q)) {
+            score += 300;
+        }
 
-                String name =
-                        finalResult.optString(
-                                "name",
-                                ""
-                        );
+        String feature =
+                address.getFeatureName();
 
-                String address =
-                        finalResult.optString(
-                                "address",
-                                ""
-                        );
+        if (feature != null
+                && feature.toLowerCase(
+                Locale.US
+        ).contains(q)) {
 
-                if (name.isEmpty()) {
-                    name = address;
-                }
+            score += 300;
+        }
 
-                if (address.isEmpty()) {
-                    address = name;
-                }
+        String locality =
+                address.getLocality();
 
-                currentLat =
-                        resultLat;
+        if (locality != null
+                && locality.toLowerCase(
+                Locale.US
+        ).contains(q)) {
 
-                currentLng =
-                        resultLng;
+            score += 100;
+        }
 
-                currentPlaceName =
-                        name;
+        String country =
+                address.getCountryName();
 
-                currentAddress =
-                        address;
+        if (country != null
+                && country.toLowerCase(
+                Locale.US
+        ).contains("philippines")) {
 
-                updateCoordinates(
-                        resultLat,
-                        resultLng
+            score += 100;
+        }
+
+        float[] distance =
+                new float[1];
+
+        Location.distanceBetween(
+                lat,
+                lng,
+                address.getLatitude(),
+                address.getLongitude(),
+                distance
+        );
+
+        score -= Math.min(
+                distance[0] / 1000.0,
+                50
+        );
+
+        if (score > bestScore) {
+
+            bestScore = score;
+            best = address;
+        }
+    }
+
+    return best;
+}
+
+private String buildAndroidAddress(
+        Address address) {
+
+    if (address == null) {
+        return "";
+    }
+
+    StringBuilder result =
+            new StringBuilder();
+
+    addPart(
+            result,
+            address.getSubThoroughfare()
+    );
+
+    addPart(
+            result,
+            address.getThoroughfare()
+    );
+
+    addPart(
+            result,
+            address.getSubLocality()
+    );
+
+    addPart(
+            result,
+            address.getLocality()
+    );
+
+    addPart(
+            result,
+            address.getAdminArea()
+    );
+
+    return result.toString();
+}
+
+private void applySearchResult(
+        JSONObject finalResult) {
+
+    try {
+
+        double resultLat =
+                finalResult.getDouble(
+                        "lat"
                 );
 
-                addressText.setText(
-                        "📍 "
-                                + name
-                                + "\n"
-                                + address
+        double resultLng =
+                finalResult.getDouble(
+                        "lon"
                 );
 
-                if (webView != null) {
+        String name =
+                finalResult.optString(
+                        "name",
+                        ""
+                );
 
+        String address =
+                finalResult.optString(
+                        "address",
+                        ""
+                );
+
+        if (name.isEmpty()) {
+            name = searchInput.getText()
+                    .toString()
+                    .trim();
+        }
+
+        if (address.isEmpty()) {
+            address = name;
+        }
+
+        currentLat =
+                resultLat;
+
+        currentLng =
+                resultLng;
+
+        currentPlaceName =
+                name;
+
+        currentAddress =
+                address;
+
+        updateCoordinates(
+                resultLat,
+                resultLng
+        );
+
+        addressText.setText(
+                "📍 "
+                        + name
+                        + "\n"
+                        + address
+        );
+
+        if (webView != null) {
+
+            webView.post(() ->
                     webView.evaluateJavascript(
                             "setDestination("
                                     + resultLat
@@ -741,20 +1037,24 @@ private void searchPlace() {
                             )
                                     + ");",
                             null
-                    );
-                }
+                    )
+            );
+        }
 
-            } catch (Exception e) {
+        Toast.makeText(
+                this,
+                "✅ Place found.",
+                Toast.LENGTH_SHORT
+        ).show();
 
-                Toast.makeText(
-                        this,
-                        "Invalid search result.",
-                        Toast.LENGTH_SHORT
-                ).show();
-            }
-        });
+    } catch (Exception e) {
 
-    }).start();
+        Toast.makeText(
+                this,
+                "Invalid search result.",
+                Toast.LENGTH_SHORT
+        ).show();
+    }
 }
 
 private JSONObject searchPhoton(
@@ -805,6 +1105,10 @@ private JSONObject searchPhoton(
                     lat,
                     lng
             );
+
+    if (best == null) {
+        return null;
+    }
 
     JSONObject geometry =
             best.getJSONObject(
@@ -888,9 +1192,6 @@ private JSONObject searchNominatim(
                     + "&addressdetails=1"
                     + "&namedetails=1"
                     + "&accept-language=en";
-
-    JSONObject dummy =
-            new JSONObject();
 
     String response =
             getText(
@@ -1340,6 +1641,101 @@ private void reverseGeocode(
 
     new Thread(() -> {
 
+        /*
+         * First use Android Geocoder for reverse
+         * address. This prevents the map from
+         * depending entirely on Nominatim.
+         */
+        try {
+
+            if (Geocoder.isPresent()) {
+
+                Geocoder geocoder =
+                        new Geocoder(
+                                this,
+                                Locale.ENGLISH
+                        );
+
+                List<Address> results =
+                        geocoder.getFromLocation(
+                                lat,
+                                lng,
+                                1
+                        );
+
+                if (results != null
+                        && !results.isEmpty()) {
+
+                    Address address =
+                            results.get(0);
+
+                    String formatted =
+                            buildAndroidAddress(
+                                    address
+                            );
+
+                    if (formatted.isEmpty()) {
+
+                        formatted =
+                                address.getAddressLine(0);
+                    }
+
+                    String name =
+                            address.getFeatureName();
+
+                    final String finalName =
+                            name == null
+                                    ? ""
+                                    : name;
+
+                    final String finalAddress =
+                            formatted == null
+                                    ? ""
+                                    : formatted;
+
+                    runOnUiThread(() -> {
+
+                        currentLat = lat;
+                        currentLng = lng;
+
+                        if (!finalName.isEmpty()) {
+                            currentPlaceName =
+                                    finalName;
+                        }
+
+                        if (!finalAddress.isEmpty()) {
+                            currentAddress =
+                                    finalAddress;
+                        }
+
+                        if (!finalName.isEmpty()) {
+
+                            addressText.setText(
+                                    "📍 "
+                                            + finalName
+                                            + "\n"
+                                            + finalAddress
+                            );
+
+                        } else {
+
+                            addressText.setText(
+                                    "📍 "
+                                            + finalAddress
+                            );
+                        }
+                    });
+
+                    return;
+                }
+            }
+
+        } catch (Exception ignored) {
+        }
+
+        /*
+         * Online reverse-geocoding fallback.
+         */
         try {
 
             String urlString =
