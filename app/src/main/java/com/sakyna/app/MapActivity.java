@@ -559,16 +559,6 @@ private void useCurrentLocation() {
     );
 }
 
-/*
- * SEARCH ORDER:
- *
- * 1. Android device Geocoder.
- * 2. Photon.
- * 3. Nominatim.
- *
- * GPS and map are never changed unless a
- * valid search result is actually found.
- */
 private void searchPlace() {
 
     if (searchInput == null) {
@@ -639,10 +629,6 @@ private void searchPlace() {
 
         JSONObject result = null;
 
-        /*
-         * FIRST:
-         * Android built-in geocoder.
-         */
         try {
 
             result =
@@ -655,10 +641,6 @@ private void searchPlace() {
         } catch (Exception ignored) {
         }
 
-        /*
-         * SECOND:
-         * Photon fallback.
-         */
         if (result == null) {
 
             try {
@@ -674,10 +656,6 @@ private void searchPlace() {
             }
         }
 
-        /*
-         * THIRD:
-         * Nominatim fallback.
-         */
         if (result == null) {
 
             try {
@@ -719,12 +697,6 @@ private void searchPlace() {
     }).start();
 }
 
-/*
- * Android's own place/address search.
- *
- * This avoids depending on Photon/Nominatim
- * for the first search attempt.
- */
 private JSONObject searchAndroidGeocoder(
         String query,
         double lat,
@@ -744,9 +716,7 @@ private JSONObject searchAndroidGeocoder(
     List<Address> results =
             geocoder.getFromLocationName(
                     query,
-                    10,
-                    0,
-                    30
+                    10
             );
 
     if (results == null
@@ -773,8 +743,7 @@ private JSONObject searchAndroidGeocoder(
     double resultLng =
             best.getLongitude();
 
-    String name =
-            "";
+    String name = "";
 
     if (best.getFeatureName() != null) {
         name =
@@ -783,6 +752,7 @@ private JSONObject searchAndroidGeocoder(
 
     if (name.isEmpty()
             && best.getLocality() != null) {
+
         name =
                 best.getLocality();
     }
@@ -839,6 +809,7 @@ private Address chooseBestAndroidAddress(
         double lng) {
 
     Address best = null;
+
     double bestScore =
             -Double.MAX_VALUE;
 
@@ -990,9 +961,11 @@ private void applySearchResult(
                 );
 
         if (name.isEmpty()) {
-            name = searchInput.getText()
-                    .toString()
-                    .trim();
+
+            name =
+                    searchInput.getText()
+                            .toString()
+                            .trim();
         }
 
         if (address.isEmpty()) {
@@ -1641,11 +1614,6 @@ private void reverseGeocode(
 
     new Thread(() -> {
 
-        /*
-         * First use Android Geocoder for reverse
-         * address. This prevents the map from
-         * depending entirely on Nominatim.
-         */
         try {
 
             if (Geocoder.isPresent()) {
@@ -1733,9 +1701,6 @@ private void reverseGeocode(
         } catch (Exception ignored) {
         }
 
-        /*
-         * Online reverse-geocoding fallback.
-         */
         try {
 
             String urlString =
