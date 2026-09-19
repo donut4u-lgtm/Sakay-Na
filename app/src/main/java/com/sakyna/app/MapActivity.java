@@ -15,6 +15,7 @@ import android.location.LocationManager;
 import android.os.Bundle;
 import android.os.Looper;
 import android.view.Gravity;
+import android.view.View;
 import android.view.inputmethod.InputMethodManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebSettings;
@@ -90,17 +91,15 @@ public class MapActivity extends Activity {
         root.setBackgroundColor(Color.WHITE);
 
         TextView title = new TextView(this);
-
         title.setText(
                 mode.equals("LIVE_RIDE")
                         ? "🚕 LIVE RIDE MAP"
                         : "📍 SELECT DESTINATION"
         );
-
         title.setTextSize(22);
         title.setTextColor(Color.BLACK);
         title.setGravity(Gravity.CENTER);
-        title.setPadding(10, 18, 10, 18);
+        title.setPadding(10, 16, 10, 16);
 
         root.addView(title);
 
@@ -108,7 +107,7 @@ public class MapActivity extends Activity {
         locationText.setText("📡 Getting GPS location...");
         locationText.setTextSize(15);
         locationText.setTextColor(Color.DKGRAY);
-        locationText.setPadding(15, 5, 15, 5);
+        locationText.setPadding(12, 4, 12, 4);
 
         root.addView(locationText);
 
@@ -116,81 +115,74 @@ public class MapActivity extends Activity {
         addressText.setText("Address: waiting for GPS...");
         addressText.setTextSize(15);
         addressText.setTextColor(Color.DKGRAY);
-        addressText.setPadding(15, 5, 15, 10);
+        addressText.setPadding(12, 4, 12, 8);
 
         root.addView(addressText);
 
         if (!mode.equals("LIVE_RIDE")) {
 
-            LinearLayout searchContainer =
-                    new LinearLayout(this);
+            LinearLayout searchBox = new LinearLayout(this);
+            searchBox.setOrientation(LinearLayout.VERTICAL);
+            searchBox.setPadding(10, 6, 10, 8);
+            searchBox.setBackgroundColor(Color.rgb(245, 245, 245));
 
-            searchContainer.setOrientation(
-                    LinearLayout.VERTICAL
-            );
-
-            searchContainer.setPadding(
-                    12, 8, 12, 8
-            );
-
-            searchContainer.setBackgroundColor(
-                    Color.rgb(245, 245, 245)
-            );
-
-            TextView label =
-                    new TextView(this);
-
-            label.setText(
-                    "🔎 SEARCH DESTINATION"
-            );
-
+            TextView label = new TextView(this);
+            label.setText("🔎 SEARCH DESTINATION");
             label.setTextSize(17);
             label.setTextColor(Color.BLACK);
+            label.setPadding(0, 0, 0, 5);
 
-            searchContainer.addView(label);
+            searchBox.addView(label);
 
-            LinearLayout searchRow =
-                    new LinearLayout(this);
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
 
-            searchRow.setOrientation(
-                    LinearLayout.HORIZONTAL
-            );
-
-            searchInput =
-                    new EditText(this);
-
-            searchInput.setHint(
-                    "Jollibee, SM, street..."
-            );
-
-            searchInput.setTextSize(16);
+            searchInput = new EditText(this);
+            searchInput.setHint("Jollibee, SM, street...");
             searchInput.setSingleLine(true);
+            searchInput.setTextSize(16);
+            searchInput.setTextColor(Color.BLACK);
+            searchInput.setHintTextColor(Color.GRAY);
             searchInput.setFocusable(true);
             searchInput.setFocusableInTouchMode(true);
             searchInput.setClickable(true);
             searchInput.setEnabled(true);
             searchInput.setBackgroundColor(Color.WHITE);
+            searchInput.setPadding(12, 0, 12, 0);
 
-            LinearLayout.LayoutParams inputParams =
+            row.addView(
+                    searchInput,
                     new LinearLayout.LayoutParams(
                             0,
                             58,
                             1
-                    );
-
-            searchRow.addView(
-                    searchInput,
-                    inputParams
+                    )
             );
 
-            Button searchButton =
-                    new Button(this);
-
+            Button searchButton = new Button(this);
             searchButton.setText("SEARCH");
             searchButton.setTextColor(Color.WHITE);
+            searchButton.setTextSize(14);
             searchButton.setBackgroundColor(
                     Color.rgb(0, 130, 70)
             );
+            searchButton.setClickable(true);
+            searchButton.setEnabled(true);
+
+            LinearLayout.LayoutParams searchButtonParams =
+                    new LinearLayout.LayoutParams(
+                            125,
+                            58
+                    );
+
+            searchButtonParams.setMargins(8, 0, 0, 0);
+
+            row.addView(
+                    searchButton,
+                    searchButtonParams
+            );
+
+            searchBox.addView(row);
 
             searchButton.setOnClickListener(v -> {
 
@@ -210,35 +202,20 @@ public class MapActivity extends Activity {
                 searchPlace();
             });
 
-            LinearLayout.LayoutParams buttonParams =
-                    new LinearLayout.LayoutParams(
-                            125,
-                            58
-                    );
+            searchInput.setOnEditorActionListener(
+                    (v, actionId, event) -> {
 
-            buttonParams.setMargins(
-                    8, 0, 0, 0
+                        searchPlace();
+                        return true;
+                    }
             );
 
-            searchRow.addView(
-                    searchButton,
-                    buttonParams
-            );
-
-            searchContainer.addView(
-                    searchRow
-            );
-
-            root.addView(
-                    searchContainer
-            );
+            root.addView(searchBox);
         }
 
         webView = new WebView(this);
 
-        WebSettings settings =
-                webView.getSettings();
-
+        WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
         settings.setGeolocationEnabled(true);
@@ -261,9 +238,7 @@ public class MapActivity extends Activity {
                 )
         );
 
-        Button currentButton =
-                new Button(this);
-
+        Button currentButton = new Button(this);
         currentButton.setText(
                 "📍 USE MY CURRENT LOCATION"
         );
@@ -276,9 +251,7 @@ public class MapActivity extends Activity {
 
         if (!mode.equals("LIVE_RIDE")) {
 
-            Button confirmButton =
-                    new Button(this);
-
+            Button confirmButton = new Button(this);
             confirmButton.setText(
                     "✅ USE SELECTED DESTINATION"
             );
@@ -290,9 +263,7 @@ public class MapActivity extends Activity {
             root.addView(confirmButton);
         }
 
-        Button closeButton =
-                new Button(this);
-
+        Button closeButton = new Button(this);
         closeButton.setText("CLOSE MAP");
 
         closeButton.setOnClickListener(
@@ -313,7 +284,7 @@ public class MapActivity extends Activity {
                 "<html>" +
                 "<head>" +
                 "<meta name='viewport' " +
-                "content='width=device-width, initial-scale=1.0'>" +
+                "content='width=device-width,initial-scale=1.0'>" +
 
                 "<link rel='stylesheet' " +
                 "href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'>" +
@@ -331,15 +302,13 @@ public class MapActivity extends Activity {
                 "</style>" +
 
                 "</head>" +
-
                 "<body>" +
 
                 "<div id='map'></div>" +
 
                 "<script>" +
 
-                "var map=" +
-                "L.map('map').setView([14.5995,120.9842],12);" +
+                "var map=L.map('map').setView([14.5995,120.9842],12);" +
 
                 "L.tileLayer(" +
                 "'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'," +
@@ -351,42 +320,30 @@ public class MapActivity extends Activity {
                 "var destinationMarker=null;" +
 
                 "function setGPS(lat,lng){" +
-
                 "if(gpsMarker==null){" +
                 "gpsMarker=L.marker([lat,lng]).addTo(map);" +
                 "}else{" +
                 "gpsMarker.setLatLng([lat,lng]);" +
                 "}" +
-
                 "gpsMarker.bindPopup('📍 Your GPS location');" +
-
                 "map.setView([lat,lng],17);" +
-
                 "}" +
 
                 "function setDestination(lat,lng,name){" +
-
                 "if(destinationMarker==null){" +
-                "destinationMarker=" +
-                "L.marker([lat,lng]).addTo(map);" +
+                "destinationMarker=L.marker([lat,lng]).addTo(map);" +
                 "}else{" +
                 "destinationMarker.setLatLng([lat,lng]);" +
                 "}" +
-
-                "destinationMarker.bindPopup(" +
-                "name||'Destination').openPopup();" +
-
+                "destinationMarker.bindPopup(name||'Destination').openPopup();" +
                 "map.setView([lat,lng],17);" +
-
                 "}" +
 
                 "map.on('click',function(e){" +
-                "AndroidMap.mapTap(" +
-                "e.latlng.lat,e.latlng.lng);" +
+                "AndroidMap.mapTap(e.latlng.lat,e.latlng.lng);" +
                 "});" +
 
                 "</script>" +
-
                 "</body>" +
                 "</html>";
 
@@ -416,6 +373,12 @@ public class MapActivity extends Activity {
                 updateCoordinates(
                         lat,
                         lng
+                );
+
+                setMapDestination(
+                        lat,
+                        lng,
+                        "Selected location"
                 );
 
                 reverseGeocode(
@@ -479,12 +442,7 @@ public class MapActivity extends Activity {
                                 currentLng
                         );
 
-                        updateMap(
-                                currentLat,
-                                currentLng
-                        );
-
-                        reverseGeocode(
+                        updateGPSMap(
                                 currentLat,
                                 currentLng
                         );
@@ -530,7 +488,10 @@ public class MapActivity extends Activity {
                     );
 
             Location best =
-                    chooseBest(gps, network);
+                    chooseBest(
+                            gps,
+                            network
+                    );
 
             if (best != null) {
 
@@ -545,7 +506,7 @@ public class MapActivity extends Activity {
                         currentLng
                 );
 
-                updateMap(
+                updateGPSMap(
                         currentLat,
                         currentLng
                 );
@@ -556,7 +517,11 @@ public class MapActivity extends Activity {
                 );
             }
 
-        } catch (SecurityException ignored) {
+        } catch (SecurityException e) {
+
+            locationText.setText(
+                    "📍 Location permission required."
+            );
         }
     }
 
@@ -584,23 +549,23 @@ public class MapActivity extends Activity {
             double lng) {
 
         locationText.setText(
-                "📍 GPS LOCATION\n" +
-                        "Latitude: " +
-                        String.format(
-                                Locale.US,
-                                "%.6f",
-                                lat
-                        ) +
-                        "\nLongitude: " +
-                        String.format(
-                                Locale.US,
-                                "%.6f",
-                                lng
-                        )
+                "📍 GPS LOCATION\n"
+                        + "Latitude: "
+                        + String.format(
+                        Locale.US,
+                        "%.6f",
+                        lat
+                )
+                        + "\nLongitude: "
+                        + String.format(
+                        Locale.US,
+                        "%.6f",
+                        lng
+                )
         );
     }
 
-    private void updateMap(
+    private void updateGPSMap(
             double lat,
             double lng) {
 
@@ -611,11 +576,48 @@ public class MapActivity extends Activity {
 
         webView.post(() ->
                 webView.evaluateJavascript(
-                        "setGPS(" +
-                                lat +
-                                "," +
-                                lng +
-                                ");",
+                        "setGPS("
+                                + lat
+                                + ","
+                                + lng
+                                + ");",
+                        null
+                )
+        );
+    }
+
+    private void setMapDestination(
+            double lat,
+            double lng,
+            String name) {
+
+        if (webView == null
+                || !mapReady) {
+            return;
+        }
+
+        String safeName =
+                name == null
+                        ? ""
+                        : name
+                        .replace(
+                                "\\",
+                                "\\\\"
+                        )
+                        .replace(
+                                "'",
+                                "\\'"
+                        );
+
+        webView.post(() ->
+                webView.evaluateJavascript(
+                        "setDestination("
+                                + lat
+                                + ","
+                                + lng
+                                + ",'"
+                                + safeName
+                                + "');",
                         null
                 )
         );
@@ -623,8 +625,8 @@ public class MapActivity extends Activity {
 
     private void useCurrentLocation() {
 
-        if (currentLat == 0
-                && currentLng == 0) {
+        if (currentLat == 0.0
+                && currentLng == 0.0) {
 
             Toast.makeText(
                     this,
@@ -635,9 +637,10 @@ public class MapActivity extends Activity {
             return;
         }
 
-        updateMap(
+        setMapDestination(
                 currentLat,
-                currentLng
+                currentLng,
+                "Your current location"
         );
 
         reverseGeocode(
@@ -648,8 +651,11 @@ public class MapActivity extends Activity {
 
     private void searchPlace() {
 
-        if (searchInput == null
-                || searching) {
+        if (searching) {
+            return;
+        }
+
+        if (searchInput == null) {
             return;
         }
 
@@ -677,51 +683,54 @@ public class MapActivity extends Activity {
                 Toast.LENGTH_SHORT
         ).show();
 
+        final double searchLat =
+                currentLat == 0.0
+                        ? 14.5995
+                        : currentLat;
+
+        final double searchLng =
+                currentLng == 0.0
+                        ? 120.9842
+                        : currentLng;
+
         new Thread(() -> {
 
             JSONObject result = null;
 
-            double searchLat =
-                    currentLat != 0
-                            ? currentLat
-                            : 14.5995;
-
-            double searchLng =
-                    currentLng != 0
-                            ? currentLng
-                            : 120.9842;
-
-            /*
-             * KEEP THE OLD SEARCH ORDER.
-             * This is important because the old version
-             * found the correct physical location.
-             */
-
-            result =
-                    searchAndroidGeocoder(
-                            query,
-                            searchLat,
-                            searchLng
-                    );
-
-            if (result == null) {
-
+            try {
                 result =
-                        searchPhoton(
+                        searchAndroidGeocoder(
                                 query,
                                 searchLat,
                                 searchLng
                         );
+            } catch (Exception ignored) {
             }
 
             if (result == null) {
 
-                result =
-                        searchNominatim(
-                                query,
-                                searchLat,
-                                searchLng
-                        );
+                try {
+                    result =
+                            searchPhoton(
+                                    query,
+                                    searchLat,
+                                    searchLng
+                            );
+                } catch (Exception ignored) {
+                }
+            }
+
+            if (result == null) {
+
+                try {
+                    result =
+                            searchNominatim(
+                                    query,
+                                    searchLat,
+                                    searchLng
+                            );
+                } catch (Exception ignored) {
+                }
             }
 
             final JSONObject finalResult =
@@ -735,7 +744,7 @@ public class MapActivity extends Activity {
 
                     Toast.makeText(
                             this,
-                            "Place not found.",
+                            "Place not found. Try a more specific name.",
                             Toast.LENGTH_LONG
                     ).show();
 
@@ -753,232 +762,346 @@ public class MapActivity extends Activity {
     private JSONObject searchAndroidGeocoder(
             String query,
             double lat,
-            double lng) {
+            double lng)
+            throws Exception {
 
-        try {
-
-            if (!Geocoder.isPresent()) {
-                return null;
-            }
-
-            Geocoder geocoder =
-                    new Geocoder(
-                            this,
-                            Locale.ENGLISH
-                    );
-
-            List<Address> results =
-                    geocoder.getFromLocationName(
-                            query,
-                            10
-                    );
-
-            if (results == null
-                    || results.isEmpty()) {
-                return null;
-            }
-
-            Address best = null;
-            double bestScore =
-                    -Double.MAX_VALUE;
-
-            for (Address address : results) {
-
-                if (address == null) {
-                    continue;
-                }
-
-                double score = 0;
-
-                String full =
-                        address.getAddressLine(0);
-
-                String feature =
-                        address.getFeatureName();
-
-                String locality =
-                        address.getLocality();
-
-                String q =
-                        query.toLowerCase(
-                                Locale.US
-                        );
-
-                if (feature != null
-                        && feature.toLowerCase(
-                        Locale.US
-                ).equals(q)) {
-                    score += 300;
-                }
-
-                if (feature != null
-                        && feature.toLowerCase(
-                        Locale.US
-                ).contains(q)) {
-                    score += 200;
-                }
-
-                if (full != null
-                        && full.toLowerCase(
-                        Locale.US
-                ).contains(q)) {
-                    score += 100;
-                }
-
-                if (locality != null
-                        && locality.toLowerCase(
-                        Locale.US
-                ).contains(q)) {
-                    score += 50;
-                }
-
-                if (address.hasLatitude()
-                        && address.hasLongitude()) {
-
-                    float[] distance =
-                            new float[1];
-
-                    Location.distanceBetween(
-                            lat,
-                            lng,
-                            address.getLatitude(),
-                            address.getLongitude(),
-                            distance
-                    );
-
-                    score -= Math.min(
-                            distance[0] / 1000.0,
-                            50
-                    );
-                }
-
-                if (score > bestScore) {
-
-                    bestScore = score;
-                    best = address;
-                }
-            }
-
-            if (best == null) {
-                return null;
-            }
-
-            JSONObject result =
-                    new JSONObject();
-
-            result.put(
-                    "lat",
-                    best.getLatitude()
-            );
-
-            result.put(
-                    "lon",
-                    best.getLongitude()
-            );
-
-            String name =
-                    best.getFeatureName();
-
-            if (name == null) {
-                name = "";
-            }
-
-            String address =
-                    buildAndroidAddress(
-                            best
-                    );
-
-            if (address.isEmpty()) {
-                address =
-                        safe(
-                                best.getAddressLine(0)
-                        );
-            }
-
-            result.put(
-                    "name",
-                    name
-            );
-
-            result.put(
-                    "address",
-                    address
-            );
-
-            return result;
-
-        } catch (Exception ignored) {
-
+        if (!Geocoder.isPresent()) {
             return null;
         }
+
+        Geocoder geocoder =
+                new Geocoder(
+                        this,
+                        Locale.ENGLISH
+                );
+
+        List<Address> results =
+                geocoder.getFromLocationName(
+                        query,
+                        10,
+                        4.0,
+                        116.0,
+                        21.5,
+                        127.0
+                );
+
+        if (results == null
+                || results.isEmpty()) {
+            return null;
+        }
+
+        Address best = null;
+        double bestScore =
+                -Double.MAX_VALUE;
+
+        String q =
+                query.toLowerCase(
+                        Locale.US
+                );
+
+        for (Address a : results) {
+
+            if (a == null) {
+                continue;
+            }
+
+            double score = 0;
+
+            String feature =
+                    safe(a.getFeatureName())
+                            .toLowerCase(Locale.US);
+
+            String locality =
+                    safe(a.getLocality())
+                            .toLowerCase(Locale.US);
+
+            String admin =
+                    safe(a.getAdminArea())
+                            .toLowerCase(Locale.US);
+
+            String line =
+                    safe(a.getAddressLine(0))
+                            .toLowerCase(Locale.US);
+
+            if (feature.equals(q)) {
+                score += 500;
+            }
+
+            if (feature.contains(q)) {
+                score += 300;
+            }
+
+            if (line.contains(q)) {
+                score += 200;
+            }
+
+            if (locality.contains(q)) {
+                score += 100;
+            }
+
+            if (admin.contains(q)) {
+                score += 50;
+            }
+
+            if (a.getLatitude() != 0
+                    || a.getLongitude() != 0) {
+
+                float[] distance =
+                        new float[1];
+
+                Location.distanceBetween(
+                        lat,
+                        lng,
+                        a.getLatitude(),
+                        a.getLongitude(),
+                        distance
+                );
+
+                score -= Math.min(
+                        distance[0] / 1000.0,
+                        100
+                );
+            }
+
+            if (best == null
+                    || score > bestScore) {
+
+                best = a;
+                bestScore = score;
+            }
+        }
+
+        if (best == null) {
+            return null;
+        }
+
+        JSONObject result =
+                new JSONObject();
+
+        result.put(
+                "lat",
+                best.getLatitude()
+        );
+
+        result.put(
+                "lon",
+                best.getLongitude()
+        );
+
+        result.put(
+                "name",
+                safe(
+                        best.getFeatureName()
+                )
+        );
+
+        result.put(
+                "address",
+                buildAndroidAddress(
+                        best
+                )
+        );
+
+        return result;
     }
 
     private JSONObject searchPhoton(
             String query,
             double lat,
+            double lng)
+            throws Exception {
+
+        String url =
+                "https://photon.komoot.io/api/?q="
+                        + URLEncoder.encode(
+                        query,
+                        "UTF-8"
+                )
+                        + "&limit=8"
+                        + "&lat="
+                        + lat
+                        + "&lon="
+                        + lng
+                        + "&zoom=14"
+                        + "&lang=en";
+
+        JSONObject object =
+                getJson(
+                        url,
+                        12000
+                );
+
+        JSONArray features =
+                object.optJSONArray(
+                        "features"
+                );
+
+        if (features == null
+                || features.length() == 0) {
+            return null;
+        }
+
+        JSONObject best =
+                chooseBestPhoton(
+                        features,
+                        query,
+                        lat,
+                        lng
+                );
+
+        if (best == null) {
+            return null;
+        }
+
+        JSONObject properties =
+                best.optJSONObject(
+                        "properties"
+                );
+
+        JSONObject geometry =
+                best.optJSONObject(
+                        "geometry"
+                );
+
+        if (properties == null
+                || geometry == null) {
+            return null;
+        }
+
+        JSONArray coordinates =
+                geometry.optJSONArray(
+                        "coordinates"
+                );
+
+        if (coordinates == null
+                || coordinates.length() < 2) {
+            return null;
+        }
+
+        double resultLng =
+                coordinates.optDouble(0);
+
+        double resultLat =
+                coordinates.optDouble(1);
+
+        JSONObject result =
+                new JSONObject();
+
+        result.put(
+                "lat",
+                resultLat
+        );
+
+        result.put(
+                "lon",
+                resultLng
+        );
+
+        result.put(
+                "name",
+                properties.optString(
+                        "name",
+                        ""
+                )
+        );
+
+        result.put(
+                "address",
+                buildPhotonAddress(
+                        properties
+                )
+        );
+
+        return result;
+    }
+
+    private JSONObject chooseBestPhoton(
+            JSONArray features,
+            String query,
+            double lat,
             double lng) {
 
-        try {
+        JSONObject best = null;
+        double bestScore =
+                -Double.MAX_VALUE;
 
-            String encoded =
-                    URLEncoder.encode(
-                            query,
-                            "UTF-8"
-                    );
+        String q =
+                query.toLowerCase(
+                        Locale.US
+                );
 
-            String url =
-                    "https://photon.komoot.io/api/?" +
-                            "q=" +
-                            encoded +
-                            "&limit=8" +
-                            "&lat=" +
-                            lat +
-                            "&lon=" +
-                            lng +
-                            "&zoom=14" +
-                            "&lang=en";
+        for (int i = 0;
+             i < features.length();
+             i++) {
 
-            JSONObject json =
-                    getJson(
-                            url,
-                            10000
-                    );
+            JSONObject item =
+                    features.optJSONObject(i);
 
-            JSONArray features =
-                    json.optJSONArray(
-                            "features"
-                    );
-
-            if (features == null
-                    || features.length() == 0) {
-                return null;
+            if (item == null) {
+                continue;
             }
 
-            JSONObject best =
-                    chooseBestPhoton(
-                            features,
-                            query,
-                            lat,
-                            lng
-                    );
-
-            if (best == null) {
-                return null;
-            }
-
-            JSONObject properties =
-                    best.optJSONObject(
+            JSONObject p =
+                    item.optJSONObject(
                             "properties"
                     );
 
             JSONObject geometry =
-                    best.optJSONObject(
+                    item.optJSONObject(
                             "geometry"
                     );
 
-            if (properties == null
+            if (p == null
                     || geometry == null) {
-                return null;
+                continue;
+            }
+
+            String name =
+                    p.optString(
+                            "name",
+                            ""
+                    );
+
+            String country =
+                    p.optString(
+                            "country",
+                            ""
+                    );
+
+            String city =
+                    p.optString(
+                            "city",
+                            ""
+                    );
+
+            double score = 0;
+
+            String lowerName =
+                    name.toLowerCase(
+                            Locale.US
+                    );
+
+            if (lowerName.equals(q)) {
+                score += 300;
+            }
+
+            if (lowerName.contains(q)) {
+                score += 200;
+            }
+
+            if (q.contains(lowerName)
+                    && !lowerName.isEmpty()) {
+                score += 150;
+            }
+
+            if (country.equalsIgnoreCase(
+                    "Philippines"
+            )) {
+                score += 100;
+            }
+
+            if (!city.isEmpty()) {
+                score += 10;
             }
 
             JSONArray coordinates =
@@ -986,127 +1109,14 @@ public class MapActivity extends Activity {
                             "coordinates"
                     );
 
-            if (coordinates == null
-                    || coordinates.length() < 2) {
-                return null;
-            }
-
-            double resultLng =
-                    coordinates.optDouble(0);
-
-            double resultLat =
-                    coordinates.optDouble(1);
-
-            String name =
-                    properties.optString(
-                            "name",
-                            ""
-                    );
-
-            String address =
-                    buildPhotonAddress(
-                            properties
-                    );
-
-            JSONObject result =
-                    new JSONObject();
-
-            result.put(
-                    "lat",
-                    resultLat
-            );
-
-            result.put(
-                    "lon",
-                    resultLng
-            );
-
-            result.put(
-                    "name",
-                    name
-            );
-
-            result.put(
-                    "address",
-                    address
-            );
-
-            return result;
-
-        } catch (Exception ignored) {
-
-            return null;
-        }
-    }
-
-    private JSONObject searchNominatim(
-            String query,
-            double lat,
-            double lng) {
-
-        try {
-
-            String encoded =
-                    URLEncoder.encode(
-                            query + ", Philippines",
-                            "UTF-8"
-                    );
-
-            String url =
-                    "https://nominatim.openstreetmap.org/search" +
-                            "?format=jsonv2" +
-                            "&q=" +
-                            encoded +
-                            "&limit=8" +
-                            "&addressdetails=1" +
-                            "&namedetails=1" +
-                            "&accept-language=en";
-
-            JSONArray array =
-                    getJsonArray(
-                            url,
-                            10000
-                    );
-
-            if (array.length() == 0) {
-                return null;
-            }
-
-            JSONObject best = null;
-            double bestScore =
-                    Double.MAX_VALUE;
-
-            String q =
-                    query.toLowerCase(
-                            Locale.US
-                    );
-
-            for (int i = 0;
-                 i < array.length();
-                 i++) {
-
-                JSONObject item =
-                        array.optJSONObject(i);
-
-                if (item == null) {
-                    continue;
-                }
-
-                double itemLat =
-                        Double.parseDouble(
-                                item.optString(
-                                        "lat",
-                                        "0"
-                                )
-                        );
+            if (coordinates != null
+                    && coordinates.length() >= 2) {
 
                 double itemLng =
-                        Double.parseDouble(
-                                item.optString(
-                                        "lon",
-                                        "0"
-                                )
-                        );
+                        coordinates.optDouble(0);
+
+                double itemLat =
+                        coordinates.optDouble(1);
 
                 float[] distance =
                         new float[1];
@@ -1119,57 +1129,325 @@ public class MapActivity extends Activity {
                         distance
                 );
 
-                double score =
-                        distance[0];
+                score -= Math.min(
+                        distance[0] / 1000.0,
+                        30
+                );
+            }
 
-                String display =
-                        item.optString(
-                                "display_name",
-                                ""
-                        );
+            if (best == null
+                    || score > bestScore) {
 
-                if (display.toLowerCase(
+                best = item;
+                bestScore = score;
+            }
+        }
+
+        return best;
+    }
+
+    private JSONObject searchNominatim(
+            String query,
+            double lat,
+            double lng)
+            throws Exception {
+
+        String url =
+                "https://nominatim.openstreetmap.org/search"
+                        + "?format=jsonv2"
+                        + "&q="
+                        + URLEncoder.encode(
+                        query + ", Philippines",
+                        "UTF-8"
+                )
+                        + "&limit=8"
+                        + "&addressdetails=1"
+                        + "&namedetails=1"
+                        + "&accept-language=en";
+
+        JSONArray array =
+                getJsonArray(
+                        url,
+                        12000
+                );
+
+        if (array == null
+                || array.length() == 0) {
+            return null;
+        }
+
+        JSONObject best = null;
+        double bestScore =
+                Double.MAX_VALUE;
+
+        String q =
+                query.toLowerCase(
                         Locale.US
-                ).contains(q)) {
+                );
 
-                    score -= 1000;
-                }
+        for (int i = 0;
+             i < array.length();
+             i++) {
 
-                if (score < bestScore) {
+            JSONObject item =
+                    array.optJSONObject(i);
 
-                    bestScore = score;
-                    best = item;
-                }
+            if (item == null) {
+                continue;
             }
 
-            if (best == null) {
-                return null;
-            }
-
-            double resultLat =
-                    Double.parseDouble(
-                            best.optString(
-                                    "lat",
-                                    "0"
-                            )
+            double itemLat =
+                    item.optDouble(
+                            "lat",
+                            0
                     );
 
-            double resultLng =
-                    Double.parseDouble(
-                            best.optString(
-                                    "lon",
-                                    "0"
-                            )
+            double itemLng =
+                    item.optDouble(
+                            "lon",
+                            0
+                    );
+
+            float[] distance =
+                    new float[1];
+
+            Location.distanceBetween(
+                    lat,
+                    lng,
+                    itemLat,
+                    itemLng,
+                    distance
+            );
+
+            double score =
+                    distance[0];
+
+            String display =
+                    item.optString(
+                            "display_name",
+                            ""
+                    ).toLowerCase(
+                            Locale.US
                     );
 
             String name =
                     getBestNominatimName(
-                            best
+                            item
+                    ).toLowerCase(
+                            Locale.US
+                    );
+
+            if (name.equals(q)) {
+                score -= 5000;
+            } else if (name.contains(q)) {
+                score -= 3000;
+            } else if (display.contains(q)) {
+                score -= 1000;
+            }
+
+            if (best == null
+                    || score < bestScore) {
+
+                best = item;
+                bestScore = score;
+            }
+        }
+
+        if (best == null) {
+            return null;
+        }
+
+        JSONObject result =
+                new JSONObject();
+
+        result.put(
+                "lat",
+                best.optDouble("lat")
+        );
+
+        result.put(
+                "lon",
+                best.optDouble("lon")
+        );
+
+        result.put(
+                "name",
+                getBestNominatimName(
+                        best
+                )
+        );
+
+        String address =
+                buildNominatimAddress(
+                        best.optJSONObject(
+                                "address"
+                        )
+                );
+
+        if (address.isEmpty()) {
+
+            address =
+                    best.optString(
+                            "display_name",
+                            ""
+                    );
+        }
+
+        result.put(
+                "address",
+                address
+        );
+
+        return result;
+    }
+
+    private void applySearchResult(
+            JSONObject result) {
+
+        try {
+
+            /*
+             * IMPORTANT:
+             * These coordinates are the coordinates
+             * returned by the ORIGINAL search.
+             *
+             * We do NOT move them while fixing
+             * the human-readable name.
+             */
+
+            double lat =
+                    result.optDouble(
+                            "lat",
+                            0
+                    );
+
+            double lng =
+                    result.optDouble(
+                            "lon",
+                            0
+                    );
+
+            if (lat == 0
+                    && lng == 0) {
+
+                Toast.makeText(
+                        this,
+                        "Invalid search location.",
+                        Toast.LENGTH_LONG
+                ).show();
+
+                return;
+            }
+
+            currentLat = lat;
+            currentLng = lng;
+
+            String originalName =
+                    result.optString(
+                            "name",
+                            ""
+                    );
+
+            String originalAddress =
+                    result.optString(
+                            "address",
+                            ""
+                    );
+
+            currentPlaceName =
+                    originalName;
+
+            currentAddress =
+                    originalAddress;
+
+            /*
+             * First put the EXACT selected search
+             * coordinates on the map.
+             */
+            setMapDestination(
+                    lat,
+                    lng,
+                    originalName
+            );
+
+            updateCoordinates(
+                    lat,
+                    lng
+            );
+
+            addressText.setText(
+                    "📍 "
+                            + (
+                            originalName.isEmpty()
+                                    ? "Selected location"
+                                    : originalName
+                    )
+                            + "\n"
+                            + originalAddress
+            );
+
+            /*
+             * Now improve ONLY the name/address.
+             * Coordinates are NEVER replaced.
+             */
+            final double fixedLat = lat;
+            final double fixedLng = lng;
+
+            new Thread(() ->
+                    reverseNominatim(
+                            fixedLat,
+                            fixedLng
+                    )
+            ).start();
+
+            Toast.makeText(
+                    this,
+                    "📍 Location found.",
+                    Toast.LENGTH_SHORT
+            ).show();
+
+        } catch (Exception e) {
+
+            Toast.makeText(
+                    this,
+                    "Unable to use search result.",
+                    Toast.LENGTH_LONG
+            ).show();
+        }
+    }
+
+    private void reverseNominatim(
+            double lat,
+            double lng) {
+
+        try {
+
+            String url =
+                    "https://nominatim.openstreetmap.org/reverse"
+                            + "?format=jsonv2"
+                            + "&lat="
+                            + lat
+                            + "&lon="
+                            + lng
+                            + "&zoom=18"
+                            + "&addressdetails=1"
+                            + "&namedetails=1"
+                            + "&accept-language=en";
+
+            JSONObject object =
+                    getJson(
+                            url,
+                            12000
+                    );
+
+            String name =
+                    getBestNominatimName(
+                            object
                     );
 
             String address =
                     buildNominatimAddress(
-                            best.optJSONObject(
+                            object.optJSONObject(
                                     "address"
                             )
                     );
@@ -1177,157 +1455,715 @@ public class MapActivity extends Activity {
             if (address.isEmpty()) {
 
                 address =
-                        best.optString(
+                        object.optString(
                                 "display_name",
                                 ""
                         );
             }
 
-            JSONObject result =
-                    new JSONObject();
+            final String finalName =
+                    name;
 
-            result.put(
-                    "lat",
-                    resultLat
-            );
+            final String finalAddress =
+                    address;
 
-            result.put(
-                    "lon",
-                    resultLng
-            );
+            runOnUiThread(() -> {
 
-            result.put(
-                    "name",
-                    name
-            );
+                /*
+                 * Keep original coordinates.
+                 */
+                currentLat = lat;
+                currentLng = lng;
 
-            result.put(
-                    "address",
-                    address
-            );
+                if (!finalName.isEmpty()) {
+                    currentPlaceName =
+                            finalName;
+                }
 
-            return result;
+                if (!finalAddress.isEmpty()) {
+                    currentAddress =
+                            finalAddress;
+                }
+
+                String displayName =
+                        currentPlaceName.isEmpty()
+                                ? "Selected location"
+                                : currentPlaceName;
+
+                addressText.setText(
+                        "📍 "
+                                + displayName
+                                + "\n"
+                                + currentAddress
+                );
+
+                setMapDestination(
+                        lat,
+                        lng,
+                        displayName
+                );
+            });
 
         } catch (Exception ignored) {
-
-            return null;
         }
     }
 
-    /*
-     * IMPORTANT:
-     * Coordinates are NEVER changed here.
-     *
-     * We only improve the human-readable name/address.
-     */
-    private void applySearchResult(
-            JSONObject result) {
+    private String getBestNominatimName(
+            JSONObject object) {
 
-        try {
+        if (object == null) {
+            return "";
+        }
 
-            double lat =
-                    result.getDouble("lat");
+        JSONObject namedetails =
+                object.optJSONObject(
+                        "namedetails"
+                );
 
-            double lng =
-                    result.getDouble("lon");
+        if (namedetails != null) {
 
-            currentLat = lat;
-            currentLng = lng;
+            String brand =
+                    firstNonEmpty(
+                            namedetails.optString(
+                                    "brand",
+                                    ""
+                            ),
+                            namedetails.optString(
+                                    "official_name",
+                                    ""
+                            )
+                    );
 
-            currentPlaceName =
-                    result.optString(
+            if (!brand.isEmpty()) {
+                return brand;
+            }
+
+            String name =
+                    namedetails.optString(
                             "name",
                             ""
                     );
 
-            currentAddress =
-                    result.optString(
-                            "address",
-                            ""
+            if (!name.isEmpty()) {
+                return name;
+            }
+        }
+
+        String objectName =
+                object.optString(
+                        "name",
+                        ""
+                );
+
+        if (!objectName.isEmpty()) {
+            return objectName;
+        }
+
+        JSONObject address =
+                object.optJSONObject(
+                        "address"
+                );
+
+        if (address != null) {
+
+            String poi =
+                    firstNonEmpty(
+                            address.optString(
+                                    "amenity",
+                                    ""
+                            ),
+                            address.optString(
+                                    "shop",
+                                    ""
+                            ),
+                            address.optString(
+                                    "tourism",
+                                    ""
+                            ),
+                            address.optString(
+                                    "office",
+                                    ""
+                            ),
+                            address.optString(
+                                    "attraction",
+                                    ""
+                            ),
+                            address.optString(
+                                    "building",
+                                    ""
+                            )
                     );
 
-            updateCoordinates(
-                    lat,
-                    lng
-            );
-
-            updateMap(
-                    lat,
-                    lng
-            );
-
-            String displayName =
-                    currentPlaceName;
-
-            if (displayName.isEmpty()) {
-                displayName = "Selected location";
+            if (!poi.isEmpty()) {
+                return poi;
             }
+        }
 
-            addressText.setText(
-                    "📍 " +
-                            displayName +
-                            "\n" +
-                            currentAddress
-            );
+        return "";
+    }
+
+    private void reverseGeocode(
+            double lat,
+            double lng) {
+
+        new Thread(() -> {
 
             /*
-             * SECONDARY NAME LOOKUP.
-             *
-             * The selected coordinates remain exactly
-             * the same. This only fixes the name/address.
+             * Android Geocoder first, matching
+             * the original working implementation.
              */
-            final double fixedLat = lat;
-            final double fixedLng = lng;
+            try {
 
-            new Thread(() -> {
+                if (Geocoder.isPresent()) {
 
-                JSONObject exact =
-                        reverseNominatim(
-                                fixedLat,
-                                fixedLng
-                        );
+                    Geocoder geocoder =
+                            new Geocoder(
+                                    this,
+                                    Locale.ENGLISH
+                            );
 
-                if (exact == null) {
-                    return;
+                    List<Address> results =
+                            geocoder.getFromLocation(
+                                    lat,
+                                    lng,
+                                    1
+                            );
+
+                    if (results != null
+                            && !results.isEmpty()) {
+
+                        Address a =
+                                results.get(0);
+
+                        String name =
+                                safe(
+                                        a.getFeatureName()
+                                );
+
+                        String address =
+                                buildAndroidAddress(
+                                        a
+                                );
+
+                        if (address.isEmpty()) {
+
+                            address =
+                                    safe(
+                                            a.getAddressLine(0)
+                                    );
+                        }
+
+                        if (!name.isEmpty()
+                                || !address.isEmpty()) {
+
+                            final String finalName =
+                                    name;
+
+                            final String finalAddress =
+                                    address;
+
+                            runOnUiThread(() -> {
+
+                                currentLat = lat;
+                                currentLng = lng;
+
+                                if (!finalName.isEmpty()) {
+                                    currentPlaceName =
+                                            finalName;
+                                }
+
+                                if (!finalAddress.isEmpty()) {
+                                    currentAddress =
+                                            finalAddress;
+                                }
+
+                                String shown =
+                                        currentPlaceName.isEmpty()
+                                                ? "Current location"
+                                                : currentPlaceName;
+
+                                addressText.setText(
+                                        "📍 "
+                                                + shown
+                                                + "\n"
+                                                + currentAddress
+                                );
+                            });
+
+                            return;
+                        }
+                    }
                 }
 
-                String betterName =
-                        exact.optString(
-                                "name",
+            } catch (Exception ignored) {
+            }
+
+            /*
+             * Nominatim fallback.
+             */
+            reverseNominatim(
+                    lat,
+                    lng
+            );
+
+        }).start();
+    }
+
+    private String buildAndroidAddress(
+            Address address) {
+
+        if (address == null) {
+            return "";
+        }
+
+        StringBuilder result =
+                new StringBuilder();
+
+        addPart(
+                result,
+                address.getSubThoroughfare()
+        );
+
+        addPart(
+                result,
+                address.getThoroughfare()
+        );
+
+        addPart(
+                result,
+                address.getSubLocality()
+        );
+
+        addPart(
+                result,
+                address.getLocality()
+        );
+
+        addPart(
+                result,
+                address.getAdminArea()
+        );
+
+        addPart(
+                result,
+                address.getPostalCode()
+        );
+
+        return result.toString();
+    }
+
+    private String buildNominatimAddress(
+            JSONObject address) {
+
+        if (address == null) {
+            return "";
+        }
+
+        StringBuilder result =
+                new StringBuilder();
+
+        addPart(
+                result,
+                address.optString(
+                        "house_number",
+                        ""
+                )
+        );
+
+        addPart(
+                result,
+                address.optString(
+                        "road",
+                        ""
+                )
+        );
+
+        addPart(
+                result,
+                firstNonEmpty(
+                        address.optString(
+                                "neighbourhood",
                                 ""
-                        );
-
-                String betterAddress =
-                        exact.optString(
-                                "address",
+                        ),
+                        address.optString(
+                                "suburb",
                                 ""
-                        );
+                        ),
+                        address.optString(
+                                "village",
+                                ""
+                        ),
+                        address.optString(
+                                "barangay",
+                                ""
+                        )
+                )
+        );
 
-                runOnUiThread(() -> {
+        addPart(
+                result,
+                firstNonEmpty(
+                        address.optString(
+                                "town",
+                                ""
+                        ),
+                        address.optString(
+                                "city",
+                                ""
+                        ),
+                        address.optString(
+                                "municipality",
+                                ""
+                        )
+                )
+        );
 
-                    /*
-                     * NEVER replace coordinates.
-                     */
-                    currentLat = fixedLat;
-                    currentLng = fixedLng;
+        addPart(
+                result,
+                firstNonEmpty(
+                        address.optString(
+                                "province",
+                                ""
+                        ),
+                        address.optString(
+                                "state",
+                                ""
+                        )
+                )
+        );
 
-                    if (!betterName.isEmpty()) {
+        addPart(
+                result,
+                address.optString(
+                        "postcode",
+                        ""
+                )
+        );
 
-                        currentPlaceName =
-                                betterName;
-                    }
+        return result.toString();
+    }
 
-                    if (!betterAddress.isEmpty()) {
+    private String buildPhotonAddress(
+            JSONObject properties) {
 
-                        currentAddress =
-                                betterAddress;
-                    }
+        if (properties == null) {
+            return "";
+        }
 
-                    String shown =
-                            currentPlaceName;
+        StringBuilder result =
+                new StringBuilder();
 
-                    if (shown.isEmpty()) {
-                        shown = "Selected location";
-                    }
+        addPart(
+                result,
+                properties.optString(
+                        "housenumber",
+                        ""
+                )
+        );
 
-                    addressText
+        addPart(
+                result,
+                properties.optString(
+                        "street",
+                        ""
+                )
+        );
+
+        addPart(
+                result,
+                properties.optString(
+                        "district",
+                        ""
+                )
+        );
+
+        addPart(
+                result,
+                properties.optString(
+                        "city",
+                        ""
+                )
+        );
+
+        addPart(
+                result,
+                properties.optString(
+                        "state",
+                        ""
+                )
+        );
+
+        return result.toString();
+    }
+
+    private String firstNonEmpty(
+            String... values) {
+
+        for (String value : values) {
+
+            if (value != null
+                    && !value.trim().isEmpty()) {
+
+                return value.trim();
+            }
+        }
+
+        return "";
+    }
+
+    private void addPart(
+            StringBuilder builder,
+            String value) {
+
+        if (value == null
+                || value.trim().isEmpty()) {
+            return;
+        }
+
+        if (builder.length() > 0) {
+            builder.append(", ");
+        }
+
+        builder.append(
+                value.trim()
+        );
+    }
+
+    private JSONObject getJson(
+            String urlString,
+            int timeout)
+            throws Exception {
+
+        return new JSONObject(
+                getText(
+                        urlString,
+                        timeout
+                )
+        );
+    }
+
+    private JSONArray getJsonArray(
+            String urlString,
+            int timeout)
+            throws Exception {
+
+        return new JSONArray(
+                getText(
+                        urlString,
+                        timeout
+                )
+        );
+    }
+
+    private String getText(
+            String urlString,
+            int timeout)
+            throws Exception {
+
+        HttpURLConnection connection =
+                null;
+
+        try {
+
+            URL url =
+                    new URL(
+                            urlString
+                    );
+
+            connection =
+                    (HttpURLConnection)
+                            url.openConnection();
+
+            connection.setRequestMethod(
+                    "GET"
+            );
+
+            connection.setConnectTimeout(
+                    timeout
+            );
+
+            connection.setReadTimeout(
+                    timeout
+            );
+
+            connection.setUseCaches(
+                    false
+            );
+
+            connection.setRequestProperty(
+                    "User-Agent",
+                    "SakayNa/1.0 Android"
+            );
+
+            connection.setRequestProperty(
+                    "Accept",
+                    "application/json"
+            );
+
+            int code =
+                    connection.getResponseCode();
+
+            if (code != 200) {
+
+                throw new Exception(
+                        "HTTP " + code
+                );
+            }
+
+            BufferedReader reader =
+                    new BufferedReader(
+                            new InputStreamReader(
+                                    connection.getInputStream()
+                            )
+                    );
+
+            StringBuilder result =
+                    new StringBuilder();
+
+            String line;
+
+            while ((line =
+                    reader.readLine()) != null) {
+
+                result.append(line);
+            }
+
+            reader.close();
+
+            return result.toString();
+
+        } finally {
+
+            if (connection != null) {
+                connection.disconnect();
+            }
+        }
+    }
+
+    private void confirmDestination() {
+
+        if (currentLat == 0.0
+                && currentLng == 0.0) {
+
+            Toast.makeText(
+                    this,
+                    "Select a destination first.",
+                    Toast.LENGTH_SHORT
+            ).show();
+
+            return;
+        }
+
+        Intent result =
+                new Intent();
+
+        result.putExtra(
+                "destination_latitude",
+                currentLat
+        );
+
+        result.putExtra(
+                "destination_longitude",
+                currentLng
+        );
+
+        result.putExtra(
+                "destinationName",
+                currentPlaceName
+        );
+
+        result.putExtra(
+                "destination_address",
+                currentAddress
+        );
+
+        result.putExtra(
+                "latitude",
+                currentLat
+        );
+
+        result.putExtra(
+                "longitude",
+                currentLng
+        );
+
+        setResult(
+                RESULT_OK,
+                result
+        );
+
+        finish();
+    }
+
+    private String safe(
+            String value) {
+
+        return value == null
+                ? ""
+                : value.trim();
+    }
+
+    @Override
+    public void onRequestPermissionsResult(
+            int requestCode,
+            @NonNull String[] permissions,
+            @NonNull int[] grantResults) {
+
+        super.onRequestPermissionsResult(
+                requestCode,
+                permissions,
+                grantResults
+        );
+
+        if (requestCode ==
+                LOCATION_PERMISSION) {
+
+            boolean granted = false;
+
+            for (int result :
+                    grantResults) {
+
+                if (result ==
+                        PackageManager.PERMISSION_GRANTED) {
+
+                    granted = true;
+                    break;
+                }
+            }
+
+            if (granted) {
+                beginLocationUpdates();
+            } else {
+                locationText.setText(
+                        "📍 Location permission denied."
+                );
+            }
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+
+        if (locationManager != null
+                && locationListener != null) {
+
+            try {
+
+                locationManager.removeUpdates(
+                        locationListener
+                );
+
+            } catch (SecurityException ignored) {
+            }
+        }
+
+        if (webView != null) {
+
+            webView.stopLoading();
+            webView.destroy();
+            webView = null;
+        }
+
+        super.onDestroy();
+    }
+}
