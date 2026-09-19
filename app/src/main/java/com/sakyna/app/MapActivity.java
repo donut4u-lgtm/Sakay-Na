@@ -14,6 +14,10 @@ import android.location.LocationManager;
 import android.os.Bundle;
 import android.os.Looper;
 import android.view.Gravity;
+import android.view.View;
+import android.view.Window;
+import android.view.inputmethod.InputMethodManager;
+import android.content.Context;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -110,62 +114,231 @@ private void buildScreen() {
     title.setTextColor(Color.BLACK);
     title.setGravity(Gravity.CENTER);
     title.setPadding(10, 18, 10, 18);
-    root.addView(title);
+    root.addView(
+            title,
+            new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+    );
 
     locationText = new TextView(this);
     locationText.setText("📡 Getting GPS location...");
     locationText.setTextSize(15);
     locationText.setTextColor(Color.DKGRAY);
     locationText.setPadding(15, 5, 15, 5);
-    root.addView(locationText);
+
+    root.addView(
+            locationText,
+            new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+    );
 
     addressText = new TextView(this);
     addressText.setText("Address: waiting for GPS...");
     addressText.setTextSize(15);
     addressText.setTextColor(Color.DKGRAY);
     addressText.setPadding(15, 5, 15, 10);
-    root.addView(addressText);
 
+    root.addView(
+            addressText,
+            new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+    );
+
+    /*
+     * SEARCH AREA
+     *
+     * This is deliberately a fixed native Android view.
+     * The WebView is placed BELOW it and cannot cover it.
+     */
     if (!mode.equals("LIVE_RIDE")) {
 
-        LinearLayout searchRow = new LinearLayout(this);
-        searchRow.setOrientation(LinearLayout.HORIZONTAL);
+        LinearLayout searchContainer =
+                new LinearLayout(this);
 
-        searchInput = new EditText(this);
+        searchContainer.setOrientation(
+                LinearLayout.VERTICAL
+        );
+
+        searchContainer.setBackgroundColor(
+                Color.rgb(245, 245, 245)
+        );
+
+        searchContainer.setPadding(
+                12,
+                8,
+                12,
+                8
+        );
+
+        TextView searchLabel =
+                new TextView(this);
+
+        searchLabel.setText(
+                "🔎 SEARCH DESTINATION"
+        );
+
+        searchLabel.setTextSize(17);
+        searchLabel.setTextColor(Color.BLACK);
+        searchLabel.setPadding(
+                0,
+                0,
+                0,
+                6
+        );
+
+        searchContainer.addView(
+                searchLabel
+        );
+
+        LinearLayout searchRow =
+                new LinearLayout(this);
+
+        searchRow.setOrientation(
+                LinearLayout.HORIZONTAL
+        );
+
+        searchInput =
+                new EditText(this);
+
         searchInput.setHint(
-                "Search Jollibee, SM, street..."
+                "Jollibee, SM, street..."
         );
+
+        searchInput.setTextSize(16);
         searchInput.setSingleLine(true);
-
-        Button searchButton = new Button(this);
-        searchButton.setText("SEARCH");
-
-        searchButton.setOnClickListener(
-                v -> searchPlace()
+        searchInput.setFocusable(true);
+        searchInput.setFocusableInTouchMode(true);
+        searchInput.setClickable(true);
+        searchInput.setEnabled(true);
+        searchInput.setBackgroundColor(Color.WHITE);
+        searchInput.setPadding(
+                15,
+                5,
+                15,
+                5
         );
+
+        LinearLayout.LayoutParams inputParams =
+                new LinearLayout.LayoutParams(
+                        0,
+                        58,
+                        1
+                );
 
         searchRow.addView(
                 searchInput,
+                inputParams
+        );
+
+        Button searchButton =
+                new Button(this);
+
+        searchButton.setText(
+                "SEARCH"
+        );
+
+        searchButton.setTextColor(
+                Color.WHITE
+        );
+
+        searchButton.setBackgroundColor(
+                Color.rgb(0, 130, 70)
+        );
+
+        searchButton.setFocusable(true);
+        searchButton.setClickable(true);
+        searchButton.setEnabled(true);
+
+        searchButton.setOnClickListener(
+                v -> {
+
+                    /*
+                     * Hide keyboard only after the
+                     * button itself has received the tap.
+                     */
+                    InputMethodManager imm =
+                            (InputMethodManager)
+                                    getSystemService(
+                                            Context.INPUT_METHOD_SERVICE
+                                    );
+
+                    if (imm != null) {
+                        imm.hideSoftInputFromWindow(
+                                searchInput.getWindowToken(),
+                                0
+                        );
+                    }
+
+                    searchPlace();
+                }
+        );
+
+        LinearLayout.LayoutParams buttonParams =
                 new LinearLayout.LayoutParams(
-                        0,
-                        LinearLayout.LayoutParams.WRAP_CONTENT,
-                        1
+                        125,
+                        58
+                );
+
+        buttonParams.setMargins(
+                8,
+                0,
+                0,
+                0
+        );
+
+        searchRow.addView(
+                searchButton,
+                buttonParams
+        );
+
+        searchContainer.addView(
+                searchRow,
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        58
                 )
         );
 
-        searchRow.addView(searchButton);
-
-        root.addView(searchRow);
+        root.addView(
+                searchContainer,
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+        );
     }
 
+    /*
+     * MAP
+     */
     webView = new WebView(this);
 
-    WebSettings settings = webView.getSettings();
+    WebSettings settings =
+            webView.getSettings();
+
     settings.setJavaScriptEnabled(true);
     settings.setDomStorageEnabled(true);
     settings.setGeolocationEnabled(true);
 
-    webView.setWebViewClient(new WebViewClient());
+    /*
+     * IMPORTANT:
+     * Do not allow the WebView to steal keyboard focus
+     * from the native Search EditText.
+     *
+     * Map touch still works normally.
+     */
+    webView.setFocusable(false);
+    webView.setFocusableInTouchMode(false);
+
+    webView.setWebViewClient(
+            new WebViewClient()
+    );
 
     webView.addJavascriptInterface(
             new MapBridge(),
@@ -181,38 +354,62 @@ private void buildScreen() {
             )
     );
 
-    Button currentButton = new Button(this);
+    Button currentButton =
+            new Button(this);
+
     currentButton.setText(
             "📍 USE MY CURRENT LOCATION"
     );
+
+    currentButton.setFocusable(true);
+    currentButton.setClickable(true);
 
     currentButton.setOnClickListener(
             v -> useCurrentLocation()
     );
 
-    root.addView(currentButton);
+    root.addView(
+            currentButton
+    );
 
     if (!mode.equals("LIVE_RIDE")) {
 
-        Button confirmButton = new Button(this);
+        Button confirmButton =
+                new Button(this);
+
         confirmButton.setText(
                 "✅ USE SELECTED DESTINATION"
         );
+
+        confirmButton.setFocusable(true);
+        confirmButton.setClickable(true);
 
         confirmButton.setOnClickListener(
                 v -> confirmDestination()
         );
 
-        root.addView(confirmButton);
+        root.addView(
+                confirmButton
+        );
     }
 
-    Button closeButton = new Button(this);
-    closeButton.setText("CLOSE MAP");
+    Button closeButton =
+            new Button(this);
+
+    closeButton.setText(
+            "CLOSE MAP"
+    );
+
+    closeButton.setFocusable(true);
+    closeButton.setClickable(true);
+
     closeButton.setOnClickListener(
             v -> finish()
     );
 
-    root.addView(closeButton);
+    root.addView(
+            closeButton
+    );
 
     setContentView(root);
 
@@ -228,7 +425,14 @@ private void loadMap() {
             "<meta name='viewport' content='width=device-width, initial-scale=1.0'>" +
             "<link rel='stylesheet' href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'>" +
             "<script src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'></script>" +
-            "<style>html,body,#map{height:100%;margin:0;padding:0;}</style>" +
+            "<style>" +
+            "html,body,#map{" +
+            "height:100%;" +
+            "width:100%;" +
+            "margin:0;" +
+            "padding:0;" +
+            "}" +
+            "</style>" +
             "</head>" +
             "<body>" +
             "<div id='map'></div>" +
@@ -283,6 +487,7 @@ private void loadMap() {
     mapReady = true;
 
     if (currentLocation != null) {
+
         updateMap(
                 currentLocation.getLatitude(),
                 currentLocation.getLongitude()
@@ -357,7 +562,8 @@ private void beginLocationUpdates() {
                 public void onLocationChanged(
                         @NonNull Location location) {
 
-                    currentLocation = location;
+                    currentLocation =
+                            location;
 
                     currentLat =
                             location.getLatitude();
@@ -428,7 +634,8 @@ private void beginLocationUpdates() {
 
         if (best != null) {
 
-            currentLocation = best;
+            currentLocation =
+                    best;
 
             currentLat =
                     best.getLatitude();
@@ -506,6 +713,7 @@ private void updateMap(
 
     if (webView == null
             || !mapReady) {
+
         return;
     }
 
@@ -577,6 +785,8 @@ private void searchPlace() {
                 "Enter a place to search.",
                 Toast.LENGTH_SHORT
         ).show();
+
+        searchInput.requestFocus();
 
         return;
     }
@@ -996,13 +1206,6 @@ private void applySearchResult(
                         + address
         );
 
-        /*
-         * IMPORTANT:
-         * name is changed above, so it cannot be captured
-         * directly by the lambda.
-         *
-         * Make a final copy for the JavaScript callback.
-         */
         final String destinationName =
                 name;
 
