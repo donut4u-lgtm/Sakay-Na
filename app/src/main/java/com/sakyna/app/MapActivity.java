@@ -96,7 +96,10 @@ protected void onCreate(Bundle savedInstanceState) {
     Intent intent = getIntent();
 
     if (intent != null) {
-        mode = safe(intent.getStringExtra("mode"));
+
+        mode = safe(
+                intent.getStringExtra("mode")
+        );
 
         rideId = safe(
                 intent.getStringExtra("ride_id")
@@ -114,19 +117,13 @@ protected void onCreate(Bundle savedInstanceState) {
 }
 
 private String safe(String value) {
-    return value == null ? "" : value;
+
+    return value == null
+            ? ""
+            : value;
 }
 
 private void buildScreen() {
-
-    /*
-     * FrameLayout:
-     *
-     * WebView = bottom layer
-     * Native controls = top layer
-     *
-     * This keeps the search box clickable.
-     */
 
     FrameLayout root =
             new FrameLayout(this);
@@ -210,10 +207,6 @@ private void buildScreen() {
             topParams
     );
 
-    // =========================================================
-    // TITLE
-    // =========================================================
-
     TextView title =
             new TextView(this);
 
@@ -233,10 +226,6 @@ private void buildScreen() {
     );
 
     topPanel.addView(title);
-
-    // =========================================================
-    // LOCATION
-    // =========================================================
 
     locationText =
             new TextView(this);
@@ -260,10 +249,6 @@ private void buildScreen() {
     topPanel.addView(
             locationText
     );
-
-    // =========================================================
-    // ADDRESS
-    // =========================================================
 
     addressText =
             new TextView(this);
@@ -566,8 +551,7 @@ private void loadMap() {
             "<head>" +
 
             "<meta name='viewport' " +
-            "content='width=device-width, " +
-            "initial-scale=1.0'>" +
+            "content='width=device-width, initial-scale=1.0'>" +
 
             "<link rel='stylesheet' " +
             "href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'>" +
@@ -576,14 +560,12 @@ private void loadMap() {
             "</script>" +
 
             "<style>" +
-
             "html,body,#map{" +
             "height:100%;" +
             "width:100%;" +
             "margin:0;" +
             "padding:0;" +
             "}" +
-
             "</style>" +
 
             "</head>" +
@@ -641,10 +623,8 @@ private void loadMap() {
             "}" +
 
             "map.on('click',function(e){" +
-
             "AndroidMap.onMapTap(" +
             "e.latlng.lat,e.latlng.lng);" +
-
             "});" +
 
             "</script>" +
@@ -695,7 +675,7 @@ private class MapBridge {
 }
 
 // =============================================================
-// LOCATION
+// GPS
 // =============================================================
 
 private void startLocationUpdates() {
@@ -754,15 +734,12 @@ private void beginLocationUpdates() {
 
                     if (webView != null) {
 
-                        String js =
+                        webView.evaluateJavascript(
                                 "setCurrent("
                                         + currentLat
                                         + ","
                                         + currentLng
-                                        + ");";
-
-                        webView.evaluateJavascript(
-                                js,
+                                        + ");",
                                 null
                         );
                     }
@@ -870,18 +847,15 @@ private void useCurrentLocation() {
 
     if (webView != null) {
 
-        String name =
-                JSONObject.quote(
-                        selectedPlaceName
-                );
-
         webView.evaluateJavascript(
                 "setSelected("
                         + selectedLat
                         + ","
                         + selectedLng
                         + ","
-                        + name
+                        + JSONObject.quote(
+                        selectedPlaceName
+                )
                         + ");",
                 null
         );
@@ -895,7 +869,7 @@ private void useCurrentLocation() {
 }
 
 // =============================================================
-// SEARCH
+// DESTINATION SEARCH
 // =============================================================
 
 private void searchPlace() {
@@ -934,22 +908,240 @@ private void searchPlace() {
     }
 
     lastSearchTime = now;
-
     searching = true;
 
     searchButton.setEnabled(false);
-    searchButton.setText("SEARCHING");
+    searchButton.setText(
+            "SEARCHING"
+    );
 
     hideKeyboard();
 
     new Thread(() -> {
 
-        searchNominatim(query);
+        boolean found =
+                searchWithAndroidGeocoder(
+                        query
+                );
+
+        if (!found) {
+
+            searchWithNominatim(
+                    query
+            );
+        }
 
     }).start();
 }
 
-private void searchNominatim(
+/*
+ * FIRST SEARCH METHOD
+ *
+ * Use Android's geocoder first.
+ *
+ * The old problem was taking result #1.
+ * This version checks up to 10 results and
+ * selects the result whose name/address matches
+ * the user's search and is closest to the passenger.
+ */
+private boolean searchWithAndroidGeocoder(
+        String query) {
+
+    try {
+
+        Geocoder geocoder =
+                new Geocoder(
+                        this,
+                        Locale.getDefault()
+                );
+
+        List<Address> results =
+                geocoder.getFromLocationName(
+                        query,
+                        10
+                );
+
+        if (results == null
+                || results.isEmpty()) {
+
+            return false;
+        }
+
+        Address best =
+                null;
+
+        double bestScore =
+                Double.MAX_VALUE;
+
+        String wanted =
+                query.toLowerCase(
+                        Locale.US
+                );
+
+        for (Address address :
+                results) {
+
+            if (address == null) {
+                continue;
+            }
+
+            double lat =
+                    address.getLatitude();
+
+            double lng =
+                    address.getLongitude();
+
+            String feature =
+                    safe(
+                            address.getFeatureName()
+                    );
+
+            String thoroughfare =
+                    safe(
+                            address.getThoroughfare()
+                    );
+
+            String locality =
+                    safe(
+                            address.getLocality()
+                    );
+
+            String subLocality =
+                    safe(
+                            address.getSubLocality()
+                    );
+
+            String full =
+                    safe(
+                            address.getAddressLine(0)
+                    );
+
+            String combined =
+                    (
+                            feature
+                                    + " "
+                                    + thoroughfare
+                                    + " "
+                                    + locality
+                                    + " "
+                                    + subLocality
+                                    + " "
+                                    + full
+                    ).toLowerCase(
+                            Locale.US
+                    );
+
+            double score =
+                    distanceBetweenKm(
+                            currentLat,
+                            currentLng,
+                            lat,
+                            lng
+                    );
+
+            /*
+             * Strong preference for exact searched
+             * place text.
+             */
+            if (feature
+                    .toLowerCase(Locale.US)
+                    .equals(wanted)) {
+
+                score -= 1000;
+            } else if (combined.contains(wanted)) {
+
+                score -= 500;
+            }
+
+            /*
+             * Prefer actual named places over a generic
+             * road/locality result.
+             */
+            if (!feature.isEmpty()) {
+                score -= 30;
+            }
+
+            if (!thoroughfare.isEmpty()
+                    && feature.isEmpty()) {
+
+                score += 20;
+            }
+
+            if (best == null
+                    || score < bestScore) {
+
+                best = address;
+                bestScore = score;
+            }
+        }
+
+        if (best == null) {
+            return false;
+        }
+
+        double lat =
+                best.getLatitude();
+
+        double lng =
+                best.getLongitude();
+
+        String name =
+                safe(
+                        best.getFeatureName()
+                );
+
+        if (name.isEmpty()) {
+
+            name =
+                    safe(
+                            best.getPremises()
+                    );
+        }
+
+        if (name.isEmpty()) {
+
+            name = query;
+        }
+
+        String readable =
+                safe(
+                        best.getAddressLine(0)
+                );
+
+        if (readable.isEmpty()) {
+            readable = name;
+        }
+
+        final String finalName =
+                name;
+
+        final String finalAddress =
+                readable;
+
+        runOnUiThread(() -> {
+
+            applySearchResult(
+                    lat,
+                    lng,
+                    finalName,
+                    finalAddress
+            );
+        });
+
+        return true;
+
+    } catch (Exception ignored) {
+
+        return false;
+    }
+}
+
+/*
+ * FALLBACK SEARCH
+ *
+ * If Android Geocoder has no result, use Nominatim.
+ */
+private void searchWithNominatim(
         String query) {
 
     HttpURLConnection connection =
@@ -963,34 +1155,29 @@ private void searchNominatim(
                         "UTF-8"
                 );
 
-        /*
-         * If GPS is available, tell Nominatim the
-         * approximate area around the user.
-         */
-
         String urlString;
 
         if (currentLat != 0.0
                 || currentLng != 0.0) {
 
             double north =
-                    currentLat + 0.15;
+                    currentLat + 0.20;
 
             double south =
-                    currentLat - 0.15;
+                    currentLat - 0.20;
 
             double east =
-                    currentLng + 0.15;
+                    currentLng + 0.20;
 
             double west =
-                    currentLng - 0.15;
+                    currentLng - 0.20;
 
             urlString =
                     "https://nominatim.openstreetmap.org/search"
                             + "?q="
                             + encoded
                             + "&format=json"
-                            + "&limit=20"
+                            + "&limit=10"
                             + "&addressdetails=1"
                             + "&viewbox="
                             + west
@@ -1007,7 +1194,7 @@ private void searchNominatim(
                             + "?q="
                             + encoded
                             + "&format=json"
-                            + "&limit=20"
+                            + "&limit=10"
                             + "&addressdetails=1";
         }
 
@@ -1068,15 +1255,11 @@ private void searchNominatim(
         if (results.length() == 0) {
 
             runOnUiThread(
-                    () -> searchFailed()
+                    this::searchFailed
             );
 
             return;
         }
-
-        /*
-         * Select the closest matching result.
-         */
 
         JSONObject best =
                 null;
@@ -1084,7 +1267,7 @@ private void searchNominatim(
         double bestScore =
                 Double.MAX_VALUE;
 
-        String queryLower =
+        String wanted =
                 query.toLowerCase(
                         Locale.US
                 );
@@ -1106,13 +1289,13 @@ private void searchNominatim(
                             item.getString("lon")
                     );
 
-            String displayName =
+            String display =
                     item.optString(
                             "display_name",
                             ""
                     );
 
-            String placeName =
+            String name =
                     extractPlaceName(
                             item,
                             query
@@ -1120,19 +1303,14 @@ private void searchNominatim(
 
             String combined =
                     (
-                            placeName
+                            name
                                     + " "
-                                    + displayName
+                                    + display
                     ).toLowerCase(
                             Locale.US
                     );
 
-            boolean nameMatch =
-                    combined.contains(
-                            queryLower
-                    );
-
-            double distance =
+            double score =
                     distanceBetweenKm(
                             currentLat,
                             currentLng,
@@ -1140,16 +1318,14 @@ private void searchNominatim(
                             lng
                     );
 
-            /*
-             * Distance is the main factor.
-             * Exact text match gets a large advantage.
-             */
+            if (name
+                    .toLowerCase(Locale.US)
+                    .equals(wanted)) {
 
-            double score =
-                    distance;
+                score -= 1000;
+            } else if (combined.contains(wanted)) {
 
-            if (!nameMatch) {
-                score += 100.0;
+                score -= 500;
             }
 
             String type =
@@ -1162,7 +1338,7 @@ private void searchNominatim(
                     || "residential".equalsIgnoreCase(
                     type)) {
 
-                score += 30.0;
+                score += 30;
             }
 
             if (best == null
@@ -1176,7 +1352,7 @@ private void searchNominatim(
         if (best == null) {
 
             runOnUiThread(
-                    () -> searchFailed()
+                    this::searchFailed
             );
 
             return;
@@ -1192,44 +1368,41 @@ private void searchNominatim(
                         best.getString("lon")
                 );
 
-        String placeName =
+        String name =
                 extractPlaceName(
                         best,
                         query
                 );
 
-        String displayName =
-                best.optString(
-                        "display_name",
-                        query
-                );
-
-        String readableAddress =
+        String address =
                 buildReadableAddress(
                         best,
-                        displayName
+                        best.optString(
+                                "display_name",
+                                query
+                        )
                 );
 
-        final String finalPlaceName =
-                placeName;
+        final String finalName =
+                name;
 
         final String finalAddress =
-                readableAddress;
+                address;
 
         runOnUiThread(() -> {
 
             applySearchResult(
                     lat,
                     lng,
-                    finalPlaceName,
+                    finalName,
                     finalAddress
             );
         });
 
-    } catch (Exception e) {
+    } catch (Exception ignored) {
 
         runOnUiThread(
-                () -> searchFailed()
+                this::searchFailed
         );
 
     } finally {
@@ -1272,6 +1445,16 @@ private String extractPlaceName(
 
     try {
 
+        String directName =
+                object.optString(
+                        "name",
+                        ""
+                );
+
+        if (!directName.isEmpty()) {
+            return directName;
+        }
+
         JSONObject address =
                 object.optJSONObject(
                         "address"
@@ -1308,16 +1491,6 @@ private String extractPlaceName(
             if (!building.isEmpty()) {
                 return building;
             }
-        }
-
-        String name =
-                object.optString(
-                        "name",
-                        ""
-                );
-
-        if (!name.isEmpty()) {
-            return name;
         }
 
     } catch (Exception ignored) {
@@ -1468,7 +1641,8 @@ private void applySearchResult(
     if (name == null
             || name.trim().isEmpty()) {
 
-        name = "Selected destination";
+        name =
+                "Selected destination";
     }
 
     if (addressValue == null
@@ -1477,11 +1651,17 @@ private void applySearchResult(
         addressValue = name;
     }
 
-    selectedLat = lat;
-    selectedLng = lng;
+    selectedLat =
+            lat;
 
-    selectedPlaceName = name;
-    selectedAddress = addressValue;
+    selectedLng =
+            lng;
+
+    selectedPlaceName =
+            name;
+
+    selectedAddress =
+            addressValue;
 
     final String destinationName =
             name;
@@ -1508,18 +1688,15 @@ private void applySearchResult(
 
     if (webView != null) {
 
-        String quotedName =
-                JSONObject.quote(
-                        destinationName
-                );
-
         webView.evaluateJavascript(
                 "setSelected("
                         + lat
                         + ","
                         + lng
                         + ","
-                        + quotedName
+                        + JSONObject.quote(
+                        destinationName
+                )
                         + ");",
                 null
         );
@@ -1563,7 +1740,7 @@ private void searchFailed() {
 }
 
 // =============================================================
-// REVERSE GEOCODING
+// CURRENT LOCATION ADDRESS
 // =============================================================
 
 private void reverseCurrentAddress(
@@ -1603,6 +1780,18 @@ private void reverseCurrentAddress(
                         getShortPlaceName(
                                 finalResult
                         );
+
+                /*
+                 * IMPORTANT:
+                 * Keep the passenger's real address visible.
+                 * Do not replace it with latitude/longitude only.
+                 */
+                addressText.setText(
+                        "📍 "
+                                + currentPlaceName
+                                + "\n"
+                                + currentAddress
+                );
             }
         });
 
@@ -1701,7 +1890,9 @@ private String getAddressFromGeocoder(
                     addresses.get(0)
                             .getAddressLine(0);
 
-            if (value != null) {
+            if (value != null
+                    && !value.trim().isEmpty()) {
+
                 return value;
             }
         }
@@ -1816,7 +2007,7 @@ private String getShortPlaceName(
 }
 
 // =============================================================
-// SELECTED LOCATION
+// MAP TAP
 // =============================================================
 
 private void showSelectedLocation(
@@ -1834,7 +2025,7 @@ private void showSelectedLocation(
     );
 
     addressText.setText(
-            "🏁 Finding address..."
+            "🏁 Finding real address..."
     );
 
     if (webView != null) {
@@ -1851,7 +2042,7 @@ private void showSelectedLocation(
 }
 
 // =============================================================
-// CONFIRM
+// CONFIRM DESTINATION
 // =============================================================
 
 private void confirmDestination() {
@@ -1861,7 +2052,7 @@ private void confirmDestination() {
 
         Toast.makeText(
                 this,
-                "Select a destination on the map first.",
+                "Select a destination first.",
                 Toast.LENGTH_LONG
         ).show();
 
@@ -2002,11 +2193,13 @@ protected void onDestroy() {
     if (webView != null) {
 
         webView.stopLoading();
+
         webView.loadUrl(
                 "about:blank"
         );
 
         webView.destroy();
+
         webView = null;
     }
 
