@@ -15,8 +15,6 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.annotation.NonNull;
-
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentSnapshot;
@@ -36,21 +34,20 @@ public class RideChatActivity extends Activity {
     private FirebaseAuth auth;
     private FirebaseFirestore db;
 
-    private String rideId = "";
-    private String currentUid = "";
-    private String currentRole = "";
-
-    private TextView statusText;
-    private TextView rideInfoText;
     private LinearLayout messageContainer;
-    private ScrollView scrollView;
-
     private EditText messageInput;
     private Button sendButton;
-    private Button backButton;
+    private TextView titleText;
+    private TextView statusText;
+    private ScrollView scrollView;
 
     private ListenerRegistration rideListener;
     private ListenerRegistration messageListener;
+
+    private String rideId = "";
+    private String passengerId = "";
+    private String driverId = "";
+    private String myRole = "";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -59,87 +56,51 @@ public class RideChatActivity extends Activity {
         auth = FirebaseAuth.getInstance();
         db = FirebaseFirestore.getInstance();
 
-        readRideId();
-
-        FirebaseUser user = auth.getCurrentUser();
-
-        if (user == null) {
-            Toast.makeText(
-                    this,
-                    "Please login first.",
-                    Toast.LENGTH_LONG
-            ).show();
-            finish();
-            return;
-        }
-
-        currentUid = user.getUid();
-
-        buildInterface();
-
-        if (rideId.isEmpty()) {
-            statusText.setText("🔴 No ride selected.");
-            disableChat();
-            return;
-        }
-
-        listenToRide();
-    }
-
-    private void readRideId() {
-
-        if (getIntent() == null) {
-            return;
-        }
-
         rideId = getIntent().getStringExtra("ride_id");
 
         if (rideId == null || rideId.trim().isEmpty()) {
             rideId = getIntent().getStringExtra("rideId");
         }
 
-        if (rideId == null) {
-            rideId = "";
+        if (rideId == null || rideId.trim().isEmpty()) {
+            Toast.makeText(this, "Ride ID not found.", Toast.LENGTH_LONG).show();
+            finish();
+            return;
         }
 
-        rideId = rideId.trim();
+        FirebaseUser user = auth.getCurrentUser();
+
+        if (user == null) {
+            Toast.makeText(this, "Please login again.", Toast.LENGTH_LONG).show();
+            finish();
+            return;
+        }
+
+        buildScreen();
+        listenToRide();
     }
 
-    private void buildInterface() {
-
+    private void buildScreen() {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(Color.rgb(245, 248, 246));
+        root.setBackgroundColor(Color.WHITE);
 
-        TextView header = new TextView(this);
-        header.setText("💬 SAKAY NA CHAT");
-        header.setTextSize(24);
-        header.setTypeface(null, Typeface.BOLD);
-        header.setTextColor(Color.WHITE);
-        header.setGravity(Gravity.CENTER);
-        header.setPadding(10, 20, 10, 20);
-        header.setBackgroundColor(Color.rgb(0, 125, 75));
-
-        root.addView(header, fullParams());
-
-        rideInfoText = new TextView(this);
-        rideInfoText.setText("Ride: " + rideId);
-        rideInfoText.setTextSize(14);
-        rideInfoText.setTypeface(null, Typeface.BOLD);
-        rideInfoText.setTextColor(Color.rgb(30, 80, 55));
-        rideInfoText.setGravity(Gravity.CENTER);
-        rideInfoText.setPadding(10, 10, 10, 5);
-
-        root.addView(rideInfoText, fullParams());
+        titleText = new TextView(this);
+        titleText.setText("💬 RIDE CHAT");
+        titleText.setTextSize(24);
+        titleText.setTypeface(null, Typeface.BOLD);
+        titleText.setTextColor(Color.rgb(0, 110, 80));
+        titleText.setGravity(Gravity.CENTER);
+        titleText.setPadding(16, 20, 16, 12);
+        root.addView(titleText);
 
         statusText = new TextView(this);
-        statusText.setText("🟠 Loading ride...");
-        statusText.setTextSize(14);
+        statusText.setText("Loading ride...");
+        statusText.setTextSize(15);
         statusText.setTextColor(Color.DKGRAY);
         statusText.setGravity(Gravity.CENTER);
-        statusText.setPadding(10, 5, 10, 10);
-
-        root.addView(statusText, fullParams());
+        statusText.setPadding(12, 5, 12, 12);
+        root.addView(statusText);
 
         scrollView = new ScrollView(this);
 
@@ -147,456 +108,340 @@ public class RideChatActivity extends Activity {
         messageContainer.setOrientation(LinearLayout.VERTICAL);
         messageContainer.setPadding(12, 12, 12, 12);
 
-        scrollView.addView(
-                messageContainer,
-                new ScrollView.LayoutParams(-1, -2)
+        scrollView.addView(messageContainer);
+
+        root.addView(
+                scrollView,
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        0,
+                        1
+                )
         );
-
-        LinearLayout.LayoutParams scrollParams =
-                new LinearLayout.LayoutParams(-1, 0, 1);
-
-        root.addView(scrollView, scrollParams);
 
         LinearLayout inputRow = new LinearLayout(this);
         inputRow.setOrientation(LinearLayout.HORIZONTAL);
+        inputRow.setPadding(8, 8, 8, 8);
         inputRow.setGravity(Gravity.CENTER_VERTICAL);
-        inputRow.setPadding(8, 6, 8, 6);
 
         messageInput = new EditText(this);
         messageInput.setHint("Type a message...");
         messageInput.setTextSize(16);
         messageInput.setSingleLine(false);
+        messageInput.setMaxLines(3);
         messageInput.setInputType(
                 InputType.TYPE_CLASS_TEXT |
                 InputType.TYPE_TEXT_FLAG_CAP_SENTENCES |
                 InputType.TYPE_TEXT_FLAG_MULTI_LINE
         );
 
-        LinearLayout.LayoutParams inputParams =
-                new LinearLayout.LayoutParams(0, -2, 1);
-
-        inputParams.setMargins(0, 0, 8, 0);
-
         inputRow.addView(
                 messageInput,
-                inputParams
+                new LinearLayout.LayoutParams(
+                        0,
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        1
+                )
         );
 
-        sendButton = makeButton("SEND");
-
-        LinearLayout.LayoutParams sendParams =
-                new LinearLayout.LayoutParams(105, -2);
+        sendButton = new Button(this);
+        sendButton.setText("SEND");
+        sendButton.setTextSize(14);
+        sendButton.setEnabled(false);
+        sendButton.setOnClickListener(v -> sendMessage());
 
         inputRow.addView(
                 sendButton,
-                sendParams
-        );
-
-        sendButton.setOnClickListener(
-                v -> sendMessage()
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                )
         );
 
         root.addView(inputRow);
 
-        backButton = makeButton("← BACK");
-
-        backButton.setOnClickListener(
-                v -> finish()
-        );
-
-        LinearLayout.LayoutParams backParams =
-                new LinearLayout.LayoutParams(-1, -2);
-
-        backParams.setMargins(8, 3, 8, 8);
-
-        root.addView(backButton, backParams);
+        Button backButton = new Button(this);
+        backButton.setText("BACK");
+        backButton.setOnClickListener(v -> finish());
+        root.addView(backButton);
 
         setContentView(root);
-
-        disableChat();
-    }
-
-    private Button makeButton(String text) {
-
-        Button button = new Button(this);
-
-        button.setText(text);
-        button.setTextSize(15);
-        button.setTypeface(null, Typeface.BOLD);
-        button.setTextColor(Color.WHITE);
-        button.setAllCaps(false);
-
-        button.setBackgroundColor(
-                Color.rgb(0, 125, 75)
-        );
-
-        return button;
-    }
-
-    private LinearLayout.LayoutParams fullParams() {
-
-        return new LinearLayout.LayoutParams(-1, -2);
     }
 
     private void listenToRide() {
-
         if (rideListener != null) {
             rideListener.remove();
         }
 
-        rideListener =
-                db.collection("rides")
-                        .document(rideId)
-                        .addSnapshotListener(
-                                (snapshot, error) -> {
+        FirebaseUser user = auth.getCurrentUser();
 
-            if (error != null) {
-
-                statusText.setText(
-                        "🔴 Ride error:\n" +
-                        error.getMessage()
-                );
-
-                disableChat();
-                return;
-            }
-
-            if (snapshot == null ||
-                    !snapshot.exists()) {
-
-                statusText.setText(
-                        "🔴 Ride not found."
-                );
-
-                disableChat();
-                return;
-            }
-
-            String passengerId =
-                    snapshot.getString("passengerId");
-
-            String driverId =
-                    snapshot.getString("driverId");
-
-            String status =
-                    snapshot.getString("status");
-
-            boolean isPassenger =
-                    currentUid.equals(passengerId);
-
-            boolean isDriver =
-                    currentUid.equals(driverId);
-
-            if (!isPassenger && !isDriver) {
-
-                statusText.setText(
-                        "🔴 You are not a member of this ride."
-                );
-
-                disableChat();
-                return;
-            }
-
-            currentRole =
-                    isPassenger
-                            ? "PASSENGER"
-                            : "DRIVER";
-
-            String pickupName =
-                    firstNonEmpty(
-                            snapshot.getString("pickupName"),
-                            snapshot.getString("pickup")
-                    );
-
-            String destinationName =
-                    firstNonEmpty(
-                            snapshot.getString("destinationName"),
-                            snapshot.getString("destination")
-                    );
-
-            rideInfoText.setText(
-                    "🛺 " +
-                    pickupName +
-                    "\n→ " +
-                    destinationName
-            );
-
-            if (driverId == null ||
-                    driverId.trim().isEmpty()) {
-
-                statusText.setText(
-                        "🟠 WAITING FOR DRIVER\n" +
-                        "Chat opens after driver acceptance."
-                );
-
-                disableChat();
-                stopMessageListener();
-                return;
-            }
-
-            if (status == null ||
-                    status.trim().isEmpty()) {
-
-                status = "ACTIVE";
-            }
-
-            statusText.setText(
-                    "🟢 CHAT ACTIVE • " + status
-            );
-
-            enableChat();
-
-            startMessageListener();
-        });
-    }
-
-    private String firstNonEmpty(
-            String first,
-            String second) {
-
-        if (first != null &&
-                !first.trim().isEmpty()) {
-
-            return first;
+        if (user == null) {
+            finish();
+            return;
         }
 
-        if (second != null &&
-                !second.trim().isEmpty()) {
+        final String uid = user.getUid();
 
-            return second;
-        }
+        rideListener = db.collection("rides")
+                .document(rideId)
+                .addSnapshotListener((snapshot, error) -> {
 
-        return "Unknown location";
-    }
+                    if (error != null) {
+                        statusText.setText(
+                                "Unable to load ride:\n" + safeError(error)
+                        );
+                        sendButton.setEnabled(false);
+                        return;
+                    }
 
-    private void enableChat() {
+                    if (snapshot == null || !snapshot.exists()) {
+                        statusText.setText("Ride not found.");
+                        sendButton.setEnabled(false);
+                        return;
+                    }
 
-        if (messageInput != null) {
-            messageInput.setEnabled(true);
-        }
+                    passengerId = value(snapshot, "passengerId");
+                    driverId = value(snapshot, "driverId");
 
-        if (sendButton != null) {
-            sendButton.setEnabled(true);
-        }
-    }
+                    if (uid.equals(passengerId)) {
+                        myRole = "PASSENGER";
+                    } else if (uid.equals(driverId)) {
+                        myRole = "DRIVER";
+                    } else {
+                        myRole = "";
+                    }
 
-    private void disableChat() {
+                    if (myRole.isEmpty()) {
+                        statusText.setText(
+                                "You are not a participant in this ride."
+                        );
+                        sendButton.setEnabled(false);
+                        stopMessageListener();
+                        return;
+                    }
 
-        if (messageInput != null) {
-            messageInput.setEnabled(false);
-        }
+                    String status = value(snapshot, "status");
 
-        if (sendButton != null) {
-            sendButton.setEnabled(false);
-        }
+                    if (status.isEmpty()) {
+                        status = "REQUESTED";
+                    }
+
+                    if (driverId.isEmpty()) {
+                        statusText.setText(
+                                "Ride: " + status +
+                                "\nWaiting for driver..."
+                        );
+
+                        sendButton.setEnabled(false);
+                        stopMessageListener();
+
+                        messageContainer.removeAllViews();
+
+                        addSystemMessage(
+                                "Chat will be available after a driver accepts the ride."
+                        );
+
+                    } else {
+                        statusText.setText(
+                                "Ride: " + status +
+                                "\nChat with " +
+                                ("PASSENGER".equals(myRole)
+                                        ? "Driver"
+                                        : "Passenger")
+                        );
+
+                        sendButton.setEnabled(true);
+                        startMessageListener();
+                    }
+                });
     }
 
     private void startMessageListener() {
-
         if (messageListener != null) {
             return;
         }
 
-        messageListener =
-                db.collection("rides")
-                        .document(rideId)
-                        .collection("messages")
-                        .addSnapshotListener(
-                                (snapshots, error) -> {
+        messageListener = db.collection("rides")
+                .document(rideId)
+                .collection("messages")
+                .addSnapshotListener((snapshots, error) -> {
 
-            if (error != null) {
+                    if (error != null) {
+                        statusText.setText(
+                                "Chat error:\n" + safeError(error)
+                        );
+                        return;
+                    }
 
-                statusText.setText(
-                        "🔴 Chat error:\n" +
-                        error.getMessage()
-                );
+                    if (snapshots == null) {
+                        return;
+                    }
 
-                return;
-            }
+                    List<DocumentSnapshot> messages =
+                            new ArrayList<>(snapshots.getDocuments());
 
-            messageContainer.removeAllViews();
+                    Collections.sort(
+                            messages,
+                            new Comparator<DocumentSnapshot>() {
+                                @Override
+                                public int compare(
+                                        DocumentSnapshot a,
+                                        DocumentSnapshot b) {
 
-            if (snapshots == null ||
-                    snapshots.isEmpty()) {
+                                    Timestamp ta =
+                                            a.getTimestamp("createdAt");
 
-                showEmptyMessages();
-                return;
-            }
+                                    Timestamp tb =
+                                            b.getTimestamp("createdAt");
 
-            List<DocumentSnapshot> messages =
-                    new ArrayList<>(
-                            snapshots.getDocuments()
+                                    if (ta == null && tb == null) {
+                                        return a.getId().compareTo(
+                                                b.getId()
+                                        );
+                                    }
+
+                                    if (ta == null) {
+                                        return -1;
+                                    }
+
+                                    if (tb == null) {
+                                        return 1;
+                                    }
+
+                                    return ta.compareTo(tb);
+                                }
+                            }
                     );
 
-            Collections.sort(
-                    messages,
-                    new Comparator<DocumentSnapshot>() {
+                    messageContainer.removeAllViews();
 
-                @Override
-                public int compare(
-                        DocumentSnapshot a,
-                        DocumentSnapshot b) {
-
-                    Timestamp ta =
-                            a.getTimestamp("createdAt");
-
-                    Timestamp tb =
-                            b.getTimestamp("createdAt");
-
-                    if (ta == null && tb == null) {
-                        return 0;
+                    for (DocumentSnapshot message : messages) {
+                        addMessage(message);
                     }
 
-                    if (ta == null) {
-                        return -1;
-                    }
-
-                    if (tb == null) {
-                        return 1;
-                    }
-
-                    return ta.compareTo(tb);
-                }
-            });
-
-            for (DocumentSnapshot message : messages) {
-                addMessage(message);
-            }
-
-            scrollToBottom();
-        });
+                    scrollToBottom();
+                });
     }
 
     private void stopMessageListener() {
-
         if (messageListener != null) {
             messageListener.remove();
             messageListener = null;
         }
     }
 
-    private void showEmptyMessages() {
+    private void addMessage(DocumentSnapshot document) {
+        String senderId = value(document, "senderId");
+        String message = value(document, "message");
+        String senderRole = value(document, "senderRole");
 
-        TextView empty = new TextView(this);
-
-        empty.setText(
-                "No messages yet.\n" +
-                "You can start the conversation."
-        );
-
-        empty.setTextSize(15);
-        empty.setTextColor(Color.GRAY);
-        empty.setGravity(Gravity.CENTER);
-        empty.setPadding(10, 30, 10, 30);
-
-        messageContainer.addView(empty);
-    }
-
-    private void addMessage(
-            DocumentSnapshot message) {
-
-        String senderId =
-                message.getString("senderId");
-
-        String senderRole =
-                message.getString("senderRole");
-
-        String text =
-                message.getString("message");
-
-        if (text == null) {
-            text = "";
+        if (message.isEmpty()) {
+            return;
         }
+
+        FirebaseUser user = auth.getCurrentUser();
 
         boolean mine =
-                currentUid.equals(senderId);
+                user != null &&
+                user.getUid().equals(senderId);
 
-        TextView bubble =
-                new TextView(this);
-
-        String prefix;
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.VERTICAL);
 
         if (mine) {
-            prefix = "YOU";
-        } else if (
-                "DRIVER".equalsIgnoreCase(
-                        senderRole)) {
-
-            prefix = "DRIVER";
+            row.setGravity(Gravity.RIGHT);
         } else {
-            prefix = "PASSENGER";
+            row.setGravity(Gravity.LEFT);
         }
 
-        bubble.setText(
-                prefix +
-                "\n" +
-                text
-        );
+        TextView bubble = new TextView(this);
 
+        String who;
+
+        if (mine) {
+            who = "You";
+        } else if ("DRIVER".equalsIgnoreCase(senderRole)) {
+            who = "Driver";
+        } else if ("PASSENGER".equalsIgnoreCase(senderRole)) {
+            who = "Passenger";
+        } else {
+            who = "User";
+        }
+
+        bubble.setText(who + "\n" + message);
         bubble.setTextSize(16);
         bubble.setTextColor(Color.DKGRAY);
         bubble.setPadding(18, 12, 18, 12);
 
         if (mine) {
-            bubble.setGravity(Gravity.END);
+            bubble.setBackgroundColor(
+                    Color.rgb(220, 245, 232)
+            );
         } else {
-            bubble.setGravity(Gravity.START);
+            bubble.setBackgroundColor(
+                    Color.rgb(238, 238, 238)
+            );
         }
 
-        LinearLayout.LayoutParams params =
+        LinearLayout.LayoutParams bubbleParams =
                 new LinearLayout.LayoutParams(
-                        -1,
-                        -2
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
                 );
 
-        params.setMargins(4, 4, 4, 4);
+        bubbleParams.setMargins(8, 6, 8, 6);
 
-        messageContainer.addView(
-                bubble,
-                params
-        );
+        row.addView(bubble, bubbleParams);
+
+        messageContainer.addView(row);
+    }
+
+    private void addSystemMessage(String text) {
+        TextView t = new TextView(this);
+        t.setText(text);
+        t.setTextSize(15);
+        t.setTextColor(Color.GRAY);
+        t.setGravity(Gravity.CENTER);
+        t.setPadding(20, 30, 20, 30);
+
+        messageContainer.addView(t);
     }
 
     private void sendMessage() {
-
-        FirebaseUser user =
-                auth.getCurrentUser();
+        FirebaseUser user = auth.getCurrentUser();
 
         if (user == null) {
-
             Toast.makeText(
                     this,
                     "Please login again.",
                     Toast.LENGTH_SHORT
             ).show();
-
             return;
         }
 
-        if (rideId.isEmpty()) {
-
+        if (driverId.isEmpty()) {
             Toast.makeText(
                     this,
-                    "No ride selected.",
+                    "Waiting for driver.",
                     Toast.LENGTH_SHORT
             ).show();
-
             return;
         }
 
-        String text =
-                messageInput.getText()
-                        .toString()
-                        .trim();
+        if (myRole.isEmpty()) {
+            Toast.makeText(
+                    this,
+                    "You cannot send messages in this ride.",
+                    Toast.LENGTH_SHORT
+            ).show();
+            return;
+        }
+
+        String text = messageInput.getText()
+                .toString()
+                .trim();
 
         if (text.isEmpty()) {
-
-            Toast.makeText(
-                    this,
-                    "Type a message first.",
-                    Toast.LENGTH_SHORT
-            ).show();
-
             return;
         }
 
@@ -605,69 +450,62 @@ public class RideChatActivity extends Activity {
         Map<String, Object> data =
                 new HashMap<>();
 
-        data.put(
-                "senderId",
-                user.getUid()
-        );
-
-        data.put(
-                "senderRole",
-                currentRole
-        );
-
-        data.put(
-                "message",
-                text
-        );
-
-        data.put(
-                "createdAt",
-                Timestamp.now()
-        );
+        data.put("senderId", user.getUid());
+        data.put("senderRole", myRole);
+        data.put("message", text);
+        data.put("createdAt", Timestamp.now());
 
         db.collection("rides")
                 .document(rideId)
                 .collection("messages")
                 .add(data)
-                .addOnSuccessListener(
-                        documentReference -> {
+                .addOnSuccessListener(documentReference -> {
+                    messageInput.setText("");
+                    sendButton.setEnabled(true);
+                    scrollToBottom();
+                })
+                .addOnFailureListener(e -> {
+                    sendButton.setEnabled(true);
 
-            messageInput.setText("");
+                    Toast.makeText(
+                            this,
+                            "Message failed: " + safeError(e),
+                            Toast.LENGTH_LONG
+                    ).show();
+                });
+    }
 
-            sendButton.setEnabled(true);
+    private String value(
+            DocumentSnapshot document,
+            String field) {
 
-            scrollToBottom();
-        })
-                .addOnFailureListener(
-                        e -> {
+        String value = document.getString(field);
 
-            sendButton.setEnabled(true);
+        return value == null ? "" : value.trim();
+    }
 
-            Toast.makeText(
-                    this,
-                    "Message failed:\n" +
-                    e.getMessage(),
-                    Toast.LENGTH_LONG
-            ).show();
-        });
+    private String safeError(Exception e) {
+        if (e == null ||
+                e.getMessage() == null ||
+                e.getMessage().trim().isEmpty()) {
+            return "Unknown error.";
+        }
+
+        return e.getMessage();
     }
 
     private void scrollToBottom() {
-
         if (scrollView == null) {
             return;
         }
 
-        scrollView.post(
-                () -> scrollView.fullScroll(
-                        View.FOCUS_DOWN
-                )
+        scrollView.post(() ->
+                scrollView.fullScroll(View.FOCUS_DOWN)
         );
     }
 
     @Override
     protected void onDestroy() {
-
         if (rideListener != null) {
             rideListener.remove();
             rideListener = null;
