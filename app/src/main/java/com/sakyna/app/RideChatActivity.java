@@ -1,3 +1,4 @@
+
 package com.sakyna.app;
 
 import android.app.Activity;
@@ -21,10 +22,13 @@ import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
-import com.google.firebase.firestore.Query;
 import com.google.firebase.firestore.Timestamp;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class RideChatActivity extends Activity {
@@ -55,29 +59,16 @@ public class RideChatActivity extends Activity {
         auth = FirebaseAuth.getInstance();
         db = FirebaseFirestore.getInstance();
 
-        if (getIntent() != null) {
-
-            rideId = getIntent().getStringExtra("ride_id");
-
-            if (rideId == null || rideId.trim().isEmpty()) {
-                rideId = getIntent().getStringExtra("rideId");
-            }
-        }
-
-        if (rideId == null) {
-            rideId = "";
-        }
+        readRideId();
 
         FirebaseUser user = auth.getCurrentUser();
 
         if (user == null) {
-
             Toast.makeText(
                     this,
                     "Please login first.",
                     Toast.LENGTH_LONG
             ).show();
-
             finish();
             return;
         }
@@ -86,255 +77,172 @@ public class RideChatActivity extends Activity {
 
         buildInterface();
 
-        if (rideId.trim().isEmpty()) {
-
-            statusText.setText(
-                    "🔴 No ride selected.");
-
-            disableChat(
-                    "Select an active ride first.");
-
+        if (rideId.isEmpty()) {
+            statusText.setText("🔴 No ride selected.");
+            disableChat();
             return;
         }
 
         listenToRide();
     }
 
+    private void readRideId() {
+
+        if (getIntent() == null) {
+            return;
+        }
+
+        rideId = getIntent().getStringExtra("ride_id");
+
+        if (rideId == null || rideId.trim().isEmpty()) {
+            rideId = getIntent().getStringExtra("rideId");
+        }
+
+        if (rideId == null) {
+            rideId = "";
+        }
+
+        rideId = rideId.trim();
+    }
+
     private void buildInterface() {
 
-        LinearLayout root =
-                new LinearLayout(this);
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setBackgroundColor(Color.rgb(245, 248, 246));
 
-        root.setOrientation(
-                LinearLayout.VERTICAL);
-
-        root.setBackgroundColor(
-                Color.rgb(245, 248, 246));
-
-        TextView header =
-                new TextView(this);
-
-        header.setText(
-                "💬 SAKAY NA CHAT");
-
+        TextView header = new TextView(this);
+        header.setText("💬 SAKAY NA CHAT");
         header.setTextSize(24);
-        header.setTypeface(
-                null,
-                Typeface.BOLD);
-
+        header.setTypeface(null, Typeface.BOLD);
         header.setTextColor(Color.WHITE);
         header.setGravity(Gravity.CENTER);
+        header.setPadding(10, 20, 10, 20);
+        header.setBackgroundColor(Color.rgb(0, 125, 75));
 
-        header.setPadding(
-                10,
-                20,
-                10,
-                20);
+        root.addView(header, fullParams());
 
-        header.setBackgroundColor(
-                Color.rgb(0, 125, 75));
-
-        root.addView(
-                header,
-                fullParams());
-
-        rideInfoText =
-                new TextView(this);
-
-        rideInfoText.setText(
-                "Ride: " + rideId);
-
+        rideInfoText = new TextView(this);
+        rideInfoText.setText("Ride: " + rideId);
         rideInfoText.setTextSize(14);
-        rideInfoText.setTypeface(
-                null,
-                Typeface.BOLD);
+        rideInfoText.setTypeface(null, Typeface.BOLD);
+        rideInfoText.setTextColor(Color.rgb(30, 80, 55));
+        rideInfoText.setGravity(Gravity.CENTER);
+        rideInfoText.setPadding(10, 10, 10, 5);
 
-        rideInfoText.setTextColor(
-                Color.rgb(30, 80, 55));
+        root.addView(rideInfoText, fullParams());
 
-        rideInfoText.setGravity(
-                Gravity.CENTER);
-
-        rideInfoText.setPadding(
-                10,
-                10,
-                10,
-                5);
-
-        root.addView(
-                rideInfoText,
-                fullParams());
-
-        statusText =
-                new TextView(this);
-
-        statusText.setText(
-                "🟠 Loading ride...");
-
+        statusText = new TextView(this);
+        statusText.setText("🟠 Loading ride...");
         statusText.setTextSize(14);
         statusText.setTextColor(Color.DKGRAY);
+        statusText.setGravity(Gravity.CENTER);
+        statusText.setPadding(10, 5, 10, 10);
 
-        statusText.setGravity(
-                Gravity.CENTER);
+        root.addView(statusText, fullParams());
 
-        statusText.setPadding(
-                10,
-                5,
-                10,
-                10);
+        scrollView = new ScrollView(this);
 
-        root.addView(
-                statusText,
-                fullParams());
-
-        scrollView =
-                new ScrollView(this);
-
-        messageContainer =
-                new LinearLayout(this);
-
-        messageContainer.setOrientation(
-                LinearLayout.VERTICAL);
-
-        messageContainer.setPadding(
-                12,
-                12,
-                12,
-                12);
+        messageContainer = new LinearLayout(this);
+        messageContainer.setOrientation(LinearLayout.VERTICAL);
+        messageContainer.setPadding(12, 12, 12, 12);
 
         scrollView.addView(
                 messageContainer,
-                new ScrollView.LayoutParams(
-                        -1,
-                        -2));
+                new ScrollView.LayoutParams(-1, -2)
+        );
 
         LinearLayout.LayoutParams scrollParams =
-                new LinearLayout.LayoutParams(
-                        -1,
-                        0,
-                        1);
+                new LinearLayout.LayoutParams(-1, 0, 1);
 
-        root.addView(
-                scrollView,
-                scrollParams);
+        root.addView(scrollView, scrollParams);
 
-        LinearLayout inputRow =
-                new LinearLayout(this);
+        LinearLayout inputRow = new LinearLayout(this);
+        inputRow.setOrientation(LinearLayout.HORIZONTAL);
+        inputRow.setGravity(Gravity.CENTER_VERTICAL);
+        inputRow.setPadding(8, 6, 8, 6);
 
-        inputRow.setOrientation(
-                LinearLayout.HORIZONTAL);
-
-        inputRow.setGravity(
-                Gravity.CENTER_VERTICAL);
-
-        inputRow.setPadding(
-                8,
-                6,
-                8,
-                6);
-
-        messageInput =
-                new EditText(this);
-
-        messageInput.setHint(
-                "Type a message...");
-
+        messageInput = new EditText(this);
+        messageInput.setHint("Type a message...");
         messageInput.setTextSize(16);
         messageInput.setSingleLine(false);
-
         messageInput.setInputType(
                 InputType.TYPE_CLASS_TEXT |
                 InputType.TYPE_TEXT_FLAG_CAP_SENTENCES |
-                InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+                InputType.TYPE_TEXT_FLAG_MULTI_LINE
+        );
 
         LinearLayout.LayoutParams inputParams =
-                new LinearLayout.LayoutParams(
-                        0,
-                        -2,
-                        1);
+                new LinearLayout.LayoutParams(0, -2, 1);
 
-        inputParams.setMargins(
-                0,
-                0,
-                8,
-                0);
+        inputParams.setMargins(0, 0, 8, 0);
 
         inputRow.addView(
                 messageInput,
-                inputParams);
+                inputParams
+        );
 
-        sendButton =
-                makeButton("SEND");
+        sendButton = makeButton("SEND");
 
         LinearLayout.LayoutParams sendParams =
-                new LinearLayout.LayoutParams(
-                        105,
-                        -2);
+                new LinearLayout.LayoutParams(105, -2);
 
         inputRow.addView(
                 sendButton,
-                sendParams);
+                sendParams
+        );
 
         sendButton.setOnClickListener(
-                v -> sendMessage());
+                v -> sendMessage()
+        );
 
         root.addView(inputRow);
 
-        backButton =
-                makeButton("← BACK");
+        backButton = makeButton("← BACK");
 
         backButton.setOnClickListener(
-                v -> finish());
+                v -> finish()
+        );
 
         LinearLayout.LayoutParams backParams =
-                new LinearLayout.LayoutParams(
-                        -1,
-                        -2);
+                new LinearLayout.LayoutParams(-1, -2);
 
-        backParams.setMargins(
-                8,
-                3,
-                8,
-                8);
+        backParams.setMargins(8, 3, 8, 8);
 
-        root.addView(
-                backButton,
-                backParams);
+        root.addView(backButton, backParams);
 
         setContentView(root);
 
-        disableChat("");
+        disableChat();
     }
 
     private Button makeButton(String text) {
 
-        Button button =
-                new Button(this);
+        Button button = new Button(this);
 
         button.setText(text);
         button.setTextSize(15);
-        button.setTypeface(
-                null,
-                Typeface.BOLD);
-
+        button.setTypeface(null, Typeface.BOLD);
         button.setTextColor(Color.WHITE);
-
         button.setAllCaps(false);
 
         button.setBackgroundColor(
-                Color.rgb(0, 125, 75));
+                Color.rgb(0, 125, 75)
+        );
 
         return button;
     }
 
     private LinearLayout.LayoutParams fullParams() {
 
-        return new LinearLayout.LayoutParams(
-                -1,
-                -2);
+        return new LinearLayout.LayoutParams(-1, -2);
     }
 
     private void listenToRide() {
+
+        if (rideListener != null) {
+            rideListener.remove();
+        }
 
         rideListener =
                 db.collection("rides")
@@ -342,106 +250,104 @@ public class RideChatActivity extends Activity {
                         .addSnapshotListener(
                                 (snapshot, error) -> {
 
-                                    if (error != null) {
+            if (error != null) {
 
-                                        statusText.setText(
-                                                "🔴 Ride error:\n" +
-                                                error.getMessage());
+                statusText.setText(
+                        "🔴 Ride error:\n" +
+                        error.getMessage()
+                );
 
-                                        disableChat("");
-                                        return;
-                                    }
+                disableChat();
+                return;
+            }
 
-                                    if (snapshot == null ||
-                                            !snapshot.exists()) {
+            if (snapshot == null ||
+                    !snapshot.exists()) {
 
-                                        statusText.setText(
-                                                "🔴 Ride not found.");
+                statusText.setText(
+                        "🔴 Ride not found."
+                );
 
-                                        disableChat("");
-                                        return;
-                                    }
+                disableChat();
+                return;
+            }
 
-                                    String passengerId =
-                                            snapshot.getString(
-                                                    "passengerId");
+            String passengerId =
+                    snapshot.getString("passengerId");
 
-                                    String driverId =
-                                            snapshot.getString(
-                                                    "driverId");
+            String driverId =
+                    snapshot.getString("driverId");
 
-                                    String status =
-                                            snapshot.getString(
-                                                    "status");
+            String status =
+                    snapshot.getString("status");
 
-                                    boolean passenger =
-                                            currentUid.equals(
-                                                    passengerId);
+            boolean isPassenger =
+                    currentUid.equals(passengerId);
 
-                                    boolean driver =
-                                            currentUid.equals(
-                                                    driverId);
+            boolean isDriver =
+                    currentUid.equals(driverId);
 
-                                    if (!passenger &&
-                                            !driver) {
+            if (!isPassenger && !isDriver) {
 
-                                        statusText.setText(
-                                                "🔴 You are not a member of this ride.");
+                statusText.setText(
+                        "🔴 You are not a member of this ride."
+                );
 
-                                        disableChat("");
-                                        return;
-                                    }
+                disableChat();
+                return;
+            }
 
-                                    if (passenger) {
-                                        currentRole = "PASSENGER";
-                                    } else {
-                                        currentRole = "DRIVER";
-                                    }
+            currentRole =
+                    isPassenger
+                            ? "PASSENGER"
+                            : "DRIVER";
 
-                                    String pickupName =
-                                            firstNonEmpty(
-                                                    snapshot.getString(
-                                                            "pickupName"),
-                                                    snapshot.getString(
-                                                            "pickup"));
+            String pickupName =
+                    firstNonEmpty(
+                            snapshot.getString("pickupName"),
+                            snapshot.getString("pickup")
+                    );
 
-                                    String destinationName =
-                                            firstNonEmpty(
-                                                    snapshot.getString(
-                                                            "destinationName"),
-                                                    snapshot.getString(
-                                                            "destination"));
+            String destinationName =
+                    firstNonEmpty(
+                            snapshot.getString("destinationName"),
+                            snapshot.getString("destination")
+                    );
 
-                                    rideInfoText.setText(
-                                            "🛺 " +
-                                            pickupName +
-                                            "\n→ " +
-                                            destinationName);
+            rideInfoText.setText(
+                    "🛺 " +
+                    pickupName +
+                    "\n→ " +
+                    destinationName
+            );
 
-                                    if (driverId == null ||
-                                            driverId.trim().isEmpty()) {
+            if (driverId == null ||
+                    driverId.trim().isEmpty()) {
 
-                                        statusText.setText(
-                                                "🟠 WAITING FOR DRIVER\n" +
-                                                "Chat will open after driver acceptance.");
+                statusText.setText(
+                        "🟠 WAITING FOR DRIVER\n" +
+                        "Chat opens after driver acceptance."
+                );
 
-                                        disableChat("");
+                disableChat();
+                stopMessageListener();
+                return;
+            }
 
-                                        return;
-                                    }
+            if (status == null ||
+                    status.trim().isEmpty()) {
 
-                                    if (status == null) {
-                                        status = "ACTIVE";
-                                    }
+                status = "ACTIVE";
+            }
 
-                                    statusText.setText(
-                                            "🟢 CHAT ACTIVE • " +
-                                            status);
+            statusText.setText(
+                    "🟢 CHAT ACTIVE • " + status
+            );
 
-                                    enableChat();
+            enableChat();
 
-                                    startMessageListener();
-                                });
+            startMessageListener();
+        });
     }
 
     private String firstNonEmpty(
@@ -465,11 +371,16 @@ public class RideChatActivity extends Activity {
 
     private void enableChat() {
 
-        messageInput.setEnabled(true);
-        sendButton.setEnabled(true);
+        if (messageInput != null) {
+            messageInput.setEnabled(true);
+        }
+
+        if (sendButton != null) {
+            sendButton.setEnabled(true);
+        }
     }
 
-    private void disableChat(String message) {
+    private void disableChat() {
 
         if (messageInput != null) {
             messageInput.setEnabled(false);
@@ -478,85 +389,107 @@ public class RideChatActivity extends Activity {
         if (sendButton != null) {
             sendButton.setEnabled(false);
         }
-
-        if (message != null &&
-                !message.trim().isEmpty()) {
-
-            Toast.makeText(
-                    this,
-                    message,
-                    Toast.LENGTH_SHORT
-            ).show();
-        }
     }
 
     private void startMessageListener() {
 
         if (messageListener != null) {
-            messageListener.remove();
+            return;
         }
 
         messageListener =
                 db.collection("rides")
                         .document(rideId)
                         .collection("messages")
-                        .orderBy(
-                                "createdAt",
-                                Query.Direction.ASCENDING)
                         .addSnapshotListener(
                                 (snapshots, error) -> {
 
-                                    if (error != null) {
+            if (error != null) {
 
-                                        statusText.setText(
-                                                "🔴 Chat error:\n" +
-                                                error.getMessage());
+                statusText.setText(
+                        "🔴 Chat error:\n" +
+                        error.getMessage()
+                );
 
-                                        return;
-                                    }
+                return;
+            }
 
-                                    messageContainer
-                                            .removeAllViews();
+            messageContainer.removeAllViews();
 
-                                    if (snapshots == null ||
-                                            snapshots.isEmpty()) {
+            if (snapshots == null ||
+                    snapshots.isEmpty()) {
 
-                                        TextView empty =
-                                                new TextView(this);
+                showEmptyMessages();
+                return;
+            }
 
-                                        empty.setText(
-                                                "No messages yet.\n" +
-                                                "You can start the conversation.");
+            List<DocumentSnapshot> messages =
+                    new ArrayList<>(
+                            snapshots.getDocuments()
+                    );
 
-                                        empty.setTextSize(15);
-                                        empty.setTextColor(
-                                                Color.GRAY);
+            Collections.sort(
+                    messages,
+                    new Comparator<DocumentSnapshot>() {
 
-                                        empty.setGravity(
-                                                Gravity.CENTER);
+                @Override
+                public int compare(
+                        DocumentSnapshot a,
+                        DocumentSnapshot b) {
 
-                                        empty.setPadding(
-                                                10,
-                                                30,
-                                                10,
-                                                30);
+                    Timestamp ta =
+                            a.getTimestamp("createdAt");
 
-                                        messageContainer.addView(
-                                                empty);
+                    Timestamp tb =
+                            b.getTimestamp("createdAt");
 
-                                        return;
-                                    }
+                    if (ta == null && tb == null) {
+                        return 0;
+                    }
 
-                                    for (
-                                            DocumentSnapshot message
-                                            : snapshots.getDocuments()) {
+                    if (ta == null) {
+                        return -1;
+                    }
 
-                                        addMessage(
-                                                message);
-                                    }
+                    if (tb == null) {
+                        return 1;
+                    }
 
-                                    scrollToBottom();
-                                });
+                    return ta.compareTo(tb);
+                }
+            });
+
+            for (DocumentSnapshot message : messages) {
+                addMessage(message);
+            }
+
+            scrollToBottom();
+        });
+    }
+
+    private void stopMessageListener() {
+
+        if (messageListener != null) {
+            messageListener.remove();
+            messageListener = null;
+        }
+    }
+
+    private void showEmptyMessages() {
+
+        TextView empty = new TextView(this);
+
+        empty.setText(
+                "No messages yet.\n" +
+                "You can start the conversation."
+        );
+
+        empty.setTextSize(15);
+        empty.setTextColor(Color.GRAY);
+        empty.setGravity(Gravity.CENTER);
+        empty.setPadding(10, 30, 10, 30);
+
+        messageContainer.addView(empty);
     }
 
     private void addMessage(
@@ -584,73 +517,47 @@ public class RideChatActivity extends Activity {
         String prefix;
 
         if (mine) {
-
             prefix = "YOU";
-
         } else if (
                 "DRIVER".equalsIgnoreCase(
                         senderRole)) {
 
             prefix = "DRIVER";
-
         } else {
-
             prefix = "PASSENGER";
         }
 
         bubble.setText(
                 prefix +
                 "\n" +
-                text);
+                text
+        );
 
         bubble.setTextSize(16);
         bubble.setTextColor(Color.DKGRAY);
-
-        bubble.setPadding(
-                18,
-                12,
-                18,
-                12);
+        bubble.setPadding(18, 12, 18, 12);
 
         if (mine) {
-
-            bubble.setGravity(
-                    Gravity.END);
-
+            bubble.setGravity(Gravity.END);
         } else {
-
-            bubble.setGravity(
-                    Gravity.START);
+            bubble.setGravity(Gravity.START);
         }
 
         LinearLayout.LayoutParams params =
                 new LinearLayout.LayoutParams(
                         -1,
-                        -2);
+                        -2
+                );
 
-        params.setMargins(
-                4,
-                4,
-                4,
-                4);
+        params.setMargins(4, 4, 4, 4);
 
         messageContainer.addView(
                 bubble,
-                params);
+                params
+        );
     }
 
     private void sendMessage() {
-
-        if (rideId.trim().isEmpty()) {
-
-            Toast.makeText(
-                    this,
-                    "No ride selected.",
-                    Toast.LENGTH_SHORT
-            ).show();
-
-            return;
-        }
 
         FirebaseUser user =
                 auth.getCurrentUser();
@@ -660,6 +567,17 @@ public class RideChatActivity extends Activity {
             Toast.makeText(
                     this,
                     "Please login again.",
+                    Toast.LENGTH_SHORT
+            ).show();
+
+            return;
+        }
+
+        if (rideId.isEmpty()) {
+
+            Toast.makeText(
+                    this,
+                    "No ride selected.",
                     Toast.LENGTH_SHORT
             ).show();
 
@@ -689,19 +607,23 @@ public class RideChatActivity extends Activity {
 
         data.put(
                 "senderId",
-                user.getUid());
+                user.getUid()
+        );
 
         data.put(
                 "senderRole",
-                currentRole);
+                currentRole
+        );
 
         data.put(
                 "message",
-                text);
+                text
+        );
 
         data.put(
                 "createdAt",
-                Timestamp.now());
+                Timestamp.now()
+        );
 
         db.collection("rides")
                 .document(rideId)
@@ -710,26 +632,24 @@ public class RideChatActivity extends Activity {
                 .addOnSuccessListener(
                         documentReference -> {
 
-                            messageInput.setText("");
+            messageInput.setText("");
 
-                            sendButton.setEnabled(
-                                    true);
+            sendButton.setEnabled(true);
 
-                            scrollToBottom();
-                        })
+            scrollToBottom();
+        })
                 .addOnFailureListener(
                         e -> {
 
-                            sendButton.setEnabled(
-                                    true);
+            sendButton.setEnabled(true);
 
-                            Toast.makeText(
-                                    this,
-                                    "Message failed:\n" +
-                                    e.getMessage(),
-                                    Toast.LENGTH_LONG
-                            ).show();
-                        });
+            Toast.makeText(
+                    this,
+                    "Message failed:\n" +
+                    e.getMessage(),
+                    Toast.LENGTH_LONG
+            ).show();
+        });
     }
 
     private void scrollToBottom() {
@@ -740,7 +660,9 @@ public class RideChatActivity extends Activity {
 
         scrollView.post(
                 () -> scrollView.fullScroll(
-                        View.FOCUS_DOWN));
+                        View.FOCUS_DOWN
+                )
+        );
     }
 
     @Override
