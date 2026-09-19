@@ -996,6 +996,16 @@ private void applySearchResult(
                         + address
         );
 
+        /*
+         * IMPORTANT:
+         * name is changed above, so it cannot be captured
+         * directly by the lambda.
+         *
+         * Make a final copy for the JavaScript callback.
+         */
+        final String destinationName =
+                name;
+
         if (webView != null) {
 
             webView.post(() ->
@@ -1006,7 +1016,7 @@ private void applySearchResult(
                                     + resultLng
                                     + ","
                                     + JSONObject.quote(
-                                    name
+                                    destinationName
                             )
                                     + ");",
                             null
@@ -1370,9 +1380,16 @@ private String getText(
                 timeout
         );
 
+        connection.setUseCaches(false);
+
         connection.setRequestProperty(
                 "User-Agent",
                 "SakayNa/1.0 Android"
+        );
+
+        connection.setRequestProperty(
+                "Accept",
+                "application/json"
         );
 
         int code =
@@ -2007,9 +2024,19 @@ public void onRequestPermissionsResult(
     if (requestCode ==
             LOCATION_PERMISSION) {
 
-        if (grantResults.length > 0
-                && grantResults[0]
-                == PackageManager.PERMISSION_GRANTED) {
+        boolean granted = false;
+
+        for (int result : grantResults) {
+
+            if (result ==
+                    PackageManager.PERMISSION_GRANTED) {
+
+                granted = true;
+                break;
+            }
+        }
+
+        if (granted) {
 
             beginLocationUpdates();
 
