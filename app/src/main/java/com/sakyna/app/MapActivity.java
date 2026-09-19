@@ -1,4 +1,3 @@
-
 package com.sakyna.app;
 
 import android.Manifest;
@@ -15,7 +14,6 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.Gravity;
-import android.view.View;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -51,6 +49,7 @@ public class MapActivity extends Activity {
     private LinearLayout searchResultsContainer;
     private TextView statusText;
     private TextView destinationText;
+    private Button destinationButton;
 
     private LocationManager locationManager;
     private LocationListener locationListener;
@@ -70,7 +69,10 @@ public class MapActivity extends Activity {
     private String destinationAddress = "";
     private boolean destinationChosen = false;
 
-    private Handler handler = new Handler(Looper.getMainLooper());
+    private boolean mapReady = false;
+
+    private final Handler handler =
+            new Handler(Looper.getMainLooper());
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -113,7 +115,10 @@ public class MapActivity extends Activity {
         }
 
         title.setTextSize(23);
-        title.setTypeface(null, android.graphics.Typeface.BOLD);
+        title.setTypeface(
+                null,
+                android.graphics.Typeface.BOLD
+        );
         title.setTextColor(Color.rgb(0, 120, 70));
         title.setGravity(Gravity.CENTER);
         title.setPadding(10, 18, 10, 14);
@@ -125,7 +130,7 @@ public class MapActivity extends Activity {
         }
 
         statusText = new TextView(this);
-        statusText.setText("Loading map...");
+        statusText.setText("📍 Getting your location...");
         statusText.setTextSize(14);
         statusText.setTextColor(Color.DKGRAY);
         statusText.setGravity(Gravity.CENTER);
@@ -134,7 +139,9 @@ public class MapActivity extends Activity {
         root.addView(statusText);
 
         destinationText = new TextView(this);
-        destinationText.setText("Tap the map or search for a place.");
+        destinationText.setText(
+                "Tap the map or search for a place."
+        );
         destinationText.setTextSize(15);
         destinationText.setTextColor(Color.DKGRAY);
         destinationText.setPadding(15, 8, 15, 8);
@@ -150,12 +157,32 @@ public class MapActivity extends Activity {
         settings.setDisplayZoomControls(false);
         settings.setLoadWithOverviewMode(true);
         settings.setUseWideViewPort(true);
-
-        webView.setWebViewClient(new WebViewClient());
+        settings.setAllowFileAccess(true);
+        settings.setAllowContentAccess(true);
 
         webView.setBackgroundColor(Color.WHITE);
 
-        webView.setOnTouchListener((v, event) -> false);
+        webView.setWebViewClient(new WebViewClient() {
+
+            @Override
+            public void onPageFinished(
+                    WebView view,
+                    String url
+            ) {
+                super.onPageFinished(view, url);
+
+                mapReady = true;
+
+                // IMPORTANT:
+                // Send the real GPS position again after
+                // Leaflet has completely loaded.
+                sendCurrentLocationToMap();
+
+                statusText.setText(
+                        "📍 Map ready. Getting GPS location..."
+                );
+            }
+        });
 
         root.addView(
                 webView,
@@ -168,30 +195,38 @@ public class MapActivity extends Activity {
 
         if ("SELECT_DESTINATION".equals(mode)) {
 
-            Button chooseButton = new Button(this);
-            chooseButton.setText("✅ USE THIS DESTINATION");
-            chooseButton.setTextSize(16);
-            chooseButton.setTextColor(Color.WHITE);
-            chooseButton.setBackgroundColor(Color.rgb(0, 120, 70));
-            chooseButton.setEnabled(false);
+            destinationButton = new Button(this);
+            destinationButton.setText(
+                    "✅ USE THIS DESTINATION"
+            );
+            destinationButton.setTextSize(16);
+            destinationButton.setTextColor(Color.WHITE);
+            destinationButton.setBackgroundColor(
+                    Color.rgb(0, 120, 70)
+            );
+            destinationButton.setEnabled(false);
 
-            chooseButton.setOnClickListener(v -> returnDestination());
+            destinationButton.setOnClickListener(
+                    v -> returnDestination()
+            );
 
-            root.addView(chooseButton);
+            root.addView(destinationButton);
 
             Button cancelButton = new Button(this);
             cancelButton.setText("BACK");
-            cancelButton.setOnClickListener(v -> finish());
+            cancelButton.setOnClickListener(
+                    v -> finish()
+            );
 
             root.addView(cancelButton);
-
-            destinationButton = chooseButton;
 
         } else {
 
             Button backButton = new Button(this);
             backButton.setText("BACK");
-            backButton.setOnClickListener(v -> finish());
+            backButton.setOnClickListener(
+                    v -> finish()
+            );
 
             root.addView(backButton);
         }
@@ -201,12 +236,14 @@ public class MapActivity extends Activity {
         loadMap();
     }
 
-    private Button destinationButton;
-
     private void buildSearchArea(LinearLayout root) {
 
-        LinearLayout searchRow = new LinearLayout(this);
-        searchRow.setOrientation(LinearLayout.HORIZONTAL);
+        LinearLayout searchRow =
+                new LinearLayout(this);
+
+        searchRow.setOrientation(
+                LinearLayout.HORIZONTAL
+        );
         searchRow.setPadding(8, 4, 8, 4);
 
         searchInput = new EditText(this);
@@ -229,21 +266,33 @@ public class MapActivity extends Activity {
         searchButton.setText("SEARCH");
         searchButton.setTextSize(13);
 
-        searchButton.setOnClickListener(v -> searchPlace());
+        searchButton.setOnClickListener(
+                v -> searchPlace()
+        );
 
         searchRow.addView(searchButton);
 
         root.addView(searchRow);
 
-        ScrollView resultsScroll = new ScrollView(this);
+        ScrollView resultsScroll =
+                new ScrollView(this);
 
-        searchResultsContainer = new LinearLayout(this);
+        searchResultsContainer =
+                new LinearLayout(this);
+
         searchResultsContainer.setOrientation(
                 LinearLayout.VERTICAL
         );
-        searchResultsContainer.setPadding(8, 3, 8, 3);
+        searchResultsContainer.setPadding(
+                8,
+                3,
+                8,
+                3
+        );
 
-        resultsScroll.addView(searchResultsContainer);
+        resultsScroll.addView(
+                searchResultsContainer
+        );
 
         root.addView(
                 resultsScroll,
@@ -260,25 +309,41 @@ public class MapActivity extends Activity {
                 "<!DOCTYPE html>" +
                 "<html>" +
                 "<head>" +
-                "<meta name='viewport' content='width=device-width, initial-scale=1.0'>" +
-                "<link rel='stylesheet' href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'>" +
-                "<script src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'></script>" +
+                "<meta name='viewport' " +
+                "content='width=device-width, " +
+                "initial-scale=1.0'>" +
+
+                "<link rel='stylesheet' " +
+                "href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'>" +
+
+                "<script src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'>" +
+                "</script>" +
+
                 "<style>" +
-                "html,body,#map{height:100%;margin:0;padding:0;}" +
+                "html,body,#map{" +
+                "height:100%;" +
+                "margin:0;" +
+                "padding:0;" +
+                "}" +
                 "</style>" +
+
                 "</head>" +
                 "<body>" +
+
                 "<div id='map'></div>" +
+
                 "<script>" +
 
                 "var map=L.map('map').setView([" +
-                currentLatitude + "," +
+                currentLatitude +
+                "," +
                 currentLongitude +
                 "],14);" +
 
                 "L.tileLayer(" +
                 "'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'," +
-                "{maxZoom:19,attribution:'© OpenStreetMap contributors'}" +
+                "{maxZoom:19," +
+                "attribution:'© OpenStreetMap contributors'}" +
                 ").addTo(map);" +
 
                 "var userMarker=null;" +
@@ -286,34 +351,71 @@ public class MapActivity extends Activity {
                 "var driverMarker=null;" +
 
                 "function setUser(lat,lng){" +
+
                 "if(userMarker==null){" +
-                "userMarker=L.marker([lat,lng]).addTo(map).bindPopup('You are here');" +
+
+                "userMarker=L.marker([" +
+                "lat,lng" +
+                "]).addTo(map)" +
+                ".bindPopup('You are here');" +
+
                 "}else{" +
-                "userMarker.setLatLng([lat,lng]);" +
+
+                "userMarker.setLatLng([" +
+                "lat,lng" +
+                "]);" +
+
                 "}" +
+
+                // This is the important part:
+                // center the map on the real GPS location.
+                "map.setView([lat,lng],16);" +
+
                 "}" +
 
                 "function setDestination(lat,lng,name){" +
+
                 "if(destinationMarker!=null){" +
                 "map.removeLayer(destinationMarker);" +
                 "}" +
-                "destinationMarker=L.marker([lat,lng]).addTo(map).bindPopup(name).openPopup();" +
+
+                "destinationMarker=" +
+                "L.marker([lat,lng])" +
+                ".addTo(map)" +
+                ".bindPopup(name)" +
+                ".openPopup();" +
+
                 "map.setView([lat,lng],16);" +
+
                 "}" +
 
                 "function setDriver(lat,lng){" +
+
                 "if(driverMarker==null){" +
-                "driverMarker=L.marker([lat,lng]).addTo(map).bindPopup('Driver');" +
+
+                "driverMarker=L.marker([lat,lng])" +
+                ".addTo(map)" +
+                ".bindPopup('Driver');" +
+
                 "}else{" +
+
                 "driverMarker.setLatLng([lat,lng]);" +
+
                 "}" +
+
                 "}" +
 
                 "map.on('click',function(e){" +
-                "AndroidMap.tap(e.latlng.lat,e.latlng.lng);" +
+
+                "AndroidMap.tap(" +
+                "e.latlng.lat," +
+                "e.latlng.lng" +
+                ");" +
+
                 "});" +
 
                 "</script>" +
+
                 "</body>" +
                 "</html>";
 
@@ -334,7 +436,10 @@ public class MapActivity extends Activity {
     private class MapBridge {
 
         @android.webkit.JavascriptInterface
-        public void tap(double lat, double lng) {
+        public void tap(
+                double lat,
+                double lng
+        ) {
 
             runOnUiThread(() -> {
 
@@ -348,9 +453,10 @@ public class MapActivity extends Activity {
     private void startLocation() {
 
         locationManager =
-                (LocationManager) getSystemService(
-                        LOCATION_SERVICE
-                );
+                (LocationManager)
+                        getSystemService(
+                                LOCATION_SERVICE
+                        );
 
         if (checkSelfPermission(
                 Manifest.permission.ACCESS_FINE_LOCATION
@@ -367,29 +473,36 @@ public class MapActivity extends Activity {
             return;
         }
 
-        locationListener = new LocationListener() {
+        locationListener =
+                new LocationListener() {
 
             @Override
-            public void onLocationChanged(Location location) {
+            public void onLocationChanged(
+                    Location location
+            ) {
 
-                currentLatitude = location.getLatitude();
-                currentLongitude = location.getLongitude();
-
-                sendJS(
-                        "setUser(" +
-                        currentLatitude +
-                        "," +
-                        currentLongitude +
-                        ");"
-                );
-
-                if ("SELECT_DESTINATION".equals(mode)
-                        && !destinationChosen) {
-
-                    statusText.setText(
-                            "📍 Your location is ready."
-                    );
+                if (location == null) {
+                    return;
                 }
+
+                currentLatitude =
+                        location.getLatitude();
+
+                currentLongitude =
+                        location.getLongitude();
+
+                // Send only after map is actually ready.
+                sendCurrentLocationToMap();
+
+                statusText.setText(
+                        "📍 GPS location found\n" +
+                        String.format(
+                                Locale.US,
+                                "%.6f, %.6f",
+                                currentLatitude,
+                                currentLongitude
+                        )
+                );
             }
         };
 
@@ -397,15 +510,15 @@ public class MapActivity extends Activity {
 
             locationManager.requestLocationUpdates(
                     LocationManager.GPS_PROVIDER,
-                    2000,
-                    5,
+                    1000,
+                    2,
                     locationListener
             );
 
             locationManager.requestLocationUpdates(
                     LocationManager.NETWORK_PROVIDER,
-                    3000,
-                    5,
+                    2000,
+                    2,
                     locationListener
             );
 
@@ -415,29 +528,51 @@ public class MapActivity extends Activity {
                     );
 
             if (last == null) {
-                last = locationManager.getLastKnownLocation(
-                        LocationManager.NETWORK_PROVIDER
-                );
+
+                last =
+                        locationManager.getLastKnownLocation(
+                                LocationManager.NETWORK_PROVIDER
+                        );
             }
 
             if (last != null) {
-                currentLatitude = last.getLatitude();
-                currentLongitude = last.getLongitude();
 
-                sendJS(
-                        "setUser(" +
-                        currentLatitude +
-                        "," +
-                        currentLongitude +
-                        ");"
-                );
+                currentLatitude =
+                        last.getLatitude();
+
+                currentLongitude =
+                        last.getLongitude();
+
+                sendCurrentLocationToMap();
             }
 
-        } catch (Exception e) {
+        } catch (SecurityException e) {
+
             statusText.setText(
-                    "Location unavailable."
+                    "GPS permission is required."
+            );
+
+        } catch (Exception e) {
+
+            statusText.setText(
+                    "Unable to start GPS."
             );
         }
+    }
+
+    private void sendCurrentLocationToMap() {
+
+        if (!mapReady || webView == null) {
+            return;
+        }
+
+        sendJS(
+                "setUser(" +
+                currentLatitude +
+                "," +
+                currentLongitude +
+                ");"
+        );
     }
 
     @Override
@@ -446,6 +581,7 @@ public class MapActivity extends Activity {
             String[] permissions,
             int[] grantResults
     ) {
+
         super.onRequestPermissionsResult(
                 requestCode,
                 permissions,
@@ -493,15 +629,24 @@ public class MapActivity extends Activity {
 
         searchResultsContainer.removeAllViews();
 
-        TextView loading = new TextView(this);
+        TextView loading =
+                new TextView(this);
+
         loading.setText(
                 "🔎 Searching real place names..."
         );
         loading.setTextSize(15);
         loading.setTextColor(Color.DKGRAY);
-        loading.setPadding(10, 10, 10, 10);
+        loading.setPadding(
+                10,
+                10,
+                10,
+                10
+        );
 
-        searchResultsContainer.addView(loading);
+        searchResultsContainer.addView(
+                loading
+        );
 
         statusText.setText(
                 "Searching for " + query + "..."
@@ -529,15 +674,18 @@ public class MapActivity extends Activity {
                         new URL(urlString);
 
                 connection =
-                        (HttpURLConnection) url.openConnection();
+                        (HttpURLConnection)
+                                url.openConnection();
 
                 connection.setRequestMethod("GET");
                 connection.setConnectTimeout(10000);
                 connection.setReadTimeout(10000);
+
                 connection.setRequestProperty(
                         "User-Agent",
                         "SakayNa/1.0 Android"
                 );
+
                 connection.setRequestProperty(
                         "Accept",
                         "application/json"
@@ -579,25 +727,29 @@ public class MapActivity extends Activity {
                 JSONArray features =
                         new JSONObject(
                                 result.toString()
-                        ).optJSONArray("features");
+                        ).optJSONArray(
+                                "features"
+                        );
 
-                runOnUiThread(() ->
-                        showPhotonResults(features)
+                runOnUiThread(
+                        () -> showPhotonResults(
+                                features
+                        )
                 );
 
             } catch (Exception e) {
 
                 runOnUiThread(() -> {
 
-                    searchResultsContainer.removeAllViews();
+                    searchResultsContainer
+                            .removeAllViews();
 
                     TextView error =
                             new TextView(this);
 
                     error.setText(
-                            "Search failed. Try a more specific name, " +
-                            "for example:\n" +
-                            "Jollibee Imus\n" +
+                            "Search failed.\n" +
+                            "Try: Jollibee Imus\n" +
                             "SM City Imus\n" +
                             "Barangay Buhay na Tubig"
                     );
@@ -611,7 +763,9 @@ public class MapActivity extends Activity {
                             10
                     );
 
-                    searchResultsContainer.addView(error);
+                    searchResultsContainer.addView(
+                            error
+                    );
 
                     statusText.setText(
                             "Search unavailable."
@@ -628,11 +782,14 @@ public class MapActivity extends Activity {
         }).start();
     }
 
-    private void showPhotonResults(JSONArray features) {
+    private void showPhotonResults(
+            JSONArray features
+    ) {
 
         searchResultsContainer.removeAllViews();
 
-        if (features == null || features.length() == 0) {
+        if (features == null
+                || features.length() == 0) {
 
             TextView empty =
                     new TextView(this);
@@ -644,9 +801,16 @@ public class MapActivity extends Activity {
 
             empty.setTextSize(15);
             empty.setTextColor(Color.DKGRAY);
-            empty.setPadding(10, 12, 10, 12);
+            empty.setPadding(
+                    10,
+                    12,
+                    10,
+                    12
+            );
 
-            searchResultsContainer.addView(empty);
+            searchResultsContainer.addView(
+                    empty
+            );
 
             statusText.setText(
                     "No place found."
@@ -659,7 +823,9 @@ public class MapActivity extends Activity {
                 "Select the correct real place:"
         );
 
-        for (int i = 0; i < features.length(); i++) {
+        for (int i = 0;
+             i < features.length();
+             i++) {
 
             try {
 
@@ -668,8 +834,12 @@ public class MapActivity extends Activity {
 
                 JSONArray coordinates =
                         feature
-                                .getJSONObject("geometry")
-                                .getJSONArray("coordinates");
+                                .getJSONObject(
+                                        "geometry"
+                                )
+                                .getJSONArray(
+                                        "coordinates"
+                                );
 
                 double lng =
                         coordinates.getDouble(0);
@@ -698,19 +868,19 @@ public class MapActivity extends Activity {
                                         ""
                                 );
 
-                String city =
-                        properties == null
-                                ? ""
-                                : properties.optString(
-                                        "city",
-                                        ""
-                                );
-
                 String district =
                         properties == null
                                 ? ""
                                 : properties.optString(
                                         "district",
+                                        ""
+                                );
+
+                String city =
+                        properties == null
+                                ? ""
+                                : properties.optString(
+                                        "city",
                                         ""
                                 );
 
@@ -742,9 +912,12 @@ public class MapActivity extends Activity {
 
                 if (display.isEmpty()) {
                     display =
-                            lat +
-                            ", " +
-                            lng;
+                            String.format(
+                                    Locale.US,
+                                    "%.6f, %.6f",
+                                    lat,
+                                    lng
+                            );
                 }
 
                 Button resultButton =
@@ -762,7 +935,8 @@ public class MapActivity extends Activity {
 
                 final double selectedLat = lat;
                 final double selectedLng = lng;
-                final String selectedName = display;
+                final String selectedName =
+                        display;
 
                 resultButton.setOnClickListener(
                         v -> selectSearchResult(
@@ -1057,7 +1231,8 @@ public class MapActivity extends Activity {
 
     private void setupLiveRide() {
 
-        if (rideId == null || rideId.trim().isEmpty()) {
+        if (rideId == null
+                || rideId.trim().isEmpty()) {
 
             statusText.setText(
                     "No active ride."
@@ -1095,16 +1270,10 @@ public class MapActivity extends Activity {
     ) {
 
         String status =
-                value(
-                        ride,
-                        "status"
-                );
+                value(ride, "status");
 
         String pickupName =
-                value(
-                        ride,
-                        "pickupName"
-                );
+                value(ride, "pickupName");
 
         String destinationName =
                 value(
@@ -1144,7 +1313,6 @@ public class MapActivity extends Activity {
                 );
 
         if (!driverId.isEmpty()) {
-
             listenToDriver(driverId);
         }
     }
@@ -1228,13 +1396,13 @@ public class MapActivity extends Activity {
             String javascript
     ) {
 
-        if (webView == null) {
+        if (webView == null
+                || !mapReady) {
             return;
         }
 
         runOnUiThread(() ->
                 webView.evaluateJavascript(
-                        "javascript:" +
                         javascript,
                         null
                 )
