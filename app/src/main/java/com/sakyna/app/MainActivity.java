@@ -16,8 +16,8 @@ import android.widget.Toast;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentSnapshot;
-import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.FieldValue;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -52,13 +52,14 @@ public class MainActivity extends Activity {
         auth = FirebaseAuth.getInstance();
         db = FirebaseFirestore.getInstance();
 
-        FirebaseUser currentUser = auth.getCurrentUser();
-
-        if (currentUser != null) {
-            loadUserRole(currentUser);
-        } else {
-            showLoginScreen();
-        }
+        /*
+         * Always show the login screen first.
+         *
+         * This prevents an old Firebase session from
+         * automatically sending the user into a dashboard
+         * while the app is starting.
+         */
+        showLoginScreen();
     }
 
     private void showLoginScreen() {
@@ -108,13 +109,16 @@ public class MainActivity extends Activity {
         root.addView(roleRow, full());
 
         passengerButton.setOnClickListener(
-                v -> selectRole("PASSENGER"));
+                v -> selectRole("PASSENGER")
+        );
 
         driverButton.setOnClickListener(
-                v -> selectRole("DRIVER"));
+                v -> selectRole("DRIVER")
+        );
 
         adminButton.setOnClickListener(
-                v -> selectRole("ADMIN"));
+                v -> selectRole("ADMIN")
+        );
 
         TextView phoneLabel = label("Phone number");
         phoneLabel.setPadding(0, 18, 0, 3);
@@ -124,7 +128,9 @@ public class MainActivity extends Activity {
         phoneInput.setHint("09XXXXXXXXX");
         phoneInput.setTextSize(18);
         phoneInput.setSingleLine(true);
-        phoneInput.setInputType(InputType.TYPE_CLASS_PHONE);
+        phoneInput.setInputType(
+                InputType.TYPE_CLASS_PHONE
+        );
         root.addView(phoneInput, full());
 
         TextView passwordLabel = label("Password");
@@ -136,8 +142,8 @@ public class MainActivity extends Activity {
         passwordInput.setTextSize(18);
         passwordInput.setSingleLine(true);
         passwordInput.setInputType(
-                InputType.TYPE_CLASS_TEXT |
-                InputType.TYPE_TEXT_VARIATION_PASSWORD
+                InputType.TYPE_CLASS_TEXT
+                        | InputType.TYPE_TEXT_VARIATION_PASSWORD
         );
         root.addView(passwordInput, full());
 
@@ -146,30 +152,48 @@ public class MainActivity extends Activity {
         loginButton.setTextSize(17);
         loginButton.setTextColor(Color.WHITE);
         loginButton.setBackgroundColor(GREEN);
-        loginButton.setOnClickListener(v -> login());
+
+        loginButton.setOnClickListener(
+                v -> login()
+        );
 
         LinearLayout.LayoutParams loginParams = full();
         loginParams.topMargin = 18;
-        root.addView(loginButton, loginParams);
+
+        root.addView(
+                loginButton,
+                loginParams
+        );
 
         createButton = new Button(this);
         createButton.setText("CREATE ACCOUNT");
         createButton.setTextSize(17);
-        createButton.setOnClickListener(v -> createAccount());
 
-        root.addView(createButton, full());
+        createButton.setOnClickListener(
+                v -> createAccount()
+        );
+
+        root.addView(
+                createButton,
+                full()
+        );
 
         TextView information = new TextView(this);
+
         information.setText(
-                "Phone number + password only\n" +
-                "Driver accounts require Admin approval before GO ONLINE."
+                "Phone number + password only\n"
+                        + "Driver accounts require Admin approval before GO ONLINE."
         );
+
         information.setTextSize(14);
         information.setTextColor(Color.GRAY);
         information.setGravity(Gravity.CENTER);
         information.setPadding(0, 14, 0, 0);
 
-        root.addView(information, full());
+        root.addView(
+                information,
+                full()
+        );
 
         setContentView(root);
 
@@ -179,9 +203,13 @@ public class MainActivity extends Activity {
     private TextView label(String text) {
 
         TextView t = new TextView(this);
+
         t.setText(text);
         t.setTextSize(14);
-        t.setTypeface(null, android.graphics.Typeface.BOLD);
+        t.setTypeface(
+                null,
+                android.graphics.Typeface.BOLD
+        );
         t.setTextColor(Color.DKGRAY);
 
         return t;
@@ -190,6 +218,7 @@ public class MainActivity extends Activity {
     private Button makeRoleButton(String text) {
 
         Button button = new Button(this);
+
         button.setText(text);
         button.setTextSize(12);
 
@@ -215,19 +244,24 @@ public class MainActivity extends Activity {
 
     private void selectRole(String role) {
 
-        selectedRole = role.trim().toUpperCase();
-
-        passengerButton.setText("PASSENGER");
-        driverButton.setText("DRIVER");
-        adminButton.setText("ADMIN");
+        selectedRole =
+                role.trim().toUpperCase();
 
         passengerButton.setTextColor(Color.DKGRAY);
         driverButton.setTextColor(Color.DKGRAY);
         adminButton.setTextColor(Color.DKGRAY);
 
-        passengerButton.setBackgroundColor(Color.TRANSPARENT);
-        driverButton.setBackgroundColor(Color.TRANSPARENT);
-        adminButton.setBackgroundColor(Color.TRANSPARENT);
+        passengerButton.setBackgroundColor(
+                Color.TRANSPARENT
+        );
+
+        driverButton.setBackgroundColor(
+                Color.TRANSPARENT
+        );
+
+        adminButton.setBackgroundColor(
+                Color.TRANSPARENT
+        );
 
         if ("DRIVER".equals(selectedRole)) {
 
@@ -254,43 +288,70 @@ public class MainActivity extends Activity {
             return "";
         }
 
-        String phone = input.replaceAll("[^0-9]", "");
+        String phone =
+                input.replaceAll(
+                        "[^0-9]",
+                        ""
+                );
 
-        if (phone.startsWith("0") && phone.length() == 11) {
-            phone = "63" + phone.substring(1);
-        } else if (phone.startsWith("9") && phone.length() == 10) {
-            phone = "63" + phone;
+        if (phone.startsWith("0")
+                && phone.length() == 11) {
+
+            phone =
+                    "63"
+                            + phone.substring(1);
+
+        } else if (phone.startsWith("9")
+                && phone.length() == 10) {
+
+            phone =
+                    "63"
+                            + phone;
         }
 
         return phone;
     }
 
-    private String firebaseIdentifier(String phone) {
+    private String firebaseIdentifier(
+            String phone) {
+
         return phone + "@sakyna.app";
     }
 
     private boolean validInput() {
 
-        String phone = normalizePhone(
-                phoneInput == null
+        String phone =
+                normalizePhone(
+                        phoneInput == null
+                                ? ""
+                                : phoneInput
+                                .getText()
+                                .toString()
+                );
+
+        String password =
+                passwordInput == null
                         ? ""
-                        : phoneInput.getText().toString()
-        );
+                        : passwordInput
+                        .getText()
+                        .toString();
 
-        String password = passwordInput == null
-                ? ""
-                : passwordInput.getText().toString();
+        if (phone.length() != 12
+                || !phone.startsWith("63")) {
 
-        if (phone.length() != 12 ||
-                !phone.startsWith("63")) {
+            toast(
+                    "Enter a valid Philippine phone number."
+            );
 
-            toast("Enter a valid Philippine phone number.");
             return false;
         }
 
         if (password.length() < 6) {
 
-            toast("Password must be at least 6 characters.");
+            toast(
+                    "Password must be at least 6 characters."
+            );
+
             return false;
         }
 
@@ -303,16 +364,27 @@ public class MainActivity extends Activity {
             return;
         }
 
-        String phone = normalizePhone(
-                phoneInput.getText().toString()
-        );
+        final String phone =
+                normalizePhone(
+                        phoneInput
+                                .getText()
+                                .toString()
+                );
 
-        String password =
-                passwordInput.getText().toString();
+        final String password =
+                passwordInput
+                        .getText()
+                        .toString();
 
         loginButton.setEnabled(false);
         createButton.setEnabled(false);
         loginButton.setText("LOGGING IN...");
+
+        /*
+         * Clear any stale local Firebase session first.
+         * Then perform one clean authentication.
+         */
+        auth.signOut();
 
         auth.signInWithEmailAndPassword(
                 firebaseIdentifier(phone),
@@ -320,16 +392,24 @@ public class MainActivity extends Activity {
         )
         .addOnSuccessListener(result -> {
 
-            FirebaseUser user = auth.getCurrentUser();
+            FirebaseUser user =
+                    result.getUser();
 
             if (user == null) {
 
                 resetLoginButtons();
-                toast("Login failed.");
+
+                toast(
+                        "Login failed."
+                );
+
                 return;
             }
 
-            loadUserRole(user);
+            loadUserRole(
+                    user,
+                    selectedRole
+            );
         })
         .addOnFailureListener(e -> {
 
@@ -341,31 +421,31 @@ public class MainActivity extends Activity {
         });
     }
 
-    private void resetLoginButtons() {
-
-        if (loginButton != null) {
-            loginButton.setEnabled(true);
-            loginButton.setText("LOGIN");
-        }
-
-        if (createButton != null) {
-            createButton.setEnabled(true);
-        }
-    }
-
-    private void loadUserRole(FirebaseUser user) {
+    private void loadUserRole(
+            FirebaseUser user,
+            String requestedRole) {
 
         if (user == null) {
 
-            showLoginError("Account not found.");
+            showLoginError(
+                    "Account not found."
+            );
+
             return;
         }
 
-        final String uid = user.getUid();
+        final String uid =
+                user.getUid();
 
+        /*
+         * Admin is identified by the fixed Admin UID.
+         */
         if (ADMIN_UID.equals(uid)) {
 
-            openScreen(AdminActivity.class);
+            openScreen(
+                    AdminActivity.class
+            );
+
             return;
         }
 
@@ -376,41 +456,58 @@ public class MainActivity extends Activity {
 
                     if (!document.exists()) {
 
-                        findProfileByPhone(user);
+                        findProfileByPhone(
+                                user,
+                                requestedRole
+                        );
+
                         return;
                     }
 
-                    routeUsingRole(document);
+                    routeUsingRole(
+                            document,
+                            requestedRole
+                    );
                 })
                 .addOnFailureListener(e -> {
 
                     showLoginError(
-                            "Unable to load user profile."
+                            "Unable to load user profile. Check your internet connection and try again."
                     );
                 });
     }
 
-    private void findProfileByPhone(FirebaseUser user) {
+    private void findProfileByPhone(
+            FirebaseUser user,
+            String requestedRole) {
 
         String phone = "";
 
-        String internalEmail = user.getEmail();
+        String internalEmail =
+                user.getEmail();
 
-        if (internalEmail != null &&
-                internalEmail.endsWith("@sakyna.app")) {
+        if (internalEmail != null
+                && internalEmail.endsWith(
+                "@sakyna.app"
+        )) {
 
-            phone = internalEmail.substring(
-                    0,
-                    internalEmail.length()
-                            - "@sakyna.app".length()
-            );
+            phone =
+                    internalEmail.substring(
+                            0,
+                            internalEmail.length()
+                                    - "@sakyna.app".length()
+                    );
         }
 
-        if (phone.isEmpty() && phoneInput != null) {
+        if (phone.isEmpty()
+                && phoneInput != null) {
 
-            phone = normalizePhone(
-                    phoneInput.getText().toString()
-            );
+            phone =
+                    normalizePhone(
+                            phoneInput
+                                    .getText()
+                                    .toString()
+                    );
         }
 
         if (phone.isEmpty()) {
@@ -418,13 +515,18 @@ public class MainActivity extends Activity {
             showLoginError(
                     "User profile was not found."
             );
+
             return;
         }
 
-        final String searchedPhone = phone;
+        final String searchedPhone =
+                phone;
 
         db.collection("users")
-                .whereEqualTo("phone", searchedPhone)
+                .whereEqualTo(
+                        "phone",
+                        searchedPhone
+                )
                 .limit(1)
                 .get()
                 .addOnSuccessListener(query -> {
@@ -438,62 +540,90 @@ public class MainActivity extends Activity {
                     } else {
 
                         routeUsingRole(
-                                query.getDocuments().get(0)
+                                query.getDocuments().get(0),
+                                requestedRole
                         );
                     }
                 })
                 .addOnFailureListener(e -> {
 
                     showLoginError(
-                            "Unable to load user profile."
+                            "Unable to load user profile. Check your internet connection and try again."
                     );
                 });
     }
 
     private void routeUsingRole(
-            DocumentSnapshot document) {
+            DocumentSnapshot document,
+            String requestedRole) {
 
-        if (document == null ||
-                !document.exists()) {
+        if (document == null
+                || !document.exists()) {
 
             showLoginError(
                     "User profile was not found."
             );
+
             return;
         }
 
-        String role = document.getString("role");
+        String role =
+                document.getString("role");
 
         if (role == null) {
 
             showLoginError(
                     "This account has no role."
             );
+
             return;
         }
 
-        role = role.trim().toUpperCase();
+        role =
+                role.trim().toUpperCase();
 
+        /*
+         * The authenticated Firebase account determines
+         * the real role. The selected button is not allowed
+         * to turn a passenger into a driver or admin.
+         */
         if ("DRIVER".equals(role)) {
 
-            openScreen(DriverActivity.class);
+            Boolean approved =
+                    document.getBoolean("approved");
+
+            /*
+             * Driver may log in even if pending.
+             * DriverActivity controls GO ONLINE.
+             */
+            openScreen(
+                    DriverActivity.class
+            );
+
             return;
         }
 
         if ("PASSENGER".equals(role)) {
 
-            openScreen(PassengerActivity.class);
+            openScreen(
+                    PassengerActivity.class
+            );
+
             return;
         }
 
         if ("ADMIN".equals(role)) {
 
-            openScreen(AdminActivity.class);
+            openScreen(
+                    AdminActivity.class
+            );
+
             return;
         }
 
         showLoginError(
-                "Unknown account role: " + role
+                "Unknown account role: "
+                        + role
         );
     }
 
@@ -504,36 +634,50 @@ public class MainActivity extends Activity {
         }
 
         final String role =
-                selectedRole.trim().toUpperCase();
+                selectedRole
+                        .trim()
+                        .toUpperCase();
 
         if ("ADMIN".equals(role)) {
 
             toast(
                     "Admin accounts are handled separately."
             );
+
             return;
         }
 
-        if (!"PASSENGER".equals(role) &&
-                !"DRIVER".equals(role)) {
+        if (!"PASSENGER".equals(role)
+                && !"DRIVER".equals(role)) {
 
             toast(
                     "Select PASSENGER or DRIVER."
             );
+
             return;
         }
 
         final String phone =
                 normalizePhone(
-                        phoneInput.getText().toString()
+                        phoneInput
+                                .getText()
+                                .toString()
                 );
 
         final String password =
-                passwordInput.getText().toString();
+                passwordInput
+                        .getText()
+                        .toString();
 
         loginButton.setEnabled(false);
         createButton.setEnabled(false);
         createButton.setText("CREATING...");
+
+        /*
+         * Make sure an old session cannot interfere
+         * with account creation.
+         */
+        auth.signOut();
 
         auth.createUserWithEmailAndPassword(
                 firebaseIdentifier(phone),
@@ -542,38 +686,65 @@ public class MainActivity extends Activity {
         .addOnSuccessListener(result -> {
 
             FirebaseUser user =
-                    auth.getCurrentUser();
+                    result.getUser();
 
             if (user == null) {
 
                 resetCreateButton();
-                toast("Account creation failed.");
+
+                toast(
+                        "Account creation failed."
+                );
+
                 return;
             }
 
             Map<String, Object> profile =
                     new HashMap<>();
 
-            profile.put("phone", phone);
-            profile.put("role", role);
+            profile.put(
+                    "phone",
+                    phone
+            );
+
+            profile.put(
+                    "role",
+                    role
+            );
 
             if ("DRIVER".equals(role)) {
 
-                profile.put("approved", false);
+                profile.put(
+                        "approved",
+                        false
+                );
+
                 profile.put(
                         "approvalStatus",
                         "PENDING_APPROVAL"
                 );
-                profile.put("online", false);
+
+                profile.put(
+                        "online",
+                        false
+                );
 
             } else {
 
-                profile.put("approved", true);
+                profile.put(
+                        "approved",
+                        true
+                );
+
                 profile.put(
                         "approvalStatus",
                         "APPROVED"
                 );
-                profile.put("online", false);
+
+                profile.put(
+                        "online",
+                        false
+                );
             }
 
             profile.put(
@@ -595,16 +766,16 @@ public class MainActivity extends Activity {
                         if ("DRIVER".equals(role)) {
 
                             toast(
-                                    "DRIVER account created.\n" +
-                                    "Please LOGIN.\n" +
-                                    "Admin approval is required before GO ONLINE."
+                                    "DRIVER account created.\n"
+                                            + "Please LOGIN.\n"
+                                            + "Admin approval is required before GO ONLINE."
                             );
 
                         } else {
 
                             toast(
-                                    "PASSENGER account created.\n" +
-                                    "Please LOGIN."
+                                    "PASSENGER account created.\n"
+                                            + "Please LOGIN."
                             );
                         }
                     })
@@ -623,28 +794,48 @@ public class MainActivity extends Activity {
 
             resetCreateButton();
 
-            String message = e.getMessage();
+            String message =
+                    e.getMessage();
 
-            if (message == null ||
-                    message.trim().isEmpty()) {
+            if (message == null
+                    || message.trim().isEmpty()) {
 
-                message = "Account creation failed.";
+                message =
+                        "Account creation failed.";
             }
 
             toast(message);
         });
     }
 
-    private void resetCreateButton() {
+    private void resetLoginButtons() {
 
         if (loginButton != null) {
+
             loginButton.setEnabled(true);
             loginButton.setText("LOGIN");
         }
 
         if (createButton != null) {
+
             createButton.setEnabled(true);
-            createButton.setText("CREATE ACCOUNT");
+        }
+    }
+
+    private void resetCreateButton() {
+
+        if (loginButton != null) {
+
+            loginButton.setEnabled(true);
+            loginButton.setText("LOGIN");
+        }
+
+        if (createButton != null) {
+
+            createButton.setEnabled(true);
+            createButton.setText(
+                    "CREATE ACCOUNT"
+            );
         }
     }
 
@@ -652,18 +843,22 @@ public class MainActivity extends Activity {
             Class<?> activityClass) {
 
         Intent intent =
-                new Intent(this, activityClass);
+                new Intent(
+                        this,
+                        activityClass
+                );
 
         intent.addFlags(
-                Intent.FLAG_ACTIVITY_NEW_TASK |
-                Intent.FLAG_ACTIVITY_CLEAR_TASK
+                Intent.FLAG_ACTIVITY_NEW_TASK
+                        | Intent.FLAG_ACTIVITY_CLEAR_TASK
         );
 
         startActivity(intent);
         finish();
     }
 
-    private void showLoginError(String message) {
+    private void showLoginError(
+            String message) {
 
         auth.signOut();
 
@@ -672,7 +867,8 @@ public class MainActivity extends Activity {
         toast(message);
     }
 
-    private void toast(String message) {
+    private void toast(
+            String message) {
 
         Toast.makeText(
                 this,
