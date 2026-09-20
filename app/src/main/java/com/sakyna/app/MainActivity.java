@@ -1,4 +1,3 @@
-
 package com.sakyna.app;
 
 import android.app.Activity;
@@ -13,867 +12,1161 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.google.firebase.auth.AuthResult;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentSnapshot;
-import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.FieldValue;
+import com.google.firebase.firestore.FirebaseFirestore;
 
 import java.util.HashMap;
 import java.util.Map;
 
 public class MainActivity extends Activity {
 
-    private FirebaseAuth auth;
-    private FirebaseFirestore db;
+private FirebaseAuth auth;
+private FirebaseFirestore db;
 
-    private EditText phoneInput;
-    private EditText passwordInput;
+private EditText phoneInput;
+private EditText passwordInput;
 
-    private Button passengerButton;
-    private Button driverButton;
-    private Button adminButton;
-    private Button loginButton;
-    private Button createButton;
+private Button passengerButton;
+private Button driverButton;
+private Button adminButton;
+private Button loginButton;
+private Button createButton;
 
-    private String selectedRole = "PASSENGER";
+private String selectedRole = "PASSENGER";
 
-    private static final int GREEN = Color.rgb(0, 120, 70);
-    private static final int BLUE = Color.rgb(30, 90, 180);
-    private static final int ORANGE = Color.rgb(190, 95, 0);
+private static final int GREEN =
+        Color.rgb(0, 120, 70);
 
-    private static final String ADMIN_UID =
-            "Ld3rzaCvAGNlXBDCofB3mWjgXWp2";
+private static final int BLUE =
+        Color.rgb(30, 90, 180);
 
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
+private static final int ORANGE =
+        Color.rgb(190, 95, 0);
 
-        auth = FirebaseAuth.getInstance();
-        db = FirebaseFirestore.getInstance();
+private static final String ADMIN_UID =
+        "Ld3rzaCvAGNlXBDCofB3mWjgXWp2";
 
-        /*
-         * Always show the login screen first.
-         *
-         * This prevents an old Firebase session from
-         * automatically sending the user into a dashboard
-         * while the app is starting.
-         */
-        showLoginScreen();
-    }
+@Override
+protected void onCreate(
+        Bundle savedInstanceState) {
 
-    private void showLoginScreen() {
+    super.onCreate(savedInstanceState);
 
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setGravity(Gravity.CENTER_HORIZONTAL);
-        root.setPadding(28, 25, 28, 25);
-        root.setBackgroundColor(Color.WHITE);
+    auth = FirebaseAuth.getInstance();
+    db = FirebaseFirestore.getInstance();
 
-        TextView title = new TextView(this);
-        title.setText("🛺 SAKAY NA");
-        title.setTextSize(32);
-        title.setTypeface(null, android.graphics.Typeface.BOLD);
-        title.setTextColor(GREEN);
-        title.setGravity(Gravity.CENTER);
-        root.addView(title, full());
+    /*
+     * Always show the login screen.
+     *
+     * We do NOT automatically route an old Firebase
+     * session when MainActivity starts.
+     *
+     * This prevents stale sessions from causing
+     * unexpected dashboard/login behavior.
+     */
+    showLoginScreen();
+}
 
-        TextView subtitle = new TextView(this);
-        subtitle.setText("Ride anywhere. Sakay Na.");
-        subtitle.setTextSize(17);
-        subtitle.setTextColor(Color.DKGRAY);
-        subtitle.setGravity(Gravity.CENTER);
-        subtitle.setPadding(0, 5, 0, 20);
-        root.addView(subtitle, full());
+private void showLoginScreen() {
 
-        TextView roleLabel = new TextView(this);
-        roleLabel.setText("SELECT ACCOUNT TYPE");
-        roleLabel.setTextSize(15);
-        roleLabel.setTypeface(null, android.graphics.Typeface.BOLD);
-        roleLabel.setTextColor(Color.DKGRAY);
-        roleLabel.setGravity(Gravity.CENTER);
-        root.addView(roleLabel, full());
+    LinearLayout root =
+            new LinearLayout(this);
 
-        LinearLayout roleRow = new LinearLayout(this);
-        roleRow.setOrientation(LinearLayout.HORIZONTAL);
-        roleRow.setGravity(Gravity.CENTER);
+    root.setOrientation(
+            LinearLayout.VERTICAL
+    );
 
-        passengerButton = makeRoleButton("PASSENGER");
-        driverButton = makeRoleButton("DRIVER");
-        adminButton = makeRoleButton("ADMIN");
+    root.setGravity(
+            Gravity.CENTER_HORIZONTAL
+    );
 
-        roleRow.addView(passengerButton, weighted());
-        roleRow.addView(driverButton, weighted());
-        roleRow.addView(adminButton, weighted());
+    root.setPadding(
+            28,
+            25,
+            28,
+            25
+    );
 
-        root.addView(roleRow, full());
+    root.setBackgroundColor(
+            Color.WHITE
+    );
 
-        passengerButton.setOnClickListener(
-                v -> selectRole("PASSENGER")
-        );
+    TextView title =
+            new TextView(this);
 
-        driverButton.setOnClickListener(
-                v -> selectRole("DRIVER")
-        );
+    title.setText(
+            "🛺 SAKAY NA"
+    );
 
-        adminButton.setOnClickListener(
-                v -> selectRole("ADMIN")
-        );
+    title.setTextSize(32);
 
-        TextView phoneLabel = label("Phone number");
-        phoneLabel.setPadding(0, 18, 0, 3);
-        root.addView(phoneLabel, full());
+    title.setTypeface(
+            null,
+            android.graphics.Typeface.BOLD
+    );
 
-        phoneInput = new EditText(this);
-        phoneInput.setHint("09XXXXXXXXX");
-        phoneInput.setTextSize(18);
-        phoneInput.setSingleLine(true);
-        phoneInput.setInputType(
-                InputType.TYPE_CLASS_PHONE
-        );
-        root.addView(phoneInput, full());
+    title.setTextColor(GREEN);
 
-        TextView passwordLabel = label("Password");
-        passwordLabel.setPadding(0, 14, 0, 3);
-        root.addView(passwordLabel, full());
+    title.setGravity(
+            Gravity.CENTER
+    );
 
-        passwordInput = new EditText(this);
-        passwordInput.setHint("Password");
-        passwordInput.setTextSize(18);
-        passwordInput.setSingleLine(true);
-        passwordInput.setInputType(
-                InputType.TYPE_CLASS_TEXT
-                        | InputType.TYPE_TEXT_VARIATION_PASSWORD
-        );
-        root.addView(passwordInput, full());
+    root.addView(
+            title,
+            full()
+    );
 
-        loginButton = new Button(this);
-        loginButton.setText("LOGIN");
-        loginButton.setTextSize(17);
-        loginButton.setTextColor(Color.WHITE);
-        loginButton.setBackgroundColor(GREEN);
+    TextView subtitle =
+            new TextView(this);
 
-        loginButton.setOnClickListener(
-                v -> login()
-        );
+    subtitle.setText(
+            "Ride anywhere. Sakay Na."
+    );
 
-        LinearLayout.LayoutParams loginParams = full();
-        loginParams.topMargin = 18;
+    subtitle.setTextSize(17);
 
-        root.addView(
-                loginButton,
-                loginParams
-        );
+    subtitle.setTextColor(
+            Color.DKGRAY
+    );
 
-        createButton = new Button(this);
-        createButton.setText("CREATE ACCOUNT");
-        createButton.setTextSize(17);
+    subtitle.setGravity(
+            Gravity.CENTER
+    );
 
-        createButton.setOnClickListener(
-                v -> createAccount()
-        );
+    subtitle.setPadding(
+            0,
+            5,
+            0,
+            20
+    );
 
-        root.addView(
-                createButton,
-                full()
-        );
+    root.addView(
+            subtitle,
+            full()
+    );
 
-        TextView information = new TextView(this);
+    TextView roleLabel =
+            new TextView(this);
 
-        information.setText(
-                "Phone number + password only\n"
-                        + "Driver accounts require Admin approval before GO ONLINE."
-        );
+    roleLabel.setText(
+            "SELECT ACCOUNT TYPE"
+    );
 
-        information.setTextSize(14);
-        information.setTextColor(Color.GRAY);
-        information.setGravity(Gravity.CENTER);
-        information.setPadding(0, 14, 0, 0);
+    roleLabel.setTextSize(15);
 
-        root.addView(
-                information,
-                full()
-        );
+    roleLabel.setTypeface(
+            null,
+            android.graphics.Typeface.BOLD
+    );
 
-        setContentView(root);
+    roleLabel.setTextColor(
+            Color.DKGRAY
+    );
 
-        selectRole("PASSENGER");
-    }
+    roleLabel.setGravity(
+            Gravity.CENTER
+    );
 
-    private TextView label(String text) {
+    root.addView(
+            roleLabel,
+            full()
+    );
 
-        TextView t = new TextView(this);
+    LinearLayout roleRow =
+            new LinearLayout(this);
 
-        t.setText(text);
-        t.setTextSize(14);
-        t.setTypeface(
-                null,
-                android.graphics.Typeface.BOLD
-        );
-        t.setTextColor(Color.DKGRAY);
+    roleRow.setOrientation(
+            LinearLayout.HORIZONTAL
+    );
 
-        return t;
-    }
+    roleRow.setGravity(
+            Gravity.CENTER
+    );
 
-    private Button makeRoleButton(String text) {
+    passengerButton =
+            makeRoleButton(
+                    "PASSENGER"
+            );
 
-        Button button = new Button(this);
+    driverButton =
+            makeRoleButton(
+                    "DRIVER"
+            );
 
-        button.setText(text);
-        button.setTextSize(12);
+    adminButton =
+            makeRoleButton(
+                    "ADMIN"
+            );
 
-        return button;
-    }
+    roleRow.addView(
+            passengerButton,
+            weighted()
+    );
 
-    private LinearLayout.LayoutParams full() {
+    roleRow.addView(
+            driverButton,
+            weighted()
+    );
 
-        return new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-        );
-    }
+    roleRow.addView(
+            adminButton,
+            weighted()
+    );
 
-    private LinearLayout.LayoutParams weighted() {
+    root.addView(
+            roleRow,
+            full()
+    );
 
-        return new LinearLayout.LayoutParams(
-                0,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                1f
-        );
-    }
+    passengerButton.setOnClickListener(
+            v -> selectRole(
+                    "PASSENGER"
+            )
+    );
 
-    private void selectRole(String role) {
+    driverButton.setOnClickListener(
+            v -> selectRole(
+                    "DRIVER"
+            )
+    );
 
-        selectedRole =
-                role.trim().toUpperCase();
+    adminButton.setOnClickListener(
+            v -> selectRole(
+                    "ADMIN"
+            )
+    );
 
-        passengerButton.setTextColor(Color.DKGRAY);
-        driverButton.setTextColor(Color.DKGRAY);
-        adminButton.setTextColor(Color.DKGRAY);
+    TextView phoneLabel =
+            label("Phone number");
 
-        passengerButton.setBackgroundColor(
-                Color.TRANSPARENT
+    phoneLabel.setPadding(
+            0,
+            18,
+            0,
+            3
+    );
+
+    root.addView(
+            phoneLabel,
+            full()
+    );
+
+    phoneInput =
+            new EditText(this);
+
+    phoneInput.setHint(
+            "09XXXXXXXXX"
+    );
+
+    phoneInput.setTextSize(18);
+
+    phoneInput.setSingleLine(true);
+
+    phoneInput.setInputType(
+            InputType.TYPE_CLASS_PHONE
+    );
+
+    root.addView(
+            phoneInput,
+            full()
+    );
+
+    TextView passwordLabel =
+            label("Password");
+
+    passwordLabel.setPadding(
+            0,
+            14,
+            0,
+            3
+    );
+
+    root.addView(
+            passwordLabel,
+            full()
+    );
+
+    passwordInput =
+            new EditText(this);
+
+    passwordInput.setHint(
+            "Password"
+    );
+
+    passwordInput.setTextSize(18);
+
+    passwordInput.setSingleLine(true);
+
+    passwordInput.setInputType(
+            InputType.TYPE_CLASS_TEXT
+                    |
+            InputType.TYPE_TEXT_VARIATION_PASSWORD
+    );
+
+    root.addView(
+            passwordInput,
+            full()
+    );
+
+    loginButton =
+            new Button(this);
+
+    loginButton.setText(
+            "LOGIN"
+    );
+
+    loginButton.setTextSize(17);
+
+    loginButton.setTextColor(
+            Color.WHITE
+    );
+
+    loginButton.setBackgroundColor(
+            GREEN
+    );
+
+    loginButton.setOnClickListener(
+            v -> login()
+    );
+
+    LinearLayout.LayoutParams loginParams =
+            full();
+
+    loginParams.topMargin = 18;
+
+    root.addView(
+            loginButton,
+            loginParams
+    );
+
+    createButton =
+            new Button(this);
+
+    createButton.setText(
+            "CREATE ACCOUNT"
+    );
+
+    createButton.setTextSize(17);
+
+    createButton.setOnClickListener(
+            v -> createAccount()
+    );
+
+    root.addView(
+            createButton,
+            full()
+    );
+
+    TextView information =
+            new TextView(this);
+
+    information.setText(
+            "Phone number + password only\n"
+                    +
+            "Driver accounts require Admin approval before GO ONLINE."
+    );
+
+    information.setTextSize(14);
+
+    information.setTextColor(
+            Color.GRAY
+    );
+
+    information.setGravity(
+            Gravity.CENTER
+    );
+
+    information.setPadding(
+            0,
+            14,
+            0,
+            0
+    );
+
+    root.addView(
+            information,
+            full()
+    );
+
+    setContentView(root);
+
+    selectRole("PASSENGER");
+}
+
+private TextView label(
+        String text) {
+
+    TextView t =
+            new TextView(this);
+
+    t.setText(text);
+
+    t.setTextSize(14);
+
+    t.setTypeface(
+            null,
+            android.graphics.Typeface.BOLD
+    );
+
+    t.setTextColor(
+            Color.DKGRAY
+    );
+
+    return t;
+}
+
+private Button makeRoleButton(
+        String text) {
+
+    Button button =
+            new Button(this);
+
+    button.setText(text);
+
+    button.setTextSize(12);
+
+    return button;
+}
+
+private LinearLayout.LayoutParams full() {
+
+    return new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+    );
+}
+
+private LinearLayout.LayoutParams weighted() {
+
+    return new LinearLayout.LayoutParams(
+            0,
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            1f
+    );
+}
+
+private void selectRole(
+        String role) {
+
+    selectedRole =
+            role.trim().toUpperCase();
+
+    passengerButton.setTextColor(
+            Color.DKGRAY
+    );
+
+    driverButton.setTextColor(
+            Color.DKGRAY
+    );
+
+    adminButton.setTextColor(
+            Color.DKGRAY
+    );
+
+    passengerButton.setBackgroundColor(
+            Color.TRANSPARENT
+    );
+
+    driverButton.setBackgroundColor(
+            Color.TRANSPARENT
+    );
+
+    adminButton.setBackgroundColor(
+            Color.TRANSPARENT
+    );
+
+    if ("DRIVER".equals(
+            selectedRole)) {
+
+        driverButton.setTextColor(
+                Color.WHITE
         );
 
         driverButton.setBackgroundColor(
-                Color.TRANSPARENT
+                BLUE
+        );
+
+    } else if ("ADMIN".equals(
+            selectedRole)) {
+
+        adminButton.setTextColor(
+                Color.WHITE
         );
 
         adminButton.setBackgroundColor(
-                Color.TRANSPARENT
+                ORANGE
         );
 
-        if ("DRIVER".equals(selectedRole)) {
+    } else {
 
-            driverButton.setTextColor(Color.WHITE);
-            driverButton.setBackgroundColor(BLUE);
+        selectedRole =
+                "PASSENGER";
 
-        } else if ("ADMIN".equals(selectedRole)) {
+        passengerButton.setTextColor(
+                Color.WHITE
+        );
 
-            adminButton.setTextColor(Color.WHITE);
-            adminButton.setBackgroundColor(ORANGE);
+        passengerButton.setBackgroundColor(
+                GREEN
+        );
+    }
+}
 
-        } else {
+private String normalizePhone(
+        String input) {
 
-            selectedRole = "PASSENGER";
-
-            passengerButton.setTextColor(Color.WHITE);
-            passengerButton.setBackgroundColor(GREEN);
-        }
+    if (input == null) {
+        return "";
     }
 
-    private String normalizePhone(String input) {
-
-        if (input == null) {
-            return "";
-        }
-
-        String phone =
-                input.replaceAll(
-                        "[^0-9]",
-                        ""
-                );
-
-        if (phone.startsWith("0")
-                && phone.length() == 11) {
-
-            phone =
-                    "63"
-                            + phone.substring(1);
-
-        } else if (phone.startsWith("9")
-                && phone.length() == 10) {
-
-            phone =
-                    "63"
-                            + phone;
-        }
-
-        return phone;
-    }
-
-    private String firebaseIdentifier(
-            String phone) {
-
-        return phone + "@sakyna.app";
-    }
-
-    private boolean validInput() {
-
-        String phone =
-                normalizePhone(
-                        phoneInput == null
-                                ? ""
-                                : phoneInput
-                                .getText()
-                                .toString()
-                );
-
-        String password =
-                passwordInput == null
-                        ? ""
-                        : passwordInput
-                        .getText()
-                        .toString();
-
-        if (phone.length() != 12
-                || !phone.startsWith("63")) {
-
-            toast(
-                    "Enter a valid Philippine phone number."
+    String phone =
+            input.replaceAll(
+                    "[^0-9]",
+                    ""
             );
 
-            return false;
-        }
+    /*
+     * 09171234567
+     * ->
+     * 639171234567
+     */
+    if (phone.startsWith("0")
+            && phone.length() == 11) {
 
-        if (password.length() < 6) {
+        phone =
+                "63"
+                        + phone.substring(1);
 
-            toast(
-                    "Password must be at least 6 characters."
-            );
+    /*
+     * 9171234567
+     * ->
+     * 639171234567
+     */
+    } else if (
+            phone.startsWith("9")
+                    && phone.length() == 10) {
 
-            return false;
-        }
-
-        return true;
+        phone =
+                "63"
+                        + phone;
     }
 
-    private void login() {
+    /*
+     * Already-normalized number:
+     *
+     * 639171234567
+     */
+    return phone;
+}
 
-        if (!validInput()) {
-            return;
-        }
+private String firebaseIdentifier(
+        String phone) {
 
-        final String phone =
-                normalizePhone(
-                        phoneInput
-                                .getText()
-                                .toString()
+    return phone
+            + "@sakyna.app";
+}
+
+private boolean validInput() {
+
+    String phone =
+            normalizePhone(
+                    phoneInput == null
+                            ? ""
+                            : phoneInput
+                            .getText()
+                            .toString()
+            );
+
+    String password =
+            passwordInput == null
+                    ? ""
+                    : passwordInput
+                    .getText()
+                    .toString();
+
+    if (phone.length() != 12
+            || !phone.startsWith("63")) {
+
+        toast(
+                "Enter a valid Philippine phone number."
+        );
+
+        return false;
+    }
+
+    if (password.length() < 6) {
+
+        toast(
+                "Password must be at least 6 characters."
+        );
+
+        return false;
+    }
+
+    return true;
+}
+
+private void login() {
+
+    if (!validInput()) {
+        return;
+    }
+
+    final String phone =
+            normalizePhone(
+                    phoneInput
+                            .getText()
+                            .toString()
+            );
+
+    final String password =
+            passwordInput
+                    .getText()
+                    .toString();
+
+    loginButton.setEnabled(
+            false
+    );
+
+    createButton.setEnabled(
+            false
+    );
+
+    loginButton.setText(
+            "LOGGING IN..."
+    );
+
+    /*
+     * IMPORTANT:
+     *
+     * Do NOT call auth.signOut()
+     * before signInWithEmailAndPassword().
+     *
+     * Firebase handles a new successful
+     * authentication session itself.
+     */
+    auth.signInWithEmailAndPassword(
+            firebaseIdentifier(phone),
+            password
+    )
+    .addOnSuccessListener(
+            result -> {
+
+                AuthResult authResult =
+                        result;
+
+                FirebaseUser user =
+                        authResult.getUser();
+
+                if (user == null) {
+
+                    resetLoginButtons();
+
+                    toast(
+                            "Login failed."
+                    );
+
+                    return;
+                }
+
+                loadUserRole(
+                        user
                 );
-
-        final String password =
-                passwordInput
-                        .getText()
-                        .toString();
-
-        loginButton.setEnabled(false);
-        createButton.setEnabled(false);
-        loginButton.setText("LOGGING IN...");
-
-        /*
-         * Clear any stale local Firebase session first.
-         * Then perform one clean authentication.
-         */
-        auth.signOut();
-
-        auth.signInWithEmailAndPassword(
-                firebaseIdentifier(phone),
-                password
-        )
-        .addOnSuccessListener(result -> {
-
-            FirebaseUser user =
-                    result.getUser();
-
-            if (user == null) {
+            }
+    )
+    .addOnFailureListener(
+            e -> {
 
                 resetLoginButtons();
 
-                toast(
-                        "Login failed."
-                );
+                /*
+                 * Show the actual Firebase reason
+                 * so we don't hide the problem.
+                 */
+                String message =
+                        e.getMessage();
 
-                return;
+                if (message == null
+                        || message.trim().isEmpty()) {
+
+                    message =
+                            "Invalid phone number or password.";
+                }
+
+                toast(message);
             }
+    );
+}
 
-            loadUserRole(
-                    user,
-                    selectedRole
-            );
-        })
-        .addOnFailureListener(e -> {
+private void resetLoginButtons() {
 
-            resetLoginButtons();
+    if (loginButton != null) {
 
-            toast(
-                    "Invalid phone number or password."
-            );
-        });
-    }
+        loginButton.setEnabled(
+                true
+        );
 
-    private void loadUserRole(
-            FirebaseUser user,
-            String requestedRole) {
-
-        if (user == null) {
-
-            showLoginError(
-                    "Account not found."
-            );
-
-            return;
-        }
-
-        final String uid =
-                user.getUid();
-
-        /*
-         * Admin is identified by the fixed Admin UID.
-         */
-        if (ADMIN_UID.equals(uid)) {
-
-            openScreen(
-                    AdminActivity.class
-            );
-
-            return;
-        }
-
-        db.collection("users")
-                .document(uid)
-                .get()
-                .addOnSuccessListener(document -> {
-
-                    if (!document.exists()) {
-
-                        findProfileByPhone(
-                                user,
-                                requestedRole
-                        );
-
-                        return;
-                    }
-
-                    routeUsingRole(
-                            document,
-                            requestedRole
-                    );
-                })
-                .addOnFailureListener(e -> {
-
-                    showLoginError(
-                            "Unable to load user profile. Check your internet connection and try again."
-                    );
-                });
-    }
-
-    private void findProfileByPhone(
-            FirebaseUser user,
-            String requestedRole) {
-
-        String phone = "";
-
-        String internalEmail =
-                user.getEmail();
-
-        if (internalEmail != null
-                && internalEmail.endsWith(
-                "@sakyna.app"
-        )) {
-
-            phone =
-                    internalEmail.substring(
-                            0,
-                            internalEmail.length()
-                                    - "@sakyna.app".length()
-                    );
-        }
-
-        if (phone.isEmpty()
-                && phoneInput != null) {
-
-            phone =
-                    normalizePhone(
-                            phoneInput
-                                    .getText()
-                                    .toString()
-                    );
-        }
-
-        if (phone.isEmpty()) {
-
-            showLoginError(
-                    "User profile was not found."
-            );
-
-            return;
-        }
-
-        final String searchedPhone =
-                phone;
-
-        db.collection("users")
-                .whereEqualTo(
-                        "phone",
-                        searchedPhone
-                )
-                .limit(1)
-                .get()
-                .addOnSuccessListener(query -> {
-
-                    if (query.isEmpty()) {
-
-                        showLoginError(
-                                "User profile was not found."
-                        );
-
-                    } else {
-
-                        routeUsingRole(
-                                query.getDocuments().get(0),
-                                requestedRole
-                        );
-                    }
-                })
-                .addOnFailureListener(e -> {
-
-                    showLoginError(
-                            "Unable to load user profile. Check your internet connection and try again."
-                    );
-                });
-    }
-
-    private void routeUsingRole(
-            DocumentSnapshot document,
-            String requestedRole) {
-
-        if (document == null
-                || !document.exists()) {
-
-            showLoginError(
-                    "User profile was not found."
-            );
-
-            return;
-        }
-
-        String role =
-                document.getString("role");
-
-        if (role == null) {
-
-            showLoginError(
-                    "This account has no role."
-            );
-
-            return;
-        }
-
-        role =
-                role.trim().toUpperCase();
-
-        /*
-         * The authenticated Firebase account determines
-         * the real role. The selected button is not allowed
-         * to turn a passenger into a driver or admin.
-         */
-        if ("DRIVER".equals(role)) {
-
-            Boolean approved =
-                    document.getBoolean("approved");
-
-            /*
-             * Driver may log in even if pending.
-             * DriverActivity controls GO ONLINE.
-             */
-            openScreen(
-                    DriverActivity.class
-            );
-
-            return;
-        }
-
-        if ("PASSENGER".equals(role)) {
-
-            openScreen(
-                    PassengerActivity.class
-            );
-
-            return;
-        }
-
-        if ("ADMIN".equals(role)) {
-
-            openScreen(
-                    AdminActivity.class
-            );
-
-            return;
-        }
-
-        showLoginError(
-                "Unknown account role: "
-                        + role
+        loginButton.setText(
+                "LOGIN"
         );
     }
 
-    private void createAccount() {
+    if (createButton != null) {
 
-        if (!validInput()) {
-            return;
-        }
+        createButton.setEnabled(
+                true
+        );
+    }
+}
 
-        final String role =
-                selectedRole
-                        .trim()
-                        .toUpperCase();
+private void loadUserRole(
+        FirebaseUser user) {
 
-        if ("ADMIN".equals(role)) {
+    if (user == null) {
 
-            toast(
-                    "Admin accounts are handled separately."
+        showLoginError(
+                "Account not found."
+        );
+
+        return;
+    }
+
+    final String uid =
+            user.getUid();
+
+    if (ADMIN_UID.equals(uid)) {
+
+        openScreen(
+                AdminActivity.class
+        );
+
+        return;
+    }
+
+    db.collection("users")
+            .document(uid)
+            .get()
+            .addOnSuccessListener(
+                    document -> {
+
+                        if (!document.exists()) {
+
+                            findProfileByPhone(
+                                    user
+                            );
+
+                            return;
+                        }
+
+                        routeUsingRole(
+                                document
+                        );
+                    }
+            )
+            .addOnFailureListener(
+                    e -> {
+
+                        showLoginError(
+                                "Unable to load user profile."
+                        );
+                    }
             );
+}
 
-            return;
-        }
+private void findProfileByPhone(
+        FirebaseUser user) {
 
-        if (!"PASSENGER".equals(role)
-                && !"DRIVER".equals(role)) {
+    String phone = "";
 
-            toast(
-                    "Select PASSENGER or DRIVER."
-            );
+    String internalEmail =
+            user.getEmail();
 
-            return;
-        }
+    if (internalEmail != null
+            && internalEmail.endsWith(
+            "@sakyna.app"
+    )) {
 
-        final String phone =
+        phone =
+                internalEmail.substring(
+                        0,
+                        internalEmail.length()
+                                - "@sakyna.app"
+                                .length()
+                );
+    }
+
+    if (phone.isEmpty()
+            && phoneInput != null) {
+
+        phone =
                 normalizePhone(
                         phoneInput
                                 .getText()
                                 .toString()
                 );
+    }
 
-        final String password =
-                passwordInput
-                        .getText()
-                        .toString();
+    if (phone.isEmpty()) {
 
-        loginButton.setEnabled(false);
-        createButton.setEnabled(false);
-        createButton.setText("CREATING...");
+        showLoginError(
+                "User profile was not found."
+        );
 
-        /*
-         * Make sure an old session cannot interfere
-         * with account creation.
-         */
-        auth.signOut();
+        return;
+    }
 
-        auth.createUserWithEmailAndPassword(
-                firebaseIdentifier(phone),
-                password
-        )
-        .addOnSuccessListener(result -> {
+    final String searchedPhone =
+            phone;
 
-            FirebaseUser user =
-                    result.getUser();
-
-            if (user == null) {
-
-                resetCreateButton();
-
-                toast(
-                        "Account creation failed."
-                );
-
-                return;
-            }
-
-            Map<String, Object> profile =
-                    new HashMap<>();
-
-            profile.put(
+    db.collection("users")
+            .whereEqualTo(
                     "phone",
-                    phone
-            );
+                    searchedPhone
+            )
+            .limit(1)
+            .get()
+            .addOnSuccessListener(
+                    query -> {
 
-            profile.put(
-                    "role",
-                    role
-            );
+                        if (query.isEmpty()) {
 
-            if ("DRIVER".equals(role)) {
-
-                profile.put(
-                        "approved",
-                        false
-                );
-
-                profile.put(
-                        "approvalStatus",
-                        "PENDING_APPROVAL"
-                );
-
-                profile.put(
-                        "online",
-                        false
-                );
-
-            } else {
-
-                profile.put(
-                        "approved",
-                        true
-                );
-
-                profile.put(
-                        "approvalStatus",
-                        "APPROVED"
-                );
-
-                profile.put(
-                        "online",
-                        false
-                );
-            }
-
-            profile.put(
-                    "createdAt",
-                    FieldValue.serverTimestamp()
-            );
-
-            db.collection("users")
-                    .document(user.getUid())
-                    .set(profile)
-                    .addOnSuccessListener(v -> {
-
-                        auth.signOut();
-
-                        passwordInput.setText("");
-
-                        resetCreateButton();
-
-                        if ("DRIVER".equals(role)) {
-
-                            toast(
-                                    "DRIVER account created.\n"
-                                            + "Please LOGIN.\n"
-                                            + "Admin approval is required before GO ONLINE."
+                            showLoginError(
+                                    "User profile was not found."
                             );
 
                         } else {
 
-                            toast(
-                                    "PASSENGER account created.\n"
-                                            + "Please LOGIN."
+                            routeUsingRole(
+                                    query
+                                            .getDocuments()
+                                            .get(0)
                             );
                         }
-                    })
-                    .addOnFailureListener(e -> {
+                    }
+            )
+            .addOnFailureListener(
+                    e -> {
 
-                        auth.signOut();
-
-                        resetCreateButton();
-
-                        toast(
-                                "Could not save account."
+                        showLoginError(
+                                "Unable to load user profile."
                         );
-                    });
-        })
-        .addOnFailureListener(e -> {
-
-            resetCreateButton();
-
-            String message =
-                    e.getMessage();
-
-            if (message == null
-                    || message.trim().isEmpty()) {
-
-                message =
-                        "Account creation failed.";
-            }
-
-            toast(message);
-        });
-    }
-
-    private void resetLoginButtons() {
-
-        if (loginButton != null) {
-
-            loginButton.setEnabled(true);
-            loginButton.setText("LOGIN");
-        }
-
-        if (createButton != null) {
-
-            createButton.setEnabled(true);
-        }
-    }
-
-    private void resetCreateButton() {
-
-        if (loginButton != null) {
-
-            loginButton.setEnabled(true);
-            loginButton.setText("LOGIN");
-        }
-
-        if (createButton != null) {
-
-            createButton.setEnabled(true);
-            createButton.setText(
-                    "CREATE ACCOUNT"
+                    }
             );
-        }
-    }
+}
 
-    private void openScreen(
-            Class<?> activityClass) {
+private void routeUsingRole(
+        DocumentSnapshot document) {
 
-        Intent intent =
-                new Intent(
-                        this,
-                        activityClass
-                );
+    if (document == null
+            || !document.exists()) {
 
-        intent.addFlags(
-                Intent.FLAG_ACTIVITY_NEW_TASK
-                        | Intent.FLAG_ACTIVITY_CLEAR_TASK
+        showLoginError(
+                "User profile was not found."
         );
 
-        startActivity(intent);
-        finish();
+        return;
     }
 
-    private void showLoginError(
-            String message) {
+    String role =
+            document.getString(
+                    "role"
+            );
 
-        auth.signOut();
+    if (role == null) {
 
-        showLoginScreen();
+        showLoginError(
+                "This account has no role."
+        );
 
-        toast(message);
+        return;
     }
 
-    private void toast(
-            String message) {
+    role =
+            role.trim().toUpperCase();
 
-        Toast.makeText(
-                this,
-                message,
-                Toast.LENGTH_LONG
-        ).show();
+    if ("DRIVER".equals(role)) {
+
+        openScreen(
+                DriverActivity.class
+        );
+
+        return;
     }
+
+    if ("PASSENGER".equals(role)) {
+
+        openScreen(
+                PassengerActivity.class
+        );
+
+        return;
+    }
+
+    if ("ADMIN".equals(role)) {
+
+        openScreen(
+                AdminActivity.class
+        );
+
+        return;
+    }
+
+    showLoginError(
+            "Unknown account role: "
+                    + role
+    );
+}
+
+private void createAccount() {
+
+    if (!validInput()) {
+        return;
+    }
+
+    final String role =
+            selectedRole
+                    .trim()
+                    .toUpperCase();
+
+    if ("ADMIN".equals(role)) {
+
+        toast(
+                "Admin accounts are handled separately."
+        );
+
+        return;
+    }
+
+    if (!"PASSENGER".equals(role)
+            && !"DRIVER".equals(role)) {
+
+        toast(
+                "Select PASSENGER or DRIVER."
+        );
+
+        return;
+    }
+
+    final String phone =
+            normalizePhone(
+                    phoneInput
+                            .getText()
+                            .toString()
+            );
+
+    final String password =
+            passwordInput
+                    .getText()
+                    .toString();
+
+    loginButton.setEnabled(
+            false
+    );
+
+    createButton.setEnabled(
+            false
+    );
+
+    createButton.setText(
+            "CREATING..."
+    );
+
+    auth.createUserWithEmailAndPassword(
+            firebaseIdentifier(phone),
+            password
+    )
+    .addOnSuccessListener(
+            result -> {
+
+                FirebaseUser user =
+                        result.getUser();
+
+                if (user == null) {
+
+                    resetCreateButton();
+
+                    toast(
+                            "Account creation failed."
+                    );
+
+                    return;
+                }
+
+                Map<String, Object> profile =
+                        new HashMap<>();
+
+                profile.put(
+                        "phone",
+                        phone
+                );
+
+                profile.put(
+                        "role",
+                        role
+                );
+
+                profile.put(
+                        "approved",
+                        !"DRIVER".equals(role)
+                );
+
+                profile.put(
+                        "approvalStatus",
+                        "DRIVER".equals(role)
+                                ? "PENDING_APPROVAL"
+                                : "APPROVED"
+                );
+
+                profile.put(
+                        "online",
+                        false
+                );
+
+                profile.put(
+                        "createdAt",
+                        FieldValue.serverTimestamp()
+                );
+
+                db.collection("users")
+                        .document(user.getUid())
+                        .set(profile)
+                        .addOnSuccessListener(
+                                v -> {
+
+                                    /*
+                                     * Account creation is complete.
+                                     * Sign out so the user must
+                                     * explicitly login.
+                                     */
+                                    auth.signOut();
+
+                                    passwordInput
+                                            .setText("");
+
+                                    resetCreateButton();
+
+                                    if ("DRIVER".equals(
+                                            role)) {
+
+                                        toast(
+                                                "DRIVER account created.\n"
+                                                        +
+                                                "Please LOGIN.\n"
+                                                        +
+                                                "Admin approval is required before GO ONLINE."
+                                        );
+
+                                    } else {
+
+                                        toast(
+                                                "PASSENGER account created.\n"
+                                                        +
+                                                "Please LOGIN."
+                                        );
+                                    }
+                                }
+                        )
+                        .addOnFailureListener(
+                                e -> {
+
+                                    auth.signOut();
+
+                                    resetCreateButton();
+
+                                    toast(
+                                            "Could not save account."
+                                    );
+                                }
+                        );
+            }
+    )
+    .addOnFailureListener(
+            e -> {
+
+                resetCreateButton();
+
+                String message =
+                        e.getMessage();
+
+                if (message == null
+                        || message.trim().isEmpty()) {
+
+                    message =
+                            "Account creation failed.";
+                }
+
+                toast(message);
+            }
+    );
+}
+
+private void resetCreateButton() {
+
+    if (loginButton != null) {
+
+        loginButton.setEnabled(
+                true
+        );
+
+        loginButton.setText(
+                "LOGIN"
+        );
+    }
+
+    if (createButton != null) {
+
+        createButton.setEnabled(
+                true
+        );
+
+        createButton.setText(
+                "CREATE ACCOUNT"
+        );
+    }
+}
+
+private void openScreen(
+        Class<?> activityClass) {
+
+    Intent intent =
+            new Intent(
+                    this,
+                    activityClass
+            );
+
+    intent.addFlags(
+            Intent.FLAG_ACTIVITY_NEW_TASK
+                    |
+            Intent.FLAG_ACTIVITY_CLEAR_TASK
+    );
+
+    startActivity(intent);
+
+    finish();
+}
+
+private void showLoginError(
+        String message) {
+
+    auth.signOut();
+
+    showLoginScreen();
+
+    toast(message);
+}
+
+private void toast(
+        String message) {
+
+    Toast.makeText(
+            this,
+            message,
+            Toast.LENGTH_LONG
+    ).show();
+}
+
 }
