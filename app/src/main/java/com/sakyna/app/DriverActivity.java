@@ -1,8 +1,4 @@
 
-// NEXT CODE: DriverActivity.java
-// Current main-branch version retrieved from your Sakay-Na repository.
-// DO NOT CHANGE MapActivity.java.
-
 package com.sakyna.app;
 
 import android.Manifest;
@@ -55,6 +51,12 @@ public class DriverActivity extends Activity {
     private ListenerRegistration currentRideListener;
 
     private final Set<String> shownRequestIds = new HashSet<>();
+
+    /*
+     * Prevents an accepted/declined request from being recreated
+     * by an old Firestore cache snapshot.
+     */
+    private final Set<String> hiddenRequestIds = new HashSet<>();
 
     private LocationManager locationManager;
     private LocationListener locationListener;
@@ -264,6 +266,7 @@ public class DriverActivity extends Activity {
 
         if (requestListener != null) {
             requestListener.remove();
+            requestListener = null;
         }
 
         requestListener =
@@ -276,13 +279,19 @@ public class DriverActivity extends Activity {
                                 (snapshots, error) -> {
 
                                     if (error != null) {
+
                                         requestsText.setText(
                                                 "🔴 Unable to load requests:\n"
                                                         + error.getMessage()
                                         );
+
                                         return;
                                     }
 
+                                    /*
+                                     * ALWAYS rebuild the request area
+                                     * from the latest REQUESTED snapshot.
+                                     */
                                     requestContainer.removeAllViews();
 
                                     if (snapshots == null
@@ -295,6 +304,7 @@ public class DriverActivity extends Activity {
                                                         ? "🟢 No new ride requests."
                                                         : "🔴 OFFLINE"
                                         );
+
                                         return;
                                     }
 
@@ -309,6 +319,33 @@ public class DriverActivity extends Activity {
                                         String rideId =
                                                 ride.getId();
 
+                                        /*
+                                         * Do not show anything that has
+                                         * already been accepted/declined
+                                         * locally.
+                                         */
+                                        if (hiddenRequestIds.contains(
+                                                rideId
+                                        )) {
+                                            continue;
+                                        }
+
+                                        String status =
+                                                string(
+                                                        ride,
+                                                        "status"
+                                                );
+
+                                        /*
+                                         * Extra protection against
+                                         * stale/incorrect documents.
+                                         */
+                                        if (!"REQUESTED".equalsIgnoreCase(
+                                                status
+                                        )) {
+                                            continue;
+                                        }
+
                                         String passengerId =
                                                 string(
                                                         ride,
@@ -316,6 +353,18 @@ public class DriverActivity extends Activity {
                                                 );
 
                                         if (passengerId.isEmpty()) {
+                                            continue;
+                                        }
+
+                                        /*
+                                         * If this is already the driver's
+                                         * active ride, never show it again
+                                         * as a request.
+                                         */
+                                        if (!currentRideId.isEmpty()
+                                                && currentRideId.equals(
+                                                rideId
+                                        )) {
                                             continue;
                                         }
 
@@ -332,14 +381,25 @@ public class DriverActivity extends Activity {
                                             currentIds
                                     );
 
-                                    requestsText.setText(
-                                            driverOnline
-                                                    ? "🟢 NEW RIDE REQUESTS: "
-                                                    + count
-                                                    : "🔴 OFFLINE\n"
-                                                    + count
-                                                    + " ride request(s) waiting."
-                                    );
+                                    if (count == 0) {
+
+                                        requestsText.setText(
+                                                driverOnline
+                                                        ? "🟢 No new ride requests."
+                                                        : "🔴 OFFLINE"
+                                        );
+
+                                    } else {
+
+                                        requestsText.setText(
+                                                driverOnline
+                                                        ? "🟢 NEW RIDE REQUESTS: "
+                                                        + count
+                                                        : "🔴 OFFLINE\n"
+                                                        + count
+                                                        + " ride request(s) waiting."
+                                        );
+                                    }
                                 }
                         );
     }
@@ -595,6 +655,16 @@ public class DriverActivity extends Activity {
             LinearLayout card
     ) {
 
+        /*
+         * Hide immediately so the accepted booking cannot
+         * reappear while Firestore cache is catching up.
+         */
+        hiddenRequestIds.add(rideId);
+
+        card.setVisibility(
+                LinearLayout.GONE
+        );
+
         Map<String, Object> data =
                 new HashMap<>();
 
@@ -621,10 +691,6 @@ public class DriverActivity extends Activity {
                     currentRideId =
                             rideId;
 
-                    card.setVisibility(
-                            LinearLayout.GONE
-                    );
-
                     Toast.makeText(
                             this,
                             "✅ Ride accepted.",
@@ -633,21 +699,39 @@ public class DriverActivity extends Activity {
 
                     listenForCurrentRide();
                 })
-                .addOnFailureListener(e ->
+                .addOnFailureListener(e -> {
 
-                        Toast.makeText(
-                                this,
-                                "Unable to accept ride:\n"
-                                        + e.getMessage(),
-                                Toast.LENGTH_LONG
-                        ).show()
-                );
+                    /*
+                     * Restore the request if the Firestore update
+                     * really failed.
+                     */
+                    hiddenRequestIds.remove(rideId);
+
+                    listenForRideRequests();
+
+                    Toast.makeText(
+                            this,
+                            "Unable to accept ride:\n"
+                                    + e.getMessage(),
+                            Toast.LENGTH_LONG
+                    ).show();
+                });
     }
 
     private void declineRide(
             String rideId,
             LinearLayout card
     ) {
+
+        /*
+         * Hide immediately so a stale cached REQUESTED snapshot
+         * cannot put the card back on screen.
+         */
+        hiddenRequestIds.add(rideId);
+
+        card.setVisibility(
+                LinearLayout.GONE
+        );
 
         Map<String, Object> data =
                 new HashMap<>();
@@ -677,31 +761,32 @@ public class DriverActivity extends Activity {
                 .update(data)
                 .addOnSuccessListener(v -> {
 
-                    card.setVisibility(
-                            LinearLayout.GONE
-                    );
-
                     Toast.makeText(
                             this,
                             "Ride declined.",
                             Toast.LENGTH_SHORT
                     ).show();
                 })
-                .addOnFailureListener(e ->
+                .addOnFailureListener(e -> {
 
-                        Toast.makeText(
-                                this,
-                                "Unable to decline ride:\n"
-                                        + e.getMessage(),
-                                Toast.LENGTH_LONG
-                        ).show()
-                );
+                    hiddenRequestIds.remove(rideId);
+
+                    listenForRideRequests();
+
+                    Toast.makeText(
+                            this,
+                            "Unable to decline ride:\n"
+                                    + e.getMessage(),
+                            Toast.LENGTH_LONG
+                    ).show();
+                });
     }
 
     private void listenForCurrentRide() {
 
         if (currentRideListener != null) {
             currentRideListener.remove();
+            currentRideListener = null;
         }
 
         currentRideListener =
@@ -731,8 +816,13 @@ public class DriverActivity extends Activity {
                                                 "No current ride."
                                         );
 
+                                        listenForRideRequests();
+
                                         return;
                                     }
+
+                                    boolean foundActiveRide =
+                                            false;
 
                                     for (DocumentSnapshot ride
                                             : snapshots.getDocuments()) {
@@ -743,14 +833,23 @@ public class DriverActivity extends Activity {
                                                         "status"
                                                 );
 
-                                        if (!rideStatus.equals(
+                                        if (!rideStatus.equalsIgnoreCase(
                                                 "ACCEPTED"
                                         )
-                                                && !rideStatus.equals(
+                                                && !rideStatus.equalsIgnoreCase(
                                                 "ARRIVED"
                                         )
-                                                && !rideStatus.equals(
+                                                && !rideStatus.equalsIgnoreCase(
                                                 "ONGOING"
+                                        )
+                                                && !rideStatus.equalsIgnoreCase(
+                                                "DRIVER_ON_THE_WAY"
+                                        )
+                                                && !rideStatus.equalsIgnoreCase(
+                                                "DRIVER_ARRIVED"
+                                        )
+                                                && !rideStatus.equalsIgnoreCase(
+                                                "IN_PROGRESS"
                                         )) {
 
                                             continue;
@@ -758,6 +857,16 @@ public class DriverActivity extends Activity {
 
                                         currentRideId =
                                                 ride.getId();
+
+                                        foundActiveRide = true;
+
+                                        /*
+                                         * Make absolutely sure an active
+                                         * ride cannot appear in requests.
+                                         */
+                                        hiddenRequestIds.add(
+                                                ride.getId()
+                                        );
 
                                         currentRideText.setText(
                                                 "🚕 ACTIVE RIDE\n\n"
@@ -777,6 +886,19 @@ public class DriverActivity extends Activity {
 
                                         break;
                                     }
+
+                                    if (!foundActiveRide) {
+
+                                        currentRideText.setText(
+                                                "No current ride."
+                                        );
+                                    }
+
+                                    /*
+                                     * Rebuild request area after the
+                                     * active ride state changes.
+                                     */
+                                    listenForRideRequests();
                                 }
                         );
     }
