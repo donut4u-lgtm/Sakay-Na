@@ -1,58 +1,60 @@
 
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"><uses-permission android:name="android.permission.INTERNET" />
+<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+<uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
-    <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+<application
+    android:allowBackup="false"
+    android:label="Sakay Na"
+    android:theme="@style/Theme.AppCompat.Light.NoActionBar">
 
-    <application
-        android:allowBackup="false"
-        android:label="Sakay Na"
-        android:theme="@style/Theme.AppCompat.Light.NoActionBar">
+    <activity
+        android:name=".AdminActivity"
+        android:exported="false" />
 
-        <activity
-            android:name=".AdminActivity"
-            android:exported="false" />
+    <activity
+        android:name=".DriverActivity"
+        android:exported="false" />
 
-        <activity
-            android:name=".DriverActivity"
-            android:exported="false" />
+    <activity
+        android:name=".DriverSettlementActivity"
+        android:exported="false" />
 
-        <activity
-            android:name=".DriverOnboardingActivity"
-            android:exported="false" />
+    <activity
+        android:name=".DriverOnboardingActivity"
+        android:exported="false" />
 
-        <activity
-            android:name=".PassengerActivity"
-            android:exported="false" />
+    <activity
+        android:name=".PassengerActivity"
+        android:exported="false" />
 
-        <activity
-            android:name=".PassengerGpsActivity"
-            android:exported="false" />
+    <activity
+        android:name=".PassengerGpsActivity"
+        android:exported="false" />
 
-        <activity
-            android:name=".MapActivity"
-            android:exported="false" />
+    <activity
+        android:name=".MapActivity"
+        android:exported="false" />
 
-        <activity
-            android:name=".RideChatActivity"
-            android:exported="false" />
+    <activity
+        android:name=".RideChatActivity"
+        android:exported="false" />
 
-        <activity
-            android:name=".RideCompletionActivity"
-            android:exported="false" />
+    <activity
+        android:name=".RideCompletionActivity"
+        android:exported="false" />
 
-        <activity
-            android:name=".MainActivity"
-            android:exported="true">
+    <activity
+        android:name=".MainActivity"
+        android:exported="true">
 
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
+        <intent-filter>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent-filter>
 
-        </activity>
+    </activity>
 
-    </application>
+</application>
 
 </manifest>
