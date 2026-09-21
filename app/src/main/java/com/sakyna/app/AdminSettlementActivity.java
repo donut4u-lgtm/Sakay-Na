@@ -1,3 +1,4 @@
+
 package com.sakyna.app;
 
 import android.app.Activity;
@@ -17,7 +18,9 @@ import com.google.firebase.firestore.FirebaseFirestore;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 
 public class AdminSettlementActivity extends Activity {
 
@@ -61,169 +64,73 @@ protected void onCreate(Bundle savedInstanceState) {
 
 private void buildScreen() {
 
-    ScrollView scrollView =
-            new ScrollView(this);
+    ScrollView scrollView = new ScrollView(this);
 
-    LinearLayout root =
-            new LinearLayout(this);
+    LinearLayout root = new LinearLayout(this);
+    root.setOrientation(LinearLayout.VERTICAL);
+    root.setPadding(25, 25, 25, 40);
+    root.setBackgroundColor(Color.WHITE);
 
-    root.setOrientation(
-            LinearLayout.VERTICAL
-    );
-
-    root.setPadding(
-            25,
-            25,
-            25,
-            40
-    );
-
-    root.setBackgroundColor(
-            Color.WHITE
-    );
-
-    TextView title =
-            new TextView(this);
-
+    TextView title = new TextView(this);
     title.setText(
             "🛡️ ADMIN\nSETTLEMENT VERIFICATION"
     );
-
     title.setTextSize(27);
     title.setTextColor(Color.BLACK);
     title.setGravity(Gravity.CENTER);
-    title.setPadding(
-            10,
-            20,
-            10,
-            25
-    );
-
+    title.setPadding(10, 20, 10, 25);
     root.addView(title);
 
-    statusText =
-            new TextView(this);
-
-    statusText.setText(
-            "Loading settlements..."
-    );
-
+    statusText = new TextView(this);
+    statusText.setText("Loading settlements...");
     statusText.setTextSize(16);
-    statusText.setTextColor(
-            Color.DKGRAY
-    );
-
-    statusText.setGravity(
-            Gravity.CENTER
-    );
-
-    statusText.setPadding(
-            10,
-            5,
-            10,
-            15
-    );
-
+    statusText.setTextColor(Color.DKGRAY);
+    statusText.setGravity(Gravity.CENTER);
+    statusText.setPadding(10, 5, 10, 15);
     root.addView(statusText);
 
-    summaryText =
-            new TextView(this);
-
+    summaryText = new TextView(this);
     summaryText.setText(
             "Pending: ₱0.00\n"
                     + "Verified: ₱0.00"
     );
-
     summaryText.setTextSize(19);
-    summaryText.setTextColor(
-            Color.BLACK
-    );
-
-    summaryText.setGravity(
-            Gravity.CENTER
-    );
-
-    summaryText.setPadding(
-            20,
-            25,
-            20,
-            25
-    );
-
+    summaryText.setTextColor(Color.BLACK);
+    summaryText.setGravity(Gravity.CENTER);
+    summaryText.setPadding(20, 25, 20, 25);
     summaryText.setBackgroundColor(
-            Color.rgb(
-                    245,
-                    245,
-                    245
-            )
+            Color.rgb(245, 245, 245)
     );
-
     root.addView(summaryText);
 
-    Button refreshButton =
-            new Button(this);
-
-    refreshButton.setText(
-            "🔄 REFRESH SETTLEMENTS"
-    );
-
+    Button refreshButton = new Button(this);
+    refreshButton.setText("🔄 REFRESH SETTLEMENTS");
     refreshButton.setOnClickListener(
             v -> loadSettlements()
     );
+    root.addView(refreshButton);
 
-    root.addView(
-            refreshButton
-    );
-
-    TextView listTitle =
-            new TextView(this);
-
-    listTitle.setText(
-            "💳 DRIVER PAYMENTS"
-    );
-
+    TextView listTitle = new TextView(this);
+    listTitle.setText("💳 DRIVER PAYMENTS");
     listTitle.setTextSize(22);
-    listTitle.setTextColor(
-            Color.BLACK
-    );
-
-    listTitle.setPadding(
-            0,
-            30,
-            0,
-            15
-    );
-
+    listTitle.setTextColor(Color.BLACK);
+    listTitle.setPadding(0, 30, 0, 15);
     root.addView(listTitle);
 
-    settlementContainer =
-            new LinearLayout(this);
-
+    settlementContainer = new LinearLayout(this);
     settlementContainer.setOrientation(
             LinearLayout.VERTICAL
     );
+    root.addView(settlementContainer);
 
-    root.addView(
-            settlementContainer
-    );
-
-    Button backButton =
-            new Button(this);
-
-    backButton.setText(
-            "⬅️ BACK TO ADMIN"
-    );
-
+    Button backButton = new Button(this);
+    backButton.setText("⬅️ BACK TO ADMIN");
     backButton.setOnClickListener(
             v -> finish()
     );
-
-    root.addView(
-            backButton
-    );
+    root.addView(backButton);
 
     scrollView.addView(root);
-
     setContentView(scrollView);
 }
 
@@ -237,15 +144,12 @@ private void loadSettlements() {
             "Loading settlement records..."
     );
 
-    settlementContainer
-            .removeAllViews();
+    settlementContainer.removeAllViews();
 
     pendingTotal = 0.0;
     verifiedTotal = 0.0;
 
-    db.collection(
-            "driverSettlements"
-    )
+    db.collection("driverSettlements")
             .get()
             .addOnSuccessListener(
                     snapshots -> {
@@ -253,8 +157,8 @@ private void loadSettlements() {
                         if (snapshots.isEmpty()) {
 
                             summaryText.setText(
-                                    "Pending: ₱0.00\n"
-                                            + "Verified: ₱0.00"
+                                    "⏳ Pending Payments\n₱0.00\n\n"
+                                            + "✅ Verified Payments\n₱0.00"
                             );
 
                             statusText.setText(
@@ -274,19 +178,15 @@ private void loadSettlements() {
                                     );
 
                             double amount =
-                                    getAmount(
-                                            settlement
-                                    );
+                                    getAmount(settlement);
 
-                            if ("PENDING"
-                                    .equalsIgnoreCase(
-                                            status)) {
+                            if ("PENDING".equalsIgnoreCase(
+                                    status)) {
 
                                 pendingTotal += amount;
 
-                            } else if ("VERIFIED"
-                                    .equalsIgnoreCase(
-                                            status)) {
+                            } else if ("VERIFIED".equalsIgnoreCase(
+                                    status)) {
 
                                 verifiedTotal += amount;
                             }
@@ -325,50 +225,31 @@ private void updateSummary() {
 
     summaryText.setText(
             "⏳ Pending Payments\n₱"
-                    + formatMoney(
-                    pendingTotal
-            )
+                    + formatMoney(pendingTotal)
                     + "\n\n"
                     + "✅ Verified Payments\n₱"
-                    + formatMoney(
-                    verifiedTotal
-            )
+                    + formatMoney(verifiedTotal)
     );
 }
 
 private void addSettlementCard(
         DocumentSnapshot settlement) {
 
-    LinearLayout card =
-            new LinearLayout(this);
+    LinearLayout card = new LinearLayout(this);
+    card.setOrientation(LinearLayout.VERTICAL);
+    card.setPadding(25, 25, 25, 25);
 
-    card.setOrientation(
-            LinearLayout.VERTICAL
-    );
-
-    card.setPadding(
-            25,
-            25,
-            25,
-            25
-    );
-
-    LinearLayout.LayoutParams
-            cardParams =
+    LinearLayout.LayoutParams cardParams =
             new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT
             );
 
-    cardParams.setMargins(
-            0,
-            10,
-            0,
-            20
-    );
+    cardParams.setMargins(0, 10, 0, 20);
+    card.setLayoutParams(cardParams);
 
-    card.setLayoutParams(
-            cardParams
+    card.setBackgroundColor(
+            Color.rgb(245, 245, 245)
     );
 
     String settlementId =
@@ -381,9 +262,7 @@ private void addSettlementCard(
             );
 
     double amount =
-            getAmount(
-                    settlement
-            );
+            getAmount(settlement);
 
     String status =
             getString(
@@ -409,29 +288,14 @@ private void addSettlementCard(
                     "submittedAt"
             );
 
-    TextView title =
-            new TextView(this);
-
-    title.setText(
-            "💳 SETTLEMENT PAYMENT"
-    );
-
+    TextView title = new TextView(this);
+    title.setText("💳 SETTLEMENT PAYMENT");
     title.setTextSize(21);
-    title.setTextColor(
-            Color.BLACK
-    );
-
-    title.setPadding(
-            0,
-            0,
-            0,
-            15
-    );
-
+    title.setTextColor(Color.BLACK);
+    title.setPadding(0, 0, 0, 15);
     card.addView(title);
 
-    TextView details =
-            new TextView(this);
+    TextView details = new TextView(this);
 
     details.setText(
             "👤 Driver ID\n"
@@ -450,94 +314,50 @@ private void addSettlementCard(
                     + status
                     + "\n\n"
                     + "📅 Submitted\n"
-                    + formatDate(
-                    submittedAt
-            )
+                    + formatDate(submittedAt)
     );
 
     details.setTextSize(16);
-    details.setTextColor(
-            Color.DKGRAY
-    );
-
-    details.setPadding(
-            0,
-            0,
-            0,
-            20
-    );
-
+    details.setTextColor(Color.DKGRAY);
+    details.setPadding(0, 0, 0, 20);
     card.addView(details);
 
-    if ("PENDING"
-            .equalsIgnoreCase(status)) {
+    if ("PENDING".equalsIgnoreCase(status)) {
 
-        Button verifyButton =
-                new Button(this);
-
-        verifyButton.setText(
-                "✅ VERIFY PAYMENT"
-        );
-
-        verifyButton.setTextColor(
-                Color.WHITE
-        );
-
+        Button verifyButton = new Button(this);
+        verifyButton.setText("✅ VERIFY PAYMENT");
+        verifyButton.setTextColor(Color.WHITE);
         verifyButton.setBackgroundColor(
-                Color.rgb(
-                        0,
-                        150,
-                        0
-                )
+                Color.rgb(0, 150, 0)
         );
 
         verifyButton.setOnClickListener(
                 v -> verifySettlement(
-                        settlementId,
-                        card
+                        settlementId
                 )
         );
 
-        card.addView(
-                verifyButton
-        );
+        card.addView(verifyButton);
 
-        Button rejectButton =
-                new Button(this);
-
-        rejectButton.setText(
-                "❌ REJECT PAYMENT"
-        );
-
-        rejectButton.setTextColor(
-                Color.WHITE
-        );
-
+        Button rejectButton = new Button(this);
+        rejectButton.setText("❌ REJECT PAYMENT");
+        rejectButton.setTextColor(Color.WHITE);
         rejectButton.setBackgroundColor(
-                Color.rgb(
-                        200,
-                        0,
-                        0
-                )
+                Color.rgb(200, 0, 0)
         );
 
         rejectButton.setOnClickListener(
                 v -> rejectSettlement(
-                        settlementId,
-                        card
+                        settlementId
                 )
         );
 
-        card.addView(
-                rejectButton
-        );
+        card.addView(rejectButton);
     }
 
-    if ("VERIFIED"
-            .equalsIgnoreCase(status)) {
+    if ("VERIFIED".equalsIgnoreCase(status)) {
 
-        TextView verified =
-                new TextView(this);
+        TextView verified = new TextView(this);
 
         verified.setText(
                 "✅ PAYMENT VERIFIED"
@@ -545,11 +365,7 @@ private void addSettlementCard(
 
         verified.setTextSize(18);
         verified.setTextColor(
-                Color.rgb(
-                        0,
-                        130,
-                        0
-                )
+                Color.rgb(0, 130, 0)
         );
 
         verified.setPadding(
@@ -559,16 +375,12 @@ private void addSettlementCard(
                 5
         );
 
-        card.addView(
-                verified
-        );
+        card.addView(verified);
     }
 
-    if ("REJECTED"
-            .equalsIgnoreCase(status)) {
+    if ("REJECTED".equalsIgnoreCase(status)) {
 
-        TextView rejected =
-                new TextView(this);
+        TextView rejected = new TextView(this);
 
         rejected.setText(
                 "❌ PAYMENT REJECTED"
@@ -576,11 +388,7 @@ private void addSettlementCard(
 
         rejected.setTextSize(18);
         rejected.setTextColor(
-                Color.rgb(
-                        190,
-                        0,
-                        0
-                )
+                Color.rgb(190, 0, 0)
         );
 
         rejected.setPadding(
@@ -590,25 +398,19 @@ private void addSettlementCard(
                 5
         );
 
-        card.addView(
-                rejected
-        );
+        card.addView(rejected);
     }
 
-    settlementContainer.addView(
-            card
-    );
+    settlementContainer.addView(card);
 
     loadDriverInformation(
             driverId,
-            card,
             details
     );
 }
 
 private void loadDriverInformation(
         String driverId,
-        LinearLayout card,
         TextView details) {
 
     if (driverId == null
@@ -677,8 +479,7 @@ private void loadDriverInformation(
 }
 
 private void verifySettlement(
-        String settlementId,
-        LinearLayout card) {
+        String settlementId) {
 
     if (settlementId == null
             || settlementId.isEmpty()) {
@@ -686,7 +487,7 @@ private void verifySettlement(
     }
 
     Map<String, Object> update =
-            new java.util.HashMap<>();
+            new HashMap<>();
 
     update.put(
             "status",
@@ -703,9 +504,7 @@ private void verifySettlement(
             user.getUid()
     );
 
-    db.collection(
-            "driverSettlements"
-    )
+    db.collection("driverSettlements")
             .document(settlementId)
             .update(update)
             .addOnSuccessListener(
@@ -731,8 +530,7 @@ private void verifySettlement(
 }
 
 private void rejectSettlement(
-        String settlementId,
-        LinearLayout card) {
+        String settlementId) {
 
     if (settlementId == null
             || settlementId.isEmpty()) {
@@ -740,7 +538,7 @@ private void rejectSettlement(
     }
 
     Map<String, Object> update =
-            new java.util.HashMap<>();
+            new HashMap<>();
 
     update.put(
             "status",
@@ -757,9 +555,7 @@ private void rejectSettlement(
             user.getUid()
     );
 
-    db.collection(
-            "driverSettlements"
-    )
+    db.collection("driverSettlements")
             .document(settlementId)
             .update(update)
             .addOnSuccessListener(
@@ -835,18 +631,15 @@ private double getAmount(
             document.get("amount");
 
     if (value instanceof Number) {
-
         return ((Number) value).doubleValue();
     }
 
     if (value != null) {
 
         try {
-
             return Double.parseDouble(
                     String.valueOf(value)
             );
-
         } catch (Exception ignored) {
         }
     }
@@ -862,7 +655,6 @@ private long getLong(
             document.get(field);
 
     if (value instanceof Number) {
-
         return ((Number) value).longValue();
     }
 
