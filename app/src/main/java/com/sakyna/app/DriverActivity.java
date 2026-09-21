@@ -175,6 +175,22 @@ public class DriverActivity extends Activity {
         chat.setOnClickListener(v -> openChat());
         root.addView(chat);
 
+        Button settlement = new Button(this);
+        settlement.setText("💰 DRIVER SETTLEMENT");
+        settlement.setTextColor(Color.WHITE);
+        settlement.setBackgroundColor(Color.rgb(0, 120, 200));
+        settlement.setOnClickListener(v -> {
+
+            Intent intent =
+                    new Intent(
+                            this,
+                            DriverSettlementActivity.class
+                    );
+
+            startActivity(intent);
+        });
+        root.addView(settlement);
+
         Button logout = new Button(this);
         logout.setText("LOGOUT");
         logout.setOnClickListener(v -> logout());
@@ -882,10 +898,6 @@ public class DriverActivity extends Activity {
                 Color.rgb(150, 0, 150)
         );
 
-        /*
-         * ACCEPTED:
-         * ON THE WAY is the next action.
-         */
         if ("ACCEPTED".equals(normalizedStatus)) {
 
             onTheWay.setEnabled(true);
@@ -893,10 +905,6 @@ public class DriverActivity extends Activity {
             finish.setEnabled(false);
         }
 
-        /*
-         * DRIVER ON THE WAY:
-         * ARRIVED is the next action.
-         */
         else if (
                 "DRIVER_ON_THE_WAY".equals(normalizedStatus)
                         || "ON_THE_WAY".equals(normalizedStatus)
@@ -907,12 +915,6 @@ public class DriverActivity extends Activity {
             finish.setEnabled(false);
         }
 
-        /*
-         * DRIVER ARRIVED:
-         * FINISH TRIP is the next action.
-         *
-         * There is intentionally NO START RIDE button.
-         */
         else if (
                 "DRIVER_ARRIVED".equals(normalizedStatus)
                         || "ARRIVED".equals(normalizedStatus)
@@ -923,10 +925,6 @@ public class DriverActivity extends Activity {
             finish.setEnabled(true);
         }
 
-        /*
-         * Older IN_PROGRESS / ONGOING rides:
-         * allow FINISH TRIP.
-         */
         else if (
                 "IN_PROGRESS".equals(normalizedStatus)
                         || "ONGOING".equals(normalizedStatus)
