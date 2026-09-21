@@ -370,9 +370,28 @@ private double number(
         double fallback
 ) {
 
-    Number n = snapshot.get(field, Number.class);
+    try {
 
-    return n == null ? fallback : n.doubleValue();
+        Object value = snapshot.get(field);
+
+        if (value instanceof Number) {
+            return ((Number) value).doubleValue();
+        }
+
+        if (value instanceof String) {
+
+            String text =
+                    ((String) value).trim();
+
+            if (!text.isEmpty()) {
+                return Double.parseDouble(text);
+            }
+        }
+
+    } catch (Exception ignored) {
+    }
+
+    return fallback;
 }
 
 private void requestLocation() {
@@ -1580,6 +1599,13 @@ private void showHistory() {
             auth.getCurrentUser();
 
     if (user == null) {
+
+        Toast.makeText(
+                this,
+                "Please log in first.",
+                Toast.LENGTH_SHORT
+        ).show();
+
         return;
     }
 
@@ -1591,12 +1617,109 @@ private void showHistory() {
             .get()
             .addOnSuccessListener(query -> {
 
-                if (query.isEmpty()) {
+                try {
+
+                    if (
+                            query == null
+                            ||
+                            query.isEmpty()
+                    ) {
+
+                        new AlertDialog.Builder(this)
+                                .setTitle("📜 Ride History")
+                                .setMessage(
+                                        "No ride history yet."
+                                )
+                                .setPositiveButton(
+                                        "Close",
+                                        null
+                                )
+                                .show();
+
+                        return;
+                    }
+
+                    StringBuilder history =
+                            new StringBuilder();
+
+                    for (
+                            DocumentSnapshot ride :
+                            query.getDocuments()
+                    ) {
+
+                        String pickup =
+                                safe(
+                                        ride.getString(
+                                                "pickupName"
+                                        ),
+                                        ride.getString(
+                                                "pickup"
+                                        )
+                                );
+
+                        String destination =
+                                safe(
+                                        ride.getString(
+                                                "destinationName"
+                                        ),
+                                        ride.getString(
+                                                "destination"
+                                        )
+                                );
+
+                        String status =
+                                safe(
+                                        ride.getString(
+                                                "status"
+                                        ),
+                                        "UNKNOWN"
+                                );
+
+                        double fare =
+                                readFare(ride);
+
+                        String paymentMethod =
+                                safe(
+                                        ride.getString(
+                                                "paymentMethod"
+                                        ),
+                                        "Not provided"
+                                );
+
+                        history.append(
+                                "📍 "
+                                        + pickup
+                                        + "\n"
+                                        + "🎯 "
+                                        + destination
+                                        + "\n"
+                                        + "💰 ₱"
+                                        + String.format(
+                                        Locale.US,
+                                        "%.0f",
+                                        fare
+                                )
+                                        + "\n"
+                                        + "💳 "
+                                        + paymentMethod
+                                        + "\n"
+                                        + "🚦 "
+                                        + status
+                                        + "\n\n"
+                        );
+                    }
+
+                    if (history.length() == 0) {
+
+                        history.append(
+                                "No ride history yet."
+                        );
+                    }
 
                     new AlertDialog.Builder(this)
                             .setTitle("📜 Ride History")
                             .setMessage(
-                                    "No ride history yet."
+                                    history.toString()
                             )
                             .setPositiveButton(
                                     "Close",
@@ -1604,88 +1727,59 @@ private void showHistory() {
                             )
                             .show();
 
-                    return;
-                }
+                } catch (Exception e) {
 
-                StringBuilder history =
-                        new StringBuilder();
-
-                for (
-                        DocumentSnapshot ride :
-                        query.getDocuments()
-                ) {
-
-                    String pickup =
-                            safe(
-                                    ride.getString(
-                                            "pickupName"
-                                    ),
-                                    ride.getString(
-                                            "pickup"
-                                    )
-                            );
-
-                    String destination =
-                            safe(
-                                    ride.getString(
-                                            "destinationName"
-                                    ),
-                                    ride.getString(
-                                            "destination"
-                                    )
-                            );
-
-                    String status =
-                            safe(
-                                    ride.getString(
-                                            "status"
-                                    ),
-                                    "UNKNOWN"
-                            );
-
-                    double fare =
-                            number(
-                                    ride,
-                                    "fare",
-                                    0
-                            );
-
-                    history.append(
-                            "📍 " +
-                            pickup +
-                            "\n🎯 " +
-                            destination +
-                            "\n💰 ₱" +
-                            String.format(
-                                    Locale.US,
-                                    "%.0f",
-                                    fare
-                            ) +
-                            "\n🚦 " +
-                            status +
-                            "\n\n"
-                    );
-                }
-
-                new AlertDialog.Builder(this)
-                        .setTitle("📜 Ride History")
-                        .setMessage(
-                                history.toString()
-                        )
-                        .setPositiveButton(
-                                "Close",
-                                null
-                        )
-                        .show();
-            })
-            .addOnFailureListener(e ->
                     Toast.makeText(
                             this,
-                            "History failed:\n" +
-                            e.getMessage(),
+                            "Unable to display ride history.",
                             Toast.LENGTH_LONG
-                    ).show()
-            );
+                    ).show();
+                }
+
+            })
+            .addOnFailureListener(e -> {
+
+                Toast.makeText(
+                        this,
+                        "History failed:\n"
+                                + e.getMessage(),
+                        Toast.LENGTH_LONG
+                ).show();
+            });
+}
+
+private double readFare(
+        DocumentSnapshot ride
+) {
+
+    try {
+
+        Object value =
+                ride.get("fare");
+
+        if (value instanceof Number) {
+
+            return ((Number) value)
+                    .doubleValue();
+        }
+
+        if (value instanceof String) {
+
+            String text =
+                    ((String) value).trim();
+
+            if (!text.isEmpty()) {
+
+                return Double.parseDouble(
+                        text
+                );
+            }
+        }
+
+    } catch (Exception ignored) {
+    }
+
+    return 0;
 }
 
 private String safe(
