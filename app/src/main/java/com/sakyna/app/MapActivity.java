@@ -1,3 +1,4 @@
+
 package com.sakyna.app;
 
 import android.Manifest;
@@ -125,15 +126,11 @@ public class MapActivity extends Activity {
         TextView title =
                 new TextView(this);
 
-        if ("LIVE_RIDE".equals(mode)) {
-            title.setText(
-                    "🛺 SAKAY NA — LIVE RIDE"
-            );
-        } else {
-            title.setText(
-                    "📍 CHOOSE DESTINATION"
-            );
-        }
+        title.setText(
+                "LIVE_RIDE".equals(mode)
+                        ? "🛺 SAKAY NA — LIVE RIDE"
+                        : "📍 CHOOSE DESTINATION"
+        );
 
         title.setTextSize(23);
         title.setTypeface(
@@ -145,9 +142,7 @@ public class MapActivity extends Activity {
                 Color.rgb(0, 120, 70)
         );
 
-        title.setGravity(
-                Gravity.CENTER
-        );
+        title.setGravity(Gravity.CENTER);
 
         title.setPadding(
                 10,
@@ -170,14 +165,8 @@ public class MapActivity extends Activity {
         );
 
         statusText.setTextSize(14);
-
-        statusText.setTextColor(
-                Color.DKGRAY
-        );
-
-        statusText.setGravity(
-                Gravity.CENTER
-        );
+        statusText.setTextColor(Color.DKGRAY);
+        statusText.setGravity(Gravity.CENTER);
 
         statusText.setPadding(
                 10,
@@ -196,10 +185,7 @@ public class MapActivity extends Activity {
         );
 
         destinationText.setTextSize(15);
-
-        destinationText.setTextColor(
-                Color.DKGRAY
-        );
+        destinationText.setTextColor(Color.DKGRAY);
 
         destinationText.setPadding(
                 15,
@@ -268,9 +254,6 @@ public class MapActivity extends Activity {
                 )
         );
 
-        /*
-         * MY LOCATION BUTTON
-         */
         myLocationButton =
                 new Button(this);
 
@@ -279,10 +262,7 @@ public class MapActivity extends Activity {
         );
 
         myLocationButton.setTextSize(16);
-
-        myLocationButton.setTextColor(
-                Color.WHITE
-        );
+        myLocationButton.setTextColor(Color.WHITE);
 
         myLocationButton.setBackgroundColor(
                 Color.rgb(0, 120, 215)
@@ -292,9 +272,7 @@ public class MapActivity extends Activity {
                 v -> recenterOnMyLocation()
         );
 
-        root.addView(
-                myLocationButton
-        );
+        root.addView(myLocationButton);
 
         if ("SELECT_DESTINATION".equals(mode)) {
 
@@ -306,10 +284,7 @@ public class MapActivity extends Activity {
             );
 
             destinationButton.setTextSize(16);
-
-            destinationButton.setTextColor(
-                    Color.WHITE
-            );
+            destinationButton.setTextColor(Color.WHITE);
 
             destinationButton.setBackgroundColor(
                     Color.rgb(0, 135, 80)
@@ -321,42 +296,19 @@ public class MapActivity extends Activity {
                     v -> returnDestination()
             );
 
-            root.addView(
-                    destinationButton
-            );
-
-            Button backButton =
-                    new Button(this);
-
-            backButton.setText(
-                    "⬅ BACK"
-            );
-
-            backButton.setOnClickListener(
-                    v -> finish()
-            );
-
-            root.addView(
-                    backButton
-            );
-
-        } else {
-
-            Button backButton =
-                    new Button(this);
-
-            backButton.setText(
-                    "⬅ BACK"
-            );
-
-            backButton.setOnClickListener(
-                    v -> finish()
-            );
-
-            root.addView(
-                    backButton
-            );
+            root.addView(destinationButton);
         }
+
+        Button backButton =
+                new Button(this);
+
+        backButton.setText("⬅ BACK");
+
+        backButton.setOnClickListener(
+                v -> finish()
+        );
+
+        root.addView(backButton);
 
         setContentView(root);
 
@@ -389,7 +341,6 @@ public class MapActivity extends Activity {
         );
 
         searchInput.setTextSize(16);
-
         searchInput.setSingleLine(true);
 
         searchRow.addView(
@@ -404,13 +355,8 @@ public class MapActivity extends Activity {
         Button searchButton =
                 new Button(this);
 
-        searchButton.setText(
-                "🔎 SEARCH"
-        );
-
-        searchButton.setTextColor(
-                Color.WHITE
-        );
+        searchButton.setText("🔎 SEARCH");
+        searchButton.setTextColor(Color.WHITE);
 
         searchButton.setBackgroundColor(
                 Color.rgb(0, 135, 80)
@@ -420,9 +366,7 @@ public class MapActivity extends Activity {
                 v -> searchPlace()
         );
 
-        searchRow.addView(
-                searchButton
-        );
+        searchRow.addView(searchButton);
 
         root.addView(searchRow);
 
@@ -469,7 +413,6 @@ public class MapActivity extends Activity {
                 "</script>" +
 
                 "<style>" +
-
                 "html,body,#map{" +
                 "height:100%;" +
                 "width:100%;" +
@@ -477,25 +420,18 @@ public class MapActivity extends Activity {
                 "padding:0;" +
                 "background:#eef7f3;" +
                 "}" +
-
                 ".leaflet-control-zoom a{" +
                 "font-size:22px;" +
                 "}" +
-
                 "</style>" +
 
                 "</head>" +
-
                 "<body>" +
 
                 "<div id='map'></div>" +
 
                 "<script>" +
 
-                /*
-                 * Start map around the last known/default
-                 * location. It will be corrected by GPS.
-                 */
                 "var map=L.map('map').setView([" +
                 currentLatitude +
                 "," +
@@ -515,22 +451,10 @@ public class MapActivity extends Activity {
                 "var destinationMarker=null;" +
                 "var driverMarker=null;" +
 
-                /*
-                 * Only the first GPS update automatically
-                 * centers the map.
-                 */
                 "var hasInitialCenter=false;" +
-
-                /*
-                 * Follow mode is controlled by the
-                 * My Location button.
-                 */
+                "var hasInitialDriverCenter=false;" +
                 "var followUser=false;" +
 
-                /*
-                 * Create a blue Google-Maps-like
-                 * location marker.
-                 */
                 "function createUserMarker(lat,lng){" +
 
                 "var icon=L.divIcon({" +
@@ -559,18 +483,11 @@ public class MapActivity extends Activity {
                 "function setUser(lat,lng,accuracy){" +
 
                 "if(userMarker==null){" +
-
                 "createUserMarker(lat,lng);" +
-
                 "}else{" +
-
                 "userMarker.setLatLng([lat,lng]);" +
-
                 "}" +
 
-                /*
-                 * Show GPS accuracy area.
-                 */
                 "if(accuracy && accuracy>0){" +
 
                 "if(accuracyCircle==null){" +
@@ -593,21 +510,11 @@ public class MapActivity extends Activity {
 
                 "}" +
 
-                /*
-                 * First GPS location centers map.
-                 */
                 "if(!hasInitialCenter){" +
-
                 "map.setView([lat,lng],17);" +
-
                 "hasInitialCenter=true;" +
-
                 "}" +
 
-                /*
-                 * Follow mode keeps the map centered
-                 * while the user moves.
-                 */
                 "if(followUser){" +
 
                 "map.setView([lat,lng],17,{" +
@@ -618,9 +525,6 @@ public class MapActivity extends Activity {
 
                 "}" +
 
-                /*
-                 * Turn follow mode on/off.
-                 */
                 "function setFollow(value){" +
 
                 "followUser=value;" +
@@ -652,9 +556,10 @@ public class MapActivity extends Activity {
                 "map.setView([lat,lng],17);" +
 
                 /*
-                 * Searching/selecting a destination exits
-                 * automatic follow mode.
+                 * Keep the selected destination stable.
                  */
+                "hasInitialCenter=true;" +
+
                 "followUser=false;" +
 
                 "}" +
@@ -683,8 +588,21 @@ public class MapActivity extends Activity {
 
                 "}else{" +
 
+                /*
+                 * Every new Firebase location moves only
+                 * the driver marker.
+                 */
                 "driverMarker.setLatLng([lat,lng]);" +
 
+                "}" +
+
+                /*
+                 * Center on the driver's first real location
+                 * only once. Later updates do not move the map.
+                 */
+                "if(!hasInitialDriverCenter){" +
+                "map.setView([lat,lng],17);" +
+                "hasInitialDriverCenter=true;" +
                 "}" +
 
                 "}" +
@@ -703,7 +621,6 @@ public class MapActivity extends Activity {
                 "});" +
 
                 "</script>" +
-
                 "</body>" +
                 "</html>";
 
@@ -726,8 +643,7 @@ public class MapActivity extends Activity {
 
             runOnUiThread(() -> {
 
-                if ("SELECT_DESTINATION"
-                        .equals(mode)) {
+                if ("SELECT_DESTINATION".equals(mode)) {
 
                     reverseGeocode(
                             lat,
@@ -773,9 +689,6 @@ public class MapActivity extends Activity {
                             return;
                         }
 
-                        /*
-                         * THIS IS THE REAL PHONE GPS.
-                         */
                         currentLatitude =
                                 location.getLatitude();
 
@@ -789,8 +702,7 @@ public class MapActivity extends Activity {
                         statusText.setText(
                                 String.format(
                                         Locale.US,
-                                        "🟢 LIVE GPS\n" +
-                                        "Accuracy: %.0f m",
+                                        "🟢 LIVE GPS\nAccuracy: %.0f m",
                                         location.getAccuracy()
                                 )
                         );
@@ -799,9 +711,6 @@ public class MapActivity extends Activity {
 
         try {
 
-            /*
-             * GPS provider.
-             */
             locationManager.requestLocationUpdates(
                     LocationManager.GPS_PROVIDER,
                     1000,
@@ -810,10 +719,6 @@ public class MapActivity extends Activity {
                     Looper.getMainLooper()
             );
 
-            /*
-             * Network provider helps indoors
-             * and when GPS signal is weak.
-             */
             locationManager.requestLocationUpdates(
                     LocationManager.NETWORK_PROVIDER,
                     2000,
@@ -822,10 +727,6 @@ public class MapActivity extends Activity {
                     Looper.getMainLooper()
             );
 
-            /*
-             * Immediately use last known location
-             * while waiting for a fresh GPS fix.
-             */
             Location last =
                     locationManager.getLastKnownLocation(
                             LocationManager.GPS_PROVIDER
@@ -847,9 +748,7 @@ public class MapActivity extends Activity {
                 currentLongitude =
                         last.getLongitude();
 
-                sendLocationToMap(
-                        last
-                );
+                sendLocationToMap(last);
             }
 
         } catch (SecurityException e) {
@@ -937,14 +836,6 @@ public class MapActivity extends Activity {
                 null
         );
 
-        webView.evaluateJavascript(
-                "if(userMarker!=null){" +
-                "var p=userMarker.getLatLng();" +
-                "map.setView([p.lat,p.lng],17,{animate:true});" +
-                "}",
-                null
-        );
-
         Toast.makeText(
                 this,
                 "📍 Following your live location",
@@ -971,22 +862,13 @@ public class MapActivity extends Activity {
             return;
         }
 
-        searchResultsContainer
-                .removeAllViews();
+        searchResultsContainer.removeAllViews();
 
         TextView loading =
                 new TextView(this);
 
-        loading.setText(
-                "🔎 Searching..."
-        );
-
-        loading.setPadding(
-                10,
-                10,
-                10,
-                10
-        );
+        loading.setText("🔎 Searching...");
+        loading.setPadding(10,10,10,10);
 
         searchResultsContainer.addView(
                 loading
@@ -1022,38 +904,23 @@ public class MapActivity extends Activity {
                         (HttpURLConnection)
                                 url.openConnection();
 
-                connection.setRequestMethod(
-                        "GET"
-                );
-
-                connection.setConnectTimeout(
-                        10000
-                );
-
-                connection.setReadTimeout(
-                        10000
-                );
+                connection.setRequestMethod("GET");
+                connection.setConnectTimeout(10000);
+                connection.setReadTimeout(10000);
 
                 connection.setRequestProperty(
                         "User-Agent",
                         "SakayNa/1.0 Android"
                 );
 
-                if (connection.getResponseCode()
-                        != 200) {
-
-                    throw new Exception(
-                            "Search failed"
-                    );
+                if (connection.getResponseCode() != 200) {
+                    throw new Exception("Search failed");
                 }
-
-                InputStream input =
-                        connection.getInputStream();
 
                 BufferedReader reader =
                         new BufferedReader(
                                 new InputStreamReader(
-                                        input,
+                                        connection.getInputStream(),
                                         "UTF-8"
                                 )
                         );
@@ -1063,16 +930,11 @@ public class MapActivity extends Activity {
 
                 String line;
 
-                while (
-                        (line = reader.readLine())
-                                != null
-                ) {
-
+                while ((line = reader.readLine()) != null) {
                     result.append(line);
                 }
 
                 reader.close();
-                input.close();
 
                 JSONObject object =
                         new JSONObject(
@@ -1086,8 +948,7 @@ public class MapActivity extends Activity {
 
                 runOnUiThread(() -> {
 
-                    searchResultsContainer
-                            .removeAllViews();
+                    searchResultsContainer.removeAllViews();
 
                     if (features == null
                             || features.length() == 0) {
@@ -1100,14 +961,12 @@ public class MapActivity extends Activity {
                         );
 
                         empty.setPadding(
-                                10,
-                                10,
-                                10,
-                                10
+                                10,10,10,10
                         );
 
-                        searchResultsContainer
-                                .addView(empty);
+                        searchResultsContainer.addView(
+                                empty
+                        );
 
                         return;
                     }
@@ -1121,9 +980,7 @@ public class MapActivity extends Activity {
                         try {
 
                             JSONObject feature =
-                                    features.getJSONObject(
-                                            i
-                                    );
+                                    features.getJSONObject(i);
 
                             JSONObject properties =
                                     feature.optJSONObject(
@@ -1143,20 +1000,15 @@ public class MapActivity extends Activity {
                                             );
 
                             if (coordinates == null
-                                    || coordinates.length()
-                                    < 2) {
+                                    || coordinates.length() < 2) {
                                 continue;
                             }
 
                             double lng =
-                                    coordinates.optDouble(
-                                            0
-                                    );
+                                    coordinates.optDouble(0);
 
                             double lat =
-                                    coordinates.optDouble(
-                                            1
-                                    );
+                                    coordinates.optDouble(1);
 
                             String name =
                                     properties == null
@@ -1199,42 +1051,35 @@ public class MapActivity extends Activity {
                                     );
 
                             if (display.isEmpty()) {
-                                display =
-                                        "Selected place";
+                                display = "Selected place";
                             }
 
                             Button button =
                                     new Button(this);
 
                             button.setText(
-                                    "📍 " +
-                                    display
+                                    "📍 " + display
                             );
 
                             button.setGravity(
                                     Gravity.LEFT
                             );
 
-                            final double finalLat =
-                                    lat;
-
-                            final double finalLng =
-                                    lng;
-
-                            final String finalName =
-                                    display;
+                            final double finalLat = lat;
+                            final double finalLng = lng;
+                            final String finalName = display;
 
                             button.setOnClickListener(
-                                    v ->
-                                            reverseGeocode(
-                                                    finalLat,
-                                                    finalLng,
-                                                    finalName
-                                            )
+                                    v -> reverseGeocode(
+                                            finalLat,
+                                            finalLng,
+                                            finalName
+                                    )
                             );
 
-                            searchResultsContainer
-                                    .addView(button);
+                            searchResultsContainer.addView(
+                                    button
+                            );
 
                         } catch (Exception ignored) {
                         }
@@ -1245,30 +1090,21 @@ public class MapActivity extends Activity {
 
                 runOnUiThread(() -> {
 
-                    searchResultsContainer
-                            .removeAllViews();
+                    searchResultsContainer.removeAllViews();
 
                     TextView error =
                             new TextView(this);
 
                     error.setText(
-                            "❌ Search failed. " +
-                            "Check internet connection."
+                            "❌ Search failed. Check internet connection."
                     );
 
-                    error.setTextColor(
-                            Color.RED
-                    );
+                    error.setTextColor(Color.RED);
+                    error.setPadding(10,10,10,10);
 
-                    error.setPadding(
-                            10,
-                            10,
-                            10,
-                            10
+                    searchResultsContainer.addView(
+                            error
                     );
-
-                    searchResultsContainer
-                            .addView(error);
                 });
 
             } finally {
@@ -1330,10 +1166,8 @@ public class MapActivity extends Activity {
                 String urlString =
                         "https://nominatim.openstreetmap.org/reverse" +
                         "?format=jsonv2" +
-                        "&lat=" +
-                        lat +
-                        "&lon=" +
-                        lng +
+                        "&lat=" + lat +
+                        "&lon=" + lng +
                         "&zoom=18" +
                         "&addressdetails=1" +
                         "&namedetails=1" +
@@ -1346,38 +1180,25 @@ public class MapActivity extends Activity {
                         (HttpURLConnection)
                                 url.openConnection();
 
-                connection.setRequestMethod(
-                        "GET"
-                );
-
-                connection.setConnectTimeout(
-                        10000
-                );
-
-                connection.setReadTimeout(
-                        10000
-                );
+                connection.setRequestMethod("GET");
+                connection.setConnectTimeout(10000);
+                connection.setReadTimeout(10000);
 
                 connection.setRequestProperty(
                         "User-Agent",
                         "SakayNa/1.0 Android"
                 );
 
-                if (connection.getResponseCode()
-                        != 200) {
-
+                if (connection.getResponseCode() != 200) {
                     throw new Exception(
                             "Reverse lookup failed"
                     );
                 }
 
-                InputStream input =
-                        connection.getInputStream();
-
                 BufferedReader reader =
                         new BufferedReader(
                                 new InputStreamReader(
-                                        input,
+                                        connection.getInputStream(),
                                         "UTF-8"
                                 )
                         );
@@ -1387,16 +1208,11 @@ public class MapActivity extends Activity {
 
                 String line;
 
-                while (
-                        (line = reader.readLine())
-                                != null
-                ) {
-
+                while ((line = reader.readLine()) != null) {
                     result.append(line);
                 }
 
                 reader.close();
-                input.close();
 
                 JSONObject object =
                         new JSONObject(
@@ -1546,8 +1362,7 @@ public class MapActivity extends Activity {
                     finalName =
                             String.format(
                                     Locale.US,
-                                    "Selected location " +
-                                    "(%.6f, %.6f)",
+                                    "Selected location (%.6f, %.6f)",
                                     lat,
                                     lng
                             );
@@ -1575,8 +1390,7 @@ public class MapActivity extends Activity {
                     fallback =
                             String.format(
                                     Locale.US,
-                                    "Selected location " +
-                                    "(%.6f, %.6f)",
+                                    "Selected location (%.6f, %.6f)",
                                     lat,
                                     lng
                             );
@@ -1730,9 +1544,9 @@ public class MapActivity extends Activity {
                 Color.rgb(0, 110, 70)
         );
 
-        destinationButton.setEnabled(
-                true
-        );
+        if (destinationButton != null) {
+            destinationButton.setEnabled(true);
+        }
 
         if (searchResultsContainer != null) {
             searchResultsContainer.removeAllViews();
@@ -1895,6 +1709,7 @@ public class MapActivity extends Activity {
                 );
 
         if (pickup.isEmpty()) {
+
             pickup =
                     value(
                             ride,
@@ -1909,6 +1724,7 @@ public class MapActivity extends Activity {
                 );
 
         if (destination.isEmpty()) {
+
             destination =
                     value(
                             ride,
@@ -1947,7 +1763,6 @@ public class MapActivity extends Activity {
         if (driverListener != null) {
 
             driverListener.remove();
-
             driverListener = null;
         }
 
@@ -2063,6 +1878,7 @@ public class MapActivity extends Activity {
         }
 
         if (webView != null) {
+
             webView.stopLoading();
             webView.destroy();
             webView = null;
