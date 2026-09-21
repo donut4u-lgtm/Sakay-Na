@@ -10,7 +10,6 @@ function isAdmin() {
 }
 
 match /users/{userId} {
-
   allow create: if request.auth != null
                 && request.auth.uid == userId;
 
@@ -28,7 +27,6 @@ match /users/{userId} {
 }
 
 match /drivers/{driverId} {
-
   allow read, write: if request.auth != null
                      && (
                        request.auth.uid == driverId
@@ -37,7 +35,6 @@ match /drivers/{driverId} {
 }
 
 match /rides/{rideId} {
-
   allow read, write: if request.auth != null;
 
   match /messages/{messageId} {
@@ -75,21 +72,8 @@ match /rides/{rideId} {
 }
 
 match /driverLocations/{driverId} {
-
   allow read, write: if request.auth != null;
 }
-
-/*
- * DRIVER SETTLEMENTS
- *
- * Driver:
- * - can create their own payment submission
- * - can read their own submissions
- *
- * Admin:
- * - can read all submissions
- * - can update/verify submissions
- */
 
 match /driverSettlements/{settlementId} {
 
@@ -97,8 +81,7 @@ match /driverSettlements/{settlementId} {
               && (
                 isAdmin()
                 ||
-                resource.data.driverId
-                == request.auth.uid
+                resource.data.driverId == request.auth.uid
               );
 
   allow create: if request.auth != null
