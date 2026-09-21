@@ -13,10 +13,10 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.google.firebase.Timestamp;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
-import com.google.firebase.Timestamp;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -188,6 +188,31 @@ public class AdminActivity extends Activity {
         );
 
         root.addView(refresh);
+
+        /*
+         * DRIVER SETTLEMENTS
+         */
+        Button settlementButton =
+                new Button(this);
+
+        settlementButton.setText(
+                "💰 DRIVER SETTLEMENTS"
+        );
+
+        settlementButton.setOnClickListener(
+                v -> {
+
+                    Intent intent =
+                            new Intent(
+                                    AdminActivity.this,
+                                    AdminSettlementActivity.class
+                            );
+
+                    startActivity(intent);
+                }
+        );
+
+        root.addView(settlementButton);
 
         ScrollView scrollView =
                 new ScrollView(this);
@@ -644,6 +669,7 @@ public class AdminActivity extends Activity {
 
         today.setOnClickListener(
                 v -> {
+
                     paymentDays = 1;
                     renderPayments();
                 }
@@ -656,6 +682,7 @@ public class AdminActivity extends Activity {
 
         week.setOnClickListener(
                 v -> {
+
                     paymentDays = 7;
                     renderPayments();
                 }
@@ -668,14 +695,26 @@ public class AdminActivity extends Activity {
 
         month.setOnClickListener(
                 v -> {
+
                     paymentDays = 30;
                     renderPayments();
                 }
         );
 
-        row.addView(today, weighted());
-        row.addView(week, weighted());
-        row.addView(month, weighted());
+        row.addView(
+                today,
+                weighted()
+        );
+
+        row.addView(
+                week,
+                weighted()
+        );
+
+        row.addView(
+                month,
+                weighted()
+        );
 
         parent.addView(row);
     }
@@ -841,7 +880,12 @@ public class AdminActivity extends Activity {
 
         note.setTextSize(14);
         note.setTextColor(DARK);
-        note.setPadding(12, 12, 12, 18);
+        note.setPadding(
+                12,
+                12,
+                12,
+                18
+        );
 
         paymentSection.addView(note);
 
@@ -1206,8 +1250,12 @@ public class AdminActivity extends Activity {
                         driver == null
                                 ? ""
                                 : firstNonEmpty(
-                                driver.getString("driverName"),
-                                driver.getString("name")
+                                driver.getString(
+                                        "driverName"
+                                ),
+                                driver.getString(
+                                        "name"
+                                )
                         )
                 );
 
@@ -1221,10 +1269,14 @@ public class AdminActivity extends Activity {
 
         String plate =
                 firstNonEmpty(
-                        ride.getString("driverPlateNumber"),
+                        ride.getString(
+                                "driverPlateNumber"
+                        ),
                         driver == null
                                 ? ""
-                                : driver.getString("plateNumber")
+                                : driver.getString(
+                                "plateNumber"
+                        )
                 );
 
         String franchise =
@@ -1236,12 +1288,14 @@ public class AdminActivity extends Activity {
 
         String vehicle =
                 firstNonEmpty(
-                        ride.getString("driverVehicle"),
+                        ride.getString(
+                                "driverVehicle"
+                        ),
                         driver == null
                                 ? ""
                                 : driver.getString(
-                                        "vehicleDescription"
-                                )
+                                "vehicleDescription"
+                        )
                 );
 
         String driverTown =
@@ -1396,28 +1450,32 @@ public class AdminActivity extends Activity {
 
         addCardText(
                 card,
-                "🎯 Destination:\n" + destination,
+                "🎯 Destination:\n"
+                        + destination,
                 15,
                 DARK
         );
 
         addCardText(
                 card,
-                "💰 Fare: " + formatPeso(fare),
+                "💰 Fare: "
+                        + formatPeso(fare),
                 16,
                 DARK
         );
 
         addCardText(
                 card,
-                "💳 Payment: " + payment,
+                "💳 Payment: "
+                        + payment,
                 16,
                 DARK
         );
 
         addCardText(
                 card,
-                "🚦 Status: " + status,
+                "🚦 Status: "
+                        + status,
                 16,
                 DARK
         );
@@ -1596,7 +1654,8 @@ public class AdminActivity extends Activity {
 
             addCardText(
                     card,
-                    "🏘️ Town / City: " + town,
+                    "🏘️ Town / City: "
+                            + town,
                     16,
                     DARK
             );
@@ -1606,7 +1665,8 @@ public class AdminActivity extends Activity {
 
             addCardText(
                     card,
-                    "🗺️ Province: " + province,
+                    "🗺️ Province: "
+                            + province,
                     16,
                     DARK
             );
@@ -1616,7 +1676,8 @@ public class AdminActivity extends Activity {
 
             addCardText(
                     card,
-                    "🪪 Plate Number: " + plate,
+                    "🪪 Plate Number: "
+                            + plate,
                     16,
                     DARK
             );
@@ -1633,8 +1694,11 @@ public class AdminActivity extends Activity {
             );
         }
 
-        if (!hasText(plate)
-                && !hasText(franchise)) {
+        if (
+                !hasText(plate)
+                        &&
+                !hasText(franchise)
+        ) {
 
             addCardText(
                     card,
@@ -1737,6 +1801,7 @@ public class AdminActivity extends Activity {
 
         today.setOnClickListener(
                 v -> {
+
                     historyDays = 1;
                     renderHistory();
                 }
@@ -1749,6 +1814,7 @@ public class AdminActivity extends Activity {
 
         week.setOnClickListener(
                 v -> {
+
                     historyDays = 7;
                     renderHistory();
                 }
@@ -1761,14 +1827,26 @@ public class AdminActivity extends Activity {
 
         month.setOnClickListener(
                 v -> {
+
                     historyDays = 30;
                     renderHistory();
                 }
         );
 
-        row.addView(today, weighted());
-        row.addView(week, weighted());
-        row.addView(month, weighted());
+        row.addView(
+                today,
+                weighted()
+        );
+
+        row.addView(
+                week,
+                weighted()
+        );
+
+        row.addView(
+                month,
+                weighted()
+        );
 
         parent.addView(row);
     }
