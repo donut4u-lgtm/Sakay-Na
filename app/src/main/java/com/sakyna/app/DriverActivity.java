@@ -43,6 +43,7 @@ private LinearLayout requestContainer;
 private TextView requestsText;
 private TextView statusText;
 private TextView currentRideText;
+private LinearLayout rideStatusContainer;
 
 private boolean driverOnline = false;
 private String currentRideId = "";
@@ -157,7 +158,12 @@ private void buildScreen() {
     currentRideText.setText("No current ride.");
     currentRideText.setTextSize(17);
     currentRideText.setTextColor(Color.DKGRAY);
+    currentRideText.setPadding(0, 5, 0, 15);
     root.addView(currentRideText);
+
+    rideStatusContainer = new LinearLayout(this);
+    rideStatusContainer.setOrientation(LinearLayout.VERTICAL);
+    root.addView(rideStatusContainer);
 
     Button map = new Button(this);
     map.setText("🗺️ OPEN MAP");
@@ -467,12 +473,6 @@ private void acceptRide(
     hiddenRequestIds.add(rideId);
     card.setVisibility(LinearLayout.GONE);
 
-    /*
-     * Get the driver's profile first.
-     * These values are copied into the exact ride document.
-     * PassengerActivity can therefore identify exactly
-     * which driver accepted this exact booking.
-     */
     db.collection("users")
             .document(user.getUid())
             .get()
@@ -524,10 +524,6 @@ private void acceptRide(
                         .update(update)
                         .addOnSuccessListener(v -> {
 
-                            /*
-                             * This is the exact ride the driver
-                             * accepted. Keep this ID locally.
-                             */
                             currentRideId = rideId;
 
                             Toast.makeText(
@@ -541,7 +537,10 @@ private void acceptRide(
                         })
                         .addOnFailureListener(e -> {
 
-                            hiddenRequestIds.remove(rideId);
+                            hiddenRequestIds.remove(
+                                    rideId
+                            );
+
                             card.setVisibility(
                                     LinearLayout.VISIBLE
                             );
@@ -558,10 +557,6 @@ private void acceptRide(
             })
             .addOnFailureListener(e -> {
 
-                /*
-                 * Even if profile loading fails, the driver must
-                 * still be able to accept the ride.
-                 */
                 Map<String, Object> update =
                         new HashMap<>();
 
@@ -598,7 +593,10 @@ private void acceptRide(
                         })
                         .addOnFailureListener(error -> {
 
-                            hiddenRequestIds.remove(rideId);
+                            hiddenRequestIds.remove(
+                                    rideId
+                            );
+
                             card.setVisibility(
                                     LinearLayout.VISIBLE
                             );
@@ -659,6 +657,7 @@ private void declineRide(
             .addOnFailureListener(e -> {
 
                 hiddenRequestIds.remove(rideId);
+
                 card.setVisibility(
                         LinearLayout.VISIBLE
                 );
@@ -695,14 +694,22 @@ private void listenForCurrentRide() {
                                     currentRideText.setText(
                                             "Unable to load current ride."
                                     );
+
                                     return;
                                 }
 
-                                /*
-                                 * First try the exact ride we just
-                                 * accepted. This prevents an older
-                                 * booking from taking over the screen.
-                                 */
+                                if (snapshots == null) {
+
+                                    currentRideId = "";
+
+                                    currentRideText.setText(
+                                            "No current ride."
+                                    );
+
+                                    clearRideStatusButtons();
+                                    return;
+                                }
+
                                 if (!currentRideId.isEmpty()) {
 
                                     for (DocumentSnapshot ride :
@@ -727,51 +734,44 @@ private void listenForCurrentRide() {
                                     }
                                 }
 
-                                /*
-                                 * If there is no remembered current
-                                 * ride, find the newest active ride.
-                                 */
                                 DocumentSnapshot newest = null;
                                 long newestTime = Long.MIN_VALUE;
 
-                                if (snapshots != null) {
+                                for (DocumentSnapshot ride :
+                                        snapshots.getDocuments()) {
 
-                                    for (DocumentSnapshot ride :
-                                            snapshots.getDocuments()) {
+                                    String status =
+                                            string(
+                                                    ride,
+                                                    "status"
+                                            );
 
-                                        String status =
-                                                string(
-                                                        ride,
-                                                        "status"
-                                                );
+                                    if (!isActive(status)) {
+                                        continue;
+                                    }
 
-                                        if (!isActive(status)) {
-                                            continue;
-                                        }
+                                    long acceptedAt =
+                                            longValue(
+                                                    ride,
+                                                    "acceptedAt"
+                                            );
 
-                                        long acceptedAt =
-                                                longValue(
-                                                        ride,
-                                                        "acceptedAt"
-                                                );
+                                    long createdAt =
+                                            longValue(
+                                                    ride,
+                                                    "createdAt"
+                                            );
 
-                                        long createdAt =
-                                                longValue(
-                                                        ride,
-                                                        "createdAt"
-                                                );
+                                    long time =
+                                            acceptedAt > 0
+                                                    ? acceptedAt
+                                                    : createdAt;
 
-                                        long time =
-                                                acceptedAt > 0
-                                                        ? acceptedAt
-                                                        : createdAt;
+                                    if (newest == null
+                                            || time > newestTime) {
 
-                                        if (newest == null
-                                                || time > newestTime) {
-
-                                            newest = ride;
-                                            newestTime = time;
-                                        }
+                                        newest = ride;
+                                        newestTime = time;
                                     }
                                 }
 
@@ -789,6 +789,8 @@ private void listenForCurrentRide() {
                                     currentRideText.setText(
                                             "No current ride."
                                     );
+
+                                    clearRideStatusButtons();
                                 }
 
                                 listenForRideRequests();
@@ -812,12 +814,6 @@ private void showCurrentRide(
                     "status"
             );
 
-    String driverName =
-            string(
-                    ride,
-                    "driverName"
-            );
-
     currentRideText.setText(
             "🚕 ACTIVE RIDE\n\n"
                     + "📍 "
@@ -830,18 +826,251 @@ private void showCurrentRide(
                     ride,
                     "destination"
             )
-                    + "\n\n"
-                    + (
-                    driverName.isEmpty()
-                            ? ""
-                            : "👤 Passenger ride accepted\n\n"
-            )
-                    + "🚦 Status: "
+                    + "\n\n🚦 Status: "
                     + status
     );
+
+    showRideStatusButtons(status);
 }
 
-private boolean isActive(String status) {
+private void showRideStatusButtons(
+        String status
+) {
+
+    rideStatusContainer.removeAllViews();
+
+    TextView heading = new TextView(this);
+    heading.setText("🚦 RIDE STATUS");
+    heading.setTextSize(20);
+    heading.setTextColor(Color.BLACK);
+    heading.setPadding(0, 10, 0, 10);
+
+    rideStatusContainer.addView(heading);
+
+    if ("ACCEPTED".equalsIgnoreCase(status)) {
+
+        Button onTheWay = new Button(this);
+        onTheWay.setText("🚗 DRIVER ON THE WAY");
+        onTheWay.setTextColor(Color.WHITE);
+        onTheWay.setBackgroundColor(
+                Color.rgb(255, 140, 0)
+        );
+
+        onTheWay.setOnClickListener(
+                v -> updateRideStatus(
+                        "DRIVER_ON_THE_WAY"
+                )
+        );
+
+        rideStatusContainer.addView(
+                onTheWay
+        );
+
+    } else if ("DRIVER_ON_THE_WAY".equalsIgnoreCase(status)
+            || "ONGOING".equalsIgnoreCase(status)) {
+
+        Button arrived = new Button(this);
+        arrived.setText("📍 DRIVER ARRIVED");
+        arrived.setTextColor(Color.WHITE);
+        arrived.setBackgroundColor(
+                Color.rgb(0, 120, 200)
+        );
+
+        arrived.setOnClickListener(
+                v -> updateRideStatus(
+                        "DRIVER_ARRIVED"
+                )
+        );
+
+        rideStatusContainer.addView(
+                arrived
+        );
+
+    } else if ("DRIVER_ARRIVED".equalsIgnoreCase(status)
+            || "ARRIVED".equalsIgnoreCase(status)) {
+
+        Button start = new Button(this);
+        start.setText("🚕 START RIDE");
+        start.setTextColor(Color.WHITE);
+        start.setBackgroundColor(
+                Color.rgb(0, 150, 0)
+        );
+
+        start.setOnClickListener(
+                v -> updateRideStatus(
+                        "IN_PROGRESS"
+                )
+        );
+
+        rideStatusContainer.addView(
+                start
+        );
+
+    } else if ("IN_PROGRESS".equalsIgnoreCase(status)) {
+
+        Button finish = new Button(this);
+        finish.setText("🏁 FINISH RIDE");
+        finish.setTextColor(Color.WHITE);
+        finish.setBackgroundColor(
+                Color.rgb(150, 0, 150)
+        );
+
+        finish.setOnClickListener(
+                v -> updateRideStatus(
+                        "COMPLETED"
+                )
+        );
+
+        rideStatusContainer.addView(
+                finish
+        );
+    }
+}
+
+private void clearRideStatusButtons() {
+
+    if (rideStatusContainer != null) {
+        rideStatusContainer.removeAllViews();
+    }
+}
+
+private void updateRideStatus(
+        String newStatus
+) {
+
+    if (currentRideId.isEmpty()) {
+
+        Toast.makeText(
+                this,
+                "No active ride.",
+                Toast.LENGTH_SHORT
+        ).show();
+
+        return;
+    }
+
+    String rideId = currentRideId;
+
+    Map<String, Object> update =
+            new HashMap<>();
+
+    update.put(
+            "status",
+            newStatus
+    );
+
+    update.put(
+            "statusUpdatedAt",
+            System.currentTimeMillis()
+    );
+
+    if ("DRIVER_ON_THE_WAY".equals(
+            newStatus
+    )) {
+
+        update.put(
+                "driverOnTheWayAt",
+                System.currentTimeMillis()
+        );
+
+    } else if ("DRIVER_ARRIVED".equals(
+            newStatus
+    )) {
+
+        update.put(
+                "driverArrivedAt",
+                System.currentTimeMillis()
+        );
+
+    } else if ("IN_PROGRESS".equals(
+            newStatus
+    )) {
+
+        update.put(
+                "rideStartedAt",
+                System.currentTimeMillis()
+        );
+
+    } else if ("COMPLETED".equals(
+            newStatus
+    )) {
+
+        update.put(
+                "completedAt",
+                System.currentTimeMillis()
+        );
+    }
+
+    db.collection("rides")
+            .document(rideId)
+            .update(update)
+            .addOnSuccessListener(v -> {
+
+                Toast.makeText(
+                        this,
+                        statusMessage(newStatus),
+                        Toast.LENGTH_SHORT
+                ).show();
+
+                if ("COMPLETED".equals(
+                        newStatus
+                )) {
+
+                    currentRideId = "";
+                    hiddenRequestIds.remove(
+                            rideId
+                    );
+
+                    currentRideText.setText(
+                            "✅ RIDE COMPLETED"
+                    );
+
+                    clearRideStatusButtons();
+
+                    listenForCurrentRide();
+
+                } else {
+
+                    listenForCurrentRide();
+                }
+            })
+            .addOnFailureListener(e -> {
+
+                Toast.makeText(
+                        this,
+                        "Unable to update ride status:\n"
+                                + e.getMessage(),
+                        Toast.LENGTH_LONG
+                ).show();
+            });
+}
+
+private String statusMessage(
+        String status
+) {
+
+    if ("DRIVER_ON_THE_WAY".equals(status)) {
+        return "🚗 Driver is on the way.";
+    }
+
+    if ("DRIVER_ARRIVED".equals(status)) {
+        return "📍 Driver has arrived.";
+    }
+
+    if ("IN_PROGRESS".equals(status)) {
+        return "🚕 Ride started.";
+    }
+
+    if ("COMPLETED".equals(status)) {
+        return "🏁 Ride completed.";
+    }
+
+    return "Ride status updated.";
+}
+
+private boolean isActive(
+        String status
+) {
 
     return
             "ACCEPTED".equalsIgnoreCase(status)
@@ -927,7 +1156,8 @@ private String string(
         String field
 ) {
 
-    String value = doc.getString(field);
+    String value =
+            doc.getString(field);
 
     return value == null
             ? ""
