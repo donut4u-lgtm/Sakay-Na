@@ -3,8 +3,10 @@ package com.sakyna.app;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.text.InputType;
 import android.view.Gravity;
 import android.view.View;
@@ -61,6 +63,27 @@ public class MainActivity extends Activity {
 
     private static final String ADMIN_UID =
             "Ld3rzaCvAGNlXBDCofB3mWjgXWp2";
+
+    /*
+     * FREE-PLAN DEVICE ANTI-SPAM LAYER
+     *
+     * This does NOT use IMEI.
+     *
+     * It uses Android ANDROID_ID and a local
+     * account-creation counter.
+     *
+     * This is only a first layer.
+     * Strong server-side enforcement requires
+     * a backend/Cloud Functions plan.
+     */
+    private static final String SECURITY_PREFS =
+            "SakayNaSecurity";
+
+    private static final String ACCOUNT_COUNT =
+            "account_count";
+
+    private static final int DEVICE_ACCOUNT_LIMIT =
+            3;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -622,6 +645,133 @@ public class MainActivity extends Activity {
         return true;
     }
 
+    /*
+     * FREE-PLAN ANTI-SPAM CHECK
+     */
+    private boolean deviceRegistrationAllowed() {
+
+        SharedPreferences preferences =
+                getSharedPreferences(
+                        SECURITY_PREFS,
+                        MODE_PRIVATE
+                );
+
+        int count =
+                preferences.getInt(
+                        ACCOUNT_COUNT,
+                        0
+                );
+
+        if (count >= DEVICE_ACCOUNT_LIMIT) {
+
+            toast(
+                    "This device has reached the account creation limit."
+                            + "\nPlease contact Sakay Na Admin."
+            );
+
+            return false;
+        }
+
+        return true;
+    }
+
+    /*
+     * Returns Android's application/device identifier.
+     *
+     * This is NOT IMEI.
+     */
+    private String getDeviceId() {
+
+        String id =
+                Settings.Secure.getString(
+                        getContentResolver(),
+                        Settings.Secure.ANDROID_ID
+                );
+
+        if (id == null
+                || id.trim().isEmpty()) {
+
+            return "UNKNOWN_DEVICE";
+        }
+
+        return id;
+    }
+
+    private void recordAccountCreated(
+            String uid,
+            String role) {
+
+        SharedPreferences preferences =
+                getSharedPreferences(
+                        SECURITY_PREFS,
+                        MODE_PRIVATE
+                );
+
+        int oldCount =
+                preferences.getInt(
+                        ACCOUNT_COUNT,
+                        0
+                );
+
+        int newCount =
+                oldCount + 1;
+
+        preferences.edit()
+                .putInt(
+                        ACCOUNT_COUNT,
+                        newCount
+                )
+                .apply();
+
+        /*
+         * Store the device identifier for
+         * Admin/security investigation.
+         */
+        if (db != null && uid != null) {
+
+            Map<String, Object> security =
+                    new HashMap<>();
+
+            security.put(
+                    "deviceId",
+                    getDeviceId()
+            );
+
+            security.put(
+                    "securityAccountCount",
+                    newCount
+            );
+
+            security.put(
+                    "securityStatus",
+                    newCount >= 2
+                            ? "FLAGGED"
+                            : "ACTIVE"
+            );
+
+            security.put(
+                    "securityReason",
+                    newCount >= 2
+                            ? "Multiple accounts created from the same device."
+                            : ""
+            );
+
+            security.put(
+                    "securityUpdatedAt",
+                    FieldValue.serverTimestamp()
+            );
+
+            security.put(
+                    "securityRole",
+                    role
+            );
+
+            db.collection("users")
+                    .document(uid)
+                    .update(security);
+        }
+    }
+
     private void login() {
 
         if (!validLoginInput()) {
@@ -841,6 +991,39 @@ public class MainActivity extends Activity {
             return;
         }
 
+        String securityStatus =
+                document.getString(
+                        "securityStatus"
+                );
+
+        if ("BANNED".equalsIgnoreCase(
+                securityStatus)) {
+
+            auth.signOut();
+
+            showLoginScreen();
+
+            toast(
+                    "This account has been banned."
+            );
+
+            return;
+        }
+
+        if ("SUSPENDED".equalsIgnoreCase(
+                securityStatus)) {
+
+            auth.signOut();
+
+            showLoginScreen();
+
+            toast(
+                    "This account is suspended."
+            );
+
+            return;
+        }
+
         String role =
                 document.getString("role");
 
@@ -892,6 +1075,14 @@ public class MainActivity extends Activity {
     private void createAccount() {
 
         if (!validCreateInput()) {
+            return;
+        }
+
+        /*
+         * Free-plan anti-spam check BEFORE
+         * creating the Firebase account.
+         */
+        if (!deviceRegistrationAllowed()) {
             return;
         }
 
@@ -1014,6 +1205,34 @@ public class MainActivity extends Activity {
                             role
                     );
 
+                    /*
+                     * Initial security information.
+                     */
+                    profile.put(
+                            "deviceId",
+                            getDeviceId()
+                    );
+
+                    profile.put(
+                            "securityStatus",
+                            "ACTIVE"
+                    );
+
+                    profile.put(
+                            "securityAccountCount",
+                            0
+                    );
+
+                    profile.put(
+                            "securityReason",
+                            ""
+                    );
+
+                    profile.put(
+                            "securityCreatedAt",
+                            FieldValue.serverTimestamp()
+                    );
+
                     if ("DRIVER".equals(role)) {
 
                         profile.put(
@@ -1080,6 +1299,16 @@ public class MainActivity extends Activity {
                             .addOnSuccessListener(
                                     v -> {
 
+                                        /*
+                                         * Record the successful
+                                         * account creation locally
+                                         * and in the user profile.
+                                         */
+                                        recordAccountCreated(
+                                                user.getUid(),
+                                                role
+                                        );
+
                                         auth.signOut();
 
                                         passwordInput
@@ -1087,7 +1316,25 @@ public class MainActivity extends Activity {
 
                                         resetCreateButton();
 
-                                        if ("DRIVER".equals(role)) {
+                                        int count =
+                                                getSharedPreferences(
+                                                        SECURITY_PREFS,
+                                                        MODE_PRIVATE
+                                                )
+                                                        .getInt(
+                                                                ACCOUNT_COUNT,
+                                                                1
+                                                        );
+
+                                        if (count >= 2) {
+
+                                            toast(
+                                                    "Account created.\n"
+                                                            + "Security notice: multiple accounts have been created from this device."
+                                            );
+
+                                        } else if (
+                                                "DRIVER".equals(role)) {
 
                                             toast(
                                                     "DRIVER account created.\n"
