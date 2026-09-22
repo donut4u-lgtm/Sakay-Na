@@ -53,8 +53,10 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.7.1")
 
     implementation(platform("com.google.firebase:firebase-bom:33.10.0"))
+
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-firestore")
+    implementation("com.google.firebase:firebase-functions")
 
     implementation("org.osmdroid:osmdroid-android:6.1.20")
 }
