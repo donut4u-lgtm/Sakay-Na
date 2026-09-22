@@ -1,3 +1,4 @@
+
 package com.sakyna.app;
 
 import android.app.Activity;
@@ -191,9 +192,6 @@ private void showLoginScreen() {
     provinceInput.setSingleLine(true);
     root.addView(provinceInput, full());
 
-    /*
-     * DRIVER-ONLY INFORMATION
-     */
     driverInfoTitle = new TextView(this);
     driverInfoTitle.setText(
             "🛺 DRIVER INFORMATION"
@@ -1070,7 +1068,7 @@ private void createAccount() {
 
                 profile.put(
                         "approved",
-                        !\"DRIVER\".equals(role)
+                        !"DRIVER".equals(role)
                 );
 
                 profile.put(
