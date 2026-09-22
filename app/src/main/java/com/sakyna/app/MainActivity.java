@@ -1,4 +1,3 @@
-
 package com.sakyna.app;
 
 import android.app.Activity;
@@ -7,9 +6,11 @@ import android.graphics.Color;
 import android.os.Bundle;
 import android.text.InputType;
 import android.view.Gravity;
+import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -33,6 +34,12 @@ private EditText townInput;
 private EditText provinceInput;
 private EditText phoneInput;
 private EditText passwordInput;
+
+private EditText plateInput;
+private EditText franchiseInput;
+private EditText vehicleInput;
+
+private TextView driverInfoTitle;
 
 private Button passengerButton;
 private Button driverButton;
@@ -66,12 +73,15 @@ protected void onCreate(Bundle savedInstanceState) {
 
 private void showLoginScreen() {
 
-    LinearLayout root = new LinearLayout(this);
+    ScrollView scrollView = new ScrollView(this);
 
+    LinearLayout root = new LinearLayout(this);
     root.setOrientation(LinearLayout.VERTICAL);
     root.setGravity(Gravity.CENTER_HORIZONTAL);
-    root.setPadding(28, 25, 28, 25);
+    root.setPadding(28, 25, 28, 35);
     root.setBackgroundColor(Color.WHITE);
+
+    scrollView.addView(root);
 
     TextView title = new TextView(this);
     title.setText("🛺 SAKAY NA");
@@ -181,6 +191,70 @@ private void showLoginScreen() {
     provinceInput.setSingleLine(true);
     root.addView(provinceInput, full());
 
+    /*
+     * DRIVER-ONLY INFORMATION
+     */
+    driverInfoTitle = new TextView(this);
+    driverInfoTitle.setText(
+            "🛺 DRIVER INFORMATION"
+    );
+    driverInfoTitle.setTextSize(20);
+    driverInfoTitle.setTypeface(
+            null,
+            android.graphics.Typeface.BOLD
+    );
+    driverInfoTitle.setTextColor(BLUE);
+    driverInfoTitle.setPadding(0, 22, 0, 8);
+    root.addView(
+            driverInfoTitle,
+            full()
+    );
+
+    plateInput = new EditText(this);
+    plateInput.setHint(
+            "Tricycle Plate Number"
+    );
+    plateInput.setTextSize(18);
+    plateInput.setSingleLine(true);
+    root.addView(
+            plateInput,
+            full()
+    );
+
+    franchiseInput = new EditText(this);
+    franchiseInput.setHint(
+            "Franchise Number"
+    );
+    franchiseInput.setTextSize(18);
+    franchiseInput.setSingleLine(true);
+    root.addView(
+            franchiseInput,
+            full()
+    );
+
+    vehicleInput = new EditText(this);
+    vehicleInput.setHint(
+            "Description of Tricycle"
+    );
+    vehicleInput.setTextSize(18);
+    vehicleInput.setSingleLine(true);
+    root.addView(
+            vehicleInput,
+            full()
+    );
+
+    TextView driverNote = new TextView(this);
+    driverNote.setText(
+            "Driver: provide at least ONE of Plate Number or Franchise Number, plus a tricycle description."
+    );
+    driverNote.setTextSize(14);
+    driverNote.setTextColor(Color.DKGRAY);
+    driverNote.setPadding(0, 5, 0, 8);
+    root.addView(
+            driverNote,
+            full()
+    );
+
     TextView phoneLabel =
             label("Phone number");
 
@@ -247,7 +321,8 @@ private void showLoginScreen() {
 
     information.setText(
             "LOGIN: Phone number + password only\n"
-                    + "CREATE ACCOUNT: Name + Town/City + Province\n"
+                    + "PASSENGER CREATE: Name + Town/City + Province\n"
+                    + "DRIVER CREATE: Name + Town/City + Province + Plate/Franchise + Tricycle Description\n"
                     + "Driver accounts require Admin approval before GO ONLINE."
     );
 
@@ -261,7 +336,7 @@ private void showLoginScreen() {
             full()
     );
 
-    setContentView(root);
+    setContentView(scrollView);
 
     selectRole("PASSENGER");
 }
@@ -334,10 +409,20 @@ private void selectRole(String role) {
         driverButton.setTextColor(Color.WHITE);
         driverButton.setBackgroundColor(BLUE);
 
+        driverInfoTitle.setVisibility(View.VISIBLE);
+        plateInput.setVisibility(View.VISIBLE);
+        franchiseInput.setVisibility(View.VISIBLE);
+        vehicleInput.setVisibility(View.VISIBLE);
+
     } else if ("ADMIN".equals(selectedRole)) {
 
         adminButton.setTextColor(Color.WHITE);
         adminButton.setBackgroundColor(ORANGE);
+
+        driverInfoTitle.setVisibility(View.GONE);
+        plateInput.setVisibility(View.GONE);
+        franchiseInput.setVisibility(View.GONE);
+        vehicleInput.setVisibility(View.GONE);
 
     } else {
 
@@ -345,6 +430,11 @@ private void selectRole(String role) {
 
         passengerButton.setTextColor(Color.WHITE);
         passengerButton.setBackgroundColor(GREEN);
+
+        driverInfoTitle.setVisibility(View.GONE);
+        plateInput.setVisibility(View.GONE);
+        franchiseInput.setVisibility(View.GONE);
+        vehicleInput.setVisibility(View.GONE);
     }
 }
 
@@ -385,17 +475,6 @@ private String firebaseIdentifier(
     return phone + "@sakyna.app";
 }
 
-/*
- * LOGIN validation.
- *
- * IMPORTANT:
- * Login requires ONLY:
- * - Phone number
- * - Password
- *
- * Name, town and province are NOT
- * required for login.
- */
 private boolean validLoginInput() {
 
     String phone =
@@ -434,16 +513,6 @@ private boolean validLoginInput() {
     return true;
 }
 
-/*
- * CREATE ACCOUNT validation.
- *
- * New accounts require:
- * - Full name
- * - Town / City
- * - Province
- * - Phone
- * - Password
- */
 private boolean validCreateInput() {
 
     String name =
@@ -527,14 +596,48 @@ private boolean validCreateInput() {
         return false;
     }
 
+    if ("DRIVER".equals(selectedRole)) {
+
+        String plate =
+                plateInput.getText()
+                        .toString()
+                        .trim();
+
+        String franchise =
+                franchiseInput.getText()
+                        .toString()
+                        .trim();
+
+        String vehicle =
+                vehicleInput.getText()
+                        .toString()
+                        .trim();
+
+        if (plate.isEmpty()
+                && franchise.isEmpty()) {
+
+            toast(
+                    "Driver: enter Plate Number or Franchise Number."
+            );
+
+            return false;
+        }
+
+        if (vehicle.isEmpty()) {
+
+            toast(
+                    "Driver: enter the description of your tricycle."
+            );
+
+            return false;
+        }
+    }
+
     return true;
 }
 
 private void login() {
 
-    /*
-     * DO NOT require name/town/province here.
-     */
     if (!validLoginInput()) {
         return;
     }
@@ -630,11 +733,6 @@ private void loadUserRole(
     final String uid =
             user.getUid();
 
-    /*
-     * Admin is identified by the known
-     * Firebase UID and does not need a
-     * users profile document.
-     */
     if (ADMIN_UID.equals(uid)) {
 
         openScreen(
@@ -864,6 +962,21 @@ private void createAccount() {
                     .getText()
                     .toString();
 
+    final String plate =
+            plateInput.getText()
+                    .toString()
+                    .trim();
+
+    final String franchise =
+            franchiseInput.getText()
+                    .toString()
+                    .trim();
+
+    final String vehicle =
+            vehicleInput.getText()
+                    .toString()
+                    .trim();
+
     loginButton.setEnabled(false);
     createButton.setEnabled(false);
     createButton.setText("CREATING...");
@@ -923,11 +1036,41 @@ private void createAccount() {
                             "driverName",
                             name
                     );
+
+                    profile.put(
+                            "plateNumber",
+                            plate
+                    );
+
+                    profile.put(
+                            "franchiseNumber",
+                            franchise
+                    );
+
+                    profile.put(
+                            "vehicleDescription",
+                            vehicle
+                    );
+
+                    profile.put(
+                            "driverProfileComplete",
+                            true
+                    );
+
+                    profile.put(
+                            "driverStatus",
+                            "PENDING_APPROVAL"
+                    );
+
+                    profile.put(
+                            "canAcceptRides",
+                            false
+                    );
                 }
 
                 profile.put(
                         "approved",
-                        !"DRIVER".equals(role)
+                        !\"DRIVER\".equals(role)
                 );
 
                 profile.put(
@@ -964,6 +1107,7 @@ private void createAccount() {
 
                                         toast(
                                                 "DRIVER account created.\n"
+                                                        + "Plate/Franchise and tricycle description saved.\n"
                                                         + "Please LOGIN.\n"
                                                         + "Admin approval is required before GO ONLINE."
                                         );
