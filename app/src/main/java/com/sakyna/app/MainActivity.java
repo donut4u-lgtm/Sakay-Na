@@ -72,9 +72,7 @@ public class MainActivity extends Activity {
      * It uses Android ANDROID_ID and a local
      * account-creation counter.
      *
-     * This is only a first layer.
-     * Strong server-side enforcement requires
-     * a backend/Cloud Functions plan.
+     * This is a first-layer protection.
      */
     private static final String SECURITY_PREFS =
             "SakayNaSecurity";
@@ -645,9 +643,6 @@ public class MainActivity extends Activity {
         return true;
     }
 
-    /*
-     * FREE-PLAN ANTI-SPAM CHECK
-     */
     private boolean deviceRegistrationAllowed() {
 
         SharedPreferences preferences =
@@ -676,11 +671,13 @@ public class MainActivity extends Activity {
     }
 
     /*
-     * Returns Android's application/device identifier.
+     * IMPORTANT:
+     * This name intentionally avoids Android's
+     * ContextWrapper.getDeviceId() method.
      *
      * This is NOT IMEI.
      */
-    private String getDeviceId() {
+    private String getSakayDeviceId() {
 
         String id =
                 Settings.Secure.getString(
@@ -723,10 +720,6 @@ public class MainActivity extends Activity {
                 )
                 .apply();
 
-        /*
-         * Store the device identifier for
-         * Admin/security investigation.
-         */
         if (db != null && uid != null) {
 
             Map<String, Object> security =
@@ -734,7 +727,7 @@ public class MainActivity extends Activity {
 
             security.put(
                     "deviceId",
-                    getDeviceId()
+                    getSakayDeviceId()
             );
 
             security.put(
@@ -1078,10 +1071,6 @@ public class MainActivity extends Activity {
             return;
         }
 
-        /*
-         * Free-plan anti-spam check BEFORE
-         * creating the Firebase account.
-         */
         if (!deviceRegistrationAllowed()) {
             return;
         }
@@ -1205,12 +1194,9 @@ public class MainActivity extends Activity {
                             role
                     );
 
-                    /*
-                     * Initial security information.
-                     */
                     profile.put(
                             "deviceId",
-                            getDeviceId()
+                            getSakayDeviceId()
                     );
 
                     profile.put(
@@ -1299,11 +1285,6 @@ public class MainActivity extends Activity {
                             .addOnSuccessListener(
                                     v -> {
 
-                                        /*
-                                         * Record the successful
-                                         * account creation locally
-                                         * and in the user profile.
-                                         */
                                         recordAccountCreated(
                                                 user.getUid(),
                                                 role
