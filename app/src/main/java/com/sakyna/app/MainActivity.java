@@ -1,5 +1,4 @@
 
-
 package com.sakyna.app;
 
 import android.app.Activity;
@@ -22,7 +21,6 @@ import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
-import com.google.firebase.functions.FirebaseFunctions;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -31,7 +29,6 @@ public class MainActivity extends Activity {
 
     private FirebaseAuth auth;
     private FirebaseFirestore db;
-    private FirebaseFunctions functions;
 
     private EditText nameInput;
     private EditText townInput;
@@ -71,7 +68,6 @@ public class MainActivity extends Activity {
 
         auth = FirebaseAuth.getInstance();
         db = FirebaseFirestore.getInstance();
-        functions = FirebaseFunctions.getInstance();
 
         showLoginScreen();
     }
@@ -967,130 +963,7 @@ public class MainActivity extends Activity {
 
         loginButton.setEnabled(false);
         createButton.setEnabled(false);
-        createButton.setText("CHECKING SECURITY...");
-
-        /*
-         * SERVER-SIDE ANTI-SPAM CHECK
-         *
-         * This happens BEFORE Firebase Authentication
-         * creates the account.
-         */
-        Map<String, Object> request =
-                new HashMap<>();
-
-        request.put(
-                "phone",
-                phone
-        );
-
-        functions
-                .getHttpsCallable(
-                        "checkRegistrationAllowed"
-                )
-                .call(request)
-                .addOnSuccessListener(
-                        result -> {
-
-                            boolean allowed = true;
-                            String reason = "";
-
-                            Object data =
-                                    result.getData();
-
-                            if (data instanceof Map) {
-
-                                Map<?, ?> response =
-                                        (Map<?, ?>) data;
-
-                                Object allowedValue =
-                                        response.get("allowed");
-
-                                if (allowedValue instanceof Boolean) {
-                                    allowed =
-                                            (Boolean) allowedValue;
-                                }
-
-                                Object reasonValue =
-                                        response.get("reason");
-
-                                if (reasonValue != null) {
-                                    reason =
-                                            String.valueOf(
-                                                    reasonValue
-                                            );
-                                }
-                            }
-
-                            if (!allowed) {
-
-                                resetCreateButton();
-
-                                toast(
-                                        reason.isEmpty()
-                                                ? "Registration temporarily blocked. Please try again later."
-                                                : reason
-                                );
-
-                                return;
-                            }
-
-                            createFirebaseAccount(
-                                    role,
-                                    name,
-                                    town,
-                                    province,
-                                    phone,
-                                    password,
-                                    plate,
-                                    franchise,
-                                    vehicle
-                            );
-                        }
-                )
-                .addOnFailureListener(
-                        e -> {
-
-                            /*
-                             * Fail closed:
-                             *
-                             * If the server security check
-                             * cannot be reached, do not create
-                             * the account.
-                             */
-                            resetCreateButton();
-
-                            String message =
-                                    e.getMessage();
-
-                            if (message == null
-                                    || message.trim().isEmpty()) {
-
-                                message =
-                                        "Security check failed. Please try again.";
-                            }
-
-                            toast(
-                                    "Registration security check failed:\n"
-                                            + message
-                            );
-                        }
-                );
-    }
-
-    private void createFirebaseAccount(
-            final String role,
-            final String name,
-            final String town,
-            final String province,
-            final String phone,
-            final String password,
-            final String plate,
-            final String franchise,
-            final String vehicle) {
-
-        createButton.setText(
-                "CREATING ACCOUNT..."
-        );
+        createButton.setText("CREATING ACCOUNT...");
 
         auth.createUserWithEmailAndPassword(
                 firebaseIdentifier(phone),
