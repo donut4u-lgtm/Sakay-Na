@@ -74,7 +74,6 @@ public class DriverActivity extends Activity {
         buildScreen();
         loadDriverStatus();
         startLocationUpdates();
-        listenForRideRequests();
         listenForCurrentRide();
     }
 
@@ -84,23 +83,23 @@ public class DriverActivity extends Activity {
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(25, 25, 25, 35);
-        root.setBackgroundColor(Color.WHITE);
+        root.setPadding(24, 24, 24, 35);
+        root.setBackgroundColor(Color.rgb(248, 250, 252));
 
         TextView title = new TextView(this);
         title.setText("🛺 SAKAY NA\nDRIVER");
-        title.setTextSize(28);
+        title.setTextSize(29);
         title.setGravity(Gravity.CENTER);
-        title.setTextColor(Color.BLACK);
+        title.setTextColor(Color.rgb(0, 70, 120));
         title.setPadding(10, 20, 10, 20);
         root.addView(title);
 
         statusText = new TextView(this);
         statusText.setText("Loading driver status...");
-        statusText.setTextSize(18);
+        statusText.setTextSize(20);
         statusText.setGravity(Gravity.CENTER);
         statusText.setTextColor(Color.DKGRAY);
-        statusText.setPadding(10, 10, 10, 20);
+        statusText.setPadding(15, 15, 15, 20);
         root.addView(statusText);
 
         LinearLayout onlineRow = new LinearLayout(this);
@@ -109,38 +108,45 @@ public class DriverActivity extends Activity {
         Button online = new Button(this);
         online.setText("🟢 GO ONLINE");
         online.setTextColor(Color.WHITE);
-        online.setBackgroundColor(Color.rgb(0, 150, 0));
+        online.setTextSize(15);
+        online.setBackgroundColor(Color.rgb(0, 155, 70));
         online.setOnClickListener(v -> setDriverOnline(true));
 
         Button offline = new Button(this);
         offline.setText("🔴 GO OFFLINE");
         offline.setTextColor(Color.WHITE);
-        offline.setBackgroundColor(Color.rgb(200, 0, 0));
+        offline.setTextSize(15);
+        offline.setBackgroundColor(Color.rgb(205, 35, 35));
         offline.setOnClickListener(v -> setDriverOnline(false));
 
-        onlineRow.addView(
-                online,
-                new LinearLayout.LayoutParams(0, 65, 1)
-        );
+        LinearLayout.LayoutParams half =
+                new LinearLayout.LayoutParams(
+                        0,
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        1
+                );
 
-        onlineRow.addView(
-                offline,
-                new LinearLayout.LayoutParams(0, 65, 1)
-        );
+        half.setMargins(5, 5, 5, 5);
+
+        onlineRow.addView(online, new LinearLayout.LayoutParams(0,
+                LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        onlineRow.addView(offline, new LinearLayout.LayoutParams(0,
+                LinearLayout.LayoutParams.WRAP_CONTENT, 1));
 
         root.addView(onlineRow);
 
         TextView requestTitle = new TextView(this);
         requestTitle.setText("🔔 RIDE REQUESTS");
-        requestTitle.setTextSize(22);
-        requestTitle.setTextColor(Color.BLACK);
-        requestTitle.setPadding(0, 30, 0, 12);
+        requestTitle.setTextSize(23);
+        requestTitle.setTextColor(Color.rgb(0, 70, 120));
+        requestTitle.setPadding(5, 30, 5, 12);
         root.addView(requestTitle);
 
         requestsText = new TextView(this);
         requestsText.setText("Checking for new rides...");
         requestsText.setTextSize(17);
         requestsText.setTextColor(Color.DKGRAY);
+        requestsText.setPadding(5, 5, 5, 10);
         root.addView(requestsText);
 
         requestContainer = new LinearLayout(this);
@@ -149,16 +155,16 @@ public class DriverActivity extends Activity {
 
         TextView currentTitle = new TextView(this);
         currentTitle.setText("🚦 CURRENT RIDE");
-        currentTitle.setTextSize(22);
-        currentTitle.setTextColor(Color.BLACK);
-        currentTitle.setPadding(0, 30, 0, 12);
+        currentTitle.setTextSize(23);
+        currentTitle.setTextColor(Color.rgb(0, 70, 120));
+        currentTitle.setPadding(5, 30, 5, 12);
         root.addView(currentTitle);
 
         currentRideText = new TextView(this);
         currentRideText.setText("No current ride.");
         currentRideText.setTextSize(17);
         currentRideText.setTextColor(Color.DKGRAY);
-        currentRideText.setPadding(0, 5, 0, 15);
+        currentRideText.setPadding(5, 10, 5, 15);
         root.addView(currentRideText);
 
         rideStatusContainer = new LinearLayout(this);
@@ -166,18 +172,21 @@ public class DriverActivity extends Activity {
         root.addView(rideStatusContainer);
 
         Button map = new Button(this);
-        map.setText("🗺️ OPEN MAP");
+        map.setText("🗺️ OPEN LIVE MAP");
+        map.setTextSize(16);
         map.setOnClickListener(v -> openMap());
         root.addView(map);
 
         Button chat = new Button(this);
-        chat.setText("💬 CHAT");
+        chat.setText("💬 RIDE CHAT");
+        chat.setTextSize(16);
         chat.setOnClickListener(v -> openChat());
         root.addView(chat);
 
         Button settlement = new Button(this);
         settlement.setText("💰 DRIVER SETTLEMENT");
         settlement.setTextColor(Color.WHITE);
+        settlement.setTextSize(16);
         settlement.setBackgroundColor(Color.rgb(0, 120, 200));
         settlement.setOnClickListener(v -> {
 
@@ -192,7 +201,8 @@ public class DriverActivity extends Activity {
         root.addView(settlement);
 
         Button logout = new Button(this);
-        logout.setText("LOGOUT");
+        logout.setText("🚪 LOGOUT");
+        logout.setTextSize(16);
         logout.setOnClickListener(v -> logout());
         root.addView(logout);
 
@@ -226,11 +236,23 @@ public class DriverActivity extends Activity {
 
     private void setDriverOnline(boolean online) {
 
-        Map<String, Object> data = new HashMap<>();
+        Map<String, Object> data =
+                new HashMap<>();
 
-        data.put("driverId", user.getUid());
-        data.put("online", online);
-        data.put("updatedAt", System.currentTimeMillis());
+        data.put(
+                "driverId",
+                user.getUid()
+        );
+
+        data.put(
+                "online",
+                online
+        );
+
+        data.put(
+                "updatedAt",
+                System.currentTimeMillis()
+        );
 
         statusText.setText(
                 online
@@ -240,10 +262,14 @@ public class DriverActivity extends Activity {
 
         db.collection("drivers")
                 .document(user.getUid())
-                .set(data, SetOptions.merge())
+                .set(
+                        data,
+                        SetOptions.merge()
+                )
                 .addOnSuccessListener(v -> {
 
                     driverOnline = online;
+
                     updateStatusText();
                     listenForRideRequests();
 
@@ -257,7 +283,6 @@ public class DriverActivity extends Activity {
                 })
                 .addOnFailureListener(e -> {
 
-                    driverOnline = false;
                     updateStatusText();
 
                     Toast.makeText(
@@ -273,8 +298,14 @@ public class DriverActivity extends Activity {
 
         statusText.setText(
                 driverOnline
-                        ? "🟢 DRIVER ONLINE"
+                        ? "🟢 DRIVER ONLINE — READY FOR RIDES"
                         : "🔴 DRIVER OFFLINE"
+        );
+
+        statusText.setTextColor(
+                driverOnline
+                        ? Color.rgb(0, 145, 65)
+                        : Color.rgb(190, 25, 25)
         );
     }
 
@@ -287,7 +318,10 @@ public class DriverActivity extends Activity {
 
         requestListener =
                 db.collection("rides")
-                        .whereEqualTo("status", "REQUESTED")
+                        .whereEqualTo(
+                                "status",
+                                "REQUESTED"
+                        )
                         .addSnapshotListener(
                                 (snapshots, error) -> {
 
@@ -297,6 +331,7 @@ public class DriverActivity extends Activity {
                                                 "🔴 Unable to load requests:\n"
                                                         + error.getMessage()
                                         );
+
                                         return;
                                     }
 
@@ -310,6 +345,7 @@ public class DriverActivity extends Activity {
                                                         ? "🟢 No new ride requests."
                                                         : "🔴 OFFLINE"
                                         );
+
                                         return;
                                     }
 
@@ -318,7 +354,8 @@ public class DriverActivity extends Activity {
                                     for (DocumentSnapshot ride :
                                             snapshots.getDocuments()) {
 
-                                        String rideId = ride.getId();
+                                        String rideId =
+                                                ride.getId();
 
                                         if (hiddenRequestIds.contains(
                                                 rideId
@@ -326,8 +363,14 @@ public class DriverActivity extends Activity {
                                             continue;
                                         }
 
+                                        String status =
+                                                string(
+                                                        ride,
+                                                        "status"
+                                                );
+
                                         if (!"REQUESTED".equalsIgnoreCase(
-                                                string(ride, "status")
+                                                status
                                         )) {
                                             continue;
                                         }
@@ -373,7 +416,7 @@ public class DriverActivity extends Activity {
                                                         + count
                                                         : "🔴 OFFLINE\n"
                                                         + count
-                                                        + " ride request(s) waiting."
+                                                        + " waiting"
                                         );
                                     }
                                 }
@@ -385,10 +428,23 @@ public class DriverActivity extends Activity {
             String rideId
     ) {
 
-        LinearLayout card = new LinearLayout(this);
-        card.setOrientation(LinearLayout.VERTICAL);
-        card.setPadding(20, 20, 20, 20);
-        card.setBackgroundColor(Color.rgb(245, 245, 245));
+        LinearLayout card =
+                new LinearLayout(this);
+
+        card.setOrientation(
+                LinearLayout.VERTICAL
+        );
+
+        card.setPadding(
+                22,
+                22,
+                22,
+                22
+        );
+
+        card.setBackgroundColor(
+                Color.rgb(255, 255, 255)
+        );
 
         LinearLayout.LayoutParams params =
                 new LinearLayout.LayoutParams(
@@ -396,36 +452,75 @@ public class DriverActivity extends Activity {
                         LinearLayout.LayoutParams.WRAP_CONTENT
                 );
 
-        params.setMargins(0, 10, 0, 15);
+        params.setMargins(
+                0,
+                10,
+                0,
+                15
+        );
+
         card.setLayoutParams(params);
 
-        TextView title = new TextView(this);
-        title.setText("🔔 NEW RIDE REQUEST");
+        TextView title =
+                new TextView(this);
+
+        title.setText(
+                "🔔 NEW RIDE REQUEST"
+        );
+
         title.setTextSize(21);
-        title.setTextColor(Color.BLACK);
+        title.setTextColor(
+                Color.rgb(0, 90, 150)
+        );
+
         card.addView(title);
 
-        String pickup = placeName(ride, "pickup");
-        String destination = placeName(ride, "destination");
-        String payment = string(ride, "paymentMethod");
+        String pickup =
+                placeName(
+                        ride,
+                        "pickup"
+                );
 
-        Object fareObject = ride.get("fare");
+        String destination =
+                placeName(
+                        ride,
+                        "destination"
+                );
+
+        String payment =
+                string(
+                        ride,
+                        "paymentMethod"
+                );
+
+        if (payment.isEmpty()) {
+            payment =
+                    string(
+                            ride,
+                            "payment"
+                    );
+        }
+
+        Object fareObject =
+                ride.get("fare");
 
         String fare =
-                fareObject == null
-                        ? "Not available"
-                        : String.valueOf(fareObject);
+                formatFare(fareObject);
 
-        TextView details = new TextView(this);
+        TextView details =
+                new TextView(this);
 
         details.setText(
                 "\n📍 PICKUP\n"
                         + pickup
-                        + "\n\n🏁 DESTINATION\n"
+                        + "\n\n"
+                        + "🏁 DESTINATION\n"
                         + destination
-                        + "\n\n💰 FARE\n₱"
+                        + "\n\n"
+                        + "💰 FARE\n"
                         + fare
-                        + "\n\n💳 PAYMENT\n"
+                        + "\n\n"
+                        + "💳 PAYMENT\n"
                         + (
                         payment.isEmpty()
                                 ? "Not specified"
@@ -434,19 +529,45 @@ public class DriverActivity extends Activity {
         );
 
         details.setTextSize(17);
-        details.setTextColor(Color.DKGRAY);
+        details.setTextColor(
+                Color.rgb(45, 45, 45)
+        );
+
         card.addView(details);
 
-        Button accept = new Button(this);
-        accept.setText("✅ ACCEPT RIDE");
-        accept.setTextColor(Color.WHITE);
-        accept.setBackgroundColor(Color.rgb(0, 150, 0));
-        accept.setEnabled(driverOnline);
+        Button accept =
+                new Button(this);
 
-        Button decline = new Button(this);
-        decline.setText("❌ DECLINE");
-        decline.setTextColor(Color.WHITE);
-        decline.setBackgroundColor(Color.rgb(200, 0, 0));
+        accept.setText(
+                "✅ ACCEPT RIDE"
+        );
+
+        accept.setTextColor(
+                Color.WHITE
+        );
+
+        accept.setBackgroundColor(
+                Color.rgb(0, 155, 70)
+        );
+
+        accept.setEnabled(
+                driverOnline
+        );
+
+        Button decline =
+                new Button(this);
+
+        decline.setText(
+                "❌ DECLINE"
+        );
+
+        decline.setTextColor(
+                Color.WHITE
+        );
+
+        decline.setBackgroundColor(
+                Color.rgb(205, 35, 35)
+        );
 
         accept.setOnClickListener(v -> {
 
@@ -454,7 +575,7 @@ public class DriverActivity extends Activity {
 
                 Toast.makeText(
                         this,
-                        "Go ONLINE first.",
+                        "🔴 Go ONLINE first.",
                         Toast.LENGTH_SHORT
                 ).show();
 
@@ -464,7 +585,10 @@ public class DriverActivity extends Activity {
             accept.setEnabled(false);
             decline.setEnabled(false);
 
-            acceptRide(rideId, card);
+            acceptRide(
+                    rideId,
+                    card
+            );
         });
 
         decline.setOnClickListener(v -> {
@@ -472,7 +596,10 @@ public class DriverActivity extends Activity {
             accept.setEnabled(false);
             decline.setEnabled(false);
 
-            declineRide(rideId, card);
+            declineRide(
+                    rideId,
+                    card
+            );
         });
 
         card.addView(accept);
@@ -486,8 +613,13 @@ public class DriverActivity extends Activity {
             LinearLayout card
     ) {
 
-        hiddenRequestIds.add(rideId);
-        card.setVisibility(LinearLayout.GONE);
+        hiddenRequestIds.add(
+                rideId
+        );
+
+        card.setVisibility(
+                LinearLayout.GONE
+        );
 
         db.collection("users")
                 .document(user.getUid())
@@ -495,35 +627,9 @@ public class DriverActivity extends Activity {
                 .addOnSuccessListener(profile -> {
 
                     Map<String, Object> update =
-                            new HashMap<>();
-
-                    update.put(
-                            "driverId",
-                            user.getUid()
-                    );
-
-                    update.put(
-                            "driverName",
-                            string(profile, "driverName")
-                    );
-
-                    update.put(
-                            "driverPhone",
-                            string(profile, "phone")
-                    );
-
-                    update.put(
-                            "driverPlateNumber",
-                            string(profile, "plateNumber")
-                    );
-
-                    update.put(
-                            "driverVehicle",
-                            string(
-                                    profile,
-                                    "vehicleDescription"
-                            )
-                    );
+                            buildDriverRideUpdate(
+                                    profile
+                            );
 
                     update.put(
                             "status",
@@ -540,7 +646,8 @@ public class DriverActivity extends Activity {
                             .update(update)
                             .addOnSuccessListener(v -> {
 
-                                currentRideId = rideId;
+                                currentRideId =
+                                        rideId;
 
                                 Toast.makeText(
                                         this,
@@ -596,7 +703,8 @@ public class DriverActivity extends Activity {
                             .update(update)
                             .addOnSuccessListener(v -> {
 
-                                currentRideId = rideId;
+                                currentRideId =
+                                        rideId;
 
                                 Toast.makeText(
                                         this,
@@ -629,13 +737,64 @@ public class DriverActivity extends Activity {
                 });
     }
 
+    private Map<String, Object> buildDriverRideUpdate(
+            DocumentSnapshot profile
+    ) {
+
+        Map<String, Object> update =
+                new HashMap<>();
+
+        update.put(
+                "driverId",
+                user.getUid()
+        );
+
+        String driverName =
+                string(profile, "driverName");
+
+        if (driverName.isEmpty()) {
+            driverName =
+                    string(profile, "name");
+        }
+
+        update.put(
+                "driverName",
+                driverName
+        );
+
+        update.put(
+                "driverPhone",
+                string(profile, "phone")
+        );
+
+        update.put(
+                "driverPlateNumber",
+                string(profile, "plateNumber")
+        );
+
+        update.put(
+                "driverVehicle",
+                string(
+                        profile,
+                        "vehicleDescription"
+                )
+        );
+
+        return update;
+    }
+
     private void declineRide(
             String rideId,
             LinearLayout card
     ) {
 
-        hiddenRequestIds.add(rideId);
-        card.setVisibility(LinearLayout.GONE);
+        hiddenRequestIds.add(
+                rideId
+        );
+
+        card.setVisibility(
+                LinearLayout.GONE
+        );
 
         Map<String, Object> update =
                 new HashMap<>();
@@ -672,7 +831,9 @@ public class DriverActivity extends Activity {
                 )
                 .addOnFailureListener(e -> {
 
-                    hiddenRequestIds.remove(rideId);
+                    hiddenRequestIds.remove(
+                            rideId
+                    );
 
                     card.setVisibility(
                             LinearLayout.VISIBLE
@@ -708,99 +869,90 @@ public class DriverActivity extends Activity {
                                     if (error != null) {
 
                                         currentRideText.setText(
-                                                "Unable to load current ride."
+                                                "🔴 Unable to load current ride."
                                         );
 
                                         return;
                                     }
 
-                                    if (snapshots == null) {
+                                    DocumentSnapshot activeRide =
+                                            null;
 
-                                        currentRideId = "";
+                                    long newestTime =
+                                            Long.MIN_VALUE;
 
-                                        currentRideText.setText(
-                                                "No current ride."
-                                        );
+                                    if (snapshots != null) {
 
-                                        clearRideStatusButtons();
-                                        return;
-                                    }
+                                        for (
+                                                DocumentSnapshot ride :
+                                                snapshots.getDocuments()
+                                        ) {
 
-                                    if (!currentRideId.isEmpty()) {
+                                            String status =
+                                                    string(
+                                                            ride,
+                                                            "status"
+                                                    );
 
-                                        for (DocumentSnapshot ride :
-                                                snapshots.getDocuments()) {
-
-                                            if (!ride.getId().equals(
-                                                    currentRideId
+                                            if (!isActive(
+                                                    status
                                             )) {
                                                 continue;
                                             }
 
-                                            if (isActive(
-                                                    string(
-                                                            ride,
-                                                            "status"
-                                                    )
+                                            if (!currentRideId.isEmpty()
+                                                    && currentRideId.equals(
+                                                    ride.getId()
                                             )) {
 
-                                                showCurrentRide(ride);
-                                                return;
+                                                activeRide =
+                                                        ride;
+
+                                                break;
+                                            }
+
+                                            long acceptedAt =
+                                                    longValue(
+                                                            ride,
+                                                            "acceptedAt"
+                                                    );
+
+                                            long createdAt =
+                                                    longValue(
+                                                            ride,
+                                                            "createdAt"
+                                                    );
+
+                                            long time =
+                                                    acceptedAt > 0
+                                                            ? acceptedAt
+                                                            : createdAt;
+
+                                            if (activeRide == null
+                                                    || time > newestTime) {
+
+                                                activeRide =
+                                                        ride;
+
+                                                newestTime =
+                                                        time;
                                             }
                                         }
                                     }
 
-                                    DocumentSnapshot newest = null;
-                                    long newestTime = Long.MIN_VALUE;
-
-                                    for (DocumentSnapshot ride :
-                                            snapshots.getDocuments()) {
-
-                                        String status =
-                                                string(
-                                                        ride,
-                                                        "status"
-                                                );
-
-                                        if (!isActive(status)) {
-                                            continue;
-                                        }
-
-                                        long acceptedAt =
-                                                longValue(
-                                                        ride,
-                                                        "acceptedAt"
-                                                );
-
-                                        long createdAt =
-                                                longValue(
-                                                        ride,
-                                                        "createdAt"
-                                                );
-
-                                        long time =
-                                                acceptedAt > 0
-                                                        ? acceptedAt
-                                                        : createdAt;
-
-                                        if (newest == null
-                                                || time > newestTime) {
-
-                                            newest = ride;
-                                            newestTime = time;
-                                        }
-                                    }
-
-                                    if (newest != null) {
+                                    if (activeRide != null) {
 
                                         currentRideId =
-                                                newest.getId();
+                                                activeRide.getId();
 
-                                        showCurrentRide(newest);
+                                        showCurrentRide(
+                                                activeRide
+                                        );
 
                                     } else {
 
-                                        currentRideId = "";
+                                        currentRideId =
+                                                "";
 
                                         currentRideText.setText(
                                                 "No current ride."
@@ -818,7 +970,8 @@ public class DriverActivity extends Activity {
             DocumentSnapshot ride
     ) {
 
-        currentRideId = ride.getId();
+        currentRideId =
+                ride.getId();
 
         hiddenRequestIds.add(
                 currentRideId
@@ -830,117 +983,190 @@ public class DriverActivity extends Activity {
                         "status"
                 );
 
-        currentRideText.setText(
-                "🚕 ACTIVE RIDE\n\n"
-                        + "📍 "
-                        + placeName(
+        String pickup =
+                placeName(
                         ride,
                         "pickup"
-                )
-                        + "\n\n🏁 "
-                        + placeName(
+                );
+
+        String destination =
+                placeName(
                         ride,
                         "destination"
+                );
+
+        String payment =
+                string(
+                        ride,
+                        "paymentMethod"
+                );
+
+        if (payment.isEmpty()) {
+            payment =
+                    string(
+                            ride,
+                            "payment"
+                    );
+        }
+
+        String fare =
+                formatFare(
+                        ride.get("fare")
+                );
+
+        currentRideText.setText(
+                "🚕 ACTIVE RIDE\n\n"
+                        + "📍 PICKUP\n"
+                        + pickup
+                        + "\n\n"
+                        + "🏁 DESTINATION\n"
+                        + destination
+                        + "\n\n"
+                        + "💰 FARE\n"
+                        + fare
+                        + "\n\n"
+                        + "💳 PAYMENT\n"
+                        + (
+                        payment.isEmpty()
+                                ? "Not specified"
+                                : payment
                 )
-                        + "\n\n🚦 Status: "
+                        + "\n\n"
+                        + "🚦 STATUS\n"
                         + status
         );
 
-        showRideStatusButtons(status);
+        showRideStatusButtons(
+                status
+        );
     }
 
-    /*
-     * ALL THREE DRIVER STATUS BUTTONS ARE ALWAYS VISIBLE.
-     *
-     * 1. DRIVER ON THE WAY
-     * 2. I HAVE ARRIVED
-     * 3. FINISHED TRIP
-     *
-     * Only the correct next action is enabled.
-     */
     private void showRideStatusButtons(
             String status
     ) {
 
         rideStatusContainer.removeAllViews();
 
-        TextView heading = new TextView(this);
-        heading.setText("🚦 RIDE STATUS");
-        heading.setTextSize(20);
-        heading.setTextColor(Color.BLACK);
-        heading.setPadding(0, 10, 0, 10);
+        TextView heading =
+                new TextView(this);
 
-        rideStatusContainer.addView(heading);
+        heading.setText(
+                "🚦 RIDE STATUS"
+        );
+
+        heading.setTextSize(20);
+        heading.setTextColor(
+                Color.rgb(0, 70, 120)
+        );
+
+        heading.setPadding(
+                5,
+                10,
+                5,
+                10
+        );
+
+        rideStatusContainer.addView(
+                heading
+        );
 
         String normalizedStatus =
                 status == null
                         ? ""
                         : status.trim().toUpperCase();
 
-        Button onTheWay = new Button(this);
-        onTheWay.setText("🚗 DRIVER ON THE WAY");
-        onTheWay.setTextColor(Color.WHITE);
+        Button onTheWay =
+                new Button(this);
+
+        onTheWay.setText(
+                "🚗 DRIVER ON THE WAY"
+        );
+
+        onTheWay.setTextColor(
+                Color.WHITE
+        );
+
         onTheWay.setBackgroundColor(
                 Color.rgb(255, 140, 0)
         );
 
-        Button arrived = new Button(this);
-        arrived.setText("📍 I HAVE ARRIVED");
-        arrived.setTextColor(Color.WHITE);
+        Button arrived =
+                new Button(this);
+
+        arrived.setText(
+                "📍 I HAVE ARRIVED"
+        );
+
+        arrived.setTextColor(
+                Color.WHITE
+        );
+
         arrived.setBackgroundColor(
                 Color.rgb(0, 120, 200)
         );
 
-        Button finish = new Button(this);
-        finish.setText("🏁 FINISHED TRIP");
-        finish.setTextColor(Color.WHITE);
+        Button start =
+                new Button(this);
+
+        start.setText(
+                "▶️ START RIDE"
+        );
+
+        start.setTextColor(
+                Color.WHITE
+        );
+
+        start.setBackgroundColor(
+                Color.rgb(0, 145, 75)
+        );
+
+        Button finish =
+                new Button(this);
+
+        finish.setText(
+                "🏁 FINISHED TRIP"
+        );
+
+        finish.setTextColor(
+                Color.WHITE
+        );
+
         finish.setBackgroundColor(
                 Color.rgb(150, 0, 150)
         );
 
-        if ("ACCEPTED".equals(normalizedStatus)) {
+        onTheWay.setEnabled(
+                "ACCEPTED".equals(
+                        normalizedStatus
+                )
+        );
 
-            onTheWay.setEnabled(true);
-            arrived.setEnabled(false);
-            finish.setEnabled(false);
-        }
+        arrived.setEnabled(
+                "DRIVER_ON_THE_WAY".equals(
+                        normalizedStatus
+                )
+                        || "ON_THE_WAY".equals(
+                        normalizedStatus
+                )
+        );
 
-        else if (
-                "DRIVER_ON_THE_WAY".equals(normalizedStatus)
-                        || "ON_THE_WAY".equals(normalizedStatus)
-        ) {
+        start.setEnabled(
+                "DRIVER_ARRIVED".equals(
+                        normalizedStatus
+                )
+                        || "ARRIVED".equals(
+                        normalizedStatus
+                )
+        );
 
-            onTheWay.setEnabled(false);
-            arrived.setEnabled(true);
-            finish.setEnabled(false);
-        }
-
-        else if (
-                "DRIVER_ARRIVED".equals(normalizedStatus)
-                        || "ARRIVED".equals(normalizedStatus)
-        ) {
-
-            onTheWay.setEnabled(false);
-            arrived.setEnabled(false);
-            finish.setEnabled(true);
-        }
-
-        else if (
-                "IN_PROGRESS".equals(normalizedStatus)
-                        || "ONGOING".equals(normalizedStatus)
-        ) {
-
-            onTheWay.setEnabled(false);
-            arrived.setEnabled(false);
-            finish.setEnabled(true);
-        }
-
-        else {
-
-            onTheWay.setEnabled(false);
-            arrived.setEnabled(false);
-            finish.setEnabled(false);
-        }
+        finish.setEnabled(
+                "IN_PROGRESS".equals(
+                        normalizedStatus
+                )
+                        || "ONGOING".equals(
+                        normalizedStatus
+                )
+        );
 
         onTheWay.setOnClickListener(v ->
                 updateRideStatus(
@@ -954,15 +1180,33 @@ public class DriverActivity extends Activity {
                 )
         );
 
+        start.setOnClickListener(v ->
+                updateRideStatus(
+                        "IN_PROGRESS"
+                )
+        );
+
         finish.setOnClickListener(v ->
                 updateRideStatus(
                         "COMPLETED"
                 )
         );
 
-        rideStatusContainer.addView(onTheWay);
-        rideStatusContainer.addView(arrived);
-        rideStatusContainer.addView(finish);
+        rideStatusContainer.addView(
+                onTheWay
+        );
+
+        rideStatusContainer.addView(
+                arrived
+        );
+
+        rideStatusContainer.addView(
+                start
+        );
+
+        rideStatusContainer.addView(
+                finish
+        );
     }
 
     private void clearRideStatusButtons() {
@@ -987,7 +1231,8 @@ public class DriverActivity extends Activity {
             return;
         }
 
-        String rideId = currentRideId;
+        String rideId =
+                currentRideId;
 
         Map<String, Object> update =
                 new HashMap<>();
@@ -1020,6 +1265,15 @@ public class DriverActivity extends Activity {
                     System.currentTimeMillis()
             );
 
+        } else if ("IN_PROGRESS".equals(
+                newStatus
+        )) {
+
+            update.put(
+                    "rideStartedAt",
+                    System.currentTimeMillis()
+            );
+
         } else if ("COMPLETED".equals(
                 newStatus
         )) {
@@ -1037,7 +1291,9 @@ public class DriverActivity extends Activity {
 
                     Toast.makeText(
                             this,
-                            statusMessage(newStatus),
+                            statusMessage(
+                                    newStatus
+                            ),
                             Toast.LENGTH_SHORT
                     ).show();
 
@@ -1045,7 +1301,8 @@ public class DriverActivity extends Activity {
                             newStatus
                     )) {
 
-                        currentRideId = "";
+                        currentRideId =
+                                "";
 
                         hiddenRequestIds.remove(
                                 rideId
@@ -1079,15 +1336,27 @@ public class DriverActivity extends Activity {
             String status
     ) {
 
-        if ("DRIVER_ON_THE_WAY".equals(status)) {
+        if ("DRIVER_ON_THE_WAY".equals(
+                status
+        )) {
             return "🚗 Driver is on the way.";
         }
 
-        if ("DRIVER_ARRIVED".equals(status)) {
+        if ("DRIVER_ARRIVED".equals(
+                status
+        )) {
             return "📍 Driver has arrived.";
         }
 
-        if ("COMPLETED".equals(status)) {
+        if ("IN_PROGRESS".equals(
+                status
+        )) {
+            return "▶️ Ride started.";
+        }
+
+        if ("COMPLETED".equals(
+                status
+        )) {
             return "🏁 Trip finished.";
         }
 
@@ -1098,13 +1367,29 @@ public class DriverActivity extends Activity {
             String status
     ) {
 
+        if (status == null) {
+            return false;
+        }
+
         return
-                "ACCEPTED".equalsIgnoreCase(status)
-                        || "ARRIVED".equalsIgnoreCase(status)
-                        || "ONGOING".equalsIgnoreCase(status)
-                        || "DRIVER_ON_THE_WAY".equalsIgnoreCase(status)
-                        || "DRIVER_ARRIVED".equalsIgnoreCase(status)
-                        || "IN_PROGRESS".equalsIgnoreCase(status);
+                "ACCEPTED".equalsIgnoreCase(
+                        status
+                )
+                        || "ARRIVED".equalsIgnoreCase(
+                        status
+                )
+                        || "ONGOING".equalsIgnoreCase(
+                        status
+                )
+                        || "DRIVER_ON_THE_WAY".equalsIgnoreCase(
+                        status
+                )
+                        || "DRIVER_ARRIVED".equalsIgnoreCase(
+                        status
+                )
+                        || "IN_PROGRESS".equalsIgnoreCase(
+                        status
+                );
     }
 
     private long longValue(
@@ -1112,7 +1397,8 @@ public class DriverActivity extends Activity {
             String field
     ) {
 
-        Object value = doc.get(field);
+        Object value =
+                doc.get(field);
 
         if (value instanceof Number) {
             return ((Number) value).longValue();
@@ -1134,6 +1420,16 @@ public class DriverActivity extends Activity {
 
         if (!name.isEmpty()) {
             return name;
+        }
+
+        String address =
+                string(
+                        ride,
+                        type + "Address"
+                );
+
+        if (!address.isEmpty()) {
+            return address;
         }
 
         String value =
@@ -1158,11 +1454,49 @@ public class DriverActivity extends Activity {
                         type + "Longitude"
                 );
 
-        if (!lat.isEmpty() && !lng.isEmpty()) {
+        if (!lat.isEmpty()
+                && !lng.isEmpty()) {
+
             return lat + ", " + lng;
         }
 
         return "Not provided";
+    }
+
+    private String formatFare(
+            Object fareObject
+    ) {
+
+        if (fareObject == null) {
+            return "Not available";
+        }
+
+        if (fareObject instanceof Number) {
+
+            double value =
+                    ((Number) fareObject).doubleValue();
+
+            if (value == Math.floor(value)) {
+                return "₱" + (long) value;
+            }
+
+            return "₱" + value;
+        }
+
+        String value =
+                String.valueOf(
+                        fareObject
+                ).trim();
+
+        if (value.isEmpty()) {
+            return "Not available";
+        }
+
+        if (value.startsWith("₱")) {
+            return value;
+        }
+
+        return "₱" + value;
     }
 
     private String numberText(
@@ -1170,7 +1504,8 @@ public class DriverActivity extends Activity {
             String field
     ) {
 
-        Object value = doc.get(field);
+        Object value =
+                doc.get(field);
 
         return value == null
                 ? ""
@@ -1196,7 +1531,7 @@ public class DriverActivity extends Activity {
 
             Toast.makeText(
                     this,
-                    "No active ride.",
+                    "Accept a ride first.",
                     Toast.LENGTH_SHORT
             ).show();
 
@@ -1270,6 +1605,10 @@ public class DriverActivity extends Activity {
         if (ActivityCompat.checkSelfPermission(
                 this,
                 Manifest.permission.ACCESS_FINE_LOCATION
+        ) != PackageManager.PERMISSION_GRANTED
+                && ActivityCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_COARSE_LOCATION
         ) != PackageManager.PERMISSION_GRANTED) {
 
             ActivityCompat.requestPermissions(
@@ -1305,6 +1644,17 @@ public class DriverActivity extends Activity {
 
         if (locationManager == null
                 || locationListener == null) {
+            return;
+        }
+
+        if (ActivityCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_FINE_LOCATION
+        ) != PackageManager.PERMISSION_GRANTED
+                && ActivityCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_COARSE_LOCATION
+        ) != PackageManager.PERMISSION_GRANTED) {
             return;
         }
 
@@ -1379,11 +1729,23 @@ public class DriverActivity extends Activity {
         );
 
         if (requestCode == LOCATION_PERMISSION
-                && results.length > 0
-                && results[0]
-                == PackageManager.PERMISSION_GRANTED) {
+                && results.length > 0) {
 
-            beginLocationTracking();
+            boolean granted = false;
+
+            for (int result : results) {
+
+                if (result ==
+                        PackageManager.PERMISSION_GRANTED) {
+
+                    granted = true;
+                    break;
+                }
+            }
+
+            if (granted) {
+                beginLocationTracking();
+            }
         }
     }
 
@@ -1427,7 +1789,10 @@ public class DriverActivity extends Activity {
                                     Intent.FLAG_ACTIVITY_CLEAR_TASK
                             );
 
-                            startActivity(intent);
+                            startActivity(
+                                    intent
+                            );
+
                             finish();
                         }
                 );
