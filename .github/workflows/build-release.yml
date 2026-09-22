@@ -37,8 +37,6 @@ jobs:
             exit 1
           fi
 
-          echo "Signing secrets are present."
-
       - name: Restore release keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.SAKAYNA_KEYSTORE_BASE64 }}
@@ -50,24 +48,25 @@ jobs:
             exit 1
           fi
 
-          echo "Release keystore restored."
+          echo "Keystore restored."
 
-      - name: Detect keystore alias
+      - name: Detect actual keystore alias
         env:
           KEYSTORE_PASSWORD: ${{ secrets.SAKAYNA_KEYSTORE_PASSWORD }}
         run: |
           ALIAS=$(keytool -list \
+            -v \
             -keystore "$RUNNER_TEMP/sakayna-release.jks" \
             -storepass "$KEYSTORE_PASSWORD" \
             2>/dev/null \
-            | awk -F, '/PrivateKeyEntry/ {print $1; exit}')
+            | awk -F': ' '/Alias name:/ {print $2; exit}')
 
           if [ -z "$ALIAS" ]; then
-            echo "No PrivateKeyEntry alias found."
+            echo "Could not detect keystore alias."
             exit 1
           fi
 
-          echo "Release alias detected."
+          echo "Keystore alias detected."
           echo "SAKAYNA_KEY_ALIAS=$ALIAS" >> "$GITHUB_ENV"
 
       - name: Build signed release APK
@@ -79,19 +78,16 @@ jobs:
           unzip -q gradle-8.10.2-bin.zip -d "$RUNNER_TEMP/gradle"
           export PATH="$RUNNER_TEMP/gradle/gradle-8.10.2/bin:$PATH"
 
-          echo "Building signed release APK..."
           gradle :app:assembleRelease --stacktrace
 
       - name: Verify release APK
         run: |
-          APK="app/build/outputs/apk/release/app-release.apk"
-
-          if [ ! -s "$APK" ]; then
+          if [ ! -s "app/build/outputs/apk/release/app-release.apk" ]; then
             echo "Release APK was not produced."
             exit 1
           fi
 
-          echo "Signed release APK produced successfully."
+          echo "Release APK created successfully."
 
       - name: Upload signed APK
         uses: actions/upload-artifact@v4
