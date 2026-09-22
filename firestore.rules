@@ -2,98 +2,129 @@
 rules_version = '2';
 
 service cloud.firestore {
-match /databases/{database}/documents {
+  match /databases/{database}/documents {
 
-function isAdmin() {
-  return request.auth != null
-         && request.auth.uid == "Ld3rzaCvAGNlXBDCofB3mWjgXWp2";
-}
+    function isAdmin() {
+      return request.auth != null
+             && request.auth.uid == "Ld3rzaCvAGNlXBDCofB3mWjgXWp2";
+    }
 
-match /users/{userId} {
-  allow create: if request.auth != null
-                && request.auth.uid == userId;
+    match /users/{userId} {
+      allow create: if request.auth != null
+                    && request.auth.uid == userId;
 
-  allow read: if request.auth != null
-              && (
-                request.auth.uid == userId
-                || isAdmin()
-              );
-
-  allow update: if request.auth != null
-                && (
-                  request.auth.uid == userId
-                  || isAdmin()
-                );
-}
-
-match /drivers/{driverId} {
-  allow read, write: if request.auth != null
-                     && (
-                       request.auth.uid == driverId
-                       || isAdmin()
-                     );
-}
-
-match /rides/{rideId} {
-  allow read, write: if request.auth != null;
-
-  match /messages/{messageId} {
-
-    allow read: if request.auth != null
-                && (
-                  request.auth.uid == get(
-                    /databases/$(database)/documents/rides/$(rideId)
-                  ).data.passengerId
-                  ||
-                  request.auth.uid == get(
-                    /databases/$(database)/documents/rides/$(rideId)
-                  ).data.driverId
-                  ||
-                  isAdmin()
-                );
-
-    allow create: if request.auth != null
+      allow read: if request.auth != null
                   && (
-                    request.auth.uid == get(
-                      /databases/$(database)/documents/rides/$(rideId)
-                    ).data.passengerId
-                    ||
-                    request.auth.uid == get(
-                      /databases/$(database)/documents/rides/$(rideId)
-                    ).data.driverId
-                    ||
+                    request.auth.uid == userId
+                    || isAdmin()
+                  );
+
+      allow update: if request.auth != null
+                    && (
+                      request.auth.uid == userId
+                      || isAdmin()
+                    );
+    }
+
+    match /drivers/{driverId} {
+      allow read, write: if request.auth != null
+                         && (
+                           request.auth.uid == driverId
+                           || isAdmin()
+                         );
+    }
+
+    match /rides/{rideId} {
+
+      allow read: if request.auth != null
+                  && (
                     isAdmin()
-                  )
-                  && request.resource.data.senderId
-                     == request.auth.uid;
+                    || resource.data.passengerId == request.auth.uid
+                    || resource.data.driverId == request.auth.uid
+                  );
 
-    allow update, delete: if isAdmin();
+      allow create: if request.auth != null
+                    && (
+                      isAdmin()
+                      || request.resource.data.passengerId == request.auth.uid
+                    );
+
+      allow update: if request.auth != null
+                    && (
+                      isAdmin()
+                      || resource.data.passengerId == request.auth.uid
+                      || resource.data.driverId == request.auth.uid
+                      || (
+                        resource.data.status == "REQUESTED"
+                        && resource.data.driverId == null
+                        && request.resource.data.driverId == request.auth.uid
+                        && request.resource.data.status == "ACCEPTED"
+                      )
+                    );
+
+      match /messages/{messageId} {
+
+        allow read: if request.auth != null
+                    && (
+                      request.auth.uid == get(
+                        /databases/$(database)/documents/rides/$(rideId)
+                      ).data.passengerId
+                      ||
+                      request.auth.uid == get(
+                        /databases/$(database)/documents/rides/$(rideId)
+                      ).data.driverId
+                      ||
+                      isAdmin()
+                    );
+
+        allow create: if request.auth != null
+                      && (
+                        request.auth.uid == get(
+                          /databases/$(database)/documents/rides/$(rideId)
+                        ).data.passengerId
+                        ||
+                        request.auth.uid == get(
+                          /databases/$(database)/documents/rides/$(rideId)
+                        ).data.driverId
+                        ||
+                        isAdmin()
+                      )
+                      && request.resource.data.senderId
+                         == request.auth.uid;
+
+        allow update, delete: if isAdmin();
+      }
+    }
+
+    match /driverLocations/{driverId} {
+      allow read: if request.auth != null;
+
+      allow write: if request.auth != null
+                   && (
+                     request.auth.uid == driverId
+                     || isAdmin()
+                   );
+    }
+
+    match /driverSettlements/{settlementId} {
+
+      allow read: if request.auth != null
+                  && (
+                    isAdmin()
+                    ||
+                    resource.data.driverId == request.auth.uid
+                  );
+
+      allow create: if request.auth != null
+                    && request.resource.data.driverId
+                       == request.auth.uid
+                    && request.resource.data.status
+                       == "PENDING";
+
+      allow update: if isAdmin();
+
+      allow delete: if isAdmin();
+    }
+
   }
-}
-
-match /driverLocations/{driverId} {
-  allow read, write: if request.auth != null;
-}
-
-match /driverSettlements/{settlementId} {
-
-  allow read: if request.auth != null
-              && (
-                isAdmin()
-                ||
-                resource.data.driverId == request.auth.uid
-              );
-
-  allow create: if request.auth != null
-                && request.resource.data.driverId
-                   == request.auth.uid
-                && request.resource.data.status
-                   == "PENDING";
-
-  allow update: if isAdmin();
-
-  allow delete: if isAdmin();
-}
-
-}
 }
