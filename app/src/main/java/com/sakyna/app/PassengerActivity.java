@@ -32,7 +32,13 @@ import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
+import com.google.firebase.firestore.Source;
 
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -295,6 +301,7 @@ private TextView text(String value, float size) {
     t.setTextSize(size);
     t.setTextColor(Color.rgb(45, 55, 50));
     t.setPadding(0, 7, 0, 7);
+
     return t;
 }
 
@@ -649,7 +656,6 @@ protected void onActivityResult(
             &&
             !name.trim().isEmpty()
     ) {
-
         address = name;
     }
 
@@ -772,6 +778,7 @@ private void bookRide(RadioGroup payment) {
                 findViewById(selected);
 
         if (radio != null) {
+
             paymentMethod =
                     radio.getText().toString();
         }
@@ -883,13 +890,13 @@ private void bookRide(RadioGroup payment) {
                         .apply();
 
                 statusText.setText(
-                        "🟢 RIDE REQUEST SENT\n" +
-                        "Waiting for a driver..."
+                        "🟢 RIDE REQUEST SENT\n"
+                                + "Waiting for a driver..."
                 );
 
                 driverInfoText.setText(
-                        "👤 DRIVER\n" +
-                        "Waiting for a driver to accept..."
+                        "👤 DRIVER\n"
+                                + "Waiting for a driver to accept..."
                 );
 
                 listenToRide(activeRideId);
@@ -917,8 +924,8 @@ private void bookRide(RadioGroup payment) {
 
                 Toast.makeText(
                         this,
-                        "Booking failed:\n" +
-                        e.getMessage(),
+                        "Booking failed:\n"
+                                + e.getMessage(),
                         Toast.LENGTH_LONG
                 ).show();
 
@@ -972,8 +979,8 @@ private double getCurrentFare() {
 
     double fare =
             baseFare
-            +
-            kilometers * perKm;
+                    +
+                    kilometers * perKm;
 
     return Math.max(
             minimumFare,
@@ -1021,6 +1028,7 @@ private String getAddress(
                     &&
                     !line.trim().isEmpty()
             ) {
+
                 return line;
             }
         }
@@ -1175,8 +1183,8 @@ private void listenToRide(String rideId) {
                                     );
 
                                     driverInfoText.setText(
-                                            "👤 DRIVER\n" +
-                                            "Waiting for a driver to accept..."
+                                            "👤 DRIVER\n"
+                                                    + "Waiting for a driver to accept..."
                                     );
 
                                 } else if (
@@ -1184,8 +1192,8 @@ private void listenToRide(String rideId) {
                                 ) {
 
                                     statusText.setText(
-                                            "🟢 DRIVER ACCEPTED\n" +
-                                            "Your ride is confirmed."
+                                            "🟢 DRIVER ACCEPTED\n"
+                                                    + "Your ride is confirmed."
                                     );
 
                                     showDriverInformation(
@@ -1202,8 +1210,8 @@ private void listenToRide(String rideId) {
                                 ) {
 
                                     statusText.setText(
-                                            "🚦 RIDE STATUS: " +
-                                            status
+                                            "🚦 RIDE STATUS: "
+                                                    + status
                                     );
 
                                     showDriverInformation(
@@ -1214,16 +1222,16 @@ private void listenToRide(String rideId) {
                                 } else {
 
                                     statusText.setText(
-                                            "🚦 RIDE STATUS: " +
-                                            status
+                                            "🚦 RIDE STATUS: "
+                                                    + status
                                     );
                                 }
 
                                 if (!isActive(status)) {
 
                                     driverInfoText.setText(
-                                            "👤 DRIVER\n" +
-                                            "No active driver."
+                                            "👤 DRIVER\n"
+                                                    + "Trip completed."
                                     );
 
                                     clearRide();
@@ -1252,12 +1260,12 @@ private void showDriverInformation(
 
     boolean hasRideDriverInfo =
             hasText(driverName)
-            ||
-            hasText(driverPhone)
-            ||
-            hasText(driverPlate)
-            ||
-            hasText(driverVehicle);
+                    ||
+                    hasText(driverPhone)
+                    ||
+                    hasText(driverPlate)
+                    ||
+                    hasText(driverVehicle);
 
     if (hasRideDriverInfo) {
 
@@ -1278,9 +1286,9 @@ private void showDriverInformation(
     ) {
 
         driverInfoText.setText(
-                "👤 DRIVER\n" +
-                "Driver accepted the ride.\n" +
-                "Driver information is not available yet."
+                "👤 DRIVER\n"
+                        + "Driver accepted the ride.\n"
+                        + "Driver information is not available yet."
         );
 
         return;
@@ -1337,18 +1345,18 @@ private void showDriverInformation(
                 } else {
 
                     driverInfoText.setText(
-                            "👤 DRIVER\n" +
-                            "Driver accepted the ride.\n" +
-                            "Driver profile not found."
+                            "👤 DRIVER\n"
+                                    + "Driver accepted the ride.\n"
+                                    + "Driver profile not found."
                     );
                 }
             })
             .addOnFailureListener(e -> {
 
                 driverInfoText.setText(
-                        "👤 DRIVER\n" +
-                        "Driver accepted the ride.\n" +
-                        "Unable to load driver information."
+                        "👤 DRIVER\n"
+                                + "Driver accepted the ride.\n"
+                                + "Unable to load driver information."
                 );
             });
 }
@@ -1385,11 +1393,11 @@ private void displayDriverInformation(
             );
 
     driverInfoText.setText(
-            "👤 DRIVER\n\n" +
-            "Name: " + name + "\n" +
-            "📱 Phone: " + phone + "\n" +
-            "🔢 Plate: " + plate + "\n" +
-            "🛺 Vehicle: " + vehicle
+            "👤 DRIVER\n\n"
+                    + "Name: " + name + "\n"
+                    + "📱 Phone: " + phone + "\n"
+                    + "🔢 Plate: " + plate + "\n"
+                    + "🛺 Vehicle: " + vehicle
     );
 }
 
@@ -1467,8 +1475,8 @@ private void updateButtons() {
 
     boolean active =
             activeRideId != null
-            &&
-            !activeRideId.isEmpty();
+                    &&
+                    !activeRideId.isEmpty();
 
     if (bookButton != null) {
         bookButton.setEnabled(!active);
@@ -1586,13 +1594,23 @@ private void cancelRide() {
             .addOnFailureListener(e ->
                     Toast.makeText(
                             this,
-                            "Cancel failed:\n" +
-                            e.getMessage(),
+                            "Cancel failed:\n"
+                                    + e.getMessage(),
                             Toast.LENGTH_LONG
                     ).show()
             );
 }
 
+/*
+ * FIXED HISTORY
+ *
+ * Uses Source.SERVER so the latest completed
+ * ride is fetched from Firestore.
+ *
+ * Sorts newest booking first locally.
+ *
+ * No Firestore composite index is required.
+ */
 private void showHistory() {
 
     FirebaseUser user =
@@ -1609,12 +1627,15 @@ private void showHistory() {
         return;
     }
 
+    final String passengerId =
+            user.getUid();
+
     db.collection("rides")
             .whereEqualTo(
                     "passengerId",
-                    user.getUid()
+                    passengerId
             )
-            .get()
+            .get(Source.SERVER)
             .addOnSuccessListener(query -> {
 
                 try {
@@ -1626,7 +1647,9 @@ private void showHistory() {
                     ) {
 
                         new AlertDialog.Builder(this)
-                                .setTitle("📜 Ride History")
+                                .setTitle(
+                                        "📜 Ride History"
+                                )
                                 .setMessage(
                                         "No ride history yet."
                                 )
@@ -1639,12 +1662,47 @@ private void showHistory() {
                         return;
                     }
 
+                    List<DocumentSnapshot> rides =
+                            new ArrayList<>(
+                                    query.getDocuments()
+                            );
+
+                    Collections.sort(
+                            rides,
+                            new Comparator<DocumentSnapshot>() {
+
+                                @Override
+                                public int compare(
+                                        DocumentSnapshot a,
+                                        DocumentSnapshot b
+                                ) {
+
+                                    long timeA =
+                                            readCreatedAt(a);
+
+                                    long timeB =
+                                            readCreatedAt(b);
+
+                                    return Long.compare(
+                                            timeB,
+                                            timeA
+                                    );
+                                }
+                            }
+                    );
+
                     StringBuilder history =
                             new StringBuilder();
 
+                    SimpleDateFormat dateFormat =
+                            new SimpleDateFormat(
+                                    "MMM dd, yyyy • hh:mm a",
+                                    Locale.US
+                            );
+
                     for (
                             DocumentSnapshot ride :
-                            query.getDocuments()
+                            rides
                     ) {
 
                         String pickup =
@@ -1686,26 +1744,60 @@ private void showHistory() {
                                         "Not provided"
                                 );
 
+                        long createdAt =
+                                readCreatedAt(ride);
+
+                        String dateText =
+                                createdAt > 0
+                                        ? dateFormat.format(
+                                                new Date(
+                                                        createdAt
+                                                )
+                                        )
+                                        : "Date not available";
+
+                        history.append(
+                                "🗓️ "
+                                        + dateText
+                                        + "\n"
+                        );
+
                         history.append(
                                 "📍 "
                                         + pickup
                                         + "\n"
-                                        + "🎯 "
+                        );
+
+                        history.append(
+                                "🎯 "
                                         + destination
                                         + "\n"
-                                        + "💰 ₱"
+                        );
+
+                        history.append(
+                                "💰 ₱"
                                         + String.format(
                                         Locale.US,
                                         "%.0f",
                                         fare
                                 )
                                         + "\n"
-                                        + "💳 "
+                        );
+
+                        history.append(
+                                "💳 "
                                         + paymentMethod
                                         + "\n"
-                                        + "🚦 "
+                        );
+
+                        history.append(
+                                "🚦 "
                                         + status
-                                        + "\n\n"
+                                        + "\n"
+                        );
+
+                        history.append(
+                                "────────────────\n\n"
                         );
                     }
 
@@ -1717,7 +1809,9 @@ private void showHistory() {
                     }
 
                     new AlertDialog.Builder(this)
-                            .setTitle("📜 Ride History")
+                            .setTitle(
+                                    "📜 RIDE HISTORY"
+                            )
                             .setMessage(
                                     history.toString()
                             )
@@ -1731,7 +1825,8 @@ private void showHistory() {
 
                     Toast.makeText(
                             this,
-                            "Unable to display ride history.",
+                            "Unable to display ride history:\n"
+                                    + e.getMessage(),
                             Toast.LENGTH_LONG
                     ).show();
                 }
@@ -1746,6 +1841,50 @@ private void showHistory() {
                         Toast.LENGTH_LONG
                 ).show();
             });
+}
+
+private long readCreatedAt(
+        DocumentSnapshot ride
+) {
+
+    try {
+
+        Object value =
+                ride.get("createdAt");
+
+        if (value instanceof Number) {
+
+            return ((Number) value)
+                    .longValue();
+        }
+
+        if (value instanceof String) {
+
+            String text =
+                    ((String) value).trim();
+
+            if (!text.isEmpty()) {
+
+                return Long.parseLong(text);
+            }
+        }
+
+        if (value instanceof com.google.firebase.Timestamp) {
+
+            return ((com.google.firebase.Timestamp) value)
+                    .toDate()
+                    .getTime();
+        }
+
+        if (value instanceof Date) {
+
+            return ((Date) value).getTime();
+        }
+
+    } catch (Exception ignored) {
+    }
+
+    return 0;
 }
 
 private double readFare(
@@ -1820,8 +1959,8 @@ private void logout() {
 
     intent.addFlags(
             Intent.FLAG_ACTIVITY_NEW_TASK
-            |
-            Intent.FLAG_ACTIVITY_CLEAR_TASK
+                    |
+                    Intent.FLAG_ACTIVITY_CLEAR_TASK
     );
 
     startActivity(intent);
@@ -1849,7 +1988,7 @@ public void onRequestPermissionsResult(
 
             if (
                     result ==
-                    PackageManager.PERMISSION_GRANTED
+                            PackageManager.PERMISSION_GRANTED
             ) {
 
                 startLocation();
@@ -1869,6 +2008,7 @@ public void onRequestPermissionsResult(
 protected void onDestroy() {
 
     if (rideListener != null) {
+
         rideListener.remove();
         rideListener = null;
     }
