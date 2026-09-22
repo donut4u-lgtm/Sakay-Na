@@ -1,0 +1,13 @@
+{
+  "name": "sakay-na-functions",
+  "description": "Sakay Na server-side security and anti-spam functions",
+  "main": "index.js",
+  "engines": {
+    "node": "20"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.5.0",
+    "firebase-functions": "^7.0.0"
+  },
+  "private": true
+}
