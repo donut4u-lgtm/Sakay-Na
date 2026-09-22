@@ -75,9 +75,26 @@ jobs:
         with:
           credentials_json: '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}'
 
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
       - name: Install Firebase CLI
         run: |
           npm install -g firebase-tools
+
+      - name: Install Cloud Functions dependencies
+        run: |
+          cd functions
+          npm install
+
+      - name: Deploy Cloud Functions
+        run: |
+          firebase deploy \
+            --only functions \
+            --project sakay-na-1cafa \
+            --non-interactive
 
       - name: Deploy Firestore rules
         run: |
