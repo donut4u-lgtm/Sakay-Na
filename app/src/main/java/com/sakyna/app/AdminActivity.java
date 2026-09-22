@@ -189,9 +189,6 @@ public class AdminActivity extends Activity {
 
         root.addView(refresh);
 
-        /*
-         * DRIVER SETTLEMENTS
-         */
         Button settlementButton =
                 new Button(this);
 
@@ -923,6 +920,39 @@ public class AdminActivity extends Activity {
 
             return;
         }
+
+        /*
+         * PAYMENT TRANSACTIONS
+         * NEWEST FIRST
+         */
+        java.util.Collections.sort(
+                paymentRides,
+                (ride1, ride2) -> {
+
+                    Long time1 =
+                            getRideTimestamp(ride1);
+
+                    Long time2 =
+                            getRideTimestamp(ride2);
+
+                    if (time1 == null && time2 == null) {
+                        return 0;
+                    }
+
+                    if (time1 == null) {
+                        return 1;
+                    }
+
+                    if (time2 == null) {
+                        return -1;
+                    }
+
+                    return Long.compare(
+                            time2,
+                            time1
+                    );
+                }
+        );
 
         for (
                 DocumentSnapshot ride :
@@ -1779,7 +1809,7 @@ public class AdminActivity extends Activity {
                 new TextView(this);
 
         label.setText(
-                "Show ride history:"
+                "Show completed ride history:"
         );
 
         label.setTextSize(16);
@@ -1881,12 +1911,28 @@ public class AdminActivity extends Activity {
                                         * 1000L
                         );
 
-        int shown = 0;
+        /*
+         * Only COMPLETED rides are shown
+         * in the booking history.
+         */
+        List<DocumentSnapshot> completedRides =
+                new ArrayList<>();
 
         for (
                 DocumentSnapshot ride :
                 rideDocuments
         ) {
+
+            String status =
+                    ride.getString("status");
+
+            if (
+                    !"COMPLETED".equalsIgnoreCase(
+                            status
+                    )
+            ) {
+                continue;
+            }
 
             Long timestamp =
                     getRideTimestamp(ride);
@@ -1898,6 +1944,51 @@ public class AdminActivity extends Activity {
             ) {
                 continue;
             }
+
+            completedRides.add(ride);
+        }
+
+        /*
+         * SORT BY DATE AND TIME
+         *
+         * Newest completed ride FIRST.
+         * Oldest completed ride LAST.
+         */
+        java.util.Collections.sort(
+                completedRides,
+                (ride1, ride2) -> {
+
+                    Long time1 =
+                            getRideTimestamp(ride1);
+
+                    Long time2 =
+                            getRideTimestamp(ride2);
+
+                    if (time1 == null && time2 == null) {
+                        return 0;
+                    }
+
+                    if (time1 == null) {
+                        return 1;
+                    }
+
+                    if (time2 == null) {
+                        return -1;
+                    }
+
+                    return Long.compare(
+                            time2,
+                            time1
+                    );
+                }
+        );
+
+        int shown = 0;
+
+        for (
+                DocumentSnapshot ride :
+                completedRides
+        ) {
 
             addRideCard(
                     historySection,
@@ -1912,7 +2003,7 @@ public class AdminActivity extends Activity {
             addInfoCard(
                     historySection,
                     "📋 RIDE HISTORY",
-                    "No rides found for the last "
+                    "No completed rides found for the last "
                             + historyDays
                             + " day(s).",
                     LIGHT_YELLOW
@@ -2015,6 +2106,10 @@ public class AdminActivity extends Activity {
             DocumentSnapshot ride
     ) {
 
+        /*
+         * For completed rides, completedAt has priority.
+         * Other timestamps are fallbacks for older records.
+         */
         String[] fields = {
                 "completedAt",
                 "createdAt",
