@@ -20,10 +20,6 @@
             android:exported="false" />
 
         <activity
-            android:name=".NotificationSettingsActivity"
-            android:exported="false" />
-
-        <activity
             android:name=".DriverActivity"
             android:exported="false" />
 
