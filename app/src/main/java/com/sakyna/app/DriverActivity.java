@@ -1,4 +1,3 @@
-
 package com.sakyna.app;
 
 import android.Manifest;
@@ -702,6 +701,9 @@ public class DriverActivity extends Activity {
                         + "💰 FARE\n"
                         + fare
                         + "\n\n"
+                        + "👥 PASSENGERS\n"
+                        + passengerCountText(ride)
+                        + "\n\n"
                         + "💳 PAYMENT\n"
                         + (
                         payment.isEmpty()
@@ -1125,6 +1127,9 @@ public class DriverActivity extends Activity {
                         + "💰 FARE\n"
                         + fare
                         + "\n\n"
+                        + "👥 PASSENGERS\n"
+                        + passengerCountText(ride)
+                        + "\n\n"
                         + "💳 PAYMENT\n"
                         + (
                         payment.isEmpty()
@@ -1137,6 +1142,33 @@ public class DriverActivity extends Activity {
         );
 
         showRideStatusButtons(status);
+    }
+
+    private String passengerCountText(
+            DocumentSnapshot ride
+    ) {
+
+        Object value =
+                ride.get("passengerCount");
+
+        if (value instanceof Number) {
+            return String.valueOf(
+                    ((Number) value).intValue()
+            );
+        }
+
+        String valueText =
+                ride.getString(
+                        "passengerCount"
+                );
+
+        if (valueText != null
+                && !valueText.trim().isEmpty()) {
+
+            return valueText.trim();
+        }
+
+        return "1";
     }
 
     private void showRideStatusButtons(String status) {
@@ -1239,7 +1271,8 @@ public class DriverActivity extends Activity {
 
         String rideId = currentRideId;
 
-        Map<String, Object> update = new HashMap<>();
+        Map<String, Object> update =
+                new HashMap<>();
 
         update.put(
                 "status",
