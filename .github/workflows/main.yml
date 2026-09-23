@@ -1,4 +1,4 @@
- name: Build Sakay Na
+name: Build Sakay Na
 
 on:
   push:
@@ -16,8 +16,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: main
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -25,52 +23,11 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Fix Driver logout bug
-        run: |
-          python3 <<'PY'
-          from pathlib import Path
-          import re
-
-          file = Path("app/src/main/java/com/sakyna/app/DriverActivity.java")
-
-          if not file.exists():
-              print("DriverActivity.java not found.")
-              raise SystemExit(0)
-
-          text = file.read_text()
-
-          old = r'''getSharedPreferences\(
-              \s*"SakayNa",
-              \s*MODE_PRIVATE
-          \)
-              \.edit\(\)
-              \.clear\(\)
-              \.apply\(\);'''
-
-          new = '''preferences.edit()
-              .remove("name")
-              .remove("current_name")
-              .remove("phone")
-              .remove("current_phone")
-              .apply();'''
-
-          fixed, count = re.subn(old, new, text)
-
-          if count == 0:
-              print("Logout clear() pattern not found.")
-              print("No automatic change was made.")
-          else:
-              file.write_text(fixed)
-              print("Driver logout bug fixed.")
-              print("Replacements:", count)
-          PY
-
       - name: Make Gradle executable
         run: chmod +x ./gradlew
 
-      - name: Build debug APK
-        run: |
-          ./gradlew :app:assembleDebug --stacktrace
+      - name: Build Debug APK
+        run: ./gradlew :app:assembleDebug --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
