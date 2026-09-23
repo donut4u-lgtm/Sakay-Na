@@ -1,3 +1,4 @@
+
 rules_version = '2';
 
 service cloud.firestore {
@@ -22,7 +23,7 @@ service cloud.firestore {
                  &&
                  get(
                    /databases/$(database)/documents/users/$(request.auth.uid)
-                 ).data.driverProfileComplete == true
+                 ).data.get("driverProfileComplete", false) == true
                )
              );
     }
@@ -59,41 +60,55 @@ service cloud.firestore {
       allow read: if request.auth != null
                   && (
                     isAdmin()
-                    || resource.data.passengerId == request.auth.uid
-                    || resource.data.driverId == request.auth.uid
+
+                    || resource.data.get("passengerId", "")
+                       == request.auth.uid
+
+                    || resource.data.get("driverId", "")
+                       == request.auth.uid
+
                     || (
                       isDriver()
-                      && resource.data.status == "REQUESTED"
+                      && resource.data.get("status", "")
+                         == "REQUESTED"
                     )
                   );
 
       allow create: if request.auth != null
                     && (
                       isAdmin()
-                      || request.resource.data.passengerId == request.auth.uid
+                      || request.resource.data.get("passengerId", "")
+                         == request.auth.uid
                     );
 
       allow update: if request.auth != null
                     && (
                       isAdmin()
 
-                      || resource.data.passengerId == request.auth.uid
+                      || resource.data.get("passengerId", "")
+                         == request.auth.uid
 
-                      || resource.data.driverId == request.auth.uid
+                      || resource.data.get("driverId", "")
+                         == request.auth.uid
 
                       || (
                         isDriver()
-                        && resource.data.status == "REQUESTED"
-                        && resource.data.driverId == null
-                        && request.resource.data.driverId == request.auth.uid
-                        && request.resource.data.status == "ACCEPTED"
+                        && resource.data.get("status", "")
+                           == "REQUESTED"
+                        && resource.data.get("driverId", null) == null
+                        && request.resource.data.get("driverId", "")
+                           == request.auth.uid
+                        && request.resource.data.get("status", "")
+                           == "ACCEPTED"
                       )
 
                       || (
                         isDriver()
-                        && resource.data.status == "REQUESTED"
-                        && request.resource.data.status == "DECLINED"
-                        && request.resource.data.declinedDriverId
+                        && resource.data.get("status", "")
+                           == "REQUESTED"
+                        && request.resource.data.get("status", "")
+                           == "DECLINED"
+                        && request.resource.data.get("declinedDriverId", "")
                            == request.auth.uid
                       )
                     );
@@ -104,13 +119,13 @@ service cloud.firestore {
                     && (
                       request.auth.uid == get(
                         /databases/$(database)/documents/rides/$(rideId)
-                      ).data.passengerId
+                      ).data.get("passengerId", "")
 
                       ||
 
                       request.auth.uid == get(
                         /databases/$(database)/documents/rides/$(rideId)
-                      ).data.driverId
+                      ).data.get("driverId", "")
 
                       ||
 
@@ -121,19 +136,19 @@ service cloud.firestore {
                       && (
                         request.auth.uid == get(
                           /databases/$(database)/documents/rides/$(rideId)
-                        ).data.passengerId
+                        ).data.get("passengerId", "")
 
                         ||
 
                         request.auth.uid == get(
                           /databases/$(database)/documents/rides/$(rideId)
-                        ).data.driverId
+                        ).data.get("driverId", "")
 
                         ||
 
                         isAdmin()
                       )
-                      && request.resource.data.senderId
+                      && request.resource.data.get("senderId", "")
                          == request.auth.uid;
 
         allow update, delete: if isAdmin();
@@ -156,13 +171,14 @@ service cloud.firestore {
       allow read: if request.auth != null
                   && (
                     isAdmin()
-                    || resource.data.driverId == request.auth.uid
+                    || resource.data.get("driverId", "")
+                       == request.auth.uid
                   );
 
       allow create: if request.auth != null
-                    && request.resource.data.driverId
+                    && request.resource.data.get("driverId", "")
                        == request.auth.uid
-                    && request.resource.data.status
+                    && request.resource.data.get("status", "")
                        == "PENDING";
 
       allow update: if isAdmin();
