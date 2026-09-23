@@ -1,9 +1,11 @@
+
 package com.sakyna.app;
 
 import android.Manifest;
 import android.app.Activity;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.os.Build;
@@ -14,16 +16,13 @@ import androidx.core.app.NotificationManagerCompat;
 
 public final class SakayNaNotificationHelper {
 
-    private static final String CHANNEL_ID =
-            "sakayna_ride_updates";
-
+    private static final String CHANNEL_ID = "sakayna_ride_updates";
     private static final int PERMISSION_REQUEST = 9101;
 
     private SakayNaNotificationHelper() {
     }
 
     public static void requestPermission(Activity activity) {
-
         if (Build.VERSION.SDK_INT >= 33
                 && ActivityCompat.checkSelfPermission(
                 activity,
@@ -32,9 +31,7 @@ public final class SakayNaNotificationHelper {
 
             ActivityCompat.requestPermissions(
                     activity,
-                    new String[]{
-                            Manifest.permission.POST_NOTIFICATIONS
-                    },
+                    new String[]{Manifest.permission.POST_NOTIFICATIONS},
                     PERMISSION_REQUEST
             );
         }
@@ -46,7 +43,22 @@ public final class SakayNaNotificationHelper {
             String title,
             String message
     ) {
+        show(
+                context,
+                notificationId,
+                title,
+                message,
+                null
+        );
+    }
 
+    public static void show(
+            Context context,
+            int notificationId,
+            String title,
+            String message,
+            PendingIntent pendingIntent
+    ) {
         createChannel(context);
 
         if (Build.VERSION.SDK_INT >= 33
@@ -62,31 +74,26 @@ public final class SakayNaNotificationHelper {
                         context,
                         CHANNEL_ID
                 )
-                        .setSmallIcon(
-                                android.R.drawable.ic_dialog_info
-                        )
+                        .setSmallIcon(android.R.drawable.ic_dialog_info)
                         .setContentTitle(title)
                         .setContentText(message)
                         .setStyle(
                                 new NotificationCompat.BigTextStyle()
                                         .bigText(message)
                         )
-                        .setPriority(
-                                NotificationCompat.PRIORITY_HIGH
-                        )
+                        .setPriority(NotificationCompat.PRIORITY_HIGH)
                         .setAutoCancel(true);
+
+        if (pendingIntent != null) {
+            builder.setContentIntent(pendingIntent);
+        }
 
         NotificationManagerCompat
                 .from(context)
-                .notify(
-                        notificationId,
-                        builder.build()
-                );
+                .notify(notificationId, builder.build());
     }
 
-    private static void createChannel(
-            Context context
-    ) {
+    private static void createChannel(Context context) {
 
         if (Build.VERSION.SDK_INT < 26) {
             return;
@@ -100,7 +107,7 @@ public final class SakayNaNotificationHelper {
                 );
 
         channel.setDescription(
-                "Notifications for new bookings and driver arrival."
+                "Notifications for Sakay Na ride updates."
         );
 
         NotificationManager manager =
