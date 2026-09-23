@@ -43,13 +43,7 @@ public final class SakayNaNotificationHelper {
             String title,
             String message
     ) {
-        show(
-                context,
-                notificationId,
-                title,
-                message,
-                null
-        );
+        show(context, notificationId, title, message, null);
     }
 
     public static void show(
@@ -70,10 +64,7 @@ public final class SakayNaNotificationHelper {
         }
 
         NotificationCompat.Builder builder =
-                new NotificationCompat.Builder(
-                        context,
-                        CHANNEL_ID
-                )
+                new NotificationCompat.Builder(context, CHANNEL_ID)
                         .setSmallIcon(android.R.drawable.ic_dialog_info)
                         .setContentTitle(title)
                         .setContentText(message)
@@ -94,7 +85,6 @@ public final class SakayNaNotificationHelper {
     }
 
     private static void createChannel(Context context) {
-
         if (Build.VERSION.SDK_INT < 26) {
             return;
         }
