@@ -1,5 +1,7 @@
+
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
@@ -10,25 +12,65 @@
         android:label="Sakay Na"
         android:theme="@style/Theme.AppCompat.Light.NoActionBar">
 
-        <activity android:name=".AdminActivity" android:exported="false" />
-        <activity android:name=".AdminSettlementActivity" android:exported="false" />
-        <activity android:name=".DriverActivity" android:exported="false" />
-        <activity android:name=".DriverSettlementActivity" android:exported="false" />
-        <activity android:name=".DriverOnboardingActivity" android:exported="false" />
-        <activity android:name=".PassengerActivity" android:exported="false" />
-        <activity android:name=".PassengerGpsActivity" android:exported="false" />
-        <activity android:name=".MapActivity" android:exported="false" />
-        <activity android:name=".RideChatActivity" android:exported="false" />
-        <activity android:name=".RideCompletionActivity" android:exported="false" />
+        <activity
+            android:name=".AdminActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".AdminSettlementActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".DriverActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".DriverSettlementActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".DriverOnboardingActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".PassengerActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".PassengerGpsActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".MapActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".RideChatActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".RideCompletionActivity"
+            android:exported="false" />
+
+        <service
+            android:name=".SakayNaFirebaseMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
 
         <activity
             android:name=".MainActivity"
             android:exported="true">
+
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+
         </activity>
 
     </application>
+
 </manifest>
