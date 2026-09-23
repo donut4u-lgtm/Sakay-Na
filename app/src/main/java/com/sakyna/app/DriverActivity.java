@@ -1,3 +1,4 @@
+
 package com.sakyna.app;
 
 import android.Manifest;
@@ -1608,4 +1609,174 @@ public class DriverActivity extends Activity {
                 Manifest.permission.ACCESS_FINE_LOCATION
         ) != PackageManager.PERMISSION_GRANTED
                 && ActivityCompat.checkSelfPermission(
-                this
+                this,
+                Manifest.permission.ACCESS_COARSE_LOCATION
+        ) != PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
+
+        try {
+
+            locationManager.requestLocationUpdates(
+                    LocationManager.GPS_PROVIDER,
+                    5000,
+                    10,
+                    locationListener,
+                    Looper.getMainLooper()
+            );
+
+            locationManager.requestLocationUpdates(
+                    LocationManager.NETWORK_PROVIDER,
+                    5000,
+                    10,
+                    locationListener,
+                    Looper.getMainLooper()
+            );
+
+        } catch (SecurityException ignored) {
+        }
+    }
+
+    private void updateDriverLocation(Location location) {
+
+        Map<String, Object> data =
+                new HashMap<>();
+
+        data.put(
+                "driverId",
+                user.getUid()
+        );
+
+        data.put(
+                "latitude",
+                location.getLatitude()
+        );
+
+        data.put(
+                "longitude",
+                location.getLongitude()
+        );
+
+        data.put(
+                "updatedAt",
+                System.currentTimeMillis()
+        );
+
+        db.collection("driverLocations")
+                .document(user.getUid())
+                .set(
+                        data,
+                        SetOptions.merge()
+                );
+    }
+
+    @Override
+    public void onRequestPermissionsResult(
+            int requestCode,
+            @NonNull String[] permissions,
+            @NonNull int[] results
+    ) {
+
+        super.onRequestPermissionsResult(
+                requestCode,
+                permissions,
+                results
+        );
+
+        if (requestCode == LOCATION_PERMISSION
+                && results.length > 0) {
+
+            boolean granted = false;
+
+            for (int result : results) {
+
+                if (result ==
+                        PackageManager.PERMISSION_GRANTED) {
+
+                    granted = true;
+                    break;
+                }
+            }
+
+            if (granted) {
+                beginLocationTracking();
+            }
+        }
+    }
+
+    private void logout() {
+
+        Map<String, Object> data =
+                new HashMap<>();
+
+        data.put(
+                "online",
+                false
+        );
+
+        data.put(
+                "updatedAt",
+                System.currentTimeMillis()
+        );
+
+        db.collection("drivers")
+                .document(user.getUid())
+                .set(
+                        data,
+                        SetOptions.merge()
+                )
+                .addOnCompleteListener(
+                        task -> {
+
+                            auth.signOut();
+
+                            Intent intent =
+                                    new Intent(
+                                            this,
+                                            MainActivity.class
+                                    );
+
+                            intent.addFlags(
+                                    Intent.FLAG_ACTIVITY_CLEAR_TOP
+                                            |
+                                    Intent.FLAG_ACTIVITY_NEW_TASK
+                                            |
+                                    Intent.FLAG_ACTIVITY_CLEAR_TASK
+                            );
+
+                            startActivity(intent);
+
+                            finish();
+                        }
+                );
+    }
+
+    @Override
+    protected void onDestroy() {
+
+        expiryHandler.removeCallbacksAndMessages(null);
+
+        if (requestListener != null) {
+            requestListener.remove();
+            requestListener = null;
+        }
+
+        if (currentRideListener != null) {
+            currentRideListener.remove();
+            currentRideListener = null;
+        }
+
+        if (locationManager != null
+                && locationListener != null) {
+
+            try {
+                locationManager.removeUpdates(
+                        locationListener
+                );
+            } catch (Exception ignored) {
+            }
+        }
+
+        super.onDestroy();
+    }
+}
