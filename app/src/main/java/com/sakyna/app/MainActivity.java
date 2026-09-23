@@ -1,4 +1,3 @@
-
 package com.sakyna.app;
 
 import android.app.Activity;
@@ -84,10 +83,6 @@ public class MainActivity extends Activity {
 
         showLoginScreen();
 
-        /*
-         * Android 13+ notification permission.
-         * Older Android versions do not need this runtime request.
-         */
         SakayNaNotificationHelper.requestPermission(this);
     }
 
@@ -1005,6 +1000,33 @@ public class MainActivity extends Activity {
                 );
     }
 
+    private boolean hasText(
+            DocumentSnapshot document,
+            String field) {
+
+        if (document == null
+                || field == null) {
+
+            return false;
+        }
+
+        Object value =
+                document.get(field);
+
+        if (value == null) {
+            return false;
+        }
+
+        if (value instanceof String) {
+
+            return !((String) value)
+                    .trim()
+                    .isEmpty();
+        }
+
+        return true;
+    }
+
     private void routeUsingRole(
             DocumentSnapshot document) {
 
@@ -1054,13 +1076,99 @@ public class MainActivity extends Activity {
         String role =
                 document.getString("role");
 
-        if (role == null) {
+        /*
+         * LEGACY ACCOUNT REPAIR
+         *
+         * Some older Sakay Na accounts were created
+         * before the role field was saved.
+         *
+         * Driver-specific fields identify old driver
+         * profiles. Otherwise a normal user profile
+         * is treated as Passenger.
+         */
+        if (role == null
+                || role.trim().isEmpty()) {
 
-            showLoginError(
-                    "This account has no role."
+            boolean looksLikeDriver =
+                    hasText(
+                            document,
+                            "driverName"
+                    )
+                    || hasText(
+                            document,
+                            "plateNumber"
+                    )
+                    || hasText(
+                            document,
+                            "franchiseNumber"
+                    )
+                    || hasText(
+                            document,
+                            "vehicleDescription"
+                    )
+                    || hasText(
+                            document,
+                            "driverStatus"
+                    )
+                    || hasText(
+                            document,
+                            "canAcceptRides"
+                    );
+
+            if (looksLikeDriver) {
+
+                role = "DRIVER";
+
+            } else if (
+                    hasText(
+                            document,
+                            "name"
+                    )
+                    || hasText(
+                            document,
+                            "phone"
+                    )
+                    || hasText(
+                            document,
+                            "town"
+                    )
+                    || hasText(
+                            document,
+                            "province"
+                    )) {
+
+                role = "PASSENGER";
+
+            } else {
+
+                showLoginError(
+                        "This account has no role and its profile cannot identify the account type."
+                );
+
+                return;
+            }
+
+            Map<String, Object> repairedRole =
+                    new HashMap<>();
+
+            repairedRole.put(
+                    "role",
+                    role
             );
 
-            return;
+            repairedRole.put(
+                    "roleRepairedAt",
+                    FieldValue.serverTimestamp()
+            );
+
+            db.collection("users")
+                    .document(
+                            document.getId()
+                    )
+                    .set(
+                            repairedRole,
+                            SetOptions.merge()
+                    );
         }
 
         role =
@@ -1210,22 +1318,27 @@ public class MainActivity extends Activity {
                     profile.put("province", province);
                     profile.put("phone", phone);
                     profile.put("role", role);
+
                     profile.put(
                             "deviceId",
                             getSakayDeviceId()
                     );
+
                     profile.put(
                             "securityStatus",
                             "ACTIVE"
                     );
+
                     profile.put(
                             "securityAccountCount",
                             0
                     );
+
                     profile.put(
                             "securityReason",
                             ""
                     );
+
                     profile.put(
                             "securityCreatedAt",
                             FieldValue.serverTimestamp()
