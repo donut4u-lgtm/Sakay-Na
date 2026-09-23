@@ -7,6 +7,7 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.os.Build;
 
@@ -16,13 +17,55 @@ import androidx.core.app.NotificationManagerCompat;
 
 public final class SakayNaNotificationHelper {
 
-    private static final String CHANNEL_ID = "sakayna_ride_updates";
-    private static final int PERMISSION_REQUEST = 9101;
+    private static final String CHANNEL_ID =
+            "sakayna_ride_updates";
+
+    private static final int PERMISSION_REQUEST =
+            9101;
+
+    private static final String PREFS =
+            "SakayNa";
+
+    private static final String NOTIFICATIONS_ENABLED =
+            "notifications_enabled";
 
     private SakayNaNotificationHelper() {
     }
 
-    public static void requestPermission(Activity activity) {
+    public static boolean areNotificationsEnabled(
+            Context context
+    ) {
+        SharedPreferences preferences =
+                context.getSharedPreferences(
+                        PREFS,
+                        Context.MODE_PRIVATE
+                );
+
+        return preferences.getBoolean(
+                NOTIFICATIONS_ENABLED,
+                true
+        );
+    }
+
+    public static void setNotificationsEnabled(
+            Context context,
+            boolean enabled
+    ) {
+        context.getSharedPreferences(
+                PREFS,
+                Context.MODE_PRIVATE
+        )
+                .edit()
+                .putBoolean(
+                        NOTIFICATIONS_ENABLED,
+                        enabled
+                )
+                .apply();
+    }
+
+    public static void requestPermission(
+            Activity activity
+    ) {
         if (Build.VERSION.SDK_INT >= 33
                 && ActivityCompat.checkSelfPermission(
                 activity,
@@ -31,7 +74,9 @@ public final class SakayNaNotificationHelper {
 
             ActivityCompat.requestPermissions(
                     activity,
-                    new String[]{Manifest.permission.POST_NOTIFICATIONS},
+                    new String[]{
+                            Manifest.permission.POST_NOTIFICATIONS
+                    },
                     PERMISSION_REQUEST
             );
         }
@@ -43,7 +88,13 @@ public final class SakayNaNotificationHelper {
             String title,
             String message
     ) {
-        show(context, notificationId, title, message, null);
+        show(
+                context,
+                notificationId,
+                title,
+                message,
+                null
+        );
     }
 
     public static void show(
@@ -53,38 +104,68 @@ public final class SakayNaNotificationHelper {
             String message,
             PendingIntent pendingIntent
     ) {
+
+        /*
+         * App-level notification toggle.
+         * Default is ON.
+         */
+        if (!areNotificationsEnabled(context)) {
+            return;
+        }
+
         createChannel(context);
 
+        /*
+         * Android 13+ permission.
+         */
         if (Build.VERSION.SDK_INT >= 33
                 && ActivityCompat.checkSelfPermission(
                 context,
                 Manifest.permission.POST_NOTIFICATIONS
         ) != PackageManager.PERMISSION_GRANTED) {
+
             return;
         }
 
         NotificationCompat.Builder builder =
-                new NotificationCompat.Builder(context, CHANNEL_ID)
-                        .setSmallIcon(android.R.drawable.ic_dialog_info)
+                new NotificationCompat.Builder(
+                        context,
+                        CHANNEL_ID
+                )
+                        .setSmallIcon(
+                                android.R.drawable.ic_dialog_info
+                        )
                         .setContentTitle(title)
                         .setContentText(message)
                         .setStyle(
-                                new NotificationCompat.BigTextStyle()
+                                new NotificationCompat
+                                        .BigTextStyle()
                                         .bigText(message)
                         )
-                        .setPriority(NotificationCompat.PRIORITY_HIGH)
+                        .setPriority(
+                                NotificationCompat
+                                        .PRIORITY_HIGH
+                        )
                         .setAutoCancel(true);
 
         if (pendingIntent != null) {
-            builder.setContentIntent(pendingIntent);
+            builder.setContentIntent(
+                    pendingIntent
+            );
         }
 
         NotificationManagerCompat
                 .from(context)
-                .notify(notificationId, builder.build());
+                .notify(
+                        notificationId,
+                        builder.build()
+                );
     }
 
-    private static void createChannel(Context context) {
+    private static void createChannel(
+            Context context
+    ) {
+
         if (Build.VERSION.SDK_INT < 26) {
             return;
         }
@@ -93,7 +174,8 @@ public final class SakayNaNotificationHelper {
                 new NotificationChannel(
                         CHANNEL_ID,
                         "Sakay Na Ride Updates",
-                        NotificationManager.IMPORTANCE_HIGH
+                        NotificationManager
+                                .IMPORTANCE_HIGH
                 );
 
         channel.setDescription(
@@ -106,7 +188,9 @@ public final class SakayNaNotificationHelper {
                 );
 
         if (manager != null) {
-            manager.createNotificationChannel(channel);
+            manager.createNotificationChannel(
+                    channel
+            );
         }
     }
 }
