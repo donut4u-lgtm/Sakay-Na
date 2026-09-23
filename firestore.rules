@@ -63,14 +63,25 @@ service cloud.firestore {
       allow update: if request.auth != null
                     && (
                       isAdmin()
+
                       || resource.data.passengerId == request.auth.uid
+
                       || resource.data.driverId == request.auth.uid
+
                       || (
                         isDriver()
                         && resource.data.status == "REQUESTED"
                         && resource.data.driverId == null
                         && request.resource.data.driverId == request.auth.uid
                         && request.resource.data.status == "ACCEPTED"
+                      )
+
+                      || (
+                        isDriver()
+                        && resource.data.status == "REQUESTED"
+                        && request.resource.data.status == "DECLINED"
+                        && request.resource.data.declinedDriverId
+                           == request.auth.uid
                       )
                     );
 
@@ -81,11 +92,15 @@ service cloud.firestore {
                       request.auth.uid == get(
                         /databases/$(database)/documents/rides/$(rideId)
                       ).data.passengerId
+
                       ||
+
                       request.auth.uid == get(
                         /databases/$(database)/documents/rides/$(rideId)
                       ).data.driverId
+
                       ||
+
                       isAdmin()
                     );
 
@@ -94,11 +109,15 @@ service cloud.firestore {
                         request.auth.uid == get(
                           /databases/$(database)/documents/rides/$(rideId)
                         ).data.passengerId
+
                         ||
+
                         request.auth.uid == get(
                           /databases/$(database)/documents/rides/$(rideId)
                         ).data.driverId
+
                         ||
+
                         isAdmin()
                       )
                       && request.resource.data.senderId
@@ -123,8 +142,7 @@ service cloud.firestore {
       allow read: if request.auth != null
                   && (
                     isAdmin()
-                    ||
-                    resource.data.driverId == request.auth.uid
+                    || resource.data.driverId == request.auth.uid
                   );
 
       allow create: if request.auth != null
@@ -137,6 +155,5 @@ service cloud.firestore {
 
       allow delete: if isAdmin();
     }
-
   }
 }
