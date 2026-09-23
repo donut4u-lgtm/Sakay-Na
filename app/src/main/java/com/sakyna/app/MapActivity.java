@@ -1,4 +1,3 @@
-
 package com.sakyna.app;
 
 import android.Manifest;
@@ -32,7 +31,6 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.BufferedReader;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -63,6 +61,10 @@ public class MapActivity extends Activity {
     private String mode = "SELECT_DESTINATION";
     private String rideId = "";
 
+    /*
+     * Safe fallback only.
+     * Real GPS replaces this as soon as available.
+     */
     private double currentLatitude = 14.4297;
     private double currentLongitude = 120.9367;
 
@@ -72,6 +74,13 @@ public class MapActivity extends Activity {
 
     private boolean destinationChosen = false;
     private boolean mapReady = false;
+
+    /*
+     * Prevent repeated POI downloads while GPS is moving.
+     */
+    private boolean loadingNearbyPlaces = false;
+    private double lastPoiLatitude = 0;
+    private double lastPoiLongitude = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -84,6 +93,7 @@ public class MapActivity extends Activity {
 
         if (receivedMode != null
                 && !receivedMode.trim().isEmpty()) {
+
             mode = receivedMode.trim();
         }
 
@@ -92,6 +102,7 @@ public class MapActivity extends Activity {
 
         if (rideId == null
                 || rideId.trim().isEmpty()) {
+
             rideId =
                     getIntent().getStringExtra("rideId");
         }
@@ -235,6 +246,15 @@ public class MapActivity extends Activity {
 
                         statusText.setText(
                                 "🟢 Live GPS map ready"
+                        );
+
+                        /*
+                         * Load nearby free OSM places once
+                         * the map is ready.
+                         */
+                        loadNearbyPlaces(
+                                currentLatitude,
+                                currentLongitude
                         );
                     }
                 }
@@ -413,6 +433,7 @@ public class MapActivity extends Activity {
                 "</script>" +
 
                 "<style>" +
+
                 "html,body,#map{" +
                 "height:100%;" +
                 "width:100%;" +
@@ -420,12 +441,26 @@ public class MapActivity extends Activity {
                 "padding:0;" +
                 "background:#eef7f3;" +
                 "}" +
+
                 ".leaflet-control-zoom a{" +
                 "font-size:22px;" +
                 "}" +
+
+                ".poi-label{" +
+                "background:white;" +
+                "border:1px solid #777;" +
+                "border-radius:5px;" +
+                "padding:2px 5px;" +
+                "font-size:11px;" +
+                "font-weight:bold;" +
+                "white-space:nowrap;" +
+                "box-shadow:0 1px 4px rgba(0,0,0,.30);" +
+                "}" +
+
                 "</style>" +
 
                 "</head>" +
+
                 "<body>" +
 
                 "<div id='map'></div>" +
@@ -446,10 +481,18 @@ public class MapActivity extends Activity {
                 "}" +
                 ").addTo(map);" +
 
+                /*
+                 * Scale makes the map easier to understand.
+                 */
+                "L.control.scale({" +
+                "imperial:false" +
+                "}).addTo(map);" +
+
                 "var userMarker=null;" +
                 "var accuracyCircle=null;" +
                 "var destinationMarker=null;" +
                 "var driverMarker=null;" +
+                "var poiLayer=L.layerGroup().addTo(map);" +
 
                 "var hasInitialCenter=false;" +
                 "var hasInitialDriverCenter=false;" +
@@ -476,7 +519,8 @@ public class MapActivity extends Activity {
                 "L.marker([lat,lng],{" +
                 "icon:icon," +
                 "zIndexOffset:1000" +
-                "}).addTo(map);" +
+                "}).addTo(map)" +
+                ".bindPopup('📍 You are here');" +
 
                 "}" +
 
@@ -550,14 +594,12 @@ public class MapActivity extends Activity {
                 "destinationMarker=" +
                 "L.marker([lat,lng])" +
                 ".addTo(map)" +
-                ".bindPopup(name)" +
-                ".openPopup();" +
+                ".bindPopup(" +
+                "name" +
+                ").openPopup();" +
 
                 "map.setView([lat,lng],17);" +
 
-                /*
-                 * Keep the selected destination stable.
-                 */
                 "hasInitialCenter=true;" +
 
                 "followUser=false;" +
@@ -588,22 +630,80 @@ public class MapActivity extends Activity {
 
                 "}else{" +
 
-                /*
-                 * Every new Firebase location moves only
-                 * the driver marker.
-                 */
                 "driverMarker.setLatLng([lat,lng]);" +
 
                 "}" +
 
-                /*
-                 * Center on the driver's first real location
-                 * only once. Later updates do not move the map.
-                 */
                 "if(!hasInitialDriverCenter){" +
                 "map.setView([lat,lng],17);" +
                 "hasInitialDriverCenter=true;" +
                 "}" +
+
+                "}" +
+
+                /*
+                 * Add nearby OSM places.
+                 */
+                "function clearPOIs(){" +
+                "poiLayer.clearLayers();" +
+                "}" +
+
+                "function addPOI(lat,lng,name,type){" +
+
+                "if(!name || name.length===0){" +
+                "return;" +
+                "}" +
+
+                "var emoji='📍';" +
+
+                "if(type==='restaurant') emoji='🍽️';" +
+                "else if(type==='cafe') emoji='☕';" +
+                "else if(type==='school') emoji='🏫';" +
+                "else if(type==='hospital') emoji='🏥';" +
+                "else if(type==='pharmacy') emoji='💊';" +
+                "else if(type==='fuel') emoji='⛽';" +
+                "else if(type==='bank') emoji='🏦';" +
+                "else if(type==='place_of_worship') emoji='⛪';" +
+                "else if(type==='mall') emoji='🏬';" +
+                "else if(type==='supermarket') emoji='🛒';" +
+                "else if(type==='convenience') emoji='🏪';" +
+
+                "var icon=L.divIcon({" +
+                "className:'sakayna-poi'," +
+                "html:'<div style=\"" +
+                "font-size:18px;" +
+                "background:white;" +
+                "border-radius:50%;" +
+                "width:28px;" +
+                "height:28px;" +
+                "line-height:28px;" +
+                "text-align:center;" +
+                "border:1px solid #777;" +
+                "box-shadow:0 1px 4px rgba(0,0,0,.35);" +
+                "\">'+emoji+'</div>'," +
+                "iconSize:[28,28]," +
+                "iconAnchor:[14,14]" +
+                "});" +
+
+                "L.marker([lat,lng],{" +
+                "icon:icon," +
+                "zIndexOffset:300" +
+                "}).addTo(poiLayer)" +
+                ".bindPopup(" +
+                "escapeHtml(name)" +
+                "+'<br><small>OpenStreetMap place</small>'" +
+                ");" +
+
+                "}" +
+
+                "function escapeHtml(value){" +
+
+                "return String(value)" +
+                ".replace(/&/g,'&amp;')" +
+                ".replace(/</g,'&lt;')" +
+                ".replace(/>/g,'&gt;')" +
+                ".replace(/\"/g,'&quot;')" +
+                ".replace(/'/g,'&#039;');" +
 
                 "}" +
 
@@ -621,6 +721,7 @@ public class MapActivity extends Activity {
                 "});" +
 
                 "</script>" +
+
                 "</body>" +
                 "</html>";
 
@@ -706,6 +807,18 @@ public class MapActivity extends Activity {
                                         location.getAccuracy()
                                 )
                         );
+
+                        /*
+                         * Load nearby places when the real
+                         * GPS position becomes available.
+                         */
+                        if (mapReady) {
+
+                            loadNearbyPlacesIfNeeded(
+                                    currentLatitude,
+                                    currentLongitude
+                            );
+                        }
                     }
                 };
 
@@ -749,6 +862,14 @@ public class MapActivity extends Activity {
                         last.getLongitude();
 
                 sendLocationToMap(last);
+
+                if (mapReady) {
+
+                    loadNearbyPlaces(
+                            currentLatitude,
+                            currentLongitude
+                    );
+                }
             }
 
         } catch (SecurityException e) {
@@ -843,6 +964,373 @@ public class MapActivity extends Activity {
         ).show();
     }
 
+    /*
+     * Load nearby OSM places only after moving
+     * a reasonable distance from the previous query.
+     */
+    private void loadNearbyPlacesIfNeeded(
+            double lat,
+            double lng
+    ) {
+
+        if (lastPoiLatitude == 0
+                && lastPoiLongitude == 0) {
+
+            loadNearbyPlaces(lat, lng);
+            return;
+        }
+
+        float[] distance =
+                new float[1];
+
+        Location.distanceBetween(
+                lastPoiLatitude,
+                lastPoiLongitude,
+                lat,
+                lng,
+                distance
+        );
+
+        /*
+         * Refresh only after approximately 500 meters.
+         */
+        if (distance[0] >= 500) {
+
+            loadNearbyPlaces(
+                    lat,
+                    lng
+            );
+        }
+    }
+
+    /*
+     * Free OpenStreetMap POI lookup using Overpass.
+     *
+     * This does not require Google Maps billing.
+     */
+    private void loadNearbyPlaces(
+            double lat,
+            double lng
+    ) {
+
+        if (!mapReady
+                || webView == null
+                || loadingNearbyPlaces) {
+
+            return;
+        }
+
+        loadingNearbyPlaces = true;
+
+        lastPoiLatitude = lat;
+        lastPoiLongitude = lng;
+
+        new Thread(() -> {
+
+            HttpURLConnection connection = null;
+
+            try {
+
+                String query =
+                        "[out:json][timeout:15];" +
+                        "(" +
+
+                        "nwr(around:1200," +
+                        lat + "," +
+                        lng +
+                        ")[name][amenity~" +
+                        "\"restaurant|cafe|school|hospital|" +
+                        "pharmacy|fuel|bank|place_of_worship|" +
+                        "fast_food|clinic\"" +
+                        "];" +
+
+                        "nwr(around:1200," +
+                        lat + "," +
+                        lng +
+                        ")[name][shop~" +
+                        "\"supermarket|convenience|mall|bakery|" +
+                        "department_store\"" +
+                        "];" +
+
+                        "nwr(around:1200," +
+                        lat + "," +
+                        lng +
+                        ")[name][tourism~" +
+                        "\"hotel|attraction|museum\"" +
+                        "];" +
+
+                        ");" +
+
+                        "out center tags;";
+
+                String encoded =
+                        URLEncoder.encode(
+                                query,
+                                "UTF-8"
+                        );
+
+                String urlString =
+                        "https://overpass-api.de/api/interpreter" +
+                        "?data=" +
+                        encoded;
+
+                URL url =
+                        new URL(urlString);
+
+                connection =
+                        (HttpURLConnection)
+                                url.openConnection();
+
+                connection.setRequestMethod("GET");
+
+                connection.setConnectTimeout(
+                        15000
+                );
+
+                connection.setReadTimeout(
+                        20000
+                );
+
+                connection.setRequestProperty(
+                        "User-Agent",
+                        "SakayNa/1.0 Android"
+                );
+
+                int responseCode =
+                        connection.getResponseCode();
+
+                if (responseCode != 200) {
+
+                    throw new Exception(
+                            "Overpass response " +
+                            responseCode
+                    );
+                }
+
+                BufferedReader reader =
+                        new BufferedReader(
+                                new InputStreamReader(
+                                        connection.getInputStream(),
+                                        "UTF-8"
+                                )
+                        );
+
+                StringBuilder result =
+                        new StringBuilder();
+
+                String line;
+
+                while (
+                        (line = reader.readLine())
+                                != null
+                ) {
+
+                    result.append(line);
+                }
+
+                reader.close();
+
+                JSONObject object =
+                        new JSONObject(
+                                result.toString()
+                        );
+
+                JSONArray elements =
+                        object.optJSONArray(
+                                "elements"
+                        );
+
+                StringBuilder javascript =
+                        new StringBuilder();
+
+                javascript.append(
+                        "clearPOIs();"
+                );
+
+                if (elements != null) {
+
+                    int maximum =
+                            Math.min(
+                                    elements.length(),
+                                    60
+                            );
+
+                    for (
+                            int i = 0;
+                            i < maximum;
+                            i++
+                    ) {
+
+                        try {
+
+                            JSONObject element =
+                                    elements.getJSONObject(i);
+
+                            JSONObject tags =
+                                    element.optJSONObject(
+                                            "tags"
+                                    );
+
+                            if (tags == null) {
+                                continue;
+                            }
+
+                            String name =
+                                    tags.optString(
+                                            "name",
+                                            ""
+                                    );
+
+                            if (name == null
+                                    || name.trim().isEmpty()) {
+
+                                continue;
+                            }
+
+                            double elementLat =
+                                    element.optDouble(
+                                            "lat",
+                                            Double.NaN
+                                    );
+
+                            double elementLng =
+                                    element.optDouble(
+                                            "lon",
+                                            Double.NaN
+                                    );
+
+                            /*
+                             * Ways/relations return a center.
+                             */
+                            if (Double.isNaN(elementLat)
+                                    || Double.isNaN(elementLng)) {
+
+                                JSONObject center =
+                                        element.optJSONObject(
+                                                "center"
+                                        );
+
+                                if (center != null) {
+
+                                    elementLat =
+                                            center.optDouble(
+                                                    "lat",
+                                                    Double.NaN
+                                            );
+
+                                    elementLng =
+                                            center.optDouble(
+                                                    "lon",
+                                                    Double.NaN
+                                            );
+                                }
+                            }
+
+                            if (Double.isNaN(elementLat)
+                                    || Double.isNaN(elementLng)) {
+
+                                continue;
+                            }
+
+                            String type =
+                                    firstNonEmpty(
+                                            tags.optString(
+                                                    "amenity",
+                                                    ""
+                                            ),
+                                            tags.optString(
+                                                    "shop",
+                                                    ""
+                                            ),
+                                            tags.optString(
+                                                    "tourism",
+                                                    ""
+                                            )
+                                    );
+
+                            javascript.append(
+                                    "addPOI("
+                            );
+
+                            javascript.append(
+                                    elementLat
+                            );
+
+                            javascript.append(",");
+
+                            javascript.append(
+                                    elementLng
+                            );
+
+                            javascript.append(",");
+
+                            javascript.append(
+                                    "'"
+                            );
+
+                            javascript.append(
+                                    escapeJS(
+                                            name
+                                    )
+                            );
+
+                            javascript.append(
+                                    "','"
+                            );
+
+                            javascript.append(
+                                    escapeJS(
+                                            type
+                                    )
+                            );
+
+                            javascript.append(
+                                    "');"
+                            );
+
+                        } catch (Exception ignored) {
+                        }
+                    }
+                }
+
+                final String js =
+                        javascript.toString();
+
+                runOnUiThread(() -> {
+
+                    if (mapReady
+                            && webView != null) {
+
+                        webView.evaluateJavascript(
+                                js,
+                                null
+                        );
+                    }
+
+                    loadingNearbyPlaces = false;
+                });
+
+            } catch (Exception e) {
+
+                runOnUiThread(() -> {
+
+                    /*
+                     * Do not break the map if the
+                     * free POI server is unavailable.
+                     */
+                    loadingNearbyPlaces = false;
+                });
+
+            } finally {
+
+                if (connection != null) {
+                    connection.disconnect();
+                }
+            }
+
+        }).start();
+    }
+
     private void searchPlace() {
 
         String query =
@@ -867,8 +1355,16 @@ public class MapActivity extends Activity {
         TextView loading =
                 new TextView(this);
 
-        loading.setText("🔎 Searching...");
-        loading.setPadding(10,10,10,10);
+        loading.setText(
+                "🔎 Searching..."
+        );
+
+        loading.setPadding(
+                10,
+                10,
+                10,
+                10
+        );
 
         searchResultsContainer.addView(
                 loading
@@ -904,17 +1400,29 @@ public class MapActivity extends Activity {
                         (HttpURLConnection)
                                 url.openConnection();
 
-                connection.setRequestMethod("GET");
-                connection.setConnectTimeout(10000);
-                connection.setReadTimeout(10000);
+                connection.setRequestMethod(
+                        "GET"
+                );
+
+                connection.setConnectTimeout(
+                        10000
+                );
+
+                connection.setReadTimeout(
+                        10000
+                );
 
                 connection.setRequestProperty(
                         "User-Agent",
                         "SakayNa/1.0 Android"
                 );
 
-                if (connection.getResponseCode() != 200) {
-                    throw new Exception("Search failed");
+                if (connection.getResponseCode()
+                        != 200) {
+
+                    throw new Exception(
+                            "Search failed"
+                    );
                 }
 
                 BufferedReader reader =
@@ -930,7 +1438,11 @@ public class MapActivity extends Activity {
 
                 String line;
 
-                while ((line = reader.readLine()) != null) {
+                while (
+                        (line = reader.readLine())
+                                != null
+                ) {
+
                     result.append(line);
                 }
 
@@ -948,7 +1460,8 @@ public class MapActivity extends Activity {
 
                 runOnUiThread(() -> {
 
-                    searchResultsContainer.removeAllViews();
+                    searchResultsContainer
+                            .removeAllViews();
 
                     if (features == null
                             || features.length() == 0) {
@@ -961,12 +1474,14 @@ public class MapActivity extends Activity {
                         );
 
                         empty.setPadding(
-                                10,10,10,10
+                                10,
+                                10,
+                                10,
+                                10
                         );
 
-                        searchResultsContainer.addView(
-                                empty
-                        );
+                        searchResultsContainer
+                                .addView(empty);
 
                         return;
                     }
@@ -980,7 +1495,9 @@ public class MapActivity extends Activity {
                         try {
 
                             JSONObject feature =
-                                    features.getJSONObject(i);
+                                    features.getJSONObject(
+                                            i
+                                    );
 
                             JSONObject properties =
                                     feature.optJSONObject(
@@ -1000,15 +1517,21 @@ public class MapActivity extends Activity {
                                             );
 
                             if (coordinates == null
-                                    || coordinates.length() < 2) {
+                                    || coordinates.length()
+                                    < 2) {
+
                                 continue;
                             }
 
                             double lng =
-                                    coordinates.optDouble(0);
+                                    coordinates.optDouble(
+                                            0
+                                    );
 
                             double lat =
-                                    coordinates.optDouble(1);
+                                    coordinates.optDouble(
+                                            1
+                                    );
 
                             String name =
                                     properties == null
@@ -1051,35 +1574,43 @@ public class MapActivity extends Activity {
                                     );
 
                             if (display.isEmpty()) {
-                                display = "Selected place";
+
+                                display =
+                                        "Selected place";
                             }
 
                             Button button =
                                     new Button(this);
 
                             button.setText(
-                                    "📍 " + display
+                                    "📍 " +
+                                    display
                             );
 
                             button.setGravity(
                                     Gravity.LEFT
                             );
 
-                            final double finalLat = lat;
-                            final double finalLng = lng;
-                            final String finalName = display;
+                            final double finalLat =
+                                    lat;
+
+                            final double finalLng =
+                                    lng;
+
+                            final String finalName =
+                                    display;
 
                             button.setOnClickListener(
-                                    v -> reverseGeocode(
-                                            finalLat,
-                                            finalLng,
-                                            finalName
-                                    )
+                                    v ->
+                                            reverseGeocode(
+                                                    finalLat,
+                                                    finalLng,
+                                                    finalName
+                                            )
                             );
 
-                            searchResultsContainer.addView(
-                                    button
-                            );
+                            searchResultsContainer
+                                    .addView(button);
 
                         } catch (Exception ignored) {
                         }
@@ -1090,7 +1621,8 @@ public class MapActivity extends Activity {
 
                 runOnUiThread(() -> {
 
-                    searchResultsContainer.removeAllViews();
+                    searchResultsContainer
+                            .removeAllViews();
 
                     TextView error =
                             new TextView(this);
@@ -1099,12 +1631,19 @@ public class MapActivity extends Activity {
                             "❌ Search failed. Check internet connection."
                     );
 
-                    error.setTextColor(Color.RED);
-                    error.setPadding(10,10,10,10);
-
-                    searchResultsContainer.addView(
-                            error
+                    error.setTextColor(
+                            Color.RED
                     );
+
+                    error.setPadding(
+                            10,
+                            10,
+                            10,
+                            10
+                    );
+
+                    searchResultsContainer
+                            .addView(error);
                 });
 
             } finally {
@@ -1166,8 +1705,10 @@ public class MapActivity extends Activity {
                 String urlString =
                         "https://nominatim.openstreetmap.org/reverse" +
                         "?format=jsonv2" +
-                        "&lat=" + lat +
-                        "&lon=" + lng +
+                        "&lat=" +
+                        lat +
+                        "&lon=" +
+                        lng +
                         "&zoom=18" +
                         "&addressdetails=1" +
                         "&namedetails=1" +
@@ -1180,16 +1721,26 @@ public class MapActivity extends Activity {
                         (HttpURLConnection)
                                 url.openConnection();
 
-                connection.setRequestMethod("GET");
-                connection.setConnectTimeout(10000);
-                connection.setReadTimeout(10000);
+                connection.setRequestMethod(
+                        "GET"
+                );
+
+                connection.setConnectTimeout(
+                        10000
+                );
+
+                connection.setReadTimeout(
+                        10000
+                );
 
                 connection.setRequestProperty(
                         "User-Agent",
                         "SakayNa/1.0 Android"
                 );
 
-                if (connection.getResponseCode() != 200) {
+                if (connection.getResponseCode()
+                        != 200) {
+
                     throw new Exception(
                             "Reverse lookup failed"
                     );
@@ -1208,7 +1759,11 @@ public class MapActivity extends Activity {
 
                 String line;
 
-                while ((line = reader.readLine()) != null) {
+                while (
+                        (line = reader.readLine())
+                                != null
+                ) {
+
                     result.append(line);
                 }
 
@@ -1483,6 +2038,7 @@ public class MapActivity extends Activity {
 
         if (value == null
                 || value.trim().isEmpty()) {
+
             return;
         }
 
