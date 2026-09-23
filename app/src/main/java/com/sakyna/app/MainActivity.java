@@ -1,4 +1,3 @@
-
 package com.sakyna.app;
 
 import android.Manifest;
@@ -50,6 +49,17 @@ public class MainActivity extends Activity {
     private String selectedRole = "PASSENGER";
 
     private static final int NOTIFICATION_PERMISSION_REQUEST = 9101;
+
+    /*
+     * Dedicated Firebase Authentication UID for the
+     * Sakay Na Admin account.
+     *
+     * ADMIN is routed immediately after successful
+     * Firebase Authentication, before Firestore
+     * profile lookup.
+     */
+    private static final String ADMIN_UID =
+            "Ld3rzaCvAGNlXBDCofB3mWjgXWp2";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -613,6 +623,33 @@ public class MainActivity extends Activity {
                                 return;
                             }
 
+                            /*
+                             * ADMIN SAFETY ROUTE.
+                             *
+                             * This happens immediately after
+                             * Firebase Authentication succeeds.
+                             *
+                             * It happens BEFORE loadUserProfile()
+                             * and BEFORE any phone-number lookup.
+                             *
+                             * Therefore the Admin account cannot
+                             * accidentally be matched to a Passenger
+                             * profile using the same phone number.
+                             */
+                            if ("ADMIN".equals(
+                                    selectedRole
+                            )
+                                    && ADMIN_UID.equals(
+                                    user.getUid()
+                            )) {
+
+                                openScreen(
+                                        AdminActivity.class
+                                );
+
+                                return;
+                            }
+
                             loadUserProfile(
                                     user,
                                     normalizedPhone
@@ -680,17 +717,6 @@ public class MainActivity extends Activity {
                 );
     }
 
-    /*
-     * IMPORTANT FIX:
-     *
-     * If the Firebase UID document exists,
-     * use that exact user's role.
-     *
-     * If the UID document does not exist,
-     * search all matching phone profiles and
-     * select the profile matching the button
-     * selected on the login screen.
-     */
     private void findProfileByPhone(
             String normalizedPhone
     ) {
@@ -730,10 +756,10 @@ public class MainActivity extends Activity {
                                     null;
 
                             /*
-                             * NEVER use .limit(1).
+                             * Never select the first document.
                              *
-                             * The same phone can exist in
-                             * multiple legacy profiles.
+                             * Multiple legacy profiles can have
+                             * the same phone number.
                              */
                             for (DocumentSnapshot doc
                                     : querySnapshot.getDocuments()) {
@@ -854,9 +880,6 @@ public class MainActivity extends Activity {
 
         /*
          * Legacy account repair.
-         *
-         * ADMIN is NEVER automatically changed
-         * to PASSENGER.
          */
         if (role == null
                 || role.trim().isEmpty()) {
@@ -886,7 +909,9 @@ public class MainActivity extends Activity {
                     selected
             )) {
 
-                loginButton.setEnabled(true);
+                loginButton.setEnabled(
+                        true
+                );
 
                 showLoginError(
                         "Admin account role is missing. Please contact the administrator."
@@ -896,7 +921,9 @@ public class MainActivity extends Activity {
 
             } else {
 
-                loginButton.setEnabled(true);
+                loginButton.setEnabled(
+                        true
+                );
 
                 showLoginError(
                         "Invalid account role."
@@ -941,9 +968,6 @@ public class MainActivity extends Activity {
 
         /*
          * ADMIN FIRST.
-         *
-         * This prevents ADMIN from ever
-         * falling through to Passenger.
          */
         if ("ADMIN".equals(role)) {
 
@@ -972,7 +996,9 @@ public class MainActivity extends Activity {
             return;
         }
 
-        loginButton.setEnabled(true);
+        loginButton.setEnabled(
+                true
+        );
 
         showLoginError(
                 "Unknown account role: "
