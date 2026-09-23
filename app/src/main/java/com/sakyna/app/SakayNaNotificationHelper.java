@@ -1,4 +1,3 @@
-
 package com.sakyna.app;
 
 import android.Manifest;
@@ -7,7 +6,6 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Context;
-import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.os.Build;
 
@@ -23,49 +21,84 @@ public final class SakayNaNotificationHelper {
     private static final int PERMISSION_REQUEST =
             9101;
 
-    private static final String PREFS =
-            "SakayNa";
-
-    private static final String NOTIFICATIONS_ENABLED =
-            "notifications_enabled";
-
     private SakayNaNotificationHelper() {
     }
 
+    /*
+     * Android system notification status.
+     *
+     * This is intentionally NOT a custom Sakay Na toggle.
+     * Android Settings controls whether Sakay Na notifications
+     * are allowed.
+     */
     public static boolean areNotificationsEnabled(
             Context context
     ) {
-        SharedPreferences preferences =
-                context.getSharedPreferences(
-                        PREFS,
-                        Context.MODE_PRIVATE
+
+        if (Build.VERSION.SDK_INT >= 33
+                && ActivityCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS
+        ) != PackageManager.PERMISSION_GRANTED) {
+
+            return false;
+        }
+
+        return NotificationManagerCompat
+                .from(context)
+                .areNotificationsEnabled();
+    }
+
+    /*
+     * Create the notification channel immediately.
+     *
+     * This makes the Sakay Na notification channel available
+     * to Android's App Notifications settings.
+     */
+    public static void createNotificationChannel(
+            Context context
+    ) {
+
+        if (Build.VERSION.SDK_INT < 26) {
+            return;
+        }
+
+        NotificationChannel channel =
+                new NotificationChannel(
+                        CHANNEL_ID,
+                        "Sakay Na Ride Updates",
+                        NotificationManager.IMPORTANCE_HIGH
                 );
 
-        return preferences.getBoolean(
-                NOTIFICATIONS_ENABLED,
-                true
+        channel.setDescription(
+                "Notifications for Sakay Na ride updates."
         );
+
+        NotificationManager manager =
+                context.getSystemService(
+                        NotificationManager.class
+                );
+
+        if (manager != null) {
+
+            manager.createNotificationChannel(
+                    channel
+            );
+        }
     }
 
-    public static void setNotificationsEnabled(
-            Context context,
-            boolean enabled
-    ) {
-        context.getSharedPreferences(
-                PREFS,
-                Context.MODE_PRIVATE
-        )
-                .edit()
-                .putBoolean(
-                        NOTIFICATIONS_ENABLED,
-                        enabled
-                )
-                .apply();
-    }
-
+    /*
+     * Request Android notification permission.
+     */
     public static void requestPermission(
             Activity activity
     ) {
+
+        /*
+         * Create the channel BEFORE requesting permission.
+         */
+        createNotificationChannel(activity);
+
         if (Build.VERSION.SDK_INT >= 33
                 && ActivityCompat.checkSelfPermission(
                 activity,
@@ -88,6 +121,7 @@ public final class SakayNaNotificationHelper {
             String title,
             String message
     ) {
+
         show(
                 context,
                 notificationId,
@@ -106,17 +140,19 @@ public final class SakayNaNotificationHelper {
     ) {
 
         /*
-         * App-level notification toggle.
-         * Default is ON.
+         * Let Android's real notification setting decide.
          */
         if (!areNotificationsEnabled(context)) {
             return;
         }
 
-        createChannel(context);
+        /*
+         * Make sure the channel exists.
+         */
+        createNotificationChannel(context);
 
         /*
-         * Android 13+ permission.
+         * Android 13+ permission check.
          */
         if (Build.VERSION.SDK_INT >= 33
                 && ActivityCompat.checkSelfPermission(
@@ -149,6 +185,7 @@ public final class SakayNaNotificationHelper {
                         .setAutoCancel(true);
 
         if (pendingIntent != null) {
+
             builder.setContentIntent(
                     pendingIntent
             );
@@ -160,37 +197,5 @@ public final class SakayNaNotificationHelper {
                         notificationId,
                         builder.build()
                 );
-    }
-
-    private static void createChannel(
-            Context context
-    ) {
-
-        if (Build.VERSION.SDK_INT < 26) {
-            return;
-        }
-
-        NotificationChannel channel =
-                new NotificationChannel(
-                        CHANNEL_ID,
-                        "Sakay Na Ride Updates",
-                        NotificationManager
-                                .IMPORTANCE_HIGH
-                );
-
-        channel.setDescription(
-                "Notifications for Sakay Na ride updates."
-        );
-
-        NotificationManager manager =
-                context.getSystemService(
-                        NotificationManager.class
-                );
-
-        if (manager != null) {
-            manager.createNotificationChannel(
-                    channel
-            );
-        }
     }
 }
