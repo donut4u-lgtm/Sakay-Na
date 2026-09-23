@@ -1,14 +1,16 @@
+
 package com.sakyna.app;
 
 import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Color;
+import android.graphics.Typeface;
 import android.os.Build;
 import android.os.Bundle;
 import android.text.InputType;
 import android.view.Gravity;
-import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -76,23 +78,38 @@ public class MainActivity extends Activity {
 
         root.setPadding(
                 40,
-                50,
                 40,
-                40
+                40,
+                35
+        );
+
+        root.setBackgroundColor(
+                Color.rgb(238, 248, 243)
         );
 
         TextView title =
                 new TextView(this);
 
-        title.setText(
-                "SAKAY NA"
+        title.setText("🛺 SAKAY NA");
+        title.setTextSize(32);
+        title.setTextColor(Color.WHITE);
+        title.setTypeface(
+                null,
+                Typeface.BOLD
+        );
+        title.setGravity(Gravity.CENTER);
+        title.setPadding(10, 22, 10, 22);
+        title.setBackgroundColor(
+                Color.rgb(0, 125, 75)
         );
 
-        title.setTextSize(32);
-        title.setGravity(Gravity.CENTER);
-        title.setPadding(0, 0, 0, 20);
-
-        root.addView(title);
+        root.addView(
+                title,
+                new LinearLayout.LayoutParams(
+                        -1,
+                        -2
+                )
+        );
 
         TextView subtitle =
                 new TextView(this);
@@ -101,9 +118,16 @@ public class MainActivity extends Activity {
                 "Tricycle Ride Booking"
         );
 
-        subtitle.setTextSize(18);
+        subtitle.setTextSize(19);
+        subtitle.setTextColor(
+                Color.rgb(0, 110, 65)
+        );
+        subtitle.setTypeface(
+                null,
+                Typeface.BOLD
+        );
         subtitle.setGravity(Gravity.CENTER);
-        subtitle.setPadding(0, 0, 0, 35);
+        subtitle.setPadding(0, 25, 0, 25);
 
         root.addView(subtitle);
 
@@ -111,8 +135,12 @@ public class MainActivity extends Activity {
                 new EditText(this);
 
         phoneField.setHint(
-                "Phone Number"
+                "📱 Phone Number"
         );
+
+        phoneField.setTextSize(17);
+
+        phoneField.setSingleLine(true);
 
         phoneField.setInputType(
                 InputType.TYPE_CLASS_PHONE
@@ -130,8 +158,12 @@ public class MainActivity extends Activity {
                 new EditText(this);
 
         passwordField.setHint(
-                "Password"
+                "🔒 Password"
         );
+
+        passwordField.setTextSize(17);
+
+        passwordField.setSingleLine(true);
 
         passwordField.setInputType(
                 InputType.TYPE_CLASS_TEXT
@@ -144,7 +176,7 @@ public class MainActivity extends Activity {
                         -2
                 );
 
-        passwordParams.topMargin = 20;
+        passwordParams.topMargin = 12;
 
         root.addView(
                 passwordField,
@@ -159,7 +191,19 @@ public class MainActivity extends Activity {
         );
 
         roleLabel.setTextSize(17);
-        roleLabel.setGravity(Gravity.CENTER);
+
+        roleLabel.setTextColor(
+                Color.rgb(0, 110, 65)
+        );
+
+        roleLabel.setTypeface(
+                null,
+                Typeface.BOLD
+        );
+
+        roleLabel.setGravity(
+                Gravity.CENTER
+        );
 
         LinearLayout.LayoutParams roleLabelParams =
                 new LinearLayout.LayoutParams(
@@ -167,7 +211,7 @@ public class MainActivity extends Activity {
                         -2
                 );
 
-        roleLabelParams.topMargin = 30;
+        roleLabelParams.topMargin = 22;
 
         root.addView(
                 roleLabel,
@@ -186,51 +230,33 @@ public class MainActivity extends Activity {
         );
 
         passengerButton =
-                new Button(this);
-
-        passengerButton.setText(
-                "PASSENGER"
-        );
+                createRoleButton(
+                        "PASSENGER"
+                );
 
         driverButton =
-                new Button(this);
-
-        driverButton.setText(
-                "DRIVER"
-        );
+                createRoleButton(
+                        "DRIVER"
+                );
 
         adminButton =
-                new Button(this);
-
-        adminButton.setText(
-                "ADMIN"
-        );
+                createRoleButton(
+                        "ADMIN"
+                );
 
         roleRow.addView(
                 passengerButton,
-                new LinearLayout.LayoutParams(
-                        0,
-                        -2,
-                        1
-                )
+                roleButtonParams()
         );
 
         roleRow.addView(
                 driverButton,
-                new LinearLayout.LayoutParams(
-                        0,
-                        -2,
-                        1
-                )
+                roleButtonParams()
         );
 
         roleRow.addView(
                 adminButton,
-                new LinearLayout.LayoutParams(
-                        0,
-                        -2,
-                        1
-                )
+                roleButtonParams()
         );
 
         root.addView(roleRow);
@@ -239,7 +265,24 @@ public class MainActivity extends Activity {
                 new Button(this);
 
         loginButton.setText(
-                "LOGIN"
+                "🚀 LOGIN"
+        );
+
+        loginButton.setTextSize(17);
+
+        loginButton.setTextColor(
+                Color.WHITE
+        );
+
+        loginButton.setTypeface(
+                null,
+                Typeface.BOLD
+        );
+
+        loginButton.setAllCaps(false);
+
+        loginButton.setBackgroundColor(
+                Color.rgb(0, 150, 80)
         );
 
         LinearLayout.LayoutParams loginParams =
@@ -248,7 +291,7 @@ public class MainActivity extends Activity {
                         -2
                 );
 
-        loginParams.topMargin = 30;
+        loginParams.topMargin = 24;
 
         root.addView(
                 loginButton,
@@ -259,7 +302,24 @@ public class MainActivity extends Activity {
                 new Button(this);
 
         registerButton.setText(
-                "CREATE ACCOUNT"
+                "✨ CREATE ACCOUNT"
+        );
+
+        registerButton.setTextSize(16);
+
+        registerButton.setTextColor(
+                Color.WHITE
+        );
+
+        registerButton.setTypeface(
+                null,
+                Typeface.BOLD
+        );
+
+        registerButton.setAllCaps(false);
+
+        registerButton.setBackgroundColor(
+                Color.rgb(40, 115, 190)
         );
 
         root.addView(
@@ -274,7 +334,18 @@ public class MainActivity extends Activity {
                 new TextView(this);
 
         statusText.setText(
-                "Phone number + password only"
+                "📱 Phone number + password only"
+        );
+
+        statusText.setTextSize(14);
+
+        statusText.setTextColor(
+                Color.rgb(0, 110, 65)
+        );
+
+        statusText.setTypeface(
+                null,
+                Typeface.BOLD
         );
 
         statusText.setGravity(
@@ -283,7 +354,7 @@ public class MainActivity extends Activity {
 
         statusText.setPadding(
                 0,
-                25,
+                20,
                 0,
                 0
         );
@@ -294,13 +365,17 @@ public class MainActivity extends Activity {
 
         selectedRole = "PASSENGER";
 
+        updateRoleButtons();
+
         passengerButton.setOnClickListener(
                 v -> {
 
                     selectedRole =
                             "PASSENGER";
 
-                    toast(
+                    updateRoleButtons();
+
+                    statusText.setText(
                             "Passenger selected"
                     );
                 }
@@ -312,7 +387,9 @@ public class MainActivity extends Activity {
                     selectedRole =
                             "DRIVER";
 
-                    toast(
+                    updateRoleButtons();
+
+                    statusText.setText(
                             "Driver selected"
                     );
                 }
@@ -324,7 +401,9 @@ public class MainActivity extends Activity {
                     selectedRole =
                             "ADMIN";
 
-                    toast(
+                    updateRoleButtons();
+
+                    statusText.setText(
                             "Admin selected"
                     );
                 }
@@ -337,6 +416,101 @@ public class MainActivity extends Activity {
         registerButton.setOnClickListener(
                 v -> openRegistration()
         );
+    }
+
+    private Button createRoleButton(
+            String text
+    ) {
+
+        Button button =
+                new Button(this);
+
+        button.setText(text);
+        button.setTextSize(12);
+        button.setAllCaps(false);
+        button.setTypeface(
+                null,
+                Typeface.BOLD
+        );
+
+        return button;
+    }
+
+    private LinearLayout.LayoutParams roleButtonParams() {
+
+        LinearLayout.LayoutParams params =
+                new LinearLayout.LayoutParams(
+                        0,
+                        -2,
+                        1
+                );
+
+        params.setMargins(
+                3,
+                5,
+                3,
+                5
+        );
+
+        return params;
+    }
+
+    private void updateRoleButtons() {
+
+        if (passengerButton == null
+                || driverButton == null
+                || adminButton == null) {
+            return;
+        }
+
+        passengerButton.setTextColor(
+                Color.WHITE
+        );
+
+        driverButton.setTextColor(
+                Color.WHITE
+        );
+
+        adminButton.setTextColor(
+                Color.WHITE
+        );
+
+        passengerButton.setBackgroundColor(
+                Color.rgb(0, 125, 75)
+        );
+
+        driverButton.setBackgroundColor(
+                Color.rgb(40, 115, 190)
+        );
+
+        adminButton.setBackgroundColor(
+                Color.rgb(145, 75, 160)
+        );
+
+        if ("PASSENGER".equals(
+                selectedRole
+        )) {
+
+            passengerButton.setBackgroundColor(
+                    Color.rgb(0, 175, 90)
+            );
+
+        } else if ("DRIVER".equals(
+                selectedRole
+        )) {
+
+            driverButton.setBackgroundColor(
+                    Color.rgb(25, 135, 220)
+            );
+
+        } else if ("ADMIN".equals(
+                selectedRole
+        )) {
+
+            adminButton.setBackgroundColor(
+                    Color.rgb(180, 75, 190)
+            );
+        }
     }
 
     private void login() {
@@ -590,13 +764,10 @@ public class MainActivity extends Activity {
         /*
          * LEGACY ACCOUNT REPAIR
          *
-         * Older Sakay Na accounts may not have
-         * a role field.
+         * Passenger and Driver accounts can have
+         * their missing role repaired.
          *
-         * The selected login role is used to repair
-         * the missing role.
-         *
-         * ADMIN is NEVER automatically assigned.
+         * ADMIN IS NEVER converted to PASSENGER.
          */
 
         if (role == null
@@ -617,9 +788,33 @@ public class MainActivity extends Activity {
 
                 role = "DRIVER";
 
-            } else {
+            } else if ("PASSENGER".equals(
+                    selected
+            )) {
 
                 role = "PASSENGER";
+
+            } else if ("ADMIN".equals(
+                    selected
+            )) {
+
+                loginButton.setEnabled(true);
+
+                showLoginError(
+                        "Admin account role is missing. Please contact the administrator."
+                );
+
+                return;
+
+            } else {
+
+                loginButton.setEnabled(true);
+
+                showLoginError(
+                        "Invalid account role."
+                );
+
+                return;
             }
 
             Map<String, Object> repairedRole =
@@ -645,8 +840,7 @@ public class MainActivity extends Activity {
                     )
                     .addOnFailureListener(
                             e -> {
-                                // Routing can continue even if
-                                // the legacy repair write fails.
+                                // Continue routing.
                             }
                     );
         }
@@ -656,6 +850,20 @@ public class MainActivity extends Activity {
                         .toUpperCase(
                                 Locale.US
                         );
+
+        /*
+         * ADMIN MUST BE CHECKED BEFORE
+         * PASSENGER/DRIVER FALLBACK.
+         */
+
+        if ("ADMIN".equals(role)) {
+
+            openScreen(
+                    AdminActivity.class
+            );
+
+            return;
+        }
 
         if ("DRIVER".equals(role)) {
 
@@ -675,15 +883,6 @@ public class MainActivity extends Activity {
             return;
         }
 
-        if ("ADMIN".equals(role)) {
-
-            openScreen(
-                    AdminActivity.class
-            );
-
-            return;
-        }
-
         loginButton.setEnabled(true);
 
         showLoginError(
@@ -694,12 +893,6 @@ public class MainActivity extends Activity {
 
     private void openRegistration() {
 
-        /*
-         * Keep the existing registration flow.
-         *
-         * Driver/Passenger registration remains
-         * controlled by the existing application.
-         */
         try {
 
             Intent intent =
@@ -788,7 +981,6 @@ public class MainActivity extends Activity {
             value =
                     "63"
                             + value;
-
         }
 
         if (!value.matches(
