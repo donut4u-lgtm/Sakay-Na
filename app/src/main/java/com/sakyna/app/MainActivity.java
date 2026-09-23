@@ -50,14 +50,6 @@ public class MainActivity extends Activity {
 
     private static final int NOTIFICATION_PERMISSION_REQUEST = 9101;
 
-    /*
-     * Dedicated Firebase Authentication UID for the
-     * Sakay Na Admin account.
-     *
-     * ADMIN is routed immediately after successful
-     * Firebase Authentication, before Firestore
-     * profile lookup.
-     */
     private static final String ADMIN_UID =
             "Ld3rzaCvAGNlXBDCofB3mWjgXWp2";
 
@@ -623,19 +615,6 @@ public class MainActivity extends Activity {
                                 return;
                             }
 
-                            /*
-                             * ADMIN SAFETY ROUTE.
-                             *
-                             * This happens immediately after
-                             * Firebase Authentication succeeds.
-                             *
-                             * It happens BEFORE loadUserProfile()
-                             * and BEFORE any phone-number lookup.
-                             *
-                             * Therefore the Admin account cannot
-                             * accidentally be matched to a Passenger
-                             * profile using the same phone number.
-                             */
                             if ("ADMIN".equals(
                                     selectedRole
                             )
@@ -755,12 +734,6 @@ public class MainActivity extends Activity {
                             DocumentSnapshot selectedDocument =
                                     null;
 
-                            /*
-                             * Never select the first document.
-                             *
-                             * Multiple legacy profiles can have
-                             * the same phone number.
-                             */
                             for (DocumentSnapshot doc
                                     : querySnapshot.getDocuments()) {
 
@@ -878,9 +851,6 @@ public class MainActivity extends Activity {
                         "role"
                 );
 
-        /*
-         * Legacy account repair.
-         */
         if (role == null
                 || role.trim().isEmpty()) {
 
@@ -905,20 +875,6 @@ public class MainActivity extends Activity {
 
                 role = "PASSENGER";
 
-            } else if ("ADMIN".equals(
-                    selected
-            )) {
-
-                loginButton.setEnabled(
-                        true
-                );
-
-                showLoginError(
-                        "Admin account role is missing. Please contact the administrator."
-                );
-
-                return;
-
             } else {
 
                 loginButton.setEnabled(
@@ -926,7 +882,7 @@ public class MainActivity extends Activity {
                 );
 
                 showLoginError(
-                        "Invalid account role."
+                        "Admin account role is missing. Please contact the administrator."
                 );
 
                 return;
@@ -952,11 +908,6 @@ public class MainActivity extends Activity {
                     .set(
                             repairedRole,
                             SetOptions.merge()
-                    )
-                    .addOnFailureListener(
-                            e -> {
-                                // Continue routing.
-                            }
                     );
         }
 
@@ -966,9 +917,6 @@ public class MainActivity extends Activity {
                                 Locale.US
                         );
 
-        /*
-         * ADMIN FIRST.
-         */
         if ("ADMIN".equals(role)) {
 
             openScreen(
@@ -1006,14 +954,48 @@ public class MainActivity extends Activity {
         );
     }
 
+    /*
+     * FIXED REGISTRATION ROUTING
+     */
     private void openRegistration() {
 
+        String role =
+                selectedRole == null
+                        ? "PASSENGER"
+                        : selectedRole
+                        .trim()
+                        .toUpperCase(
+                                Locale.US
+                        );
+
+        if ("ADMIN".equals(role)) {
+
+            toast(
+                    "Admin accounts are created separately. Please use Admin Login."
+            );
+
+            return;
+        }
+
         try {
+
+            Class<?> targetActivity;
+
+            if ("DRIVER".equals(role)) {
+
+                targetActivity =
+                        DriverOnboardingActivity.class;
+
+            } else {
+
+                targetActivity =
+                        PassengerRegistrationActivity.class;
+            }
 
             Intent intent =
                     new Intent(
                             MainActivity.this,
-                            DriverOnboardingActivity.class
+                            targetActivity
                     );
 
             intent.putExtra(
@@ -1061,22 +1043,10 @@ public class MainActivity extends Activity {
 
         String value =
                 input.trim()
-                        .replace(
-                                " ",
-                                ""
-                        )
-                        .replace(
-                                "-",
-                                ""
-                        )
-                        .replace(
-                                "(",
-                                ""
-                        )
-                        .replace(
-                                ")",
-                                ""
-                        );
+                        .replace(" ", "")
+                        .replace("-", "")
+                        .replace("(", "")
+                        .replace(")", "");
 
         if (value.startsWith("+63")) {
 
