@@ -11,6 +11,7 @@
         android:label="Sakay Na"
         android:theme="@style/Theme.AppCompat.Light.NoActionBar">
 
+        <!-- ADMIN -->
         <activity
             android:name=".AdminActivity"
             android:exported="false" />
@@ -19,6 +20,7 @@
             android:name=".AdminSettlementActivity"
             android:exported="false" />
 
+        <!-- DRIVER -->
         <activity
             android:name=".DriverActivity"
             android:exported="false" />
@@ -31,6 +33,12 @@
             android:name=".DriverOnboardingActivity"
             android:exported="false" />
 
+        <!-- PASSENGER REGISTRATION -->
+        <activity
+            android:name=".PassengerRegistrationActivity"
+            android:exported="false" />
+
+        <!-- PASSENGER -->
         <activity
             android:name=".PassengerActivity"
             android:exported="false" />
@@ -39,6 +47,7 @@
             android:name=".PassengerGpsActivity"
             android:exported="false" />
 
+        <!-- MAP / RIDE -->
         <activity
             android:name=".MapActivity"
             android:exported="false" />
@@ -51,21 +60,31 @@
             android:name=".RideCompletionActivity"
             android:exported="false" />
 
+        <!-- FIREBASE NOTIFICATIONS -->
         <service
             android:name=".SakayNaFirebaseMessagingService"
             android:exported="false">
+
             <intent-filter>
                 <action android:name="com.google.firebase.MESSAGING_EVENT" />
             </intent-filter>
+
         </service>
 
+        <!-- LOGIN / START SCREEN -->
         <activity
             android:name=".MainActivity"
             android:exported="true">
+
             <intent-filter>
+
                 <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
+
+                <category
+                    android:name="android.intent.category.LAUNCHER" />
+
             </intent-filter>
+
         </activity>
 
     </application>
