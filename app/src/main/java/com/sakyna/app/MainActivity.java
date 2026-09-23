@@ -23,6 +23,8 @@ import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.SetOptions;
+import com.google.firebase.messaging.FirebaseMessaging;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -64,16 +66,6 @@ public class MainActivity extends Activity {
     private static final String ADMIN_UID =
             "Ld3rzaCvAGNlXBDCofB3mWjgXWp2";
 
-    /*
-     * FREE-PLAN DEVICE ANTI-SPAM LAYER
-     *
-     * This does NOT use IMEI.
-     *
-     * It uses Android ANDROID_ID and a local
-     * account-creation counter.
-     *
-     * This is a first-layer protection.
-     */
     private static final String SECURITY_PREFS =
             "SakayNaSecurity";
 
@@ -91,6 +83,51 @@ public class MainActivity extends Activity {
         db = FirebaseFirestore.getInstance();
 
         showLoginScreen();
+
+        /*
+         * Android 13+ notification permission.
+         * Older Android versions do not need this runtime request.
+         */
+        SakayNaNotificationHelper.requestPermission(this);
+    }
+
+    private void saveFcmToken(FirebaseUser user) {
+
+        if (user == null) {
+            return;
+        }
+
+        final String uid = user.getUid();
+
+        FirebaseMessaging.getInstance()
+                .getToken()
+                .addOnSuccessListener(token -> {
+
+                    if (token == null
+                            || token.trim().isEmpty()) {
+                        return;
+                    }
+
+                    Map<String, Object> tokenData =
+                            new HashMap<>();
+
+                    tokenData.put(
+                            "fcmToken",
+                            token
+                    );
+
+                    tokenData.put(
+                            "fcmTokenUpdatedAt",
+                            FieldValue.serverTimestamp()
+                    );
+
+                    db.collection("users")
+                            .document(uid)
+                            .set(
+                                    tokenData,
+                                    SetOptions.merge()
+                            );
+                });
     }
 
     private void showLoginScreen() {
@@ -670,13 +707,6 @@ public class MainActivity extends Activity {
         return true;
     }
 
-    /*
-     * IMPORTANT:
-     * This name intentionally avoids Android's
-     * ContextWrapper.getDeviceId() method.
-     *
-     * This is NOT IMEI.
-     */
     private String getSakayDeviceId() {
 
         String id =
@@ -810,6 +840,8 @@ public class MainActivity extends Activity {
                         return;
                     }
 
+                    saveFcmToken(user);
+
                     loadUserRole(user);
                 }
         )
@@ -859,6 +891,8 @@ public class MainActivity extends Activity {
 
         final String uid =
                 user.getUid();
+
+        saveFcmToken(user);
 
         if (ADMIN_UID.equals(uid)) {
 
@@ -1166,54 +1200,32 @@ public class MainActivity extends Activity {
                         return;
                     }
 
+                    saveFcmToken(user);
+
                     Map<String, Object> profile =
                             new HashMap<>();
 
-                    profile.put(
-                            "name",
-                            name
-                    );
-
-                    profile.put(
-                            "town",
-                            town
-                    );
-
-                    profile.put(
-                            "province",
-                            province
-                    );
-
-                    profile.put(
-                            "phone",
-                            phone
-                    );
-
-                    profile.put(
-                            "role",
-                            role
-                    );
-
+                    profile.put("name", name);
+                    profile.put("town", town);
+                    profile.put("province", province);
+                    profile.put("phone", phone);
+                    profile.put("role", role);
                     profile.put(
                             "deviceId",
                             getSakayDeviceId()
                     );
-
                     profile.put(
                             "securityStatus",
                             "ACTIVE"
                     );
-
                     profile.put(
                             "securityAccountCount",
                             0
                     );
-
                     profile.put(
                             "securityReason",
                             ""
                     );
-
                     profile.put(
                             "securityCreatedAt",
                             FieldValue.serverTimestamp()
