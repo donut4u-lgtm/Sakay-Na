@@ -93,12 +93,23 @@ public class MainActivity extends Activity {
         title.setText("🛺 SAKAY NA");
         title.setTextSize(32);
         title.setTextColor(Color.WHITE);
+
         title.setTypeface(
                 null,
                 Typeface.BOLD
         );
-        title.setGravity(Gravity.CENTER);
-        title.setPadding(10, 22, 10, 22);
+
+        title.setGravity(
+                Gravity.CENTER
+        );
+
+        title.setPadding(
+                10,
+                22,
+                10,
+                22
+        );
+
         title.setBackgroundColor(
                 Color.rgb(0, 125, 75)
         );
@@ -119,15 +130,26 @@ public class MainActivity extends Activity {
         );
 
         subtitle.setTextSize(19);
+
         subtitle.setTextColor(
                 Color.rgb(0, 110, 65)
         );
+
         subtitle.setTypeface(
                 null,
                 Typeface.BOLD
         );
-        subtitle.setGravity(Gravity.CENTER);
-        subtitle.setPadding(0, 25, 0, 25);
+
+        subtitle.setGravity(
+                Gravity.CENTER
+        );
+
+        subtitle.setPadding(
+                0,
+                25,
+                0,
+                25
+        );
 
         root.addView(subtitle);
 
@@ -426,8 +448,11 @@ public class MainActivity extends Activity {
                 new Button(this);
 
         button.setText(text);
+
         button.setTextSize(12);
+
         button.setAllCaps(false);
+
         button.setTypeface(
                 null,
                 Typeface.BOLD
@@ -460,6 +485,7 @@ public class MainActivity extends Activity {
         if (passengerButton == null
                 || driverButton == null
                 || adminButton == null) {
+
             return;
         }
 
@@ -654,16 +680,35 @@ public class MainActivity extends Activity {
                 );
     }
 
+    /*
+     * IMPORTANT FIX:
+     *
+     * If the Firebase UID document exists,
+     * use that exact user's role.
+     *
+     * If the UID document does not exist,
+     * search all matching phone profiles and
+     * select the profile matching the button
+     * selected on the login screen.
+     */
     private void findProfileByPhone(
             String normalizedPhone
     ) {
+
+        final String wantedRole =
+                selectedRole == null
+                        ? "PASSENGER"
+                        : selectedRole
+                        .trim()
+                        .toUpperCase(
+                                Locale.US
+                        );
 
         db.collection("users")
                 .whereEqualTo(
                         "phone",
                         normalizedPhone
                 )
-                .limit(1)
                 .get()
                 .addOnSuccessListener(
                         querySnapshot -> {
@@ -681,13 +726,55 @@ public class MainActivity extends Activity {
                                 return;
                             }
 
-                            DocumentSnapshot document =
-                                    querySnapshot
-                                            .getDocuments()
-                                            .get(0);
+                            DocumentSnapshot selectedDocument =
+                                    null;
+
+                            /*
+                             * NEVER use .limit(1).
+                             *
+                             * The same phone can exist in
+                             * multiple legacy profiles.
+                             */
+                            for (DocumentSnapshot doc
+                                    : querySnapshot.getDocuments()) {
+
+                                String role =
+                                        doc.getString(
+                                                "role"
+                                        );
+
+                                if (role != null
+                                        && wantedRole.equals(
+                                        role.trim()
+                                                .toUpperCase(
+                                                        Locale.US
+                                                )
+                                )) {
+
+                                    selectedDocument =
+                                            doc;
+
+                                    break;
+                                }
+                            }
+
+                            if (selectedDocument == null) {
+
+                                loginButton.setEnabled(
+                                        true
+                                );
+
+                                showLoginError(
+                                        "No "
+                                                + wantedRole
+                                                + " account was found for this phone number."
+                                );
+
+                                return;
+                            }
 
                             routeUsingRole(
-                                    document,
+                                    selectedDocument,
                                     normalizedPhone
                             );
                         }
@@ -713,6 +800,10 @@ public class MainActivity extends Activity {
 
         if (document == null
                 || !document.exists()) {
+
+            loginButton.setEnabled(
+                    true
+            );
 
             showLoginError(
                     "User profile was not found."
@@ -762,14 +853,11 @@ public class MainActivity extends Activity {
                 );
 
         /*
-         * LEGACY ACCOUNT REPAIR
+         * Legacy account repair.
          *
-         * Passenger and Driver accounts can have
-         * their missing role repaired.
-         *
-         * ADMIN IS NEVER converted to PASSENGER.
+         * ADMIN is NEVER automatically changed
+         * to PASSENGER.
          */
-
         if (role == null
                 || role.trim().isEmpty()) {
 
@@ -852,10 +940,11 @@ public class MainActivity extends Activity {
                         );
 
         /*
-         * ADMIN MUST BE CHECKED BEFORE
-         * PASSENGER/DRIVER FALLBACK.
+         * ADMIN FIRST.
+         *
+         * This prevents ADMIN from ever
+         * falling through to Passenger.
          */
-
         if ("ADMIN".equals(role)) {
 
             openScreen(
