@@ -9,6 +9,13 @@ service cloud.firestore {
              && request.auth.uid == "Ld3rzaCvAGNlXBDCofB3mWjgXWp2";
     }
 
+    function isDriver() {
+      return request.auth != null
+             && exists(
+               /databases/$(database)/documents/drivers/$(request.auth.uid)
+             );
+    }
+
     match /users/{userId} {
       allow create: if request.auth != null
                     && request.auth.uid == userId;
@@ -41,6 +48,10 @@ service cloud.firestore {
                     isAdmin()
                     || resource.data.passengerId == request.auth.uid
                     || resource.data.driverId == request.auth.uid
+                    || (
+                      isDriver()
+                      && resource.data.status == "REQUESTED"
+                    )
                   );
 
       allow create: if request.auth != null
@@ -55,7 +66,8 @@ service cloud.firestore {
                       || resource.data.passengerId == request.auth.uid
                       || resource.data.driverId == request.auth.uid
                       || (
-                        resource.data.status == "REQUESTED"
+                        isDriver()
+                        && resource.data.status == "REQUESTED"
                         && resource.data.driverId == null
                         && request.resource.data.driverId == request.auth.uid
                         && request.resource.data.status == "ACCEPTED"
