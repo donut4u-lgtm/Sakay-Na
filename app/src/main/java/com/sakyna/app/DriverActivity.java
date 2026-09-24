@@ -51,6 +51,11 @@ public class DriverActivity extends Activity {
 
     private boolean driverOnline = false;
     private boolean driverApproved = false;
+    private boolean driverSuspended = false;
+
+    private double driverSettlementBalance = 0.0;
+
+    private long suspensionDeadlineAt = 0L;
 
     private String currentRideId = "";
 
@@ -73,6 +78,21 @@ public class DriverActivity extends Activity {
 
     private static final long REQUEST_REFRESH_MS =
             30L * 1000L;
+
+    /*
+     * DRIVER SETTLEMENT ENFORCEMENT
+     *
+     * A driver has 7 days from the oldest unpaid
+     * accepted booking before the account is suspended
+     * for unpaid platform dues.
+     */
+    private static final int UNPAID_DUE_DAYS = 7;
+
+    private static final long ONE_DAY_MS =
+            24L * 60L * 60L * 1000L;
+
+    private static final double PLATFORM_FEE_RATE =
+            0.10;
 
     private LocationManager locationManager;
     private LocationListener locationListener;
@@ -114,6 +134,24 @@ public class DriverActivity extends Activity {
 
         SakayNaNotificationHelper
                 .requestPermission(this);
+    }
+
+    @Override
+    protected void onResume() {
+
+        super.onResume();
+
+        /*
+         * Recheck dues whenever the driver returns to
+         * the dashboard. This is important because Admin
+         * may have verified a settlement while the driver
+         * was away from this screen.
+         */
+        if (db != null
+                && user != null) {
+
+            loadDriverStatus();
+        }
     }
 
     private void buildScreen() {
@@ -477,55 +515,68 @@ public class DriverActivity extends Activity {
 
     private void loadDriverStatus() {
 
+        if (user == null) {
+            return;
+        }
+
         db.collection("users")
                 .document(user.getUid())
                 .get()
                 .addOnSuccessListener(profile -> {
 
-                    driverApproved =
-                            profile.exists()
-                                    && Boolean.TRUE.equals(
-                                    profile.getBoolean(
-                                            "approved"
-                                    )
-                            )
-                                    && "APPROVED".equalsIgnoreCase(
-                                    string(
-                                            profile,
-                                            "driverStatus"
-                                    )
-                            )
-                                    && Boolean.TRUE.equals(
-                                    profile.getBoolean(
-                                            "canAcceptRides"
-                                    )
-                            );
+                    checkUnpaidDues(
+                            profile,
+                            () -> {
 
-                    if (!driverApproved) {
+                                driverApproved =
+                                        profile.exists()
+                                                && Boolean.TRUE.equals(
+                                                profile.getBoolean(
+                                                        "approved"
+                                                )
+                                        )
+                                                && "APPROVED".equalsIgnoreCase(
+                                                string(
+                                                        profile,
+                                                        "driverStatus"
+                                                )
+                                        )
+                                                && Boolean.TRUE.equals(
+                                                profile.getBoolean(
+                                                        "canAcceptRides"
+                                                )
+                                        );
 
-                        driverOnline = false;
+                                if (!driverApproved
+                                        || driverSuspended) {
 
-                        db.collection("drivers")
-                                .document(user.getUid())
-                                .set(
-                                        buildOfflineData(),
-                                        SetOptions.merge()
-                                );
+                                    driverOnline = false;
 
-                    } else {
+                                    db.collection("drivers")
+                                            .document(user.getUid())
+                                            .set(
+                                                    buildOfflineData(),
+                                                    SetOptions.merge()
+                                            );
 
-                        loadOnlineStatus();
-                    }
+                                } else {
 
-                    updateStatusText();
+                                    loadOnlineStatus();
+                                }
 
-                    updateOnlineButtons();
+                                updateStatusText();
 
-                    listenForRideRequests();
+                                updateOnlineButtons();
+
+                                listenForRideRequests();
+                            }
+                    );
                 })
                 .addOnFailureListener(e -> {
 
                     driverApproved = false;
+
+                    driverSuspended = false;
 
                     driverOnline = false;
 
@@ -537,6 +588,387 @@ public class DriverActivity extends Activity {
                 });
     }
 
+    private void checkUnpaidDues(
+            DocumentSnapshot profile,
+            Runnable afterCheck
+    ) {
+
+        if (user == null) {
+            afterCheck.run();
+            return;
+        }
+
+        db.collection("rides")
+                .whereEqualTo(
+                        "driverId",
+                        user.getUid()
+                )
+                .whereEqualTo(
+                        "driverDuesStatus",
+                        "DUE"
+                )
+                .get()
+                .addOnSuccessListener(dues -> {
+
+                    long now =
+                            System.currentTimeMillis();
+
+                    long oldestDueAt = 0L;
+
+                    double totalDue = 0.0;
+
+                    for (
+                            DocumentSnapshot ride :
+                            dues.getDocuments()
+                    ) {
+
+                        long dueCreatedAt =
+                                longValue(
+                                        ride,
+                                        "driverDuesCreatedAt"
+                                );
+
+                        if (dueCreatedAt <= 0L) {
+
+                            dueCreatedAt =
+                                    longValue(
+                                            ride,
+                                            "acceptedAt"
+                                    );
+                        }
+
+                        if (dueCreatedAt > 0L
+                                && (
+                                oldestDueAt == 0L
+                                        || dueCreatedAt
+                                        < oldestDueAt
+                        )) {
+
+                            oldestDueAt =
+                                    dueCreatedAt;
+                        }
+
+                        totalDue +=
+                                getDriverDue(
+                                        ride
+                                );
+                    }
+
+                    totalDue =
+                            roundMoney(
+                                    totalDue
+                            );
+
+                    driverSettlementBalance =
+                            totalDue;
+
+                    /*
+                     * No unpaid rides remain.
+                     *
+                     * If this driver was suspended specifically
+                     * for unpaid dues, automatically restore the
+                     * account to ACTIVE after Admin has verified
+                     * payment.
+                     */
+                    if (oldestDueAt == 0L) {
+
+                        suspensionDeadlineAt =
+                                0L;
+
+                        String accountStatus =
+                                string(
+                                        profile,
+                                        "driverAccountStatus"
+                                );
+
+                        String suspensionReason =
+                                string(
+                                        profile,
+                                        "suspensionReason"
+                                );
+
+                        if (
+                                "SUSPENDED".equalsIgnoreCase(
+                                        accountStatus
+                                )
+                                        &&
+                                "UNPAID_DUES".equalsIgnoreCase(
+                                        suspensionReason
+                                )
+                        ) {
+
+                            driverSuspended =
+                                    false;
+
+                            Map<String, Object> restore =
+                                    new HashMap<>();
+
+                            restore.put(
+                                    "driverAccountStatus",
+                                    "ACTIVE"
+                            );
+
+                            restore.put(
+                                    "suspensionReason",
+                                    ""
+                            );
+
+                            restore.put(
+                                    "suspensionDeadlineAt",
+                                    null
+                            );
+
+                            restore.put(
+                                    "suspendedAt",
+                                    null
+                            );
+
+                            restore.put(
+                                    "driverSettlementBalance",
+                                    0.0
+                            );
+
+                            db.collection("users")
+                                    .document(user.getUid())
+                                    .set(
+                                            restore,
+                                            SetOptions.merge()
+                                    );
+
+                        } else {
+
+                            driverSuspended =
+                                    "SUSPENDED".equalsIgnoreCase(
+                                            accountStatus
+                                    );
+                        }
+
+                        afterCheck.run();
+
+                        return;
+                    }
+
+                    suspensionDeadlineAt =
+                            oldestDueAt
+                                    + (
+                                    UNPAID_DUE_DAYS
+                                            * ONE_DAY_MS
+                    );
+
+                    boolean overdue =
+                            now >=
+                                    suspensionDeadlineAt;
+
+                    if (overdue) {
+
+                        driverSuspended =
+                                true;
+
+                        driverOnline =
+                                false;
+
+                        Map<String, Object> suspension =
+                                new HashMap<>();
+
+                        suspension.put(
+                                "driverAccountStatus",
+                                "SUSPENDED"
+                        );
+
+                        suspension.put(
+                                "suspensionReason",
+                                "UNPAID_DUES"
+                        );
+
+                        suspension.put(
+                                "suspendedAt",
+                                now
+                        );
+
+                        suspension.put(
+                                "suspensionDeadlineAt",
+                                suspensionDeadlineAt
+                        );
+
+                        suspension.put(
+                                "driverSettlementBalance",
+                                totalDue
+                        );
+
+                        db.collection("users")
+                                .document(user.getUid())
+                                .set(
+                                        suspension,
+                                        SetOptions.merge()
+                                );
+
+                        db.collection("drivers")
+                                .document(user.getUid())
+                                .set(
+                                        buildOfflineData(),
+                                        SetOptions.merge()
+                                );
+
+                        /*
+                         * Automatic suspension notification.
+                         */
+                        SakayNaNotificationHelper.show(
+                                this,
+                                7301,
+                                "🚫 Sakay Na Driver Suspended",
+                                "Your driver account is suspended because of unpaid platform dues of ₱"
+                                        + String.format(
+                                        java.util.Locale.US,
+                                        "%.2f",
+                                        totalDue
+                                )
+                                        + ". Full payment must be verified by Admin before you can go ONLINE."
+                        );
+
+                    } else {
+
+                        driverSuspended =
+                                false;
+
+                        Map<String, Object> reminder =
+                                new HashMap<>();
+
+                        reminder.put(
+                                "driverAccountStatus",
+                                "ACTIVE"
+                        );
+
+                        reminder.put(
+                                "suspensionReason",
+                                ""
+                        );
+
+                        reminder.put(
+                                "suspensionDeadlineAt",
+                                suspensionDeadlineAt
+                        );
+
+                        reminder.put(
+                                "driverSettlementBalance",
+                                totalDue
+                        );
+
+                        db.collection("users")
+                                .document(user.getUid())
+                                .set(
+                                        reminder,
+                                        SetOptions.merge()
+                                );
+
+                        long remaining =
+                                suspensionDeadlineAt
+                                        - now;
+
+                        /*
+                         * Notify when the driver is within
+                         * the final 24 hours.
+                         */
+                        if (
+                                remaining > 0L
+                                        &&
+                                remaining
+                                        <= ONE_DAY_MS
+                        ) {
+
+                            SakayNaNotificationHelper.show(
+                                    this,
+                                    7300,
+                                    "⚠️ Sakay Na Settlement Warning",
+                                    "You have ₱"
+                                            + String.format(
+                                            java.util.Locale.US,
+                                            "%.2f",
+                                            totalDue
+                                    )
+                                            + " in unpaid platform dues. Your driver account will be suspended when the 7-day deadline passes."
+                            );
+                        }
+                    }
+
+                    afterCheck.run();
+                })
+                .addOnFailureListener(e -> {
+
+                    /*
+                     * Never suspend a driver merely because
+                     * the dues query temporarily failed.
+                     */
+                    afterCheck.run();
+                });
+    }
+
+    private double getDriverDue(
+            DocumentSnapshot ride
+    ) {
+
+        Object stored =
+                ride.get(
+                        "driverDuesAmount"
+                );
+
+        if (stored instanceof Number) {
+
+            return roundMoney(
+                    ((Number) stored)
+                            .doubleValue()
+            );
+        }
+
+        double fare =
+                getFare(
+                        ride
+                );
+
+        return roundMoney(
+                fare * PLATFORM_FEE_RATE
+        );
+    }
+
+    private double getFare(
+            DocumentSnapshot document
+    ) {
+
+        Object value =
+                document.get(
+                        "fare"
+                );
+
+        if (value == null) {
+            return 0.0;
+        }
+
+        if (value instanceof Number) {
+
+            return ((Number) value)
+                    .doubleValue();
+        }
+
+        try {
+
+            return Double.parseDouble(
+                    String.valueOf(value)
+            );
+
+        } catch (Exception e) {
+
+            return 0.0;
+        }
+    }
+
+    private double roundMoney(
+            double amount
+    ) {
+
+        return Math.round(
+                amount * 100.0
+        ) / 100.0;
+    }
+
     private void loadOnlineStatus() {
 
         db.collection("drivers")
@@ -544,13 +976,20 @@ public class DriverActivity extends Activity {
                 .get()
                 .addOnSuccessListener(doc -> {
 
-                    driverOnline =
-                            doc.exists()
-                                    && Boolean.TRUE.equals(
-                                    doc.getBoolean(
-                                            "online"
-                                    )
-                            );
+                    if (driverSuspended) {
+
+                        driverOnline = false;
+
+                    } else {
+
+                        driverOnline =
+                                doc.exists()
+                                        && Boolean.TRUE.equals(
+                                        doc.getBoolean(
+                                                "online"
+                                        )
+                                );
+                    }
 
                     updateStatusText();
 
@@ -601,7 +1040,8 @@ public class DriverActivity extends Activity {
             return;
         }
 
-        if (!driverApproved) {
+        if (!driverApproved
+                || driverSuspended) {
 
             onlineButton.setEnabled(false);
 
@@ -622,6 +1062,23 @@ public class DriverActivity extends Activity {
     private void setDriverOnline(
             boolean online
     ) {
+
+        if (online && driverSuspended) {
+
+            driverOnline = false;
+
+            updateStatusText();
+
+            updateOnlineButtons();
+
+            Toast.makeText(
+                    this,
+                    "🚫 Your driver account is suspended for unpaid dues. Please pay the full balance and wait for Admin verification.",
+                    Toast.LENGTH_LONG
+            ).show();
+
+            return;
+        }
 
         if (online && !driverApproved) {
 
@@ -705,6 +1162,30 @@ public class DriverActivity extends Activity {
 
     private void updateStatusText() {
 
+        if (driverSuspended) {
+
+            String balance =
+                    String.format(
+                            java.util.Locale.US,
+                            "%.2f",
+                            driverSettlementBalance
+                    );
+
+            statusText.setText(
+                    "🚫 DRIVER ACCOUNT SUSPENDED\n"
+                            + "UNPAID PLATFORM DUES: ₱"
+                            + balance
+                            + "\n"
+                            + "Full payment must be verified by Admin before you can go ONLINE."
+            );
+
+            statusText.setTextColor(
+                    Color.rgb(180, 0, 0)
+            );
+
+            return;
+        }
+
         if (!driverApproved) {
 
             statusText.setText(
@@ -714,6 +1195,31 @@ public class DriverActivity extends Activity {
 
             statusText.setTextColor(
                     Color.rgb(190, 90, 0)
+            );
+
+            return;
+        }
+
+        if (driverSettlementBalance > 0.0) {
+
+            statusText.setText(
+                    (
+                            driverOnline
+                                    ? "🟢 DRIVER ONLINE — READY FOR RIDES"
+                                    : "🔴 DRIVER OFFLINE"
+                    )
+                            + "\n💰 Unpaid platform dues: ₱"
+                            + String.format(
+                            java.util.Locale.US,
+                            "%.2f",
+                            driverSettlementBalance
+                    )
+            );
+
+            statusText.setTextColor(
+                    driverOnline
+                            ? Color.rgb(0, 145, 65)
+                            : Color.rgb(190, 25, 25)
             );
 
             return;
@@ -780,6 +1286,7 @@ public class DriverActivity extends Activity {
 
         if (!driverOnline
                 || !driverApproved
+                || driverSuspended
                 || snapshots == null) {
 
             return;
@@ -946,6 +1453,16 @@ public class DriverActivity extends Activity {
         }
 
         requestContainer.removeAllViews();
+
+        if (driverSuspended) {
+
+            requestsText.setText(
+                    "🚫 DRIVER SUSPENDED\n"
+                            + "New ride requests are unavailable until full settlement is verified by Admin."
+            );
+
+            return;
+        }
 
         if (!driverApproved) {
 
@@ -1199,6 +1716,7 @@ public class DriverActivity extends Activity {
         accept.setEnabled(
                 driverOnline
                         && driverApproved
+                        && !driverSuspended
         );
 
         Button decline =
@@ -1217,6 +1735,17 @@ public class DriverActivity extends Activity {
         );
 
         accept.setOnClickListener(v -> {
+
+            if (driverSuspended) {
+
+                Toast.makeText(
+                        this,
+                        "🚫 Your account is suspended for unpaid dues.",
+                        Toast.LENGTH_LONG
+                ).show();
+
+                return;
+            }
 
             if (!driverApproved) {
 
@@ -1276,6 +1805,21 @@ public class DriverActivity extends Activity {
             LinearLayout card
     ) {
 
+        if (driverSuspended) {
+
+            card.setVisibility(
+                    LinearLayout.VISIBLE
+            );
+
+            Toast.makeText(
+                    this,
+                    "🚫 Driver account is suspended for unpaid dues.",
+                    Toast.LENGTH_LONG
+            ).show();
+
+            return;
+        }
+
         if (!driverApproved
                 || !driverOnline) {
 
@@ -1305,194 +1849,196 @@ public class DriverActivity extends Activity {
                 .get()
                 .addOnSuccessListener(profile -> {
 
-                    boolean approvedNow =
-                            profile.exists()
-                                    && Boolean.TRUE.equals(
-                                    profile.getBoolean(
-                                            "approved"
-                                    )
-                            )
-                                    && "APPROVED".equalsIgnoreCase(
-                                    string(
-                                            profile,
-                                            "driverStatus"
-                                    )
-                            )
-                                    && Boolean.TRUE.equals(
-                                    profile.getBoolean(
-                                            "canAcceptRides"
-                                    )
-                            );
+                    checkUnpaidDues(
+                            profile,
+                            () -> {
 
-                    if (!approvedNow) {
+                                if (driverSuspended) {
 
-                        driverApproved = false;
-
-                        driverOnline = false;
-
-                        db.collection("drivers")
-                                .document(user.getUid())
-                                .set(
-                                        buildOfflineData(),
-                                        SetOptions.merge()
-                                );
-
-                        updateStatusText();
-
-                        updateOnlineButtons();
-
-                        card.setVisibility(
-                                LinearLayout.VISIBLE
-                        );
-
-                        Toast.makeText(
-                                this,
-                                "⏳ Admin approval is required before accepting rides.",
-                                Toast.LENGTH_LONG
-                        ).show();
-
-                        return;
-                    }
-
-                    Map<String, Object> update =
-                            buildDriverRideUpdate(
-                                    profile
-                            );
-
-                    long acceptedAt =
-                            System.currentTimeMillis();
-
-                    update.put(
-                            "status",
-                            "ACCEPTED"
-                    );
-
-                    update.put(
-                            "acceptedAt",
-                            acceptedAt
-                    );
-
-                    update.put(
-                            "adminTransactionRecorded",
-                            true
-                    );
-
-                    update.put(
-                            "adminTransactionStatus",
-                            "RECORDED"
-                    );
-
-                    update.put(
-                            "adminTransactionRecordedAt",
-                            acceptedAt
-                    );
-
-                    /*
-                     * DRIVER DUES
-                     *
-                     * Every accepted booking creates a
-                     * Sakay Na platform fee equal to 10%
-                     * of the actual ride fare.
-                     *
-                     * The amount is stored on the ride so
-                     * settlement can accumulate one unpaid
-                     * balance for this driver.
-                     */
-                    double acceptedFare = 0.0;
-
-                    Object fareValue =
-                            ride.get("fare");
-
-                    if (fareValue instanceof Number) {
-
-                        acceptedFare =
-                                ((Number) fareValue)
-                                        .doubleValue();
-
-                    } else if (fareValue != null) {
-
-                        try {
-
-                            acceptedFare =
-                                    Double.parseDouble(
-                                            String.valueOf(
-                                                    fareValue
-                                            )
+                                    hiddenRequestIds.remove(
+                                            rideId
                                     );
 
-                        } catch (Exception ignored) {
-                        }
-                    }
+                                    card.setVisibility(
+                                            LinearLayout.VISIBLE
+                                    );
 
-                    double driverDuesAmount =
-                            Math.round(
-                                    acceptedFare
-                                            * 0.10
-                                            * 100.0
-                            ) / 100.0;
+                                    updateStatusText();
 
-                    update.put(
-                            "driverDuesStatus",
-                            "DUE"
-                    );
+                                    updateOnlineButtons();
 
-                    update.put(
-                            "driverDuesAmount",
-                            driverDuesAmount
-                    );
+                                    Toast.makeText(
+                                            this,
+                                            "🚫 Your account is suspended for unpaid dues.",
+                                            Toast.LENGTH_LONG
+                                    ).show();
 
-                    update.put(
-                            "driverDuesRate",
-                            0.10
-                    );
+                                    return;
+                                }
 
-                    update.put(
-                            "driverDuesCreatedAt",
-                            acceptedAt
-                    );
+                                boolean approvedNow =
+                                        profile.exists()
+                                                && Boolean.TRUE.equals(
+                                                profile.getBoolean(
+                                                        "approved"
+                                                )
+                                        )
+                                                && "APPROVED".equalsIgnoreCase(
+                                                string(
+                                                        profile,
+                                                        "driverStatus"
+                                                )
+                                        )
+                                                && Boolean.TRUE.equals(
+                                                profile.getBoolean(
+                                                        "canAcceptRides"
+                                                )
+                                        );
 
-                    db.collection("rides")
-                            .document(rideId)
-                            .update(update)
-                            .addOnSuccessListener(v -> {
+                                if (!approvedNow) {
 
-                                currentRideId =
-                                        rideId;
+                                    driverApproved = false;
 
-                                Toast.makeText(
-                                        this,
-                                        "✅ Ride accepted!\n"
-                                                + "🧾 Admin transaction recorded.\n"
-                                                + "💰 Driver dues created: ₱"
-                                                + String.format(
-                                                        java.util.Locale.US,
-                                                        "%.2f",
-                                                        driverDuesAmount
-                                                ),
-                                        Toast.LENGTH_LONG
-                                ).show();
+                                    driverOnline = false;
 
-                                listenForCurrentRide();
+                                    db.collection("drivers")
+                                            .document(user.getUid())
+                                            .set(
+                                                    buildOfflineData(),
+                                                    SetOptions.merge()
+                                            );
 
-                                listenForRideRequests();
-                            })
-                            .addOnFailureListener(e -> {
+                                    updateStatusText();
 
-                                hiddenRequestIds.remove(
-                                        rideId
+                                    updateOnlineButtons();
+
+                                    card.setVisibility(
+                                            LinearLayout.VISIBLE
+                                    );
+
+                                    Toast.makeText(
+                                            this,
+                                            "⏳ Admin approval is required before accepting rides.",
+                                            Toast.LENGTH_LONG
+                                    ).show();
+
+                                    return;
+                                }
+
+                                Map<String, Object> update =
+                                        buildDriverRideUpdate(
+                                                profile
+                                        );
+
+                                long acceptedAt =
+                                        System.currentTimeMillis();
+
+                                update.put(
+                                        "status",
+                                        "ACCEPTED"
                                 );
 
-                                card.setVisibility(
-                                        LinearLayout.VISIBLE
+                                update.put(
+                                        "acceptedAt",
+                                        acceptedAt
                                 );
 
-                                Toast.makeText(
-                                        this,
-                                        "Unable to accept ride:\n"
-                                                + e.getMessage(),
-                                        Toast.LENGTH_LONG
-                                ).show();
-                            });
+                                update.put(
+                                        "adminTransactionRecorded",
+                                        true
+                                );
+
+                                update.put(
+                                        "adminTransactionStatus",
+                                        "RECORDED"
+                                );
+
+                                update.put(
+                                        "adminTransactionRecordedAt",
+                                        acceptedAt
+                                );
+
+                                /*
+                                 * DRIVER DUES
+                                 *
+                                 * Every accepted booking creates
+                                 * a 10% platform fee.
+                                 */
+                                double acceptedFare =
+                                        getFare(
+                                                ride
+                                        );
+
+                                double driverDuesAmount =
+                                        roundMoney(
+                                                acceptedFare
+                                                        * PLATFORM_FEE_RATE
+                                        );
+
+                                update.put(
+                                        "driverDuesStatus",
+                                        "DUE"
+                                );
+
+                                update.put(
+                                        "driverDuesAmount",
+                                        driverDuesAmount
+                                );
+
+                                update.put(
+                                        "driverDuesRate",
+                                        PLATFORM_FEE_RATE
+                                );
+
+                                update.put(
+                                        "driverDuesCreatedAt",
+                                        acceptedAt
+                                );
+
+                                db.collection("rides")
+                                        .document(rideId)
+                                        .update(update)
+                                        .addOnSuccessListener(v -> {
+
+                                            currentRideId =
+                                                    rideId;
+
+                                            Toast.makeText(
+                                                    this,
+                                                    "✅ Ride accepted!\n"
+                                                            + "🧾 Admin transaction recorded.\n"
+                                                            + "💰 Driver dues created: ₱"
+                                                            + String.format(
+                                                            java.util.Locale.US,
+                                                            "%.2f",
+                                                            driverDuesAmount
+                                                    ),
+                                                    Toast.LENGTH_LONG
+                                            ).show();
+
+                                            listenForCurrentRide();
+
+                                            listenForRideRequests();
+                                        })
+                                        .addOnFailureListener(e -> {
+
+                                            hiddenRequestIds.remove(
+                                                    rideId
+                                            );
+
+                                            card.setVisibility(
+                                                    LinearLayout.VISIBLE
+                                            );
+
+                                            Toast.makeText(
+                                                    this,
+                                                    "Unable to accept ride:\n"
+                                                            + e.getMessage(),
+                                                    Toast.LENGTH_LONG
+                                            ).show();
+                                        });
+                            }
+                    );
                 })
                 .addOnFailureListener(e -> {
 
@@ -2154,8 +2700,9 @@ public class DriverActivity extends Activity {
                 )
                         || "DRIVER_ON_THE_WAY"
                         .equalsIgnoreCase(status)
-                        || "DRIVER_ARRIVED"
-                        .equalsIgnoreCase(status)
+                        || "DRIVER_ARRIVED".equalsIgnoreCase(
+                        status
+                )
                         || "IN_PROGRESS".equalsIgnoreCase(
                         status
                 )
@@ -2297,7 +2844,9 @@ public class DriverActivity extends Activity {
     ) {
 
         String value =
-                doc.getString(field);
+                doc.getString(
+                        field
+                );
 
         return value == null
                 ? ""
