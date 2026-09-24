@@ -1,4 +1,3 @@
-
 rules_version = '2';
 
 service cloud.firestore {
@@ -7,6 +6,10 @@ service cloud.firestore {
     function isAdmin() {
       return request.auth != null
              && request.auth.uid == "Ld3rzaCvAGNlXBDCofB3mWjgXWp2";
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
     }
 
     function isDriver() {
@@ -28,10 +31,68 @@ service cloud.firestore {
              );
     }
 
+    function isApprovedDriver() {
+      return request.auth != null
+             && exists(
+                  /databases/$(database)/documents/users/$(request.auth.uid)
+                )
+             && get(
+                  /databases/$(database)/documents/users/$(request.auth.uid)
+                ).data.get("role", "") == "DRIVER"
+             && (
+                  get(
+                    /databases/$(database)/documents/users/$(request.auth.uid)
+                  ).data.get("approvalStatus", "") == "APPROVED"
+                  ||
+                  (
+                    get(
+                      /databases/$(database)/documents/users/$(request.auth.uid)
+                    ).data.get("approved", false) == true
+                    &&
+                    get(
+                      /databases/$(database)/documents/users/$(request.auth.uid)
+                    ).data.get("driverStatus", "") == "APPROVED"
+                    &&
+                    get(
+                      /databases/$(database)/documents/users/$(request.auth.uid)
+                    ).data.get("canAcceptRides", false) == true
+                  )
+                );
+    }
+
+    function isRidePassenger(rideId) {
+      return request.auth != null
+             && get(
+                  /databases/$(database)/documents/rides/$(rideId)
+                ).data.get("passengerId", "") == request.auth.uid;
+    }
+
+    function isRideDriver(rideId) {
+      return request.auth != null
+             && get(
+                  /databases/$(database)/documents/rides/$(rideId)
+                ).data.get("driverId", "") == request.auth.uid;
+    }
+
+
+    /*
+     * USERS
+     */
+
     match /users/{userId} {
 
       allow create: if request.auth != null
-                    && request.auth.uid == userId;
+                    && request.auth.uid == userId
+                    && (
+                      request.resource.data.get("role", "") == "PASSENGER"
+                      ||
+                      (
+                        request.resource.data.get("role", "") == "DRIVER"
+                        && request.resource.data.get("approved", false) == false
+                        && request.resource.data.get("driverStatus", "PENDING") == "PENDING"
+                        && request.resource.data.get("canAcceptRides", false) == false
+                      )
+                    );
 
       allow read: if request.auth != null
                   && (
@@ -39,21 +100,77 @@ service cloud.firestore {
                     || isAdmin()
                   );
 
-      allow update: if request.auth != null
-                    && (
-                      request.auth.uid == userId
-                      || isAdmin()
+      allow update: if isAdmin()
+
+                    ||
+
+                    (
+                      request.auth != null
+                      && request.auth.uid == userId
+                      && request.resource.data.diff(resource.data).affectedKeys()
+                           .hasOnly([
+                             "name",
+                             "passengerName",
+                             "driverName",
+                             "phone",
+                             "province",
+                             "townCity",
+                             "city",
+                             "plateNumber",
+                             "franchiseNumber",
+                             "vehicleDescription",
+                             "driverProfileComplete",
+                             "profileUpdatedAt",
+                             "updatedAt"
+                           ])
                     );
     }
 
+
+    /*
+     * DRIVERS
+     */
+
     match /drivers/{driverId} {
 
-      allow read, write: if request.auth != null
-                         && (
-                           request.auth.uid == driverId
-                           || isAdmin()
-                         );
+      allow read: if request.auth != null
+                  && (
+                    request.auth.uid == driverId
+                    || isAdmin()
+                  );
+
+      allow create: if request.auth != null
+                    && (
+                      isAdmin()
+                      ||
+                      (
+                        request.auth.uid == driverId
+                        && request.resource.data.get("driverId", "")
+                             == request.auth.uid
+                        && request.resource.data.get("online", false) == false
+                      )
+                    );
+
+      allow update: if isAdmin()
+
+                    ||
+
+                    (
+                      request.auth != null
+                      && request.auth.uid == driverId
+                      && request.resource.data.diff(resource.data).affectedKeys()
+                           .hasOnly([
+                             "driverId",
+                             "online",
+                             "updatedAt"
+                           ])
+                    );
     }
+
+
+    /*
+     * RIDES
+     */
 
     match /rides/{rideId} {
 
@@ -61,125 +178,264 @@ service cloud.firestore {
                   && (
                     isAdmin()
 
-                    || resource.data.get("passengerId", "")
-                       == request.auth.uid
+                    ||
 
-                    || resource.data.get("driverId", "")
-                       == request.auth.uid
+                    resource.data.get("passengerId", "")
+                      == request.auth.uid
 
-                    || (
-                      isDriver()
+                    ||
+
+                    resource.data.get("driverId", "")
+                      == request.auth.uid
+
+                    ||
+
+                    (
+                      isApprovedDriver()
                       && resource.data.get("status", "")
                          == "REQUESTED"
                     )
                   );
 
+
+      /*
+       * PASSENGER CREATES BOOKING
+       */
+
       allow create: if request.auth != null
                     && (
                       isAdmin()
-                      || request.resource.data.get("passengerId", "")
-                         == request.auth.uid
+
+                      ||
+
+                      (
+                        request.resource.data.get("passengerId", "")
+                          == request.auth.uid
+                        &&
+                        request.resource.data.get("status", "")
+                          == "REQUESTED"
+                      )
                     );
 
-      allow update: if request.auth != null
-                    && (
-                      isAdmin()
 
-                      || resource.data.get("passengerId", "")
-                         == request.auth.uid
+      /*
+       * PASSENGER CANCELLATION
+       *
+       * Only REQUESTED rides can be cancelled.
+       */
 
-                      || resource.data.get("driverId", "")
-                         == request.auth.uid
+      allow update: if isAdmin()
 
-                      || (
-                        isDriver()
-                        && resource.data.get("status", "")
-                           == "REQUESTED"
-                        && resource.data.get("driverId", null) == null
-                        && request.resource.data.get("driverId", "")
+                    ||
+
+                    (
+                      request.auth != null
+                      && resource.data.get("passengerId", "")
                            == request.auth.uid
-                        && request.resource.data.get("status", "")
+                      && resource.data.get("status", "")
+                           == "REQUESTED"
+                      && request.resource.data.get("status", "")
+                           == "CANCELLED"
+                      && request.resource.data.get("cancelledBy", "")
+                           == "PASSENGER"
+                      && request.resource.data.get("passengerId", "")
+                           == resource.data.get("passengerId", "")
+                      && request.resource.data.get("driverId", null)
+                           == resource.data.get("driverId", null)
+                      && request.resource.data.diff(resource.data).affectedKeys()
+                           .hasOnly([
+                             "status",
+                             "cancelledBy",
+                             "cancelledAt"
+                           ])
+                    )
+
+
+                    /*
+                     * DRIVER ACCEPTS REQUEST
+                     *
+                     * Fare, passenger, payment and original booking
+                     * information cannot be changed by the driver.
+                     */
+
+                    ||
+
+                    (
+                      isApprovedDriver()
+                      && resource.data.get("status", "")
+                           == "REQUESTED"
+                      && resource.data.get("driverId", null)
+                           == null
+                      && request.resource.data.get("driverId", "")
+                           == request.auth.uid
+                      && request.resource.data.get("status", "")
                            == "ACCEPTED"
-                      )
+                      && request.resource.data.get("passengerId", "")
+                           == resource.data.get("passengerId", "")
+                      && request.resource.data.get("fare", 0)
+                           == resource.data.get("fare", 0)
+                      && request.resource.data.get("paymentMethod", "")
+                           == resource.data.get("paymentMethod", "")
+                      && request.resource.data.get("passengerCount", 1)
+                           == resource.data.get("passengerCount", 1)
+                      && request.resource.data.get("adminTransactionRecorded", false)
+                           == true
+                      && request.resource.data.get("adminTransactionStatus", "")
+                           == "RECORDED"
+                      && request.resource.data.get("driverDuesStatus", "")
+                           == "DUE"
+                      && request.resource.data.get("driverDuesRate", 0)
+                           == 0.10
+                      && request.resource.data.get("driverDuesAmount", 0)
+                           >= 0
+                      && request.resource.data.diff(resource.data).affectedKeys()
+                           .hasOnly([
+                             "driverId",
+                             "driverName",
+                             "driverPhone",
+                             "driverPlateNumber",
+                             "driverVehicle",
+                             "status",
+                             "acceptedAt",
+                             "adminTransactionRecorded",
+                             "adminTransactionStatus",
+                             "adminTransactionRecordedAt",
+                             "driverDuesStatus",
+                             "driverDuesAmount",
+                             "driverDuesRate",
+                             "driverDuesCreatedAt"
+                           ])
+                    )
 
-                      || (
-                        isDriver()
-                        && resource.data.get("status", "")
+
+                    /*
+                     * DRIVER DECLINES REQUEST
+                     */
+
+                    ||
+
+                    (
+                      isApprovedDriver()
+                      && resource.data.get("status", "")
                            == "REQUESTED"
-                        && request.resource.data.get("status", "")
+                      && request.resource.data.get("status", "")
                            == "DECLINED"
-                        && request.resource.data.get("declinedDriverId", "")
+                      && request.resource.data.get("declinedDriverId", "")
                            == request.auth.uid
-                      )
+                      && request.resource.data.get("passengerId", "")
+                           == resource.data.get("passengerId", "")
+                      && request.resource.data.get("driverId", null)
+                           == resource.data.get("driverId", null)
+                      && request.resource.data.diff(resource.data).affectedKeys()
+                           .hasOnly([
+                             "status",
+                             "declinedBy",
+                             "declinedDriverId",
+                             "declinedAt"
+                           ])
+                    )
+
+
+                    /*
+                     * DRIVER UPDATES RIDE STATUS
+                     *
+                     * Only the operational status fields may change.
+                     */
+
+                    ||
+
+                    (
+                      request.auth != null
+                      && resource.data.get("driverId", "")
+                           == request.auth.uid
+                      && request.resource.data.get("driverId", "")
+                           == resource.data.get("driverId", "")
+                      && request.resource.data.get("passengerId", "")
+                           == resource.data.get("passengerId", "")
+                      && request.resource.data.diff(resource.data).affectedKeys()
+                           .hasOnly([
+                             "status",
+                             "statusUpdatedAt",
+                             "driverOnTheWayAt",
+                             "driverArrivedAt",
+                             "rideStartedAt",
+                             "completedAt"
+                           ])
                     );
+
+
+      /*
+       * RIDE CHAT
+       */
 
       match /messages/{messageId} {
 
         allow read: if request.auth != null
                     && (
-                      request.auth.uid == get(
-                        /databases/$(database)/documents/rides/$(rideId)
-                      ).data.get("passengerId", "")
-
+                      isRidePassenger(rideId)
                       ||
-
-                      request.auth.uid == get(
-                        /databases/$(database)/documents/rides/$(rideId)
-                      ).data.get("driverId", "")
-
+                      isRideDriver(rideId)
                       ||
-
                       isAdmin()
                     );
 
         allow create: if request.auth != null
                       && (
-                        request.auth.uid == get(
-                          /databases/$(database)/documents/rides/$(rideId)
-                        ).data.get("passengerId", "")
-
+                        isRidePassenger(rideId)
                         ||
-
-                        request.auth.uid == get(
-                          /databases/$(database)/documents/rides/$(rideId)
-                        ).data.get("driverId", "")
-
+                        isRideDriver(rideId)
                         ||
-
                         isAdmin()
                       )
                       && request.resource.data.get("senderId", "")
-                         == request.auth.uid;
+                           == request.auth.uid;
 
         allow update, delete: if isAdmin();
       }
     }
 
+
+    /*
+     * DRIVER LOCATIONS
+     */
+
     match /driverLocations/{driverId} {
 
       allow read: if request.auth != null;
 
-      allow write: if request.auth != null
-                   && (
-                     request.auth.uid == driverId
-                     || isAdmin()
-                   );
+      allow create, update: if request.auth != null
+                            && (
+                              request.auth.uid == driverId
+                              || isAdmin()
+                            );
     }
+
+
+    /*
+     * DRIVER SETTLEMENTS
+     */
 
     match /driverSettlements/{settlementId} {
 
       allow read: if request.auth != null
                   && (
                     isAdmin()
-                    || resource.data.get("driverId", "")
-                       == request.auth.uid
+                    ||
+                    resource.data.get("driverId", "")
+                      == request.auth.uid
                   );
 
       allow create: if request.auth != null
                     && request.resource.data.get("driverId", "")
-                       == request.auth.uid
+                         == request.auth.uid
                     && request.resource.data.get("status", "")
-                       == "PENDING";
+                         == "PENDING"
+                    && request.resource.data.get("amount", 0)
+                         > 0
+                    && request.resource.data.get("referenceNumber", "")
+                         != ""
+                    && request.resource.data.get("paymentMethod", "")
+                         == "GCASH_OR_MAYA";
 
       allow update: if isAdmin();
 
