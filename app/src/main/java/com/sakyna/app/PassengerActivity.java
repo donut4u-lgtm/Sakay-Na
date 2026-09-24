@@ -15,6 +15,7 @@ import android.location.LocationListener;
 import android.location.LocationManager;
 import android.os.Bundle;
 import android.view.Gravity;
+import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -74,12 +75,22 @@ public class PassengerActivity extends Activity {
     private Button chatButton;
     private Button cancelButton;
 
+    /*
+     * Passenger number buttons.
+     *
+     * These replace the old RadioGroup because direct
+     * click handling is more reliable on Android.
+     */
+    private Button passengerOneButton;
+    private Button passengerTwoButton;
+    private Button passengerThreeButton;
+    private Button passengerFourButton;
+
     private LocationManager locationManager;
     private LocationListener locationListener;
     private ListenerRegistration rideListener;
 
     private String activeRideId = null;
-
     private String lastNotifiedRideStatus = "";
 
     private double pickupLat = 0;
@@ -87,13 +98,6 @@ public class PassengerActivity extends Activity {
     private double destinationLat = 0;
     private double destinationLng = 0;
 
-    /*
-     * baseFare is kept for compatibility with the
-     * existing Firestore fare settings.
-     *
-     * The actual Sakay Na booking calculation uses
-     * BASE_FARE_PER_PASSENGER = ₱25.
-     */
     private double baseFare = 25;
     private double perKm = 10;
     private double minimumFare = 25;
@@ -220,7 +224,18 @@ public class PassengerActivity extends Activity {
         content.addView(tricycle, full());
 
         /*
+         * =====================================================
          * PASSENGER COUNT
+         * =====================================================
+         *
+         * Four direct-click buttons:
+         *
+         * 1 passenger = ₱25 base
+         * 2 passengers = ₱50 base
+         * 3 passengers = ₱75 base
+         * 4 passengers = ₱100 base
+         *
+         * Each button directly changes passengerCount.
          */
         TextView passengerLabel =
                 text("👥 NUMBER OF PASSENGERS", 15);
@@ -228,79 +243,94 @@ public class PassengerActivity extends Activity {
         passengerLabel.setTypeface(null, Typeface.BOLD);
         content.addView(passengerLabel);
 
-        RadioGroup passengerGroup =
-                new RadioGroup(this);
+        LinearLayout passengerButtons =
+                new LinearLayout(this);
 
-        passengerGroup.setOrientation(
-                RadioGroup.HORIZONTAL
+        passengerButtons.setOrientation(
+                LinearLayout.HORIZONTAL
         );
 
-        passengerGroup.setGravity(
+        passengerButtons.setGravity(
                 Gravity.CENTER
         );
 
-        RadioButton one =
-                new RadioButton(this);
+        passengerOneButton =
+                passengerNumberButton("1");
 
-        one.setText("1");
-        one.setTextSize(17);
-        one.setChecked(true);
-        passengerGroup.addView(one);
+        passengerTwoButton =
+                passengerNumberButton("2");
 
-        RadioButton two =
-                new RadioButton(this);
+        passengerThreeButton =
+                passengerNumberButton("3");
 
-        two.setText("2");
-        two.setTextSize(17);
-        passengerGroup.addView(two);
+        passengerFourButton =
+                passengerNumberButton("4");
 
-        RadioButton three =
-                new RadioButton(this);
+        passengerButtons.addView(
+                passengerOneButton,
+                passengerButtonParams()
+        );
 
-        three.setText("3");
-        three.setTextSize(17);
-        passengerGroup.addView(three);
+        passengerButtons.addView(
+                passengerTwoButton,
+                passengerButtonParams()
+        );
 
-        RadioButton four =
-                new RadioButton(this);
+        passengerButtons.addView(
+                passengerThreeButton,
+                passengerButtonParams()
+        );
 
-        four.setText("4");
-        four.setTextSize(17);
-        passengerGroup.addView(four);
+        passengerButtons.addView(
+                passengerFourButton,
+                passengerButtonParams()
+        );
 
-        passengerGroup.setOnCheckedChangeListener(
-                (group, checkedId) -> {
+        passengerOneButton.setOnClickListener(
+                v -> selectPassengerCount(1)
+        );
 
-                    RadioButton selected =
-                            group.findViewById(
-                                    checkedId
-                            );
+        passengerTwoButton.setOnClickListener(
+                v -> selectPassengerCount(2)
+        );
 
-                    if (selected == null) {
-                        return;
-                    }
+        passengerThreeButton.setOnClickListener(
+                v -> selectPassengerCount(3)
+        );
 
-                    try {
-
-                        passengerCount =
-                                Integer.parseInt(
-                                        selected
-                                                .getText()
-                                                .toString()
-                                );
-
-                    } catch (Exception ignored) {
-
-                        passengerCount = 1;
-                    }
-
-                    calculateFare();
-                }
+        passengerFourButton.setOnClickListener(
+                v -> selectPassengerCount(4)
         );
 
         content.addView(
-                passengerGroup,
+                passengerButtons,
                 full()
+        );
+
+        TextView passengerSelectedText =
+                text(
+                        "Selected: 1 passenger",
+                        14
+                );
+
+        passengerSelectedText.setGravity(
+                Gravity.CENTER
+        );
+
+        passengerSelectedText.setTextColor(
+                Color.rgb(0, 110, 70)
+        );
+
+        content.addView(
+                passengerSelectedText,
+                full()
+        );
+
+        /*
+         * Keep this TextView synchronized with passengerCount.
+         */
+        passengerSelectedText.setTag(
+                "passengerSelectedText"
         );
 
         TextView fareRule =
@@ -368,7 +398,7 @@ public class PassengerActivity extends Activity {
 
         fareText =
                 text(
-                        "💰 Estimated fare: ₱25",
+                        "👥 1 Passenger\n💰 Estimated fare: ₱25",
                         23
                 );
 
@@ -530,7 +560,190 @@ public class PassengerActivity extends Activity {
 
         setContentView(root);
 
+        selectPassengerCount(1);
+
         updateButtons();
+    }
+
+    private Button passengerNumberButton(
+            String number
+    ) {
+
+        Button b =
+                new Button(this);
+
+        b.setText(number);
+        b.setTextSize(18);
+        b.setAllCaps(false);
+        b.setTypeface(
+                null,
+                Typeface.BOLD
+        );
+
+        b.setTextColor(Color.WHITE);
+        b.setGravity(Gravity.CENTER);
+
+        b.setMinHeight(0);
+        b.setMinimumHeight(0);
+
+        b.setPadding(
+                4,
+                10,
+                4,
+                10
+        );
+
+        b.setFocusable(true);
+        b.setClickable(true);
+
+        b.setBackgroundColor(
+                Color.rgb(125, 135, 135)
+        );
+
+        return b;
+    }
+
+    private LinearLayout.LayoutParams passengerButtonParams() {
+
+        LinearLayout.LayoutParams p =
+                new LinearLayout.LayoutParams(
+                        0,
+                        -2,
+                        1
+                );
+
+        p.setMargins(
+                4,
+                5,
+                4,
+                5
+        );
+
+        return p;
+    }
+
+    private void selectPassengerCount(
+            int count
+    ) {
+
+        if (count < 1) {
+            count = 1;
+        }
+
+        if (count > 4) {
+            count = 4;
+        }
+
+        passengerCount = count;
+
+        updatePassengerButtonStyles();
+
+        calculateFare();
+
+        TextView selectedText =
+                findPassengerSelectedText();
+
+        if (selectedText != null) {
+
+            selectedText.setText(
+                    "Selected: "
+                            + passengerCount
+                            + " passenger"
+                            + (
+                            passengerCount == 1
+                                    ? ""
+                                    : "s"
+                    )
+            );
+        }
+    }
+
+    private TextView findPassengerSelectedText() {
+
+        if (getWindow() == null) {
+            return null;
+        }
+
+        View root =
+                getWindow().getDecorView();
+
+        return findTextViewByTag(
+                root,
+                "passengerSelectedText"
+        );
+    }
+
+    private TextView findTextViewByTag(
+            View view,
+            Object tag
+    ) {
+
+        if (view instanceof TextView) {
+
+            if (tag.equals(view.getTag())) {
+                return (TextView) view;
+            }
+        }
+
+        if (view instanceof android.view.ViewGroup) {
+
+            android.view.ViewGroup group =
+                    (android.view.ViewGroup) view;
+
+            for (int i = 0;
+                 i < group.getChildCount();
+                 i++) {
+
+                TextView result =
+                        findTextViewByTag(
+                                group.getChildAt(i),
+                                tag
+                        );
+
+                if (result != null) {
+                    return result;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private void updatePassengerButtonStyles() {
+
+        if (passengerOneButton == null) {
+            return;
+        }
+
+        int selectedColor =
+                Color.rgb(0, 150, 80);
+
+        int normalColor =
+                Color.rgb(125, 135, 135);
+
+        passengerOneButton.setBackgroundColor(
+                passengerCount == 1
+                        ? selectedColor
+                        : normalColor
+        );
+
+        passengerTwoButton.setBackgroundColor(
+                passengerCount == 2
+                        ? selectedColor
+                        : normalColor
+        );
+
+        passengerThreeButton.setBackgroundColor(
+                passengerCount == 3
+                        ? selectedColor
+                        : normalColor
+        );
+
+        passengerFourButton.setBackgroundColor(
+                passengerCount == 4
+                        ? selectedColor
+                        : normalColor
+        );
     }
 
     private TextView text(
@@ -621,13 +834,6 @@ public class PassengerActivity extends Activity {
                 .addOnSuccessListener(
                         snapshot -> {
 
-                            /*
-                             * The base fare is fixed at
-                             * ₱25 PER PASSENGER.
-                             *
-                             * We still read perKm and the
-                             * existing min/max settings.
-                             */
                             baseFare =
                                     BASE_FARE_PER_PASSENGER;
 
@@ -1182,9 +1388,6 @@ public class PassengerActivity extends Activity {
                 "PENDING"
         );
 
-        /*
-         * FINAL FARE DATA
-         */
         ride.put(
                 "passengerCount",
                 passengerCount
@@ -1322,6 +1525,25 @@ public class PassengerActivity extends Activity {
                         getCurrentFare()
                 )
         );
+
+        TextView selectedText =
+                findPassengerSelectedText();
+
+        if (selectedText != null) {
+
+            selectedText.setText(
+                    "Selected: "
+                            + passengerCount
+                            + " passenger"
+                            + (
+                            passengerCount == 1
+                                    ? ""
+                                    : "s"
+                    )
+            );
+        }
+
+        updatePassengerButtonStyles();
     }
 
     private double getCurrentFare() {
@@ -1518,6 +1740,8 @@ public class PassengerActivity extends Activity {
                                                         )
                                                 );
                                     }
+
+                                    calculateFare();
 
                                     listenToRide(
                                             saved
@@ -2121,6 +2345,37 @@ public class PassengerActivity extends Activity {
         if (cancelButton != null) {
             cancelButton.setEnabled(active);
         }
+
+        /*
+         * Passenger number buttons remain usable while
+         * there is no active ride.
+         */
+        boolean passengerButtonsEnabled =
+                !active;
+
+        if (passengerOneButton != null) {
+            passengerOneButton.setEnabled(
+                    passengerButtonsEnabled
+            );
+        }
+
+        if (passengerTwoButton != null) {
+            passengerTwoButton.setEnabled(
+                    passengerButtonsEnabled
+            );
+        }
+
+        if (passengerThreeButton != null) {
+            passengerThreeButton.setEnabled(
+                    passengerButtonsEnabled
+            );
+        }
+
+        if (passengerFourButton != null) {
+            passengerFourButton.setEnabled(
+                    passengerButtonsEnabled
+            );
+        }
     }
 
     private void openLiveMap() {
@@ -2367,25 +2622,6 @@ public class PassengerActivity extends Activity {
                                                     ride
                                             );
 
-                                    String countText =
-                                            "";
-
-                                    Object count =
-                                            ride.get(
-                                                    "passengerCount"
-                                            );
-
-                                    if (
-                                            count instanceof Number
-                                    ) {
-
-                                        countText =
-                                                "\n👥 Passengers: "
-                                                        + ((Number)
-                                                                count)
-                                                                .intValue();
-                                    }
-
                                     String dateText =
                                             createdAt > 0
                                                     ? dateFormat.format(
@@ -2416,9 +2652,13 @@ public class PassengerActivity extends Activity {
                                     history.append(
                                             "👥 Passengers: "
                                                     + (
-                                                    count instanceof Number
+                                                    ride.get(
+                                                            "passengerCount"
+                                                    ) instanceof Number
                                                             ? ((Number)
-                                                                    count)
+                                                                    ride.get(
+                                                                            "passengerCount"
+                                                                    ))
                                                                     .intValue()
                                                             : 1
                                             )
