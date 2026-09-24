@@ -475,18 +475,6 @@ public class DriverActivity extends Activity {
         setContentView(scroll);
     }
 
-    /*
-     * IMPORTANT:
-     *
-     * Driver must be approved by Admin before
-     * being allowed to go ONLINE or accept rides.
-     *
-     * Required Firestore fields:
-     *
-     * approved       = true
-     * driverStatus   = "APPROVED"
-     * canAcceptRides  = true
-     */
     private void loadDriverStatus() {
 
         db.collection("users")
@@ -515,9 +503,6 @@ public class DriverActivity extends Activity {
 
                     if (!driverApproved) {
 
-                        /*
-                         * Force driver offline.
-                         */
                         driverOnline = false;
 
                         db.collection("drivers")
@@ -540,12 +525,6 @@ public class DriverActivity extends Activity {
                 })
                 .addOnFailureListener(e -> {
 
-                    /*
-                     * Fail closed.
-                     *
-                     * If approval cannot be verified,
-                     * driver is NOT allowed online.
-                     */
                     driverApproved = false;
 
                     driverOnline = false;
@@ -644,12 +623,6 @@ public class DriverActivity extends Activity {
             boolean online
     ) {
 
-        /*
-         * HARD APPROVAL CHECK
-         *
-         * Never allow ONLINE unless Admin
-         * approval is confirmed.
-         */
         if (online && !driverApproved) {
 
             driverOnline = false;
@@ -1392,6 +1365,13 @@ public class DriverActivity extends Activity {
                                     profile
                             );
 
+                    /*
+                     * ACCEPTED is the point where
+                     * the Admin transaction is created.
+                     */
+                    long acceptedAt =
+                            System.currentTimeMillis();
+
                     update.put(
                             "status",
                             "ACCEPTED"
@@ -1399,7 +1379,52 @@ public class DriverActivity extends Activity {
 
                     update.put(
                             "acceptedAt",
-                            System.currentTimeMillis()
+                            acceptedAt
+                    );
+
+                    /*
+                     * ADMIN TRANSACTION
+                     *
+                     * Admin records the booking immediately
+                     * when the driver accepts.
+                     *
+                     * Driver ON THE WAY, ARRIVED,
+                     * IN PROGRESS and FINISHED are only
+                     * ride-flow statuses.
+                     *
+                     * Admin does NOT wait for FINISH.
+                     */
+                    update.put(
+                            "adminTransactionRecorded",
+                            true
+                    );
+
+                    update.put(
+                            "adminTransactionStatus",
+                            "RECORDED"
+                    );
+
+                    update.put(
+                            "adminTransactionRecordedAt",
+                            acceptedAt
+                    );
+
+                    /*
+                     * DRIVER DUES
+                     *
+                     * Accepted booking creates a dues record.
+                     *
+                     * The settlement is tied to this booking,
+                     * not to the FINISHED status.
+                     */
+                    update.put(
+                            "driverDuesStatus",
+                            "DUE"
+                    );
+
+                    update.put(
+                            "driverDuesCreatedAt",
+                            acceptedAt
                     );
 
                     db.collection("rides")
@@ -1412,8 +1437,10 @@ public class DriverActivity extends Activity {
 
                                 Toast.makeText(
                                         this,
-                                        "✅ Ride accepted!",
-                                        Toast.LENGTH_SHORT
+                                        "✅ Ride accepted!\n"
+                                                + "🧾 Admin transaction recorded.\n"
+                                                + "💰 Driver dues created.",
+                                        Toast.LENGTH_LONG
                                 ).show();
 
                                 listenForCurrentRide();
