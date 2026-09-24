@@ -1,4 +1,3 @@
-
 package com.sakyna.app;
 
 import android.app.Activity;
@@ -17,6 +16,7 @@ import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.QuerySnapshot;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -147,7 +147,7 @@ public class DriverSettlementActivity extends Activity {
 
         paidText =
                 createSummaryText(
-                        "Amount Paid\n₱0.00"
+                        "Verified Payments\n₱0.00"
                 );
 
         root.addView(
@@ -398,8 +398,8 @@ public class DriverSettlementActivity extends Activity {
         }
 
         totalFare = 0.0;
-        platformFee = 0.0;
         totalPaid = 0.0;
+        platformFee = 0.0;
         balanceDue = 0.0;
 
         db.collection("rides")
@@ -420,32 +420,24 @@ public class DriverSettlementActivity extends Activity {
                                     : duesRides.getDocuments()
                             ) {
 
-                                double fare =
-                                        getFare(
-                                                ride
-                                        );
+                                totalFare +=
+                                        getFare(ride);
 
-                                double dues =
-                                        getDriverDue(
-                                                ride
-                                        );
-
-                                totalFare += fare;
-                                platformFee += dues;
+                                platformFee +=
+                                        getDriverDue(ride);
                             }
-
-                            platformFee =
-                                    roundMoney(
-                                            platformFee
-                                    );
 
                             totalFare =
                                     roundMoney(
                                             totalFare
                                     );
 
-                            loadPendingPayments();
+                            platformFee =
+                                    roundMoney(
+                                            platformFee
+                                    );
 
+                            loadPendingPayments();
                         }
                 )
                 .addOnFailureListener(
@@ -481,15 +473,13 @@ public class DriverSettlementActivity extends Activity {
                         pendingPayments -> {
 
                             /*
-                             * The driver's actual unpaid balance
-                             * comes from DUE rides.
-                             *
-                             * Pending payments are NOT deducted
-                             * from the balance because Admin has
-                             * not verified them yet.
+                             * Pending payments are not deducted
+                             * until Admin verifies them.
                              */
                             balanceDue =
-                                    platformFee;
+                                    roundMoney(
+                                            platformFee
+                                    );
 
                             loadVerifiedPayments();
                         }
@@ -498,7 +488,9 @@ public class DriverSettlementActivity extends Activity {
                         e -> {
 
                             balanceDue =
-                                    platformFee;
+                                    roundMoney(
+                                            platformFee
+                                    );
 
                             loadVerifiedPayments();
                         }
@@ -522,14 +514,6 @@ public class DriverSettlementActivity extends Activity {
                 .addOnSuccessListener(
                         payments -> {
 
-                            /*
-                             * Historical verified payments
-                             * are displayed separately.
-                             *
-                             * Current DUE rides already represent
-                             * the current unpaid balance, so verified
-                             * payments are not subtracted again.
-                             */
                             totalPaid = 0.0;
 
                             for (
@@ -538,9 +522,7 @@ public class DriverSettlementActivity extends Activity {
                             ) {
 
                                 totalPaid +=
-                                        getAmount(
-                                                payment
-                                        );
+                                        getAmount(payment);
                             }
 
                             totalPaid =
@@ -548,6 +530,10 @@ public class DriverSettlementActivity extends Activity {
                                             totalPaid
                                     );
 
+                            /*
+                             * Current unpaid balance is represented
+                             * by rides whose driverDuesStatus is DUE.
+                             */
                             balanceDue =
                                     roundMoney(
                                             platformFee
@@ -555,7 +541,6 @@ public class DriverSettlementActivity extends Activity {
 
                             updateSummary();
                             loadSettlementHistory();
-
                         }
                 )
                 .addOnFailureListener(
@@ -611,10 +596,9 @@ public class DriverSettlementActivity extends Activity {
         }
 
         /*
-         * Reload the current DUE rides before accepting
-         * a payment. This prevents paying an old balance
-         * after new accepted bookings have already added
-         * new dues.
+         * Reload DUE rides immediately before submission.
+         * This catches new accepted bookings added since the
+         * driver opened the settlement screen.
          */
         db.collection("rides")
                 .whereEqualTo(
@@ -638,9 +622,7 @@ public class DriverSettlementActivity extends Activity {
                             ) {
 
                                 currentDue +=
-                                        getDriverDue(
-                                                ride
-                                        );
+                                        getDriverDue(ride);
                             }
 
                             currentDue =
@@ -665,7 +647,7 @@ public class DriverSettlementActivity extends Activity {
 
     private void submitPaymentAgainstCurrentDues(
             double currentDue,
-            com.google.firebase.firestore.QuerySnapshot duesRides
+            QuerySnapshot duesRides
     ) {
 
         String amountString =
@@ -741,9 +723,11 @@ public class DriverSettlementActivity extends Activity {
             return;
         }
 
-        if (Math.abs(
-                amount - currentDue
-        ) > 0.009) {
+        if (
+                Math.abs(
+                        amount - currentDue
+                ) > 0.009
+        ) {
 
             Toast.makeText(
                     this,
@@ -785,12 +769,20 @@ public class DriverSettlementActivity extends Activity {
             return;
         }
 
+        /*
+         * IMPORTANT:
+         *
+         * amount is reassigned above, so it cannot be used
+         * directly inside a lambda.
+         *
+         * Make a final copy for Firestore callbacks.
+         */
+        final double paymentAmount =
+                amount;
+
         final String referenceKey =
                 reference;
 
-        /*
-         * Check for the same payment reference.
-         */
         db.collection(
                 "driverSettlements"
         )
@@ -811,7 +803,7 @@ public class DriverSettlementActivity extends Activity {
                             }
 
                             /*
-                             * Only ONE active PENDING payment
+                             * Only one active PENDING settlement
                              * is allowed for each driver.
                              */
                             db.collection(
@@ -853,14 +845,12 @@ public class DriverSettlementActivity extends Activity {
 
                                                 data.put(
                                                         "amount",
-                                                        amount
+                                                        paymentAmount
                                                 );
 
                                                 /*
-                                                 * This is the exact
-                                                 * unpaid balance that
-                                                 * existed when the
-                                                 * driver submitted.
+                                                 * Exact unpaid amount
+                                                 * covered by this payment.
                                                  */
                                                 data.put(
                                                         "duesAmountAtSubmission",
@@ -868,10 +858,9 @@ public class DriverSettlementActivity extends Activity {
                                                 );
 
                                                 /*
-                                                 * Admin uses this cutoff
-                                                 * so bookings accepted
-                                                 * after payment submission
-                                                 * remain DUE.
+                                                 * New rides accepted after
+                                                 * this timestamp remain DUE
+                                                 * when Admin verifies payment.
                                                  */
                                                 data.put(
                                                         "duesCutoffAt",
@@ -1046,7 +1035,10 @@ public class DriverSettlementActivity extends Activity {
                                                 + "\n"
                                 );
 
-                                if (duesAtSubmission > 0) {
+                                if (
+                                        duesAtSubmission
+                                                > 0
+                                ) {
 
                                     builder.append(
                                             "Dues Covered: ₱"
@@ -1063,7 +1055,9 @@ public class DriverSettlementActivity extends Activity {
                                                 + "\n"
                                 );
 
-                                if (submittedAt > 0) {
+                                if (
+                                        submittedAt > 0
+                                ) {
 
                                     builder.append(
                                             "Submitted: "
@@ -1115,6 +1109,10 @@ public class DriverSettlementActivity extends Activity {
             DocumentSnapshot document
     ) {
 
+        /*
+         * New accepted rides store the exact 10% amount
+         * in driverDuesAmount.
+         */
         Object stored =
                 document.get(
                         "driverDuesAmount"
@@ -1129,8 +1127,7 @@ public class DriverSettlementActivity extends Activity {
         }
 
         /*
-         * Compatibility fallback for older accepted
-         * rides that do not yet contain driverDuesAmount.
+         * Compatibility fallback for older accepted rides.
          */
         double fare =
                 getFare(
