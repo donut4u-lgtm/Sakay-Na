@@ -529,12 +529,46 @@ public class DriverActivity extends Activity {
                             profile,
                             () -> {
 
-                                driverApproved =
-                                        profile.exists()
-                                                && Boolean.TRUE.equals(
-                                                profile.getBoolean(
-                                                        "approved"
-                                                )
+                                String approvalStatus =
+        string(
+                profile,
+                "approvalStatus"
+        );
+
+boolean adminApproved =
+        "APPROVED".equalsIgnoreCase(
+                approvalStatus
+        );
+
+driverApproved =
+        profile.exists()
+                && (
+                adminApproved
+                        ||
+                (
+                        Boolean.TRUE.equals(
+                                profile.getBoolean(
+                                        "approved"
+                                )
+                        )
+                                && "APPROVED".equalsIgnoreCase(
+                                string(
+                                        profile,
+                                        "driverStatus"
+                                )
+                        )
+                                && Boolean.TRUE.equals(
+                                        profile.getBoolean(
+                                                "canAcceptRides"
+                                        )
+                                )
+                )
+        );
+                                    
+                                                
+                                                
+                                                        
+                                                
                                         )
                                                 && "APPROVED".equalsIgnoreCase(
                                                 string(
