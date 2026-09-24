@@ -1246,6 +1246,7 @@ public class DriverActivity extends Activity {
 
             acceptRide(
                     rideId,
+                    ride,
                     card
             );
         });
@@ -1271,13 +1272,10 @@ public class DriverActivity extends Activity {
 
     private void acceptRide(
             String rideId,
+            DocumentSnapshot ride,
             LinearLayout card
     ) {
 
-        /*
-         * Final approval check immediately before
-         * accepting a ride.
-         */
         if (!driverApproved
                 || !driverOnline) {
 
@@ -1307,10 +1305,6 @@ public class DriverActivity extends Activity {
                 .get()
                 .addOnSuccessListener(profile -> {
 
-                    /*
-                     * Re-check Admin approval from
-                     * Firestore before accepting.
-                     */
                     boolean approvedNow =
                             profile.exists()
                                     && Boolean.TRUE.equals(
@@ -1365,10 +1359,6 @@ public class DriverActivity extends Activity {
                                     profile
                             );
 
-                    /*
-                     * ACCEPTED is the point where
-                     * the Admin transaction is created.
-                     */
                     long acceptedAt =
                             System.currentTimeMillis();
 
@@ -1382,18 +1372,6 @@ public class DriverActivity extends Activity {
                             acceptedAt
                     );
 
-                    /*
-                     * ADMIN TRANSACTION
-                     *
-                     * Admin records the booking immediately
-                     * when the driver accepts.
-                     *
-                     * Driver ON THE WAY, ARRIVED,
-                     * IN PROGRESS and FINISHED are only
-                     * ride-flow statuses.
-                     *
-                     * Admin does NOT wait for FINISH.
-                     */
                     update.put(
                             "adminTransactionRecorded",
                             true
@@ -1412,14 +1390,60 @@ public class DriverActivity extends Activity {
                     /*
                      * DRIVER DUES
                      *
-                     * Accepted booking creates a dues record.
+                     * Every accepted booking creates a
+                     * Sakay Na platform fee equal to 10%
+                     * of the actual ride fare.
                      *
-                     * The settlement is tied to this booking,
-                     * not to the FINISHED status.
+                     * The amount is stored on the ride so
+                     * settlement can accumulate one unpaid
+                     * balance for this driver.
                      */
+                    double acceptedFare = 0.0;
+
+                    Object fareValue =
+                            ride.get("fare");
+
+                    if (fareValue instanceof Number) {
+
+                        acceptedFare =
+                                ((Number) fareValue)
+                                        .doubleValue();
+
+                    } else if (fareValue != null) {
+
+                        try {
+
+                            acceptedFare =
+                                    Double.parseDouble(
+                                            String.valueOf(
+                                                    fareValue
+                                            )
+                                    );
+
+                        } catch (Exception ignored) {
+                        }
+                    }
+
+                    double driverDuesAmount =
+                            Math.round(
+                                    acceptedFare
+                                            * 0.10
+                                            * 100.0
+                            ) / 100.0;
+
                     update.put(
                             "driverDuesStatus",
                             "DUE"
+                    );
+
+                    update.put(
+                            "driverDuesAmount",
+                            driverDuesAmount
+                    );
+
+                    update.put(
+                            "driverDuesRate",
+                            0.10
                     );
 
                     update.put(
@@ -1439,7 +1463,12 @@ public class DriverActivity extends Activity {
                                         this,
                                         "✅ Ride accepted!\n"
                                                 + "🧾 Admin transaction recorded.\n"
-                                                + "💰 Driver dues created.",
+                                                + "💰 Driver dues created: ₱"
+                                                + String.format(
+                                                        java.util.Locale.US,
+                                                        "%.2f",
+                                                        driverDuesAmount
+                                                ),
                                         Toast.LENGTH_LONG
                                 ).show();
 
@@ -2127,12 +2156,15 @@ public class DriverActivity extends Activity {
                         .equalsIgnoreCase(status)
                         || "DRIVER_ARRIVED"
                         .equalsIgnoreCase(status)
-                        || "IN_PROGRESS"
-                        .equalsIgnoreCase(status)
-                        || "ARRIVED"
-                        .equalsIgnoreCase(status)
-                        || "ONGOING"
-                        .equalsIgnoreCase(status);
+                        || "IN_PROGRESS".equalsIgnoreCase(
+                        status
+                )
+                        || "ARRIVED".equalsIgnoreCase(
+                        status
+                )
+                        || "ONGOING".equalsIgnoreCase(
+                        status
+                );
     }
 
     private long longValue(
