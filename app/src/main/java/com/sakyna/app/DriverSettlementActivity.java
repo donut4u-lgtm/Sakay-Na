@@ -1,8 +1,10 @@
+
 package com.sakyna.app;
 
 import android.app.Activity;
 import android.graphics.Color;
 import android.os.Bundle;
+import android.text.InputType;
 import android.view.Gravity;
 import android.widget.Button;
 import android.widget.EditText;
@@ -63,142 +65,303 @@ public class DriverSettlementActivity extends Activity {
 
     private void buildScreen() {
 
-        ScrollView scrollView = new ScrollView(this);
+        ScrollView scrollView =
+                new ScrollView(this);
 
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(30, 30, 30, 40);
-        root.setBackgroundColor(Color.WHITE);
+        LinearLayout root =
+                new LinearLayout(this);
+
+        root.setOrientation(
+                LinearLayout.VERTICAL
+        );
+
+        root.setPadding(
+                30,
+                30,
+                30,
+                40
+        );
+
+        root.setBackgroundColor(
+                Color.WHITE
+        );
 
         scrollView.addView(root);
 
-        TextView title = new TextView(this);
-        title.setText("💰 DRIVER SETTLEMENT");
+        TextView title =
+                new TextView(this);
+
+        title.setText(
+                "💰 DRIVER SETTLEMENT"
+        );
+
         title.setTextSize(27);
         title.setTextColor(Color.BLACK);
         title.setGravity(Gravity.CENTER);
-        title.setPadding(10, 20, 10, 25);
+        title.setPadding(
+                10,
+                20,
+                10,
+                25
+        );
+
         root.addView(title);
 
-        TextView subtitle = new TextView(this);
+        TextView subtitle =
+                new TextView(this);
+
         subtitle.setText(
-                "Track your completed fares, Sakay Na platform fee, "
-                        + "payments and remaining balance."
+                "Your unpaid Sakay Na platform fees "
+                        + "are automatically combined into one balance."
         );
+
         subtitle.setTextSize(16);
         subtitle.setTextColor(Color.DKGRAY);
         subtitle.setGravity(Gravity.CENTER);
-        subtitle.setPadding(10, 0, 10, 25);
+        subtitle.setPadding(
+                10,
+                0,
+                10,
+                25
+        );
+
         root.addView(subtitle);
 
         totalFareText =
-                createSummaryText("Completed Fares\n₱0.00");
-        root.addView(totalFareText);
+                createSummaryText(
+                        "Accepted Fares With Dues\n₱0.00"
+                );
+
+        root.addView(
+                totalFareText
+        );
 
         platformFeeText =
-                createSummaryText("Sakay Na Platform Fee\n₱0.00");
-        root.addView(platformFeeText);
+                createSummaryText(
+                        "Sakay Na Platform Fee\n₱0.00"
+                );
+
+        root.addView(
+                platformFeeText
+        );
 
         paidText =
-                createSummaryText("Amount Paid\n₱0.00");
-        root.addView(paidText);
+                createSummaryText(
+                        "Amount Paid\n₱0.00"
+                );
+
+        root.addView(
+                paidText
+        );
 
         balanceText =
-                createSummaryText("Balance Due\n₱0.00");
-        root.addView(balanceText);
+                createSummaryText(
+                        "BALANCE DUE\n₱0.00"
+                );
 
-        TextView paymentTitle = new TextView(this);
-        paymentTitle.setText("💳 MAKE A PAYMENT");
+        root.addView(
+                balanceText
+        );
+
+        TextView paymentTitle =
+                new TextView(this);
+
+        paymentTitle.setText(
+                "💳 MAKE A SETTLEMENT PAYMENT"
+        );
+
         paymentTitle.setTextSize(22);
         paymentTitle.setTextColor(Color.BLACK);
-        paymentTitle.setPadding(0, 35, 0, 15);
-        root.addView(paymentTitle);
-
-        TextView paymentInfo = new TextView(this);
-        paymentInfo.setText(
-                "Send your settlement payment through the "
-                        + "approved Sakay Na payment channel.\n\n"
-                        + "Payment methods: GCash / Maya\n\n"
-                        + "⚠️ Payments remain PENDING until Admin "
-                        + "verifies the actual payment.\n\n"
-                        + "A reference number or screenshot alone "
-                        + "is NOT proof of payment."
+        paymentTitle.setPadding(
+                0,
+                35,
+                0,
+                15
         );
+
+        root.addView(
+                paymentTitle
+        );
+
+        TextView paymentInfo =
+                new TextView(this);
+
+        paymentInfo.setText(
+                "Platform fee: 10% of every accepted booking fare.\n\n"
+                        + "All unpaid dues are combined into ONE balance.\n\n"
+                        + "Example:\n"
+                        + "₱50 fare = ₱5 platform fee\n"
+                        + "₱20 fare = ₱2 platform fee\n"
+                        + "Total unpaid = ₱7\n\n"
+                        + "Payment methods: GCash / Maya\n\n"
+                        + "⚠️ You must pay the FULL current balance.\n\n"
+                        + "Payment remains PENDING until Admin verifies the actual payment."
+        );
+
         paymentInfo.setTextSize(16);
         paymentInfo.setTextColor(Color.DKGRAY);
-        paymentInfo.setPadding(0, 0, 0, 20);
-        root.addView(paymentInfo);
-
-        amountInput = new EditText(this);
-        amountInput.setHint("Payment amount");
-        amountInput.setInputType(
-                android.text.InputType.TYPE_CLASS_NUMBER
-                        | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
+        paymentInfo.setPadding(
+                0,
+                0,
+                0,
+                20
         );
-        root.addView(amountInput);
 
-        referenceInput = new EditText(this);
-        referenceInput.setHint("GCash / Maya reference number");
+        root.addView(
+                paymentInfo
+        );
+
+        amountInput =
+                new EditText(this);
+
+        amountInput.setHint(
+                "Full payment amount"
+        );
+
+        amountInput.setInputType(
+                InputType.TYPE_CLASS_NUMBER
+                        | InputType.TYPE_NUMBER_FLAG_DECIMAL
+        );
+
+        root.addView(
+                amountInput
+        );
+
+        referenceInput =
+                new EditText(this);
+
+        referenceInput.setHint(
+                "GCash / Maya reference number"
+        );
+
         referenceInput.setSingleLine(true);
-        root.addView(referenceInput);
 
-        Button submitButton = new Button(this);
-        submitButton.setText("💸 SUBMIT PAYMENT");
-        submitButton.setTextColor(Color.WHITE);
+        root.addView(
+                referenceInput
+        );
+
+        Button submitButton =
+                new Button(this);
+
+        submitButton.setText(
+                "💸 SUBMIT FULL PAYMENT"
+        );
+
+        submitButton.setTextColor(
+                Color.WHITE
+        );
+
         submitButton.setBackgroundColor(
-                Color.rgb(0, 120, 200)
+                Color.rgb(
+                        0,
+                        120,
+                        200
+                )
         );
 
         submitButton.setOnClickListener(
                 v -> submitPayment()
         );
 
-        root.addView(submitButton);
+        root.addView(
+                submitButton
+        );
 
-        Button refreshButton = new Button(this);
-        refreshButton.setText("🔄 REFRESH BALANCE");
+        Button refreshButton =
+                new Button(this);
+
+        refreshButton.setText(
+                "🔄 REFRESH BALANCE"
+        );
 
         refreshButton.setOnClickListener(
                 v -> loadSettlement()
         );
 
-        root.addView(refreshButton);
+        root.addView(
+                refreshButton
+        );
 
-        TextView historyTitle = new TextView(this);
-        historyTitle.setText("📜 SETTLEMENT HISTORY");
+        TextView historyTitle =
+                new TextView(this);
+
+        historyTitle.setText(
+                "📜 SETTLEMENT HISTORY"
+        );
+
         historyTitle.setTextSize(22);
         historyTitle.setTextColor(Color.BLACK);
-        historyTitle.setPadding(0, 35, 0, 15);
-        root.addView(historyTitle);
+        historyTitle.setPadding(
+                0,
+                35,
+                0,
+                15
+        );
 
-        historyText = new TextView(this);
-        historyText.setText("Loading settlement history...");
+        root.addView(
+                historyTitle
+        );
+
+        historyText =
+                new TextView(this);
+
+        historyText.setText(
+                "Loading settlement history..."
+        );
+
         historyText.setTextSize(16);
-        historyText.setTextColor(Color.DKGRAY);
-        historyText.setPadding(0, 5, 0, 20);
-        root.addView(historyText);
+        historyText.setTextColor(
+                Color.DKGRAY
+        );
 
-        Button backButton = new Button(this);
-        backButton.setText("⬅️ BACK TO DRIVER DASHBOARD");
+        historyText.setPadding(
+                0,
+                5,
+                0,
+                20
+        );
+
+        root.addView(
+                historyText
+        );
+
+        Button backButton =
+                new Button(this);
+
+        backButton.setText(
+                "⬅️ BACK TO DRIVER DASHBOARD"
+        );
 
         backButton.setOnClickListener(
                 v -> finish()
         );
 
-        root.addView(backButton);
+        root.addView(
+                backButton
+        );
 
-        setContentView(scrollView);
+        setContentView(
+                scrollView
+        );
     }
 
-    private TextView createSummaryText(String text) {
+    private TextView createSummaryText(
+            String text
+    ) {
 
-        TextView view = new TextView(this);
+        TextView view =
+                new TextView(this);
 
         view.setText(text);
         view.setTextSize(19);
         view.setTextColor(Color.BLACK);
         view.setGravity(Gravity.CENTER);
-        view.setPadding(20, 25, 20, 25);
+        view.setPadding(
+                20,
+                25,
+                20,
+                25
+        );
 
         LinearLayout.LayoutParams params =
                 new LinearLayout.LayoutParams(
@@ -206,11 +369,23 @@ public class DriverSettlementActivity extends Activity {
                         LinearLayout.LayoutParams.WRAP_CONTENT
                 );
 
-        params.setMargins(0, 8, 0, 8);
+        params.setMargins(
+                0,
+                8,
+                0,
+                8
+        );
 
-        view.setLayoutParams(params);
+        view.setLayoutParams(
+                params
+        );
+
         view.setBackgroundColor(
-                Color.rgb(245, 245, 245)
+                Color.rgb(
+                        245,
+                        245,
+                        245
+                )
         );
 
         return view;
@@ -223,8 +398,8 @@ public class DriverSettlementActivity extends Activity {
         }
 
         totalFare = 0.0;
-        totalPaid = 0.0;
         platformFee = 0.0;
+        totalPaid = 0.0;
         balanceDue = 0.0;
 
         db.collection("rides")
@@ -233,24 +408,44 @@ public class DriverSettlementActivity extends Activity {
                         user.getUid()
                 )
                 .whereEqualTo(
-                        "status",
-                        "COMPLETED"
+                        "driverDuesStatus",
+                        "DUE"
                 )
                 .get()
                 .addOnSuccessListener(
-                        completedRides -> {
+                        duesRides -> {
 
-                            for (DocumentSnapshot ride
-                                    : completedRides.getDocuments()) {
+                            for (
+                                    DocumentSnapshot ride
+                                    : duesRides.getDocuments()
+                            ) {
 
-                                totalFare += getFare(ride);
+                                double fare =
+                                        getFare(
+                                                ride
+                                        );
+
+                                double dues =
+                                        getDriverDue(
+                                                ride
+                                        );
+
+                                totalFare += fare;
+                                platformFee += dues;
                             }
 
                             platformFee =
-                                    totalFare
-                                            * PLATFORM_FEE_RATE;
+                                    roundMoney(
+                                            platformFee
+                                    );
 
-                            loadVerifiedPayments();
+                            totalFare =
+                                    roundMoney(
+                                            totalFare
+                                    );
+
+                            loadPendingPayments();
+
                         }
                 )
                 .addOnFailureListener(
@@ -258,18 +453,63 @@ public class DriverSettlementActivity extends Activity {
 
                             Toast.makeText(
                                     this,
-                                    "Unable to load completed rides.",
+                                    "Unable to load driver dues.",
                                     Toast.LENGTH_LONG
                             ).show();
 
                             updateSummary();
+                            loadSettlementHistory();
+                        }
+                );
+    }
+
+    private void loadPendingPayments() {
+
+        db.collection(
+                "driverSettlements"
+        )
+                .whereEqualTo(
+                        "driverId",
+                        user.getUid()
+                )
+                .whereEqualTo(
+                        "status",
+                        "PENDING"
+                )
+                .get()
+                .addOnSuccessListener(
+                        pendingPayments -> {
+
+                            /*
+                             * The driver's actual unpaid balance
+                             * comes from DUE rides.
+                             *
+                             * Pending payments are NOT deducted
+                             * from the balance because Admin has
+                             * not verified them yet.
+                             */
+                            balanceDue =
+                                    platformFee;
+
+                            loadVerifiedPayments();
+                        }
+                )
+                .addOnFailureListener(
+                        e -> {
+
+                            balanceDue =
+                                    platformFee;
+
+                            loadVerifiedPayments();
                         }
                 );
     }
 
     private void loadVerifiedPayments() {
 
-        db.collection("driverSettlements")
+        db.collection(
+                "driverSettlements"
+        )
                 .whereEqualTo(
                         "driverId",
                         user.getUid()
@@ -282,35 +522,49 @@ public class DriverSettlementActivity extends Activity {
                 .addOnSuccessListener(
                         payments -> {
 
+                            /*
+                             * Historical verified payments
+                             * are displayed separately.
+                             *
+                             * Current DUE rides already represent
+                             * the current unpaid balance, so verified
+                             * payments are not subtracted again.
+                             */
                             totalPaid = 0.0;
 
-                            for (DocumentSnapshot payment
-                                    : payments.getDocuments()) {
+                            for (
+                                    DocumentSnapshot payment
+                                    : payments.getDocuments()
+                            ) {
 
                                 totalPaid +=
-                                        getAmount(payment);
+                                        getAmount(
+                                                payment
+                                        );
                             }
+
+                            totalPaid =
+                                    roundMoney(
+                                            totalPaid
+                                    );
 
                             balanceDue =
-                                    platformFee
-                                            - totalPaid;
-
-                            if (balanceDue < 0) {
-                                balanceDue = 0;
-                            }
+                                    roundMoney(
+                                            platformFee
+                                    );
 
                             updateSummary();
                             loadSettlementHistory();
+
                         }
                 )
                 .addOnFailureListener(
                         e -> {
 
-                            Toast.makeText(
-                                    this,
-                                    "Unable to load payments.",
-                                    Toast.LENGTH_LONG
-                            ).show();
+                            balanceDue =
+                                    roundMoney(
+                                            platformFee
+                                    );
 
                             updateSummary();
                             loadSettlementHistory();
@@ -321,24 +575,32 @@ public class DriverSettlementActivity extends Activity {
     private void updateSummary() {
 
         totalFareText.setText(
-                "Completed Fares\n₱"
-                        + formatMoney(totalFare)
+                "Accepted Fares With Dues\n₱"
+                        + formatMoney(
+                        totalFare
+                )
         );
 
         platformFeeText.setText(
                 "Sakay Na Platform Fee\n₱"
-                        + formatMoney(platformFee)
+                        + formatMoney(
+                        platformFee
+                )
                         + "  (10%)"
         );
 
         paidText.setText(
-                "Amount Paid\n₱"
-                        + formatMoney(totalPaid)
+                "Verified Payments\n₱"
+                        + formatMoney(
+                        totalPaid
+                )
         );
 
         balanceText.setText(
-                "Balance Due\n₱"
-                        + formatMoney(balanceDue)
+                "BALANCE DUE\n₱"
+                        + formatMoney(
+                        balanceDue
+                )
         );
     }
 
@@ -347,6 +609,64 @@ public class DriverSettlementActivity extends Activity {
         if (user == null) {
             return;
         }
+
+        /*
+         * Reload the current DUE rides before accepting
+         * a payment. This prevents paying an old balance
+         * after new accepted bookings have already added
+         * new dues.
+         */
+        db.collection("rides")
+                .whereEqualTo(
+                        "driverId",
+                        user.getUid()
+                )
+                .whereEqualTo(
+                        "driverDuesStatus",
+                        "DUE"
+                )
+                .get()
+                .addOnSuccessListener(
+                        duesRides -> {
+
+                            double currentDue =
+                                    0.0;
+
+                            for (
+                                    DocumentSnapshot ride
+                                    : duesRides.getDocuments()
+                            ) {
+
+                                currentDue +=
+                                        getDriverDue(
+                                                ride
+                                        );
+                            }
+
+                            currentDue =
+                                    roundMoney(
+                                            currentDue
+                                    );
+
+                            submitPaymentAgainstCurrentDues(
+                                    currentDue,
+                                    duesRides
+                            );
+                        }
+                )
+                .addOnFailureListener(
+                        e -> Toast.makeText(
+                                this,
+                                "Unable to verify current dues.",
+                                Toast.LENGTH_LONG
+                        ).show()
+                );
+    }
+
+    private void submitPaymentAgainstCurrentDues(
+            double currentDue,
+            com.google.firebase.firestore.QuerySnapshot duesRides
+    ) {
 
         String amountString =
                 amountInput.getText()
@@ -357,7 +677,9 @@ public class DriverSettlementActivity extends Activity {
                 referenceInput.getText()
                         .toString()
                         .trim()
-                        .toUpperCase(Locale.US);
+                        .toUpperCase(
+                                Locale.US
+                        );
 
         if (amountString.isEmpty()) {
 
@@ -401,33 +723,34 @@ public class DriverSettlementActivity extends Activity {
             return;
         }
 
-        if (amount <= 0) {
+        amount =
+                roundMoney(
+                        amount
+                );
+
+        if (currentDue <= 0.0) {
 
             Toast.makeText(
                     this,
-                    "Payment must be greater than zero.",
-                    Toast.LENGTH_SHORT
+                    "No unpaid platform fee is currently due.",
+                    Toast.LENGTH_LONG
             ).show();
+
+            loadSettlement();
 
             return;
         }
 
-        if (balanceDue <= 0) {
+        if (Math.abs(
+                amount - currentDue
+        ) > 0.009) {
 
             Toast.makeText(
                     this,
-                    "No balance is currently due.",
-                    Toast.LENGTH_SHORT
-            ).show();
-
-            return;
-        }
-
-        if (amount > balanceDue) {
-
-            Toast.makeText(
-                    this,
-                    "Payment cannot exceed your current balance.",
+                    "Full payment required.\nCurrent balance: ₱"
+                            + formatMoney(
+                            currentDue
+                    ),
                     Toast.LENGTH_LONG
             ).show();
 
@@ -445,11 +768,13 @@ public class DriverSettlementActivity extends Activity {
             return;
         }
 
-        if (reference.length() > 100
-                || reference.contains("/")
-                || ".".equals(reference)
-                || "..".equals(reference)
-                || reference.startsWith("__")) {
+        if (
+                reference.length() > 100
+                        || reference.contains("/")
+                        || ".".equals(reference)
+                        || "..".equals(reference)
+                        || reference.startsWith("__")
+        ) {
 
             Toast.makeText(
                     this,
@@ -463,7 +788,12 @@ public class DriverSettlementActivity extends Activity {
         final String referenceKey =
                 reference;
 
-        db.collection("driverSettlements")
+        /*
+         * Check for the same payment reference.
+         */
+        db.collection(
+                "driverSettlements"
+        )
                 .document(referenceKey)
                 .get()
                 .addOnSuccessListener(
@@ -473,78 +803,156 @@ public class DriverSettlementActivity extends Activity {
 
                                 Toast.makeText(
                                         this,
-                                        "❌ This payment reference has already been submitted. It cannot be reused.",
+                                        "❌ This payment reference has already been submitted.",
                                         Toast.LENGTH_LONG
                                 ).show();
 
                                 return;
                             }
 
-                            Map<String, Object> data =
-                                    new HashMap<>();
-
-                            data.put(
-                                    "driverId",
-                                    user.getUid()
-                            );
-
-                            data.put(
-                                    "amount",
-                                    amount
-                            );
-
-                            data.put(
-                                    "referenceNumber",
-                                    referenceKey
-                            );
-
-                            data.put(
-                                    "referenceKey",
-                                    referenceKey
-                            );
-
-                            data.put(
-                                    "paymentMethod",
-                                    "GCASH_OR_MAYA"
-                            );
-
-                            data.put(
-                                    "status",
-                                    "PENDING"
-                            );
-
-                            data.put(
-                                    "submittedAt",
-                                    System.currentTimeMillis()
-                            );
-
-                            data.put(
-                                    "verifiedAt",
-                                    null
-                            );
-
-                            db.collection("driverSettlements")
-                                    .document(referenceKey)
-                                    .set(data)
+                            /*
+                             * Only ONE active PENDING payment
+                             * is allowed for each driver.
+                             */
+                            db.collection(
+                                    "driverSettlements"
+                            )
+                                    .whereEqualTo(
+                                            "driverId",
+                                            user.getUid()
+                                    )
+                                    .whereEqualTo(
+                                            "status",
+                                            "PENDING"
+                                    )
+                                    .get()
                                     .addOnSuccessListener(
-                                            unused -> {
+                                            pending -> {
 
-                                                amountInput.setText("");
-                                                referenceInput.setText("");
+                                                if (!pending.isEmpty()) {
 
-                                                Toast.makeText(
-                                                        this,
-                                                        "✅ Payment submitted. Admin must verify the actual payment.",
-                                                        Toast.LENGTH_LONG
-                                                ).show();
+                                                    Toast.makeText(
+                                                            this,
+                                                            "A settlement payment is already pending Admin verification.",
+                                                            Toast.LENGTH_LONG
+                                                    ).show();
 
-                                                loadSettlement();
+                                                    return;
+                                                }
+
+                                                long submittedAt =
+                                                        System.currentTimeMillis();
+
+                                                Map<String, Object> data =
+                                                        new HashMap<>();
+
+                                                data.put(
+                                                        "driverId",
+                                                        user.getUid()
+                                                );
+
+                                                data.put(
+                                                        "amount",
+                                                        amount
+                                                );
+
+                                                /*
+                                                 * This is the exact
+                                                 * unpaid balance that
+                                                 * existed when the
+                                                 * driver submitted.
+                                                 */
+                                                data.put(
+                                                        "duesAmountAtSubmission",
+                                                        currentDue
+                                                );
+
+                                                /*
+                                                 * Admin uses this cutoff
+                                                 * so bookings accepted
+                                                 * after payment submission
+                                                 * remain DUE.
+                                                 */
+                                                data.put(
+                                                        "duesCutoffAt",
+                                                        submittedAt
+                                                );
+
+                                                data.put(
+                                                        "referenceNumber",
+                                                        referenceKey
+                                                );
+
+                                                data.put(
+                                                        "referenceKey",
+                                                        referenceKey
+                                                );
+
+                                                data.put(
+                                                        "paymentMethod",
+                                                        "GCASH_OR_MAYA"
+                                                );
+
+                                                data.put(
+                                                        "status",
+                                                        "PENDING"
+                                                );
+
+                                                data.put(
+                                                        "submittedAt",
+                                                        submittedAt
+                                                );
+
+                                                data.put(
+                                                        "verifiedAt",
+                                                        null
+                                                );
+
+                                                db.collection(
+                                                        "driverSettlements"
+                                                )
+                                                        .document(
+                                                                referenceKey
+                                                        )
+                                                        .set(
+                                                                data
+                                                        )
+                                                        .addOnSuccessListener(
+                                                                unused -> {
+
+                                                                    amountInput
+                                                                            .setText(
+                                                                                    ""
+                                                                            );
+
+                                                                    referenceInput
+                                                                            .setText(
+                                                                                    ""
+                                                                            );
+
+                                                                    Toast.makeText(
+                                                                            this,
+                                                                            "✅ Full settlement submitted. Admin must verify the actual payment.",
+                                                                            Toast.LENGTH_LONG
+                                                                    ).show();
+
+                                                                    loadSettlement();
+                                                                }
+                                                        )
+                                                        .addOnFailureListener(
+                                                                e -> Toast.makeText(
+                                                                        this,
+                                                                        "Unable to submit payment:\n"
+                                                                                + e.getMessage(),
+                                                                        Toast.LENGTH_LONG
+                                                                ).show()
+                                                        );
                                             }
                                     )
                                     .addOnFailureListener(
                                             e -> Toast.makeText(
                                                     this,
-                                                    "Unable to submit payment:\n"
+                                                    "Unable to check pending settlement:\n"
                                                             + e.getMessage(),
                                                     Toast.LENGTH_LONG
                                             ).show()
@@ -563,7 +971,13 @@ public class DriverSettlementActivity extends Activity {
 
     private void loadSettlementHistory() {
 
-        db.collection("driverSettlements")
+        if (user == null) {
+            return;
+        }
+
+        db.collection(
+                "driverSettlements"
+        )
                 .whereEqualTo(
                         "driverId",
                         user.getUid()
@@ -584,11 +998,15 @@ public class DriverSettlementActivity extends Activity {
                             StringBuilder builder =
                                     new StringBuilder();
 
-                            for (DocumentSnapshot payment
-                                    : snapshots.getDocuments()) {
+                            for (
+                                    DocumentSnapshot payment
+                                    : snapshots.getDocuments()
+                            ) {
 
                                 double amount =
-                                        getAmount(payment);
+                                        getAmount(
+                                                payment
+                                        );
 
                                 String status =
                                         getString(
@@ -608,9 +1026,17 @@ public class DriverSettlementActivity extends Activity {
                                                 "submittedAt"
                                         );
 
+                                double duesAtSubmission =
+                                        getAmountField(
+                                                payment,
+                                                "duesAmountAtSubmission"
+                                        );
+
                                 builder.append(
                                         "💳 ₱"
-                                                + formatMoney(amount)
+                                                + formatMoney(
+                                                amount
+                                        )
                                                 + "\n"
                                 );
 
@@ -619,6 +1045,17 @@ public class DriverSettlementActivity extends Activity {
                                                 + status
                                                 + "\n"
                                 );
+
+                                if (duesAtSubmission > 0) {
+
+                                    builder.append(
+                                            "Dues Covered: ₱"
+                                                    + formatMoney(
+                                                    duesAtSubmission
+                                            )
+                                                    + "\n"
+                                    );
+                                }
 
                                 builder.append(
                                         "Reference: "
@@ -643,8 +1080,10 @@ public class DriverSettlementActivity extends Activity {
                                                 "verifiedAt"
                                         );
 
-                                if (verifiedAt != null
-                                        && verifiedAt > 0) {
+                                if (
+                                        verifiedAt != null
+                                                && verifiedAt > 0
+                                ) {
 
                                     builder.append(
                                             "Verified: "
@@ -672,18 +1111,54 @@ public class DriverSettlementActivity extends Activity {
                 );
     }
 
+    private double getDriverDue(
+            DocumentSnapshot document
+    ) {
+
+        Object stored =
+                document.get(
+                        "driverDuesAmount"
+                );
+
+        if (stored instanceof Number) {
+
+            return roundMoney(
+                    ((Number) stored)
+                            .doubleValue()
+            );
+        }
+
+        /*
+         * Compatibility fallback for older accepted
+         * rides that do not yet contain driverDuesAmount.
+         */
+        double fare =
+                getFare(
+                        document
+                );
+
+        return roundMoney(
+                fare * PLATFORM_FEE_RATE
+        );
+    }
+
     private double getFare(
-            DocumentSnapshot document) {
+            DocumentSnapshot document
+    ) {
 
         Object value =
-                document.get("fare");
+                document.get(
+                        "fare"
+                );
 
         if (value == null) {
             return 0.0;
         }
 
         if (value instanceof Number) {
-            return ((Number) value).doubleValue();
+
+            return ((Number) value)
+                    .doubleValue();
         }
 
         try {
@@ -699,17 +1174,33 @@ public class DriverSettlementActivity extends Activity {
     }
 
     private double getAmount(
-            DocumentSnapshot document) {
+            DocumentSnapshot document
+    ) {
+
+        return getAmountField(
+                document,
+                "amount"
+        );
+    }
+
+    private double getAmountField(
+            DocumentSnapshot document,
+            String field
+    ) {
 
         Object value =
-                document.get("amount");
+                document.get(
+                        field
+                );
 
         if (value == null) {
             return 0.0;
         }
 
         if (value instanceof Number) {
-            return ((Number) value).doubleValue();
+
+            return ((Number) value)
+                    .doubleValue();
         }
 
         try {
@@ -726,10 +1217,13 @@ public class DriverSettlementActivity extends Activity {
 
     private String getString(
             DocumentSnapshot document,
-            String field) {
+            String field
+    ) {
 
         String value =
-                document.getString(field);
+                document.getString(
+                        field
+                );
 
         if (value == null) {
             return "";
@@ -740,13 +1234,18 @@ public class DriverSettlementActivity extends Activity {
 
     private long getLong(
             DocumentSnapshot document,
-            String field) {
+            String field
+    ) {
 
         Object value =
-                document.get(field);
+                document.get(
+                        field
+                );
 
         if (value instanceof Number) {
-            return ((Number) value).longValue();
+
+            return ((Number) value)
+                    .longValue();
         }
 
         return 0L;
@@ -754,20 +1253,35 @@ public class DriverSettlementActivity extends Activity {
 
     private Long getNullableLong(
             DocumentSnapshot document,
-            String field) {
+            String field
+    ) {
 
         Object value =
-                document.get(field);
+                document.get(
+                        field
+                );
 
         if (value instanceof Number) {
-            return ((Number) value).longValue();
+
+            return ((Number) value)
+                    .longValue();
         }
 
         return null;
     }
 
+    private double roundMoney(
+            double amount
+    ) {
+
+        return Math.round(
+                amount * 100.0
+        ) / 100.0;
+    }
+
     private String formatMoney(
-            double amount) {
+            double amount
+    ) {
 
         return String.format(
                 Locale.US,
@@ -777,13 +1291,16 @@ public class DriverSettlementActivity extends Activity {
     }
 
     private String formatDate(
-            long timestamp) {
+            long timestamp
+    ) {
 
         return new SimpleDateFormat(
                 "MMM dd, yyyy hh:mm a",
                 Locale.US
         ).format(
-                new Date(timestamp)
+                new Date(
+                        timestamp
+                )
         );
     }
 }
