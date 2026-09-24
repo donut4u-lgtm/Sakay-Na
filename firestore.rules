@@ -1,3 +1,4 @@
+
 rules_version = '2';
 
 service cloud.firestore {
@@ -74,7 +75,6 @@ service cloud.firestore {
                 ).data.get("driverId", "") == request.auth.uid;
     }
 
-
     /*
      * USERS
      */
@@ -101,9 +101,7 @@ service cloud.firestore {
                   );
 
       allow update: if isAdmin()
-
                     ||
-
                     (
                       request.auth != null
                       && request.auth.uid == userId
@@ -126,7 +124,6 @@ service cloud.firestore {
                     );
     }
 
-
     /*
      * DRIVERS
      */
@@ -139,6 +136,11 @@ service cloud.firestore {
                     || isAdmin()
                   );
 
+      /*
+       * A driver may create their own driver document.
+       * ONLINE or OFFLINE is allowed here because an
+       * approved driver may go ONLINE for the first time.
+       */
       allow create: if request.auth != null
                     && (
                       isAdmin()
@@ -147,14 +149,16 @@ service cloud.firestore {
                         request.auth.uid == driverId
                         && request.resource.data.get("driverId", "")
                              == request.auth.uid
-                        && request.resource.data.get("online", false) == false
+                        && (
+                          request.resource.data.get("online", false) == true
+                          ||
+                          request.resource.data.get("online", false) == false
+                        )
                       )
                     );
 
       allow update: if isAdmin()
-
                     ||
-
                     (
                       request.auth != null
                       && request.auth.uid == driverId
@@ -166,7 +170,6 @@ service cloud.firestore {
                            ])
                     );
     }
-
 
     /*
      * RIDES
@@ -197,7 +200,6 @@ service cloud.firestore {
                     )
                   );
 
-
       /*
        * PASSENGER CREATES BOOKING
        */
@@ -205,9 +207,7 @@ service cloud.firestore {
       allow create: if request.auth != null
                     && (
                       isAdmin()
-
                       ||
-
                       (
                         request.resource.data.get("passengerId", "")
                           == request.auth.uid
@@ -217,11 +217,8 @@ service cloud.firestore {
                       )
                     );
 
-
       /*
        * PASSENGER CANCELLATION
-       *
-       * Only REQUESTED rides can be cancelled.
        */
 
       allow update: if isAdmin()
@@ -250,15 +247,11 @@ service cloud.firestore {
                            ])
                     )
 
+                    ||
 
                     /*
                      * DRIVER ACCEPTS REQUEST
-                     *
-                     * Fare, passenger, payment and original booking
-                     * information cannot be changed by the driver.
                      */
-
-                    ||
 
                     (
                       isApprovedDriver()
@@ -307,12 +300,11 @@ service cloud.firestore {
                            ])
                     )
 
+                    ||
 
                     /*
                      * DRIVER DECLINES REQUEST
                      */
-
-                    ||
 
                     (
                       isApprovedDriver()
@@ -335,14 +327,11 @@ service cloud.firestore {
                            ])
                     )
 
+                    ||
 
                     /*
                      * DRIVER UPDATES RIDE STATUS
-                     *
-                     * Only the operational status fields may change.
                      */
-
-                    ||
 
                     (
                       request.auth != null
@@ -362,7 +351,6 @@ service cloud.firestore {
                              "completedAt"
                            ])
                     );
-
 
       /*
        * RIDE CHAT
@@ -394,7 +382,6 @@ service cloud.firestore {
       }
     }
 
-
     /*
      * DRIVER LOCATIONS
      */
@@ -409,7 +396,6 @@ service cloud.firestore {
                               || isAdmin()
                             );
     }
-
 
     /*
      * DRIVER SETTLEMENTS
