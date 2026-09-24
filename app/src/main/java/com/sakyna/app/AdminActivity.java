@@ -43,6 +43,7 @@ public class AdminActivity extends Activity {
     private LinearLayout activeRidesSection;
     private LinearLayout historySection;
     private LinearLayout paymentSection;
+    private LinearLayout suspendedDriversSection;
 
     private final Map<String, DocumentSnapshot> usersById =
             new HashMap<>();
@@ -304,6 +305,7 @@ public class AdminActivity extends Activity {
         buildPassengers();
         buildGroupedDrivers();
         buildPendingDrivers();
+        buildSuspendedDrivers();
     }
 
     private void buildPassengers() {
@@ -549,6 +551,331 @@ public class AdminActivity extends Activity {
                     true
             );
         }
+    }
+
+    /*
+     * ============================================================
+     * SUSPENDED DRIVERS
+     * ============================================================
+     *
+     * Drivers automatically suspended by DriverActivity because
+     * unpaid platform dues reached the 7-day suspension threshold
+     * are shown here.
+     *
+     * Admin can see:
+     * - Driver name
+     * - Phone
+     * - Province
+     * - Town / City
+     * - Plate number
+     * - Franchise number
+     * - Vehicle
+     * - Suspension reason
+     * - Unpaid platform fee
+     * - Suspension date
+     * - Suspension deadline
+     *
+     * This section does NOT unsuspend the driver.
+     *
+     * Automatic restoration happens after the driver's DUE
+     * settlement is fully paid and verified.
+     */
+    private void buildSuspendedDrivers() {
+
+        suspendedDriversSection = createSection(
+                "🚫 SUSPENDED DRIVERS — UNPAID DUES"
+        );
+
+        List<DocumentSnapshot> suspended =
+                new ArrayList<>();
+
+        for (DocumentSnapshot user :
+                usersById.values()) {
+
+            if (!"DRIVER".equalsIgnoreCase(
+                    user.getString("role"))) {
+                continue;
+            }
+
+            if (!"SUSPENDED".equalsIgnoreCase(
+                    user.getString("driverAccountStatus"))) {
+                continue;
+            }
+
+            suspended.add(user);
+        }
+
+        Collections.sort(
+                suspended,
+                (a, b) ->
+                        getDisplayName(a)
+                                .compareToIgnoreCase(
+                                        getDisplayName(b)
+                                )
+        );
+
+        if (suspended.isEmpty()) {
+
+            addInfoCard(
+                    suspendedDriversSection,
+                    "🚫 SUSPENDED DRIVERS",
+                    "No suspended drivers.",
+                    LIGHT_GREEN
+            );
+
+            return;
+        }
+
+        for (DocumentSnapshot driver :
+                suspended) {
+
+            addSuspendedDriverCard(
+                    suspendedDriversSection,
+                    driver
+            );
+        }
+    }
+
+    private void addSuspendedDriverCard(
+            LinearLayout parent,
+            DocumentSnapshot driver
+    ) {
+
+        LinearLayout card =
+                createChildCard(
+                        parent,
+                        LIGHT_RED
+                );
+
+        String name =
+                firstNonEmpty(
+                        driver.getString("driverName"),
+                        driver.getString("name")
+                );
+
+        String phone =
+                driver.getString("phone");
+
+        String town =
+                driver.getString("town");
+
+        String province =
+                driver.getString("province");
+
+        String plate =
+                driver.getString("plateNumber");
+
+        String franchise =
+                driver.getString("franchiseNumber");
+
+        String vehicle =
+                driver.getString("vehicleDescription");
+
+        String reason =
+                valueOrDefault(
+                        driver.getString(
+                                "suspensionReason"
+                        ),
+                        "SUSPENDED"
+                );
+
+        double balance =
+                readNumber(
+                        driver,
+                        "driverSettlementBalance"
+                );
+
+        addCardText(
+                card,
+                "🚫 "
+                        + valueOrDefault(
+                        name,
+                        "Driver name not provided"
+                ),
+                20,
+                Color.rgb(190, 0, 0)
+        );
+
+        addCardText(
+                card,
+                "📱 Phone: "
+                        + valueOrDefault(
+                        phone,
+                        "Phone not provided"
+                ),
+                16,
+                DARK
+        );
+
+        if (hasText(town)) {
+
+            addCardText(
+                    card,
+                    "🏘️ Town / City: "
+                            + town,
+                    16,
+                    DARK
+            );
+        }
+
+        if (hasText(province)) {
+
+            addCardText(
+                    card,
+                    "🗺️ Province: "
+                            + province,
+                    16,
+                    DARK
+            );
+        }
+
+        if (hasText(plate)) {
+
+            addCardText(
+                    card,
+                    "🪪 Plate Number: "
+                            + plate,
+                    16,
+                    DARK
+            );
+        }
+
+        if (hasText(franchise)) {
+
+            addCardText(
+                    card,
+                    "📄 Franchise Number: "
+                            + franchise,
+                    16,
+                    DARK
+            );
+        }
+
+        if (hasText(vehicle)) {
+
+            addCardText(
+                    card,
+                    "🛺 Tricycle: "
+                            + vehicle,
+                    16,
+                    DARK
+            );
+        }
+
+        addCardText(
+                card,
+                "⚠️ Reason: " + reason,
+                17,
+                Color.rgb(190, 0, 0)
+        );
+
+        addCardText(
+                card,
+                "💰 Unpaid Platform Fee: "
+                        + formatPeso(balance),
+                18,
+                Color.rgb(190, 0, 0)
+        );
+
+        Long suspendedAt =
+                getUserTimestamp(
+                        driver,
+                        "suspendedAt"
+                );
+
+        if (suspendedAt != null) {
+
+            addCardText(
+                    card,
+                    "🕒 Suspended: "
+                            + formatDate(suspendedAt),
+                    14,
+                    GRAY
+            );
+        }
+
+        Long deadline =
+                getUserTimestamp(
+                        driver,
+                        "suspensionDeadlineAt"
+                );
+
+        if (deadline != null) {
+
+            addCardText(
+                    card,
+                    "⏰ Deadline: "
+                            + formatDate(deadline),
+                    14,
+                    GRAY
+            );
+        }
+
+        addCardText(
+                card,
+                "🔴 ONLINE: NOT ALLOWED",
+                17,
+                Color.rgb(190, 0, 0)
+        );
+
+        TextView note =
+                new TextView(this);
+
+        note.setText(
+                "Automatic suspension for unpaid platform dues. "
+                        + "Driver is restored automatically after the "
+                        + "outstanding DUE rides are fully paid and verified."
+        );
+
+        note.setTextSize(14);
+        note.setTextColor(DARK);
+        note.setPadding(
+                0,
+                8,
+                0,
+                0
+        );
+
+        card.addView(note);
+    }
+
+    private Long getUserTimestamp(
+            DocumentSnapshot user,
+            String field
+    ) {
+
+        Object value =
+                user.get(field);
+
+        if (value instanceof Number) {
+
+            return ((Number) value)
+                    .longValue();
+        }
+
+        if (value instanceof Timestamp) {
+
+            return ((Timestamp) value)
+                    .toDate()
+                    .getTime();
+        }
+
+        return null;
+    }
+
+    private String formatDate(
+            long timestamp
+    ) {
+
+        SimpleDateFormat format =
+                new SimpleDateFormat(
+                        "MMM dd, yyyy hh:mm a",
+                        Locale.getDefault()
+                );
+
+        return format.format(
+                new Date(timestamp)
+        );
     }
 
     private void loadRides() {
