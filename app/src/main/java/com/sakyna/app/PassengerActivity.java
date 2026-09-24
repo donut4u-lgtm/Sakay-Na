@@ -75,12 +75,6 @@ public class PassengerActivity extends Activity {
     private Button chatButton;
     private Button cancelButton;
 
-    /*
-     * Passenger number buttons.
-     *
-     * These replace the old RadioGroup because direct
-     * click handling is more reliable on Android.
-     */
     private Button passengerOneButton;
     private Button passengerTwoButton;
     private Button passengerThreeButton;
@@ -91,6 +85,15 @@ public class PassengerActivity extends Activity {
     private ListenerRegistration rideListener;
 
     private String activeRideId = null;
+
+    /*
+     * Current Firestore ride status.
+     *
+     * This is used to prevent passenger cancellation
+     * after a driver has accepted the booking.
+     */
+    private String activeRideStatus = "";
+
     private String lastNotifiedRideStatus = "";
 
     private double pickupLat = 0;
@@ -223,20 +226,6 @@ public class PassengerActivity extends Activity {
         tricycle.setBackgroundColor(Color.WHITE);
         content.addView(tricycle, full());
 
-        /*
-         * =====================================================
-         * PASSENGER COUNT
-         * =====================================================
-         *
-         * Four direct-click buttons:
-         *
-         * 1 passenger = ₱25 base
-         * 2 passengers = ₱50 base
-         * 3 passengers = ₱75 base
-         * 4 passengers = ₱100 base
-         *
-         * Each button directly changes passengerCount.
-         */
         TextView passengerLabel =
                 text("👥 NUMBER OF PASSENGERS", 15);
 
@@ -326,9 +315,6 @@ public class PassengerActivity extends Activity {
                 full()
         );
 
-        /*
-         * Keep this TextView synchronized with passengerCount.
-         */
         passengerSelectedText.setTag(
                 "passengerSelectedText"
         );
@@ -352,9 +338,6 @@ public class PassengerActivity extends Activity {
                 full()
         );
 
-        /*
-         * PAYMENT
-         */
         TextView paymentLabel =
                 text("💳 PAYMENT METHOD", 15);
 
@@ -1442,6 +1425,9 @@ public class PassengerActivity extends Activity {
                             activeRideId =
                                     document.getId();
 
+                            activeRideStatus =
+                                    "REQUESTED";
+
                             lastNotifiedRideStatus =
                                     "";
 
@@ -1479,6 +1465,7 @@ public class PassengerActivity extends Activity {
                         e -> {
 
                             activeRideId = null;
+                            activeRideStatus = "";
                             lastNotifiedRideStatus =
                                     "";
 
@@ -1679,6 +1666,7 @@ public class PassengerActivity extends Activity {
         ) {
 
             activeRideId = null;
+            activeRideStatus = "";
             updateButtons();
             return;
         }
@@ -1718,6 +1706,11 @@ public class PassengerActivity extends Activity {
 
                                     activeRideId =
                                             saved;
+
+                                    activeRideStatus =
+                                            snapshot.getString(
+                                                    "status"
+                                            );
 
                                     Object savedCount =
                                             snapshot.get(
@@ -1829,6 +1822,15 @@ public class PassengerActivity extends Activity {
                                         status =
                                                 "REQUESTED";
                                     }
+
+                                    /*
+                                     * Always keep the local status
+                                     * synchronized with Firestore.
+                                     */
+                                    activeRideStatus =
+                                            status;
+
+                                    updateButtons();
 
                                     String driverId =
                                             snapshot.getString(
@@ -2305,6 +2307,8 @@ public class PassengerActivity extends Activity {
 
         activeRideId = null;
 
+        activeRideStatus = "";
+
         prefs.edit()
                 .remove("activeRideId")
                 .apply();
@@ -2342,14 +2346,29 @@ public class PassengerActivity extends Activity {
             chatButton.setEnabled(active);
         }
 
+        /*
+         * IMPORTANT:
+         *
+         * Passenger can cancel ONLY while
+         * the booking is still REQUESTED.
+         *
+         * Once the driver accepts:
+         * ACCEPTED / DRIVER_ON_THE_WAY /
+         * DRIVER_ARRIVED / IN_PROGRESS
+         *
+         * cancellation is disabled.
+         */
         if (cancelButton != null) {
-            cancelButton.setEnabled(active);
+
+            cancelButton.setEnabled(
+                    active
+                            &&
+                    "REQUESTED".equalsIgnoreCase(
+                            activeRideStatus
+                    )
+            );
         }
 
-        /*
-         * Passenger number buttons remain usable while
-         * there is no active ride.
-         */
         boolean passengerButtonsEnabled =
                 !active;
 
@@ -2454,16 +2473,77 @@ public class PassengerActivity extends Activity {
             return;
         }
 
-        db.collection("rides")
-                .document(activeRideId)
-                .update(
-                        "status",
-                        "CANCELLED",
-                        "cancelledBy",
-                        "PASSENGER",
-                        "cancelledAt",
-                        System.currentTimeMillis()
-                )
+        final String rideId =
+                activeRideId;
+
+        /*
+         * Use a Firestore transaction so the current
+         * server-side ride status is checked immediately
+         * before cancellation.
+         *
+         * This prevents a passenger from cancelling a
+         * booking after a driver has already accepted it.
+         */
+        db.runTransaction(
+                transaction -> {
+
+                    DocumentSnapshot ride =
+                            transaction.get(
+                                    db.collection("rides")
+                                            .document(rideId)
+                            );
+
+                    if (!ride.exists()) {
+
+                        throw new IllegalStateException(
+                                "Ride no longer exists."
+                        );
+                    }
+
+                    String currentStatus =
+                            ride.getString(
+                                    "status"
+                            );
+
+                    /*
+                     * ONLY REQUESTED may be cancelled
+                     * by the passenger.
+                     */
+                    if (
+                            !"REQUESTED".equalsIgnoreCase(
+                                    currentStatus
+                            )
+                    ) {
+
+                        throw new IllegalStateException(
+                                "The driver has already accepted this booking. Passenger cancellation is no longer allowed."
+                        );
+                    }
+
+                    /*
+                     * IMPORTANT:
+                     *
+                     * This cancellation creates:
+                     *
+                     * - NO Admin transaction
+                     * - NO driver dues
+                     *
+                     * It is only an operational cancellation
+                     * of an unaccepted booking.
+                     */
+                    transaction.update(
+                            ride.getReference(),
+                            "status",
+                            "CANCELLED",
+                            "cancelledBy",
+                            "PASSENGER",
+                            "cancelledAt",
+                            System.currentTimeMillis()
+                    );
+
+                    return null;
+                }
+        )
                 .addOnSuccessListener(
                         v -> {
 
@@ -2477,13 +2557,34 @@ public class PassengerActivity extends Activity {
                         }
                 )
                 .addOnFailureListener(
-                        e ->
-                                Toast.makeText(
-                                        this,
-                                        "Cancel failed:\n"
-                                                + e.getMessage(),
-                                        Toast.LENGTH_LONG
-                                ).show()
+                        e -> {
+
+                            String message =
+                                    e.getMessage();
+
+                            if (
+                                    message == null
+                                    ||
+                                    message.trim().isEmpty()
+                            ) {
+
+                                message =
+                                        "Unable to cancel booking.";
+                            }
+
+                            Toast.makeText(
+                                    this,
+                                    message,
+                                    Toast.LENGTH_LONG
+                            ).show();
+
+                            /*
+                             * Re-enable/disable the Cancel
+                             * button according to the latest
+                             * locally known ride state.
+                             */
+                            updateButtons();
+                        }
                 );
     }
 
