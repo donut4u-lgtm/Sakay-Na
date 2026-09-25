@@ -3,11 +3,12 @@ package com.sakyna.app;
 import android.app.Activity;
 import android.graphics.Color;
 import android.graphics.Matrix;
-import android.view.MotionEvent;
-import android.view.ScaleGestureDetector;
+import android.graphics.PointF;
 import android.os.Bundle;
 import android.text.InputType;
 import android.view.Gravity;
+import android.view.MotionEvent;
+import android.view.ScaleGestureDetector;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
@@ -71,6 +72,7 @@ public class DriverSettlementActivity extends Activity {
     private void buildScreen() {
 
         ScrollView scrollView = new ScrollView(this);
+        scrollView.setFillViewport(true);
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
@@ -97,16 +99,24 @@ public class DriverSettlementActivity extends Activity {
         subtitle.setPadding(10, 0, 10, 25);
         root.addView(subtitle);
 
-        totalFareText = createSummaryText("Accepted Fares With Dues\n₱0.00");
+        totalFareText = createSummaryText(
+                "Accepted Fares With Dues\n₱0.00"
+        );
         root.addView(totalFareText);
 
-        platformFeeText = createSummaryText("Sakay Na Platform Fee\n₱0.00");
+        platformFeeText = createSummaryText(
+                "Sakay Na Platform Fee\n₱0.00"
+        );
         root.addView(platformFeeText);
 
-        paidText = createSummaryText("Verified Payments\n₱0.00");
+        paidText = createSummaryText(
+                "Verified Payments\n₱0.00"
+        );
         root.addView(paidText);
 
-        balanceText = createSummaryText("BALANCE DUE\n₱0.00");
+        balanceText = createSummaryText(
+                "BALANCE DUE\n₱0.00"
+        );
         root.addView(balanceText);
 
         TextView paymentTitle = new TextView(this);
@@ -128,12 +138,6 @@ public class DriverSettlementActivity extends Activity {
         paymentInfo.setPadding(0, 0, 0, 15);
         root.addView(paymentInfo);
 
-        /*
-         * TEMPORARY GCASH QR
-         *
-         * Only the QR image is displayed. The phone number, name,
-         * and User ID shown in the original screenshot are NOT displayed.
-         */
         TextView gcashTitle = new TextView(this);
         gcashTitle.setText("📲 PAY DRIVER DUES WITH GCASH");
         gcashTitle.setTextSize(21);
@@ -146,7 +150,8 @@ public class DriverSettlementActivity extends Activity {
         gcashInfo.setText(
                 "Scan this QR with GCash using another phone/device.\n"
                         + "Pay the exact BALANCE DUE shown above.\n"
-                        + "After payment, keep the GCash reference number."
+                        + "After payment, keep the GCash reference number.\n\n"
+                        + "🤏 PINCH TO ZOOM • DRAG TO MOVE • DOUBLE-TAP TO RESET"
         );
         gcashInfo.setTextSize(15);
         gcashInfo.setTextColor(Color.DKGRAY);
@@ -154,46 +159,29 @@ public class DriverSettlementActivity extends Activity {
         gcashInfo.setPadding(10, 0, 10, 12);
         root.addView(gcashInfo);
 
-        ImageView gcashQr = new ImageView(this);
+        /*
+         * TRUE PINCH-TO-ZOOM GCASH QR
+         *
+         * The QR uses a custom ZoomableImageView.
+         * It supports:
+         * - Pinch to zoom
+         * - Drag/pan while zoomed
+         * - Double-tap to reset
+         */
+        ZoomableImageView gcashQr = new ZoomableImageView(this);
+
         gcashQr.setImageResource(R.drawable.gcash_qr);
-        gcashQr.setAdjustViewBounds(true);
-        gcashQr.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        gcashQr.setPadding(15, 15, 15, 15);
         gcashQr.setBackgroundColor(Color.WHITE);
+        gcashQr.setPadding(15, 15, 15, 15);
 
-        // Pinch-to-zoom GCash QR. Double-tap resets the zoom.
-        gcashQr.setScaleType(ImageView.ScaleType.MATRIX);
-        Matrix qrMatrix = new Matrix();
-        ScaleGestureDetector qrScaleDetector = new ScaleGestureDetector(this, new ScaleGestureDetector.SimpleOnScaleGestureListener() {
-            float scale = 1f;
-            @Override public boolean onScale(ScaleGestureDetector detector) {
-                float next = scale * detector.getScaleFactor();
-                next = Math.max(1f, Math.min(next, 5f));
-                float factor = next / scale;
-                qrMatrix.postScale(factor, factor, detector.getFocusX(), detector.getFocusY());
-                scale = next;
-                gcashQr.setImageMatrix(qrMatrix);
-                return true;
-            }
-        });
-        gcashQr.setOnTouchListener(new android.view.View.OnTouchListener() {
-            long lastTap = 0;
-            @Override public boolean onTouch(android.view.View v, MotionEvent event) {
-                qrScaleDetector.onTouchEvent(event);
-                if (event.getActionMasked() == MotionEvent.ACTION_UP) {
-                    long now = System.currentTimeMillis();
-                    if (now - lastTap < 300) { qrMatrix.reset(); gcashQr.setImageMatrix(qrMatrix); }
-                    lastTap = now;
-                }
-                return true;
-            }
-        });
+        LinearLayout.LayoutParams qrParams =
+                new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        700
+                );
 
-        LinearLayout.LayoutParams qrParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                650
-        );
         qrParams.setMargins(10, 5, 10, 15);
+
         gcashQr.setLayoutParams(qrParams);
 
         root.addView(gcashQr);
@@ -212,7 +200,8 @@ public class DriverSettlementActivity extends Activity {
         amountInput = new EditText(this);
         amountInput.setHint("Full payment amount");
         amountInput.setInputType(
-                InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL
+                InputType.TYPE_CLASS_NUMBER
+                        | InputType.TYPE_NUMBER_FLAG_DECIMAL
         );
         root.addView(amountInput);
 
@@ -258,17 +247,21 @@ public class DriverSettlementActivity extends Activity {
     private TextView createSummaryText(String text) {
 
         TextView view = new TextView(this);
+
         view.setText(text);
         view.setTextSize(19);
         view.setTextColor(Color.BLACK);
         view.setGravity(Gravity.CENTER);
         view.setPadding(20, 25, 20, 25);
 
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-        );
+        LinearLayout.LayoutParams params =
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                );
+
         params.setMargins(0, 8, 0, 8);
+
         view.setLayoutParams(params);
         view.setBackgroundColor(Color.rgb(245, 245, 245));
 
@@ -290,7 +283,9 @@ public class DriverSettlementActivity extends Activity {
                 .get()
                 .addOnSuccessListener(duesRides -> {
 
-                    for (DocumentSnapshot ride : duesRides.getDocuments()) {
+                    for (DocumentSnapshot ride :
+                            duesRides.getDocuments()) {
+
                         totalFare += getFare(ride);
                         platformFee += getDriverDue(ride);
                     }
@@ -301,6 +296,7 @@ public class DriverSettlementActivity extends Activity {
                     loadPendingPayments();
                 })
                 .addOnFailureListener(e -> {
+
                     Toast.makeText(
                             this,
                             "Unable to load driver dues.",
@@ -319,11 +315,15 @@ public class DriverSettlementActivity extends Activity {
                 .whereEqualTo("status", "PENDING")
                 .get()
                 .addOnSuccessListener(pendingPayments -> {
+
                     balanceDue = roundMoney(platformFee);
+
                     loadVerifiedPayments();
                 })
                 .addOnFailureListener(e -> {
+
                     balanceDue = roundMoney(platformFee);
+
                     loadVerifiedPayments();
                 });
     }
@@ -338,7 +338,9 @@ public class DriverSettlementActivity extends Activity {
 
                     totalPaid = 0.0;
 
-                    for (DocumentSnapshot payment : payments.getDocuments()) {
+                    for (DocumentSnapshot payment :
+                            payments.getDocuments()) {
+
                         totalPaid += getAmount(payment);
                     }
 
@@ -360,7 +362,8 @@ public class DriverSettlementActivity extends Activity {
     private void updateSummary() {
 
         totalFareText.setText(
-                "Accepted Fares With Dues\n₱" + formatMoney(totalFare)
+                "Accepted Fares With Dues\n₱"
+                        + formatMoney(totalFare)
         );
 
         platformFeeText.setText(
@@ -370,11 +373,13 @@ public class DriverSettlementActivity extends Activity {
         );
 
         paidText.setText(
-                "Verified Payments\n₱" + formatMoney(totalPaid)
+                "Verified Payments\n₱"
+                        + formatMoney(totalPaid)
         );
 
         balanceText.setText(
-                "BALANCE DUE\n₱" + formatMoney(balanceDue)
+                "BALANCE DUE\n₱"
+                        + formatMoney(balanceDue)
         );
     }
 
@@ -390,19 +395,26 @@ public class DriverSettlementActivity extends Activity {
 
                     double currentDue = 0.0;
 
-                    for (DocumentSnapshot ride : duesRides.getDocuments()) {
+                    for (DocumentSnapshot ride :
+                            duesRides.getDocuments()) {
+
                         currentDue += getDriverDue(ride);
                     }
 
                     currentDue = roundMoney(currentDue);
 
-                    submitPaymentAgainstCurrentDues(currentDue, duesRides);
+                    submitPaymentAgainstCurrentDues(
+                            currentDue,
+                            duesRides
+                    );
                 })
-                .addOnFailureListener(e -> Toast.makeText(
-                        this,
-                        "Unable to verify current dues.",
-                        Toast.LENGTH_LONG
-                ).show());
+                .addOnFailureListener(e ->
+                        Toast.makeText(
+                                this,
+                                "Unable to verify current dues.",
+                                Toast.LENGTH_LONG
+                        ).show()
+                );
     }
 
     private void submitPaymentAgainstCurrentDues(
@@ -410,47 +422,61 @@ public class DriverSettlementActivity extends Activity {
             QuerySnapshot duesRides
     ) {
 
-        String amountString = amountInput.getText().toString().trim();
+        String amountString =
+                amountInput.getText()
+                        .toString()
+                        .trim();
 
-        String reference = referenceInput.getText()
-                .toString()
-                .trim()
-                .toUpperCase(Locale.US);
+        String reference =
+                referenceInput.getText()
+                        .toString()
+                        .trim()
+                        .toUpperCase(Locale.US);
 
         if (amountString.isEmpty()) {
+
             Toast.makeText(
                     this,
                     "Enter payment amount.",
                     Toast.LENGTH_SHORT
             ).show();
+
             return;
         }
 
         if (reference.isEmpty()) {
+
             Toast.makeText(
                     this,
                     "Enter GCash reference number.",
                     Toast.LENGTH_SHORT
             ).show();
+
             return;
         }
 
         double amount;
 
         try {
-            amount = Double.parseDouble(amountString);
+
+            amount =
+                    Double.parseDouble(amountString);
+
         } catch (Exception e) {
+
             Toast.makeText(
                     this,
                     "Invalid payment amount.",
                     Toast.LENGTH_SHORT
             ).show();
+
             return;
         }
 
         amount = roundMoney(amount);
 
         if (currentDue <= 0.0) {
+
             Toast.makeText(
                     this,
                     "No unpaid platform fee is currently due.",
@@ -458,25 +484,30 @@ public class DriverSettlementActivity extends Activity {
             ).show();
 
             loadSettlement();
+
             return;
         }
 
         if (Math.abs(amount - currentDue) > 0.009) {
+
             Toast.makeText(
                     this,
                     "Full payment required.\nCurrent balance: ₱"
                             + formatMoney(currentDue),
                     Toast.LENGTH_LONG
             ).show();
+
             return;
         }
 
         if (reference.length() < 4) {
+
             Toast.makeText(
                     this,
                     "Reference number is too short.",
                     Toast.LENGTH_LONG
             ).show();
+
             return;
         }
 
@@ -487,11 +518,13 @@ public class DriverSettlementActivity extends Activity {
                         || "..".equals(reference)
                         || reference.startsWith("__")
         ) {
+
             Toast.makeText(
                     this,
                     "Invalid reference number.",
                     Toast.LENGTH_LONG
             ).show();
+
             return;
         }
 
@@ -504,26 +537,36 @@ public class DriverSettlementActivity extends Activity {
                 .addOnSuccessListener(existing -> {
 
                     if (existing.exists()) {
+
                         Toast.makeText(
                                 this,
                                 "❌ This payment reference has already been submitted.",
                                 Toast.LENGTH_LONG
                         ).show();
+
                         return;
                     }
 
                     db.collection("driverSettlements")
-                            .whereEqualTo("driverId", user.getUid())
-                            .whereEqualTo("status", "PENDING")
+                            .whereEqualTo(
+                                    "driverId",
+                                    user.getUid()
+                            )
+                            .whereEqualTo(
+                                    "status",
+                                    "PENDING"
+                            )
                             .get()
                             .addOnSuccessListener(pending -> {
 
                                 if (!pending.isEmpty()) {
+
                                     Toast.makeText(
                                             this,
                                             "A settlement payment is already pending Admin verification.",
                                             Toast.LENGTH_LONG
                                     ).show();
+
                                     return;
                                 }
 
@@ -533,37 +576,55 @@ public class DriverSettlementActivity extends Activity {
                                 Map<String, Object> data =
                                         new HashMap<>();
 
-                                data.put("driverId", user.getUid());
-                                data.put("amount", paymentAmount);
+                                data.put(
+                                        "driverId",
+                                        user.getUid()
+                                );
+
+                                data.put(
+                                        "amount",
+                                        paymentAmount
+                                );
+
                                 data.put(
                                         "duesAmountAtSubmission",
                                         currentDue
                                 );
+
                                 data.put(
                                         "duesCutoffAt",
                                         submittedAt
                                 );
+
                                 data.put(
                                         "referenceNumber",
                                         referenceKey
                                 );
+
                                 data.put(
                                         "referenceKey",
                                         referenceKey
                                 );
+
                                 data.put(
                                         "paymentMethod",
                                         "GCASH"
                                 );
+
                                 data.put(
                                         "status",
                                         "PENDING"
                                 );
+
                                 data.put(
                                         "submittedAt",
                                         submittedAt
                                 );
-                                data.put("verifiedAt", null);
+
+                                data.put(
+                                        "verifiedAt",
+                                        null
+                                );
 
                                 db.collection("driverSettlements")
                                         .document(referenceKey)
@@ -614,34 +675,50 @@ public class DriverSettlementActivity extends Activity {
         if (user == null) return;
 
         db.collection("driverSettlements")
-                .whereEqualTo("driverId", user.getUid())
+                .whereEqualTo(
+                        "driverId",
+                        user.getUid()
+                )
                 .get()
                 .addOnSuccessListener(snapshots -> {
 
                     if (snapshots.isEmpty()) {
+
                         historyText.setText(
                                 "No settlement payments yet."
                         );
+
                         return;
                     }
 
                     StringBuilder builder =
                             new StringBuilder();
 
-                    for (DocumentSnapshot payment :
-                            snapshots.getDocuments()) {
+                    for (
+                            DocumentSnapshot payment :
+                            snapshots.getDocuments()
+                    ) {
 
                         double amount =
                                 getAmount(payment);
 
                         String status =
-                                getString(payment, "status");
+                                getString(
+                                        payment,
+                                        "status"
+                                );
 
                         String reference =
-                                getString(payment, "referenceNumber");
+                                getString(
+                                        payment,
+                                        "referenceNumber"
+                                );
 
                         long submittedAt =
-                                getLong(payment, "submittedAt");
+                                getLong(
+                                        payment,
+                                        "submittedAt"
+                                );
 
                         double duesAtSubmission =
                                 getAmountField(
@@ -671,6 +748,7 @@ public class DriverSettlementActivity extends Activity {
                         );
 
                         if (duesAtSubmission > 0) {
+
                             builder.append(
                                     "Dues Covered: ₱"
                                             + formatMoney(
@@ -687,9 +765,12 @@ public class DriverSettlementActivity extends Activity {
                         );
 
                         if (submittedAt > 0) {
+
                             builder.append(
                                     "Submitted: "
-                                            + formatDate(submittedAt)
+                                            + formatDate(
+                                            submittedAt
+                                    )
                                             + "\n"
                             );
                         }
@@ -704,9 +785,12 @@ public class DriverSettlementActivity extends Activity {
                                 verifiedAt != null
                                         && verifiedAt > 0
                         ) {
+
                             builder.append(
                                     "Verified: "
-                                            + formatDate(verifiedAt)
+                                            + formatDate(
+                                            verifiedAt
+                                    )
                                             + "\n"
                             );
                         }
@@ -732,9 +816,12 @@ public class DriverSettlementActivity extends Activity {
     ) {
 
         Object stored =
-                document.get("driverDuesAmount");
+                document.get(
+                        "driverDuesAmount"
+                );
 
         if (stored instanceof Number) {
+
             return roundMoney(
                     ((Number) stored).doubleValue()
             );
@@ -758,14 +845,18 @@ public class DriverSettlementActivity extends Activity {
         if (value == null) return 0.0;
 
         if (value instanceof Number) {
+
             return ((Number) value).doubleValue();
         }
 
         try {
+
             return Double.parseDouble(
                     String.valueOf(value)
             );
+
         } catch (Exception e) {
+
             return 0.0;
         }
     }
@@ -773,7 +864,11 @@ public class DriverSettlementActivity extends Activity {
     private double getAmount(
             DocumentSnapshot document
     ) {
-        return getAmountField(document, "amount");
+
+        return getAmountField(
+                document,
+                "amount"
+        );
     }
 
     private double getAmountField(
@@ -787,14 +882,18 @@ public class DriverSettlementActivity extends Activity {
         if (value == null) return 0.0;
 
         if (value instanceof Number) {
+
             return ((Number) value).doubleValue();
         }
 
         try {
+
             return Double.parseDouble(
                     String.valueOf(value)
             );
+
         } catch (Exception e) {
+
             return 0.0;
         }
     }
@@ -819,6 +918,7 @@ public class DriverSettlementActivity extends Activity {
                 document.get(field);
 
         if (value instanceof Number) {
+
             return ((Number) value).longValue();
         }
 
@@ -834,6 +934,7 @@ public class DriverSettlementActivity extends Activity {
                 document.get(field);
 
         if (value instanceof Number) {
+
             return ((Number) value).longValue();
         }
 
@@ -843,6 +944,7 @@ public class DriverSettlementActivity extends Activity {
     private double roundMoney(
             double amount
     ) {
+
         return Math.round(
                 amount * 100.0
         ) / 100.0;
@@ -869,5 +971,419 @@ public class DriverSettlementActivity extends Activity {
         ).format(
                 new Date(timestamp)
         );
+    }
+
+
+    /*
+     * ============================================================
+     * ZOOMABLE GCASH QR IMAGE
+     * ============================================================
+     *
+     * Pinch = zoom
+     * Drag = move when zoomed
+     * Double tap = reset
+     */
+    private static class ZoomableImageView extends ImageView {
+
+        private static final float MIN_SCALE = 1.0f;
+        private static final float MAX_SCALE = 5.0f;
+
+        private final Matrix matrix = new Matrix();
+
+        private final float[] matrixValues =
+                new float[9];
+
+        private ScaleGestureDetector scaleDetector;
+
+        private float currentScale = 1.0f;
+
+        private final PointF lastPoint =
+                new PointF();
+
+        private boolean dragging = false;
+
+        private long lastTapTime = 0L;
+
+        public ZoomableImageView(Activity context) {
+            super(context);
+
+            setScaleType(
+                    ImageView.ScaleType.MATRIX
+            );
+
+            scaleDetector =
+                    new ScaleGestureDetector(
+                            context,
+                            new ScaleGestureDetector.SimpleOnScaleGestureListener() {
+
+                                @Override
+                                public boolean onScale(
+                                        ScaleGestureDetector detector
+                                ) {
+
+                                    float factor =
+                                            detector.getScaleFactor();
+
+                                    float nextScale =
+                                            currentScale
+                                                    * factor;
+
+                                    if (nextScale < MIN_SCALE) {
+                                        nextScale = MIN_SCALE;
+                                    }
+
+                                    if (nextScale > MAX_SCALE) {
+                                        nextScale = MAX_SCALE;
+                                    }
+
+                                    float realFactor =
+                                            nextScale
+                                                    / currentScale;
+
+                                    matrix.postScale(
+                                            realFactor,
+                                            realFactor,
+                                            detector.getFocusX(),
+                                            detector.getFocusY()
+                                    );
+
+                                    currentScale =
+                                            nextScale;
+
+                                    fixTranslation();
+
+                                    setImageMatrix(matrix);
+
+                                    return true;
+                                }
+                            }
+                    );
+        }
+
+        @Override
+        public boolean onTouchEvent(
+                MotionEvent event
+        ) {
+
+            scaleDetector.onTouchEvent(event);
+
+            switch (event.getActionMasked()) {
+
+                case MotionEvent.ACTION_DOWN:
+
+                    lastPoint.set(
+                            event.getX(),
+                            event.getY()
+                    );
+
+                    dragging = true;
+
+                    return true;
+
+                case MotionEvent.ACTION_POINTER_DOWN:
+
+                    dragging = false;
+
+                    return true;
+
+                case MotionEvent.ACTION_MOVE:
+
+                    if (
+                            !scaleDetector.isInProgress()
+                                    && currentScale > MIN_SCALE
+                                    && event.getPointerCount() == 1
+                    ) {
+
+                        float dx =
+                                event.getX()
+                                        - lastPoint.x;
+
+                        float dy =
+                                event.getY()
+                                        - lastPoint.y;
+
+                        matrix.postTranslate(
+                                dx,
+                                dy
+                        );
+
+                        fixTranslation();
+
+                        setImageMatrix(matrix);
+
+                        lastPoint.set(
+                                event.getX(),
+                                event.getY()
+                        );
+                    }
+
+                    return true;
+
+                case MotionEvent.ACTION_POINTER_UP:
+
+                    dragging = false;
+
+                    return true;
+
+                case MotionEvent.ACTION_UP:
+
+                    dragging = false;
+
+                    long now =
+                            System.currentTimeMillis();
+
+                    if (
+                            now - lastTapTime < 300
+                    ) {
+
+                        resetZoom();
+                    }
+
+                    lastTapTime = now;
+
+                    return true;
+
+                case MotionEvent.ACTION_CANCEL:
+
+                    dragging = false;
+
+                    return true;
+            }
+
+            return true;
+        }
+
+        private void resetZoom() {
+
+            currentScale = MIN_SCALE;
+
+            matrix.reset();
+
+            centerImage();
+
+            setImageMatrix(matrix);
+        }
+
+        private void centerImage() {
+
+            if (getDrawable() == null) {
+                return;
+            }
+
+            float drawableWidth =
+                    getDrawable().getIntrinsicWidth();
+
+            float drawableHeight =
+                    getDrawable().getIntrinsicHeight();
+
+            float viewWidth =
+                    getWidth()
+                            - getPaddingLeft()
+                            - getPaddingRight();
+
+            float viewHeight =
+                    getHeight()
+                            - getPaddingTop()
+                            - getPaddingBottom();
+
+            if (
+                    drawableWidth <= 0
+                            || drawableHeight <= 0
+                            || viewWidth <= 0
+                            || viewHeight <= 0
+            ) {
+                return;
+            }
+
+            float scale =
+                    Math.min(
+                            viewWidth / drawableWidth,
+                            viewHeight / drawableHeight
+                    );
+
+            matrix.setScale(
+                    scale,
+                    scale
+            );
+
+            float scaledWidth =
+                    drawableWidth * scale;
+
+            float scaledHeight =
+                    drawableHeight * scale;
+
+            float dx =
+                    (viewWidth - scaledWidth)
+                            / 2.0f;
+
+            float dy =
+                    (viewHeight - scaledHeight)
+                            / 2.0f;
+
+            matrix.postTranslate(
+                    dx + getPaddingLeft(),
+                    dy + getPaddingTop()
+            );
+        }
+
+        private void fixTranslation() {
+
+            if (getDrawable() == null) {
+                return;
+            }
+
+            matrix.getValues(matrixValues);
+
+            float scaleX =
+                    matrixValues[
+                            Matrix.MSCALE_X
+                    ];
+
+            float scaleY =
+                    matrixValues[
+                            Matrix.MSCALE_Y
+                    ];
+
+            float transX =
+                    matrixValues[
+                            Matrix.MTRANS_X
+                    ];
+
+            float transY =
+                    matrixValues[
+                            Matrix.MTRANS_Y
+                    ];
+
+            float imageWidth =
+                    getDrawable()
+                            .getIntrinsicWidth()
+                            * scaleX;
+
+            float imageHeight =
+                    getDrawable()
+                            .getIntrinsicHeight()
+                            * scaleY;
+
+            float viewWidth =
+                    getWidth();
+
+            float viewHeight =
+                    getHeight();
+
+            float minX;
+            float maxX;
+            float minY;
+            float maxY;
+
+            if (imageWidth <= viewWidth) {
+
+                minX =
+                        maxX =
+                                (viewWidth - imageWidth)
+                                        / 2.0f;
+
+            } else {
+
+                minX =
+                        viewWidth
+                                - imageWidth;
+
+                maxX = 0;
+            }
+
+            if (imageHeight <= viewHeight) {
+
+                minY =
+                        maxY =
+                                (viewHeight - imageHeight)
+                                        / 2.0f;
+
+            } else {
+
+                minY =
+                        viewHeight
+                                - imageHeight;
+
+                maxY = 0;
+            }
+
+            if (transX < minX) {
+                transX = minX;
+            }
+
+            if (transX > maxX) {
+                transX = maxX;
+            }
+
+            if (transY < minY) {
+                transY = minY;
+            }
+
+            if (transY > maxY) {
+                transY = maxY;
+            }
+
+            matrixValues[
+                    Matrix.MTRANS_X
+            ] = transX;
+
+            matrixValues[
+                    Matrix.MTRANS_Y
+            ] = transY;
+
+            matrix.setValues(
+                    matrixValues
+            );
+        }
+
+        @Override
+        protected void onSizeChanged(
+                int w,
+                int h,
+                int oldw,
+                int oldh
+        ) {
+
+            super.onSizeChanged(
+                    w,
+                    h,
+                    oldw,
+                    oldh
+            );
+
+            if (oldw == 0 && oldh == 0) {
+
+                post(() -> {
+
+                    centerImage();
+
+                    setImageMatrix(
+                            matrix
+                    );
+                });
+            }
+        }
+
+        @Override
+        public void setImageResource(
+                int resId
+        ) {
+
+            super.setImageResource(
+                    resId
+            );
+
+            post(() -> {
+
+                currentScale =
+                        MIN_SCALE;
+
+                centerImage();
+
+                setImageMatrix(
+                        matrix
+                );
+            });
+        }
     }
 }
