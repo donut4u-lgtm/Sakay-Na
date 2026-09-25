@@ -1,4 +1,3 @@
-
 rules_version = '2';
 
 service cloud.firestore {
@@ -75,10 +74,6 @@ service cloud.firestore {
                 ).data.get("driverId", "") == request.auth.uid;
     }
 
-    /*
-     * USERS
-     */
-
     match /users/{userId} {
 
       allow create: if request.auth != null
@@ -124,10 +119,6 @@ service cloud.firestore {
                     );
     }
 
-    /*
-     * DRIVERS
-     */
-
     match /drivers/{driverId} {
 
       allow read: if request.auth != null
@@ -136,11 +127,6 @@ service cloud.firestore {
                     || isAdmin()
                   );
 
-      /*
-       * A driver may create their own driver document.
-       * ONLINE or OFFLINE is allowed here because an
-       * approved driver may go ONLINE for the first time.
-       */
       allow create: if request.auth != null
                     && (
                       isAdmin()
@@ -171,38 +157,24 @@ service cloud.firestore {
                     );
     }
 
-    /*
-     * RIDES
-     */
-
     match /rides/{rideId} {
 
       allow read: if request.auth != null
                   && (
                     isAdmin()
-
                     ||
-
                     resource.data.get("passengerId", "")
                       == request.auth.uid
-
                     ||
-
                     resource.data.get("driverId", "")
                       == request.auth.uid
-
                     ||
-
                     (
                       isApprovedDriver()
                       && resource.data.get("status", "")
                          == "REQUESTED"
                     )
                   );
-
-      /*
-       * PASSENGER CREATES BOOKING
-       */
 
       allow create: if request.auth != null
                     && (
@@ -216,10 +188,6 @@ service cloud.firestore {
                           == "REQUESTED"
                       )
                     );
-
-      /*
-       * PASSENGER CANCELLATION
-       */
 
       allow update: if isAdmin()
 
@@ -248,10 +216,6 @@ service cloud.firestore {
                     )
 
                     ||
-
-                    /*
-                     * DRIVER ACCEPTS REQUEST
-                     */
 
                     (
                       isApprovedDriver()
@@ -302,10 +266,6 @@ service cloud.firestore {
 
                     ||
 
-                    /*
-                     * DRIVER DECLINES REQUEST
-                     */
-
                     (
                       isApprovedDriver()
                       && resource.data.get("status", "")
@@ -329,10 +289,6 @@ service cloud.firestore {
 
                     ||
 
-                    /*
-                     * DRIVER UPDATES RIDE STATUS
-                     */
-
                     (
                       request.auth != null
                       && resource.data.get("driverId", "")
@@ -351,10 +307,6 @@ service cloud.firestore {
                              "completedAt"
                            ])
                     );
-
-      /*
-       * RIDE CHAT
-       */
 
       match /messages/{messageId} {
 
@@ -382,10 +334,6 @@ service cloud.firestore {
       }
     }
 
-    /*
-     * DRIVER LOCATIONS
-     */
-
     match /driverLocations/{driverId} {
 
       allow read: if request.auth != null;
@@ -396,10 +344,6 @@ service cloud.firestore {
                               || isAdmin()
                             );
     }
-
-    /*
-     * DRIVER SETTLEMENTS
-     */
 
     match /driverSettlements/{settlementId} {
 
@@ -420,8 +364,16 @@ service cloud.firestore {
                          > 0
                     && request.resource.data.get("referenceNumber", "")
                          != ""
-                    && request.resource.data.get("paymentMethod", "")
-                         == "GCASH_OR_MAYA";
+                    && (
+                      request.resource.data.get("paymentMethod", "")
+                         == "GCASH"
+                      ||
+                      request.resource.data.get("paymentMethod", "")
+                         == "MAYA"
+                      ||
+                      request.resource.data.get("paymentMethod", "")
+                         == "GCASH_OR_MAYA"
+                    );
 
       allow update: if isAdmin();
 
