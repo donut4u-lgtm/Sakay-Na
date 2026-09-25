@@ -449,13 +449,6 @@ public class DriverActivity extends Activity {
 
         root.addView(settlement);
 
-        /*
-         * SAKAY NA DRIVER GCASH PAYMENT
-         *
-         * This QR is NOT for passenger payments.
-         * It is only for the driver to pay Sakay Na
-         * platform dues/fees.
-         */
         Button gcashPayment =
                 new Button(this);
 
@@ -1270,7 +1263,9 @@ public class DriverActivity extends Activity {
             }
 
             String message =
-                    "📍 "
+                    "🛺 Passenger: "
+                            + passengerNameFromRide(ride)
+                            + "\n📍 "
                             + pickup
                             + " → "
                             + destination
@@ -1511,24 +1506,31 @@ public class DriverActivity extends Activity {
         String fare =
                 formatFare(ride.get("fare"));
 
+        String passengerName =
+                passengerNameFromRide(ride);
+
         TextView details =
                 new TextView(this);
 
         details.setText(
-                "\n📍 PICKUP\n"
+                "\n👤 PASSENGER\n"
+                        + passengerName
+                        + "\n\n👥 PASSENGERS\n"
+                        + passengerCountText(ride)
+                        + "\n\n📍 PICKUP\n"
                         + pickup
                         + "\n\n🏁 DESTINATION\n"
                         + destination
                         + "\n\n💰 FARE\n"
                         + fare
-                        + "\n\n👥 PASSENGERS\n"
-                        + passengerCountText(ride)
                         + "\n\n💳 PAYMENT\n"
                         + (
                         payment.isEmpty()
                                 ? "Not specified"
                                 : payment
                 )
+                        + "\n\n🔒 PASSENGER PHONE\n"
+                        + "Protected — use Ride Chat"
         );
 
         details.setTextSize(17);
@@ -1538,6 +1540,15 @@ public class DriverActivity extends Activity {
         );
 
         card.addView(details);
+
+        loadPassengerName(
+                ride,
+                details,
+                pickup,
+                destination,
+                fare,
+                payment
+        );
 
         Button accept =
                 new Button(this);
@@ -1635,6 +1646,114 @@ public class DriverActivity extends Activity {
         card.addView(decline);
 
         requestContainer.addView(card);
+    }
+
+    private void loadPassengerName(
+            DocumentSnapshot ride,
+            TextView details,
+            String pickup,
+            String destination,
+            String fare,
+            String payment
+    ) {
+
+        String storedName =
+                passengerNameFromRide(ride);
+
+        if (!storedName.isEmpty()
+                && !"Passenger".equalsIgnoreCase(storedName)) {
+            return;
+        }
+
+        String passengerId =
+                string(ride, "passengerId");
+
+        if (passengerId.isEmpty()) {
+            return;
+        }
+
+        db.collection("users")
+                .document(passengerId)
+                .get()
+                .addOnSuccessListener(profile -> {
+
+                    String name =
+                            passengerNameFromProfile(
+                                    profile
+                            );
+
+                    if (name.isEmpty()) {
+                        name = "Passenger";
+                    }
+
+                    final String finalName =
+                            name;
+
+                    details.setText(
+                            "\n👤 PASSENGER\n"
+                                    + finalName
+                                    + "\n\n👥 PASSENGERS\n"
+                                    + passengerCountText(ride)
+                                    + "\n\n📍 PICKUP\n"
+                                    + pickup
+                                    + "\n\n🏁 DESTINATION\n"
+                                    + destination
+                                    + "\n\n💰 FARE\n"
+                                    + fare
+                                    + "\n\n💳 PAYMENT\n"
+                                    + (
+                                    payment.isEmpty()
+                                            ? "Not specified"
+                                            : payment
+                            )
+                                    + "\n\n🔒 PASSENGER PHONE\n"
+                                    + "Protected — use Ride Chat"
+                    );
+                });
+    }
+
+    private String passengerNameFromRide(
+            DocumentSnapshot ride
+    ) {
+
+        String name =
+                string(
+                        ride,
+                        "passengerName"
+                );
+
+        if (!name.isEmpty()) {
+            return name;
+        }
+
+        return "";
+    }
+
+    private String passengerNameFromProfile(
+            DocumentSnapshot profile
+    ) {
+
+        String name =
+                string(
+                        profile,
+                        "passengerName"
+                );
+
+        if (!name.isEmpty()) {
+            return name;
+        }
+
+        name =
+                string(
+                        profile,
+                        "name"
+                );
+
+        if (!name.isEmpty()) {
+            return name;
+        }
+
+        return "";
     }
 
     private void acceptRide(
@@ -2089,8 +2208,21 @@ public class DriverActivity extends Activity {
         String fare =
                 formatFare(ride.get("fare"));
 
+        String passengerName =
+                passengerNameFromRide(ride);
+
+        if (passengerName.isEmpty()) {
+            passengerName = "Passenger";
+        }
+
         currentRideText.setText(
                 "🚕 ACTIVE RIDE\n\n"
+                        + "👤 PASSENGER\n"
+                        + passengerName
+                        + "\n\n"
+                        + "🔒 PHONE\n"
+                        + "Protected — use Ride Chat"
+                        + "\n\n"
                         + "📍 PICKUP\n"
                         + pickup
                         + "\n\n"
@@ -2114,7 +2246,83 @@ public class DriverActivity extends Activity {
                         + status
         );
 
+        loadCurrentRidePassengerName(
+                ride,
+                pickup,
+                destination,
+                fare,
+                payment,
+                status
+        );
+
         showRideStatusButtons(status);
+    }
+
+    private void loadCurrentRidePassengerName(
+            DocumentSnapshot ride,
+            String pickup,
+            String destination,
+            String fare,
+            String payment,
+            String status
+    ) {
+
+        if (!passengerNameFromRide(ride).isEmpty()) {
+            return;
+        }
+
+        String passengerId =
+                string(ride, "passengerId");
+
+        if (passengerId.isEmpty()) {
+            return;
+        }
+
+        db.collection("users")
+                .document(passengerId)
+                .get()
+                .addOnSuccessListener(profile -> {
+
+                    String name =
+                            passengerNameFromProfile(
+                                    profile
+                            );
+
+                    if (name.isEmpty()) {
+                        name = "Passenger";
+                    }
+
+                    currentRideText.setText(
+                            "🚕 ACTIVE RIDE\n\n"
+                                    + "👤 PASSENGER\n"
+                                    + name
+                                    + "\n\n"
+                                    + "🔒 PHONE\n"
+                                    + "Protected — use Ride Chat"
+                                    + "\n\n"
+                                    + "📍 PICKUP\n"
+                                    + pickup
+                                    + "\n\n"
+                                    + "🏁 DESTINATION\n"
+                                    + destination
+                                    + "\n\n"
+                                    + "💰 FARE\n"
+                                    + fare
+                                    + "\n\n"
+                                    + "👥 PASSENGERS\n"
+                                    + passengerCountText(ride)
+                                    + "\n\n"
+                                    + "💳 PAYMENT\n"
+                                    + (
+                                    payment.isEmpty()
+                                            ? "Not specified"
+                                            : payment
+                            )
+                                    + "\n\n"
+                                    + "🚦 STATUS\n"
+                                    + status
+                    );
+                });
     }
 
     private String passengerCountText(
@@ -2598,17 +2806,6 @@ public class DriverActivity extends Activity {
                 : value.trim();
     }
 
-    /*
-     * SHOW SAKAY NA DRIVER GCASH QR
-     *
-     * This QR is ONLY for:
-     *
-     * DRIVER -> SAKAY NA
-     *
-     * It is NOT a passenger payment QR.
-     *
-     * No telephone number is displayed.
-     */
     private void showGcashQr() {
 
         LinearLayout layout =
