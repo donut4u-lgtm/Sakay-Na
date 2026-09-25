@@ -17,6 +17,7 @@ import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.Source;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -32,6 +33,13 @@ public class PassengerRegistrationActivity extends Activity {
     private EditText confirmPasswordInput;
     private EditText provinceInput;
     private EditText townInput;
+
+    private Button createButton;
+
+    /*
+     * Prevents repeated taps while registration is running.
+     */
+    private boolean registrationInProgress = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -106,7 +114,7 @@ public class PassengerRegistrationActivity extends Activity {
         townInput = createInput("Town / City");
         root.addView(townInput);
 
-        Button createButton = new Button(this);
+        createButton = new Button(this);
         createButton.setText(
                 "✅ CREATE PASSENGER ACCOUNT"
         );
@@ -183,6 +191,22 @@ public class PassengerRegistrationActivity extends Activity {
 
     private void createPassengerAccount() {
 
+        /*
+         * Anti-spam protection:
+         * Do not allow multiple registration requests
+         * from repeated button taps.
+         */
+        if (registrationInProgress) {
+
+            Toast.makeText(
+                    this,
+                    "Registration is already in progress. Please wait.",
+                    Toast.LENGTH_SHORT
+            ).show();
+
+            return;
+        }
+
         String name =
                 nameInput
                         .getText()
@@ -257,14 +281,91 @@ public class PassengerRegistrationActivity extends Activity {
             return;
         }
 
-        String email =
-                phone + "@sakyna.app";
+        /*
+         * Lock the registration button before
+         * contacting Firebase.
+         */
+        registrationInProgress = true;
+
+        createButton.setEnabled(false);
+        createButton.setText(
+                "⏳ CHECKING PHONE..."
+        );
 
         Toast.makeText(
                 this,
-                "Creating passenger account...",
+                "Checking phone number...",
                 Toast.LENGTH_SHORT
         ).show();
+
+        /*
+         * Server-side Firestore read.
+         *
+         * This prevents a phone already registered
+         * in the users collection from starting
+         * another registration.
+         */
+        db.collection("users")
+                .whereEqualTo(
+                        "phone",
+                        phone
+                )
+                .limit(1)
+                .get(Source.SERVER)
+                .addOnSuccessListener(
+                        snapshot -> {
+
+                            if (!snapshot.isEmpty()) {
+
+                                resetRegistrationButton();
+
+                                Toast.makeText(
+                                        this,
+                                        "This phone number already has a Sakay Na account.",
+                                        Toast.LENGTH_LONG
+                                ).show();
+
+                                return;
+                            }
+
+                            createFirebasePassengerAccount(
+                                    name,
+                                    phone,
+                                    password,
+                                    province,
+                                    town
+                            );
+                        }
+                )
+                .addOnFailureListener(
+                        error -> {
+
+                            resetRegistrationButton();
+
+                            Toast.makeText(
+                                    this,
+                                    "Unable to check account status: "
+                                            + error.getMessage(),
+                                    Toast.LENGTH_LONG
+                            ).show();
+                        }
+                );
+    }
+
+    private void createFirebasePassengerAccount(
+            String name,
+            String phone,
+            String password,
+            String province,
+            String town
+    ) {
+
+        String email =
+                phone + "@sakyna.app";
+
+        createButton.setText(
+                "⏳ CREATING ACCOUNT..."
+        );
 
         auth.createUserWithEmailAndPassword(
                         email,
@@ -280,12 +381,17 @@ public class PassengerRegistrationActivity extends Activity {
                         )
                 )
                 .addOnFailureListener(
-                        error -> Toast.makeText(
-                                this,
-                                "Account creation failed: "
-                                        + error.getMessage(),
-                                Toast.LENGTH_LONG
-                        ).show()
+                        error -> {
+
+                            resetRegistrationButton();
+
+                            Toast.makeText(
+                                    this,
+                                    "Account creation failed: "
+                                            + error.getMessage(),
+                                    Toast.LENGTH_LONG
+                            ).show();
+                        }
                 );
     }
 
@@ -298,6 +404,8 @@ public class PassengerRegistrationActivity extends Activity {
     ) {
 
         if (user == null) {
+
+            resetRegistrationButton();
 
             Toast.makeText(
                     this,
@@ -367,6 +475,8 @@ public class PassengerRegistrationActivity extends Activity {
                 .addOnSuccessListener(
                         unused -> {
 
+                            registrationInProgress = false;
+
                             Toast.makeText(
                                     this,
                                     "✅ Passenger account created.",
@@ -390,13 +500,32 @@ public class PassengerRegistrationActivity extends Activity {
                         }
                 )
                 .addOnFailureListener(
-                        error -> Toast.makeText(
-                                this,
-                                "Profile save failed: "
-                                        + error.getMessage(),
-                                Toast.LENGTH_LONG
-                        ).show()
+                        error -> {
+
+                            resetRegistrationButton();
+
+                            Toast.makeText(
+                                    this,
+                                    "Profile save failed: "
+                                            + error.getMessage(),
+                                    Toast.LENGTH_LONG
+                            ).show();
+                        }
                 );
+    }
+
+    private void resetRegistrationButton() {
+
+        registrationInProgress = false;
+
+        if (createButton != null) {
+
+            createButton.setEnabled(true);
+
+            createButton.setText(
+                    "✅ CREATE PASSENGER ACCOUNT"
+            );
+        }
     }
 
     private String normalizePhone(
