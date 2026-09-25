@@ -5,6 +5,7 @@ import android.graphics.Color;
 import android.os.Bundle;
 import android.text.InputType;
 import android.view.Gravity;
+import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
@@ -147,7 +148,7 @@ public class DriverSettlementActivity extends Activity {
                 "Scan this QR with GCash using another phone/device.\n"
                         + "Pay the exact BALANCE DUE shown above.\n"
                         + "After payment, keep the GCash reference number.\n\n"
-                        + "📱 QR AUTO-FIT • LARGE AND READY TO SCAN"
+                        + "📱 QR READY TO SCAN"
         );
         gcashInfo.setTextSize(15);
         gcashInfo.setTextColor(Color.DKGRAY);
@@ -160,14 +161,25 @@ public class DriverSettlementActivity extends Activity {
          * GCASH QR
          * ============================================================
          *
-         * The QR automatically fits the available window width.
-         * No pinch, drag, or double-tap is required.
+         * Uses the EXISTING gcash_qr drawable.
+         *
+         * The QR is displayed inside a fixed square viewing area.
+         * The surrounding parts of the original photo are cropped
+         * visually by CENTER_CROP.
+         *
+         * No tap-to-zoom.
+         * No pinch-to-zoom.
+         * No zoom controls.
          */
-        AutoFitQrImageView gcashQr =
-                new AutoFitQrImageView(this);
+        QrCropImageView gcashQr =
+                new QrCropImageView(this);
 
         gcashQr.setImageResource(
                 R.drawable.gcash_qr
+        );
+
+        gcashQr.setScaleType(
+                ImageView.ScaleType.CENTER_CROP
         );
 
         gcashQr.setBackgroundColor(
@@ -175,23 +187,27 @@ public class DriverSettlementActivity extends Activity {
         );
 
         gcashQr.setPadding(
-                5,
-                5,
-                5,
-                5
+                0,
+                0,
+                0,
+                0
         );
+
+        gcashQr.setClickable(false);
+        gcashQr.setFocusable(false);
+        gcashQr.setLongClickable(false);
 
         LinearLayout.LayoutParams qrParams =
                 new LinearLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.WRAP_CONTENT
+                        ViewGroup.LayoutParams.MATCH_PARENT
                 );
 
         qrParams.setMargins(
                 0,
-                5,
+                8,
                 0,
-                15
+                18
         );
 
         gcashQr.setLayoutParams(
@@ -1263,38 +1279,28 @@ public class DriverSettlementActivity extends Activity {
         );
     }
 
-
     // ============================================================
-    // AUTO-FIT GCASH QR
+    // FIXED QR DISPLAY
     // ============================================================
 
-    private static class AutoFitQrImageView
+    private static class QrCropImageView
             extends ImageView {
 
-        public AutoFitQrImageView(
-                Activity context
-        ) {
-
+        public QrCropImageView(Activity context) {
             super(context);
 
             setScaleType(
-                    ImageView.ScaleType.FIT_CENTER
+                    ImageView.ScaleType.CENTER_CROP
             );
 
-            setAdjustViewBounds(
-                    true
-            );
+            setAdjustViewBounds(false);
+
+            setClickable(false);
+            setFocusable(false);
+            setLongClickable(false);
 
             setBackgroundColor(
                     Color.WHITE
-            );
-
-            setClickable(
-                    false
-            );
-
-            setFocusable(
-                    false
             );
         }
 
@@ -1304,50 +1310,22 @@ public class DriverSettlementActivity extends Activity {
                 int heightMeasureSpec
         ) {
 
-            int availableWidth =
+            int width =
                     MeasureSpec.getSize(
                             widthMeasureSpec
                     );
 
-            int horizontalPadding =
-                    getPaddingLeft()
-                            + getPaddingRight();
+            if (width > 0) {
 
-            int contentWidth =
-                    Math.max(
-                            1,
-                            availableWidth
-                                    - horizontalPadding
-                    );
-
-            if (
-                    getDrawable() != null
-                            && getDrawable()
-                            .getIntrinsicWidth() > 0
-                            && getDrawable()
-                            .getIntrinsicHeight() > 0
-            ) {
-
-                int contentHeight =
-                        Math.round(
-                                contentWidth
-                                        * (
-                                        getDrawable()
-                                                .getIntrinsicHeight()
-                                                / (float)
-                                                getDrawable()
-                                                        .getIntrinsicWidth()
-                                )
+                int squareSize =
+                        Math.max(
+                                1,
+                                width
                         );
-
-                int desiredHeight =
-                        contentHeight
-                                + getPaddingTop()
-                                + getPaddingBottom();
 
                 heightMeasureSpec =
                         MeasureSpec.makeMeasureSpec(
-                                desiredHeight,
+                                squareSize,
                                 MeasureSpec.EXACTLY
                         );
             }
