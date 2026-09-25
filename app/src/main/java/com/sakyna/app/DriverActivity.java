@@ -449,6 +449,36 @@ public class DriverActivity extends Activity {
 
         root.addView(settlement);
 
+        /*
+         * SAKAY NA DRIVER GCASH PAYMENT
+         *
+         * This QR is NOT for passenger payments.
+         * It is only for the driver to pay Sakay Na
+         * platform dues/fees.
+         */
+        Button gcashPayment =
+                new Button(this);
+
+        gcashPayment.setText(
+                "💳 PAY SAKAY NA VIA GCASH"
+        );
+
+        gcashPayment.setTextSize(16);
+
+        gcashPayment.setTextColor(
+                Color.WHITE
+        );
+
+        gcashPayment.setBackgroundColor(
+                Color.rgb(0, 120, 200)
+        );
+
+        gcashPayment.setOnClickListener(
+                v -> showGcashQr()
+        );
+
+        root.addView(gcashPayment);
+
         Button logout =
                 new Button(this);
 
@@ -1509,41 +1539,6 @@ public class DriverActivity extends Activity {
 
         card.addView(details);
 
-        /*
-         * GCASH QR
-         *
-         * The QR image is stored in:
-         *
-         * app/src/main/res/drawable/gcash_qr.png
-         *
-         * It is shown only when this ride uses GCash.
-         */
-        if (isGcashPayment(payment)) {
-
-            Button qrButton =
-                    new Button(this);
-
-            qrButton.setText(
-                    "📱 VIEW GCASH QR"
-            );
-
-            qrButton.setTextSize(16);
-
-            qrButton.setTextColor(
-                    Color.WHITE
-            );
-
-            qrButton.setBackgroundColor(
-                    Color.rgb(0, 120, 200)
-            );
-
-            qrButton.setOnClickListener(
-                    v -> showGcashQr()
-            );
-
-            card.addView(qrButton);
-        }
-
         Button accept =
                 new Button(this);
 
@@ -1871,7 +1866,9 @@ public class DriverActivity extends Activity {
                 })
                 .addOnFailureListener(e -> {
 
-                    hiddenRequestIds.remove(rideId);
+                    hiddenRequestIds.remove(
+                            rideId
+                    );
 
                     card.setVisibility(
                             LinearLayout.VISIBLE
@@ -2118,40 +2115,6 @@ public class DriverActivity extends Activity {
         );
 
         showRideStatusButtons(status);
-
-        /*
-         * If the active ride uses GCash,
-         * show the QR button directly under
-         * the ride information.
-         */
-        if (isGcashPayment(payment)) {
-
-            Button qrButton =
-                    new Button(this);
-
-            qrButton.setText(
-                    "📱 VIEW GCASH QR"
-            );
-
-            qrButton.setTextSize(17);
-
-            qrButton.setTextColor(
-                    Color.WHITE
-            );
-
-            qrButton.setBackgroundColor(
-                    Color.rgb(0, 120, 200)
-            );
-
-            qrButton.setOnClickListener(
-                    v -> showGcashQr()
-            );
-
-            rideStatusContainer.addView(
-                    qrButton,
-                    0
-            );
-        }
     }
 
     private String passengerCountText(
@@ -2495,8 +2458,7 @@ public class DriverActivity extends Activity {
                 "ACCEPTED".equalsIgnoreCase(status)
                         || "DRIVER_ON_THE_WAY"
                         .equalsIgnoreCase(status)
-                        || "DRIVER_ARRIVED"
-                        .equalsIgnoreCase(status)
+                        || "DRIVER_ARRIVED".equalsIgnoreCase(status)
                         || "IN_PROGRESS".equalsIgnoreCase(status)
                         || "ARRIVED".equalsIgnoreCase(status)
                         || "ONGOING".equalsIgnoreCase(status);
@@ -2637,36 +2599,15 @@ public class DriverActivity extends Activity {
     }
 
     /*
-     * Detect GCash payment safely.
+     * SHOW SAKAY NA DRIVER GCASH QR
      *
-     * Accepts:
-     * GCash
-     * GCASH
-     * gcash
-     * GCash Wallet
-     */
-    private boolean isGcashPayment(
-            String payment
-    ) {
-
-        if (payment == null) {
-            return false;
-        }
-
-        return payment
-                .trim()
-                .toLowerCase(java.util.Locale.US)
-                .contains("gcash");
-    }
-
-    /*
-     * SHOW GCASH QR
+     * This QR is ONLY for:
      *
-     * Uses the static QR image already stored at:
+     * DRIVER -> SAKAY NA
      *
-     * app/src/main/res/drawable/gcash_qr.png
+     * It is NOT a passenger payment QR.
      *
-     * No telephone number is added to the screen.
+     * No telephone number is displayed.
      */
     private void showGcashQr() {
 
@@ -2692,7 +2633,7 @@ public class DriverActivity extends Activity {
                 new TextView(this);
 
         title.setText(
-                "💳 GCASH PAYMENT"
+                "💳 PAY SAKAY NA — GCASH"
         );
 
         title.setTextSize(22);
@@ -2713,6 +2654,38 @@ public class DriverActivity extends Activity {
         );
 
         layout.addView(title);
+
+        TextView warning =
+                new TextView(this);
+
+        warning.setText(
+                "⚠️ DRIVER PAYMENT ONLY"
+                        + "\n\n"
+                        + "This QR is for DRIVER → SAKAY NA payment only."
+                        + "\n\n"
+                        + "Scan this QR to pay your Sakay Na platform dues/fee."
+                        + "\n\n"
+                        + "🚫 DO NOT ask the passenger to scan this QR."
+        );
+
+        warning.setTextSize(17);
+
+        warning.setGravity(
+                Gravity.CENTER
+        );
+
+        warning.setTextColor(
+                Color.rgb(150, 0, 0)
+        );
+
+        warning.setPadding(
+                10,
+                5,
+                10,
+                15
+        );
+
+        layout.addView(warning);
 
         ImageView qrImage =
                 new ImageView(this);
@@ -2749,7 +2722,9 @@ public class DriverActivity extends Activity {
                 new TextView(this);
 
         instruction.setText(
-                "📱 Scan this QR code to make the GCash payment."
+                "💰 After payment, keep your GCash confirmation."
+                        + "\n"
+                        + "Admin must verify the payment before the driver dues are cleared."
         );
 
         instruction.setTextSize(16);
