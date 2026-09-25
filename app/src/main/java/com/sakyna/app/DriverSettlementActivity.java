@@ -2,13 +2,9 @@ package com.sakyna.app;
 
 import android.app.Activity;
 import android.graphics.Color;
-import android.graphics.Matrix;
-import android.graphics.PointF;
 import android.os.Bundle;
 import android.text.InputType;
 import android.view.Gravity;
-import android.view.MotionEvent;
-import android.view.ScaleGestureDetector;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
@@ -151,7 +147,7 @@ public class DriverSettlementActivity extends Activity {
                 "Scan this QR with GCash using another phone/device.\n"
                         + "Pay the exact BALANCE DUE shown above.\n"
                         + "After payment, keep the GCash reference number.\n\n"
-                        + "🤏 PINCH TO ZOOM • DRAG TO MOVE • DOUBLE-TAP TO RESET"
+                        + "📱 QR AUTO-FIT • LARGE AND READY TO SCAN"
         );
         gcashInfo.setTextSize(15);
         gcashInfo.setTextColor(Color.DKGRAY);
@@ -164,13 +160,11 @@ public class DriverSettlementActivity extends Activity {
          * GCASH QR
          * ============================================================
          *
-         * Maximum zoom: 20x
-         * Pinch = zoom
-         * Drag = pan
-         * Double tap = reset
+         * The QR automatically fits the available window width.
+         * No pinch, drag, or double-tap is required.
          */
-        ZoomableImageView gcashQr =
-                new ZoomableImageView(this);
+        AutoFitQrImageView gcashQr =
+                new AutoFitQrImageView(this);
 
         gcashQr.setImageResource(
                 R.drawable.gcash_qr
@@ -181,22 +175,22 @@ public class DriverSettlementActivity extends Activity {
         );
 
         gcashQr.setPadding(
-                15,
-                15,
-                15,
-                15
+                5,
+                5,
+                5,
+                5
         );
 
         LinearLayout.LayoutParams qrParams =
                 new LinearLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
-                        700
+                        ViewGroup.LayoutParams.WRAP_CONTENT
                 );
 
         qrParams.setMargins(
-                10,
+                0,
                 5,
-                10,
+                0,
                 15
         );
 
@@ -1271,497 +1265,97 @@ public class DriverSettlementActivity extends Activity {
 
 
     // ============================================================
-    // ZOOMABLE GCASH QR
+    // AUTO-FIT GCASH QR
     // ============================================================
 
-    private static class ZoomableImageView
+    private static class AutoFitQrImageView
             extends ImageView {
 
-        private static final float MIN_SCALE = 1.0f;
-
-        // Maximum zoom increased to 20x.
-        private static final float MAX_SCALE = 20.0f;
-
-        private final Matrix matrix =
-                new Matrix();
-
-        private final float[] matrixValues =
-                new float[9];
-
-        private final PointF lastPoint =
-                new PointF();
-
-        private ScaleGestureDetector scaleDetector;
-
-        private float currentScale =
-                MIN_SCALE;
-
-        private long lastTapTime =
-                0L;
-
-        public ZoomableImageView(
+        public AutoFitQrImageView(
                 Activity context
         ) {
 
             super(context);
 
             setScaleType(
-                    ImageView.ScaleType.MATRIX
+                    ImageView.ScaleType.FIT_CENTER
             );
 
-            scaleDetector =
-                    new ScaleGestureDetector(
-                            context,
-                            new ScaleGestureDetector
-                                    .SimpleOnScaleGestureListener() {
-
-                                @Override
-                                public boolean onScale(
-                                        ScaleGestureDetector detector
-                                ) {
-
-                                    float factor =
-                                            detector
-                                                    .getScaleFactor();
-
-                                    float nextScale =
-                                            currentScale
-                                                    * factor;
-
-                                    if (
-                                            nextScale
-                                                    < MIN_SCALE
-                                    ) {
-
-                                        nextScale =
-                                                MIN_SCALE;
-                                    }
-
-                                    if (
-                                            nextScale
-                                                    > MAX_SCALE
-                                    ) {
-
-                                        nextScale =
-                                                MAX_SCALE;
-                                    }
-
-                                    float realFactor =
-                                            nextScale
-                                                    / currentScale;
-
-                                    matrix.postScale(
-                                            realFactor,
-                                            realFactor,
-                                            detector
-                                                    .getFocusX(),
-                                            detector
-                                                    .getFocusY()
-                                    );
-
-                                    currentScale =
-                                            nextScale;
-
-                                    fixTranslation();
-
-                                    setImageMatrix(
-                                            matrix
-                                    );
-
-                                    return true;
-                                }
-                            }
-                    );
-        }
-
-        @Override
-        public boolean onTouchEvent(
-                MotionEvent event
-        ) {
-
-            scaleDetector
-                    .onTouchEvent(event);
-
-            switch (
-                    event.getActionMasked()
-            ) {
-
-                case MotionEvent.ACTION_DOWN:
-
-                    lastPoint.set(
-                            event.getX(),
-                            event.getY()
-                    );
-
-                    return true;
-
-                case MotionEvent.ACTION_POINTER_DOWN:
-
-                    return true;
-
-                case MotionEvent.ACTION_MOVE:
-
-                    if (
-                            !scaleDetector
-                                    .isInProgress()
-                                    && currentScale
-                                    > MIN_SCALE
-                                    && event
-                                    .getPointerCount()
-                                    == 1
-                    ) {
-
-                        float dx =
-                                event.getX()
-                                        - lastPoint.x;
-
-                        float dy =
-                                event.getY()
-                                        - lastPoint.y;
-
-                        matrix.postTranslate(
-                                dx,
-                                dy
-                        );
-
-                        fixTranslation();
-
-                        setImageMatrix(
-                                matrix
-                        );
-
-                        lastPoint.set(
-                                event.getX(),
-                                event.getY()
-                        );
-                    }
-
-                    return true;
-
-                case MotionEvent.ACTION_POINTER_UP:
-
-                    if (
-                            event.getPointerCount()
-                                    > 0
-                    ) {
-
-                        int index =
-                                event
-                                        .getActionIndex();
-
-                        if (
-                                index
-                                        < event
-                                        .getPointerCount()
-                        ) {
-                            lastPoint.set(
-                                    event.getX(
-                                            index
-                                    ),
-                                    event.getY(
-                                            index
-                                    )
-                            );
-                        }
-                    }
-
-                    return true;
-
-                case MotionEvent.ACTION_UP:
-
-                    long now =
-                            System.currentTimeMillis();
-
-                    if (
-                            now - lastTapTime
-                                    < 300
-                    ) {
-
-                        resetZoom();
-                    }
-
-                    lastTapTime =
-                            now;
-
-                    return true;
-
-                case MotionEvent.ACTION_CANCEL:
-
-                    return true;
-            }
-
-            return true;
-        }
-
-        private void resetZoom() {
-
-            currentScale =
-                    MIN_SCALE;
-
-            matrix.reset();
-
-            centerImage();
-
-            setImageMatrix(
-                    matrix
-            );
-        }
-
-        private void centerImage() {
-
-            if (
-                    getDrawable() == null
-            ) {
-                return;
-            }
-
-            float drawableWidth =
-                    getDrawable()
-                            .getIntrinsicWidth();
-
-            float drawableHeight =
-                    getDrawable()
-                            .getIntrinsicHeight();
-
-            float viewWidth =
-                    getWidth()
-                            - getPaddingLeft()
-                            - getPaddingRight();
-
-            float viewHeight =
-                    getHeight()
-                            - getPaddingTop()
-                            - getPaddingBottom();
-
-            if (
-                    drawableWidth <= 0
-                            || drawableHeight <= 0
-                            || viewWidth <= 0
-                            || viewHeight <= 0
-            ) {
-                return;
-            }
-
-            float scale =
-                    Math.min(
-                            viewWidth
-                                    / drawableWidth,
-                            viewHeight
-                                    / drawableHeight
-                    );
-
-            matrix.setScale(
-                    scale,
-                    scale
+            setAdjustViewBounds(
+                    true
             );
 
-            float scaledWidth =
-                    drawableWidth
-                            * scale;
-
-            float scaledHeight =
-                    drawableHeight
-                            * scale;
-
-            float dx =
-                    (
-                            viewWidth
-                                    - scaledWidth
-                    ) / 2.0f;
-
-            float dy =
-                    (
-                            viewHeight
-                                    - scaledHeight
-                    ) / 2.0f;
-
-            matrix.postTranslate(
-                    dx + getPaddingLeft(),
-                    dy + getPaddingTop()
-            );
-        }
-
-        private void fixTranslation() {
-
-            if (
-                    getDrawable() == null
-            ) {
-                return;
-            }
-
-            matrix.getValues(
-                    matrixValues
+            setBackgroundColor(
+                    Color.WHITE
             );
 
-            float scaleX =
-                    matrixValues[
-                            Matrix.MSCALE_X
-                    ];
+            setClickable(
+                    false
+            );
 
-            float scaleY =
-                    matrixValues[
-                            Matrix.MSCALE_Y
-                    ];
-
-            float transX =
-                    matrixValues[
-                            Matrix.MTRANS_X
-                    ];
-
-            float transY =
-                    matrixValues[
-                            Matrix.MTRANS_Y
-                    ];
-
-            float imageWidth =
-                    getDrawable()
-                            .getIntrinsicWidth()
-                            * scaleX;
-
-            float imageHeight =
-                    getDrawable()
-                            .getIntrinsicHeight()
-                            * scaleY;
-
-            float viewWidth =
-                    getWidth();
-
-            float viewHeight =
-                    getHeight();
-
-            float minX;
-            float maxX;
-            float minY;
-            float maxY;
-
-            if (
-                    imageWidth <= viewWidth
-            ) {
-
-                minX =
-                        maxX =
-                                (
-                                        viewWidth
-                                                - imageWidth
-                                ) / 2.0f;
-
-            } else {
-
-                minX =
-                        viewWidth
-                                - imageWidth;
-
-                maxX = 0;
-            }
-
-            if (
-                    imageHeight <= viewHeight
-            ) {
-
-                minY =
-                        maxY =
-                                (
-                                        viewHeight
-                                                - imageHeight
-                                ) / 2.0f;
-
-            } else {
-
-                minY =
-                        viewHeight
-                                - imageHeight;
-
-                maxY = 0;
-            }
-
-            if (
-                    transX < minX
-            ) {
-                transX = minX;
-            }
-
-            if (
-                    transX > maxX
-            ) {
-                transX = maxX;
-            }
-
-            if (
-                    transY < minY
-            ) {
-                transY = minY;
-            }
-
-            if (
-                    transY > maxY
-            ) {
-                transY = maxY;
-            }
-
-            matrixValues[
-                    Matrix.MTRANS_X
-            ] = transX;
-
-            matrixValues[
-                    Matrix.MTRANS_Y
-            ] = transY;
-
-            matrix.setValues(
-                    matrixValues
+            setFocusable(
+                    false
             );
         }
 
         @Override
-        protected void onSizeChanged(
-                int w,
-                int h,
-                int oldw,
-                int oldh
+        protected void onMeasure(
+                int widthMeasureSpec,
+                int heightMeasureSpec
         ) {
 
-            super.onSizeChanged(
-                    w,
-                    h,
-                    oldw,
-                    oldh
-            );
+            int availableWidth =
+                    MeasureSpec.getSize(
+                            widthMeasureSpec
+                    );
+
+            int horizontalPadding =
+                    getPaddingLeft()
+                            + getPaddingRight();
+
+            int contentWidth =
+                    Math.max(
+                            1,
+                            availableWidth
+                                    - horizontalPadding
+                    );
 
             if (
-                    oldw == 0
-                            && oldh == 0
+                    getDrawable() != null
+                            && getDrawable()
+                            .getIntrinsicWidth() > 0
+                            && getDrawable()
+                            .getIntrinsicHeight() > 0
             ) {
 
-                post(() -> {
+                int contentHeight =
+                        Math.round(
+                                contentWidth
+                                        * (
+                                        getDrawable()
+                                                .getIntrinsicHeight()
+                                                / (float)
+                                                getDrawable()
+                                                        .getIntrinsicWidth()
+                                )
+                        );
 
-                    centerImage();
+                int desiredHeight =
+                        contentHeight
+                                + getPaddingTop()
+                                + getPaddingBottom();
 
-                    setImageMatrix(
-                            matrix
-                    );
-                });
+                heightMeasureSpec =
+                        MeasureSpec.makeMeasureSpec(
+                                desiredHeight,
+                                MeasureSpec.EXACTLY
+                        );
             }
-        }
 
-        @Override
-        public void setImageResource(
-                int resId
-        ) {
-
-            super.setImageResource(
-                    resId
+            super.onMeasure(
+                    widthMeasureSpec,
+                    heightMeasureSpec
             );
-
-            post(() -> {
-
-                currentScale =
-                        MIN_SCALE;
-
-                centerImage();
-
-                setImageMatrix(
-                        matrix
-                );
-            });
         }
     }
 }
