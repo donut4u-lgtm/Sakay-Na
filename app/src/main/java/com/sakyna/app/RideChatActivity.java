@@ -1,4 +1,3 @@
-
 package com.sakyna.app;
 
 import android.app.Activity;
@@ -49,6 +48,18 @@ public class RideChatActivity extends Activity {
 
     private boolean activityActive = false;
     private boolean chatReady = false;
+
+    /*
+     * IMPORTANT:
+     *
+     * Chat listeners are asynchronous.
+     * A callback from an OLD ride can arrive after this
+     * activity has been stopped or reused for another ride.
+     *
+     * Every time the chat starts/stops, this number changes.
+     * Old callbacks are then ignored.
+     */
+    private long chatGeneration = 0L;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -102,6 +113,15 @@ public class RideChatActivity extends Activity {
 
         activityActive = true;
 
+        /*
+         * New listener generation.
+         * Any callback belonging to an older generation
+         * is no longer allowed to update this screen.
+         */
+        chatGeneration++;
+
+        clearDisplayedMessages();
+
         FirebaseUser user = auth.getCurrentUser();
 
         if (user == null) {
@@ -116,8 +136,21 @@ public class RideChatActivity extends Activity {
 
         activityActive = false;
 
+        /*
+         * Invalidate every callback that is still in flight.
+         */
+        chatGeneration++;
+
         stopRideListener();
         stopMessageListener();
+
+        chatReady = false;
+
+        if (sendButton != null) {
+            sendButton.setEnabled(false);
+        }
+
+        clearDisplayedMessages();
 
         super.onStop();
     }
@@ -292,15 +325,30 @@ public class RideChatActivity extends Activity {
             return;
         }
 
+        final long listenerGeneration =
+                chatGeneration;
+
+        final String listenerRideId =
+                rideId;
+
         stopRideListener();
 
         rideListener =
                 db.collection("rides")
-                        .document(rideId)
+                        .document(listenerRideId)
                         .addSnapshotListener(
                                 (snapshot, error) -> {
 
-                                    if (!activityActive) {
+                                    /*
+                                     * NEVER allow an old ride callback
+                                     * to modify the current chat.
+                                     */
+                                    if (!activityActive
+                                            || listenerGeneration
+                                            != chatGeneration
+                                            || !listenerRideId.equals(
+                                            rideId
+                                    )) {
                                         return;
                                     }
 
@@ -309,6 +357,8 @@ public class RideChatActivity extends Activity {
                                         chatReady = false;
 
                                         sendButton.setEnabled(false);
+
+                                        stopMessageListener();
 
                                         statusText.setText(
                                                 "❌ RIDE CONNECTION ERROR\n"
@@ -331,7 +381,7 @@ public class RideChatActivity extends Activity {
                                                 "❌ Ride not found."
                                         );
 
-                                        messagesLayout.removeAllViews();
+                                        clearDisplayedMessages();
 
                                         addSystemMessage(
                                                 "This ride could not be found."
@@ -384,7 +434,7 @@ public class RideChatActivity extends Activity {
                                                 "❌ You are not part of this ride."
                                         );
 
-                                        messagesLayout.removeAllViews();
+                                        clearDisplayedMessages();
 
                                         addSystemMessage(
                                                 "Only the passenger and driver can use this chat."
@@ -400,8 +450,7 @@ public class RideChatActivity extends Activity {
                                             );
 
                                     /*
-                                     * Passenger has booked but driver
-                                     * has not accepted yet.
+                                     * Driver has not accepted yet.
                                      */
                                     if (driverId.isEmpty()) {
 
@@ -417,7 +466,7 @@ public class RideChatActivity extends Activity {
                                                         + "\nWaiting for driver..."
                                         );
 
-                                        messagesLayout.removeAllViews();
+                                        clearDisplayedMessages();
 
                                         addSystemMessage(
                                                 "💬 Chat will become available after a driver accepts the ride."
@@ -428,12 +477,6 @@ public class RideChatActivity extends Activity {
 
                                     /*
                                      * Both passenger and driver exist.
-                                     * The chat is ready.
-                                     *
-                                     * IMPORTANT:
-                                     * We DO NOT restart the message
-                                     * listener every time the ride
-                                     * document changes.
                                      */
                                     chatReady = true;
 
@@ -445,27 +488,52 @@ public class RideChatActivity extends Activity {
                                                     + rideStatus
                                                     + "\nChatting with "
                                                     + (
-                                                    "PASSENGER".equals(myRole)
+                                                    "PASSENGER".equals(
+                                                            myRole
+                                                    )
                                                             ? "Driver"
                                                             : "Passenger"
                                             )
                                     );
 
+                                    /*
+                                     * Start exactly ONE listener for
+                                     * this exact ride.
+                                     */
                                     if (messageListener == null) {
-                                        startMessageListener();
+                                        startMessageListener(
+                                                listenerRideId,
+                                                listenerGeneration
+                                        );
                                     }
                                 }
                         );
     }
 
-    private void startMessageListener() {
+    private void startMessageListener(
+            String expectedRideId,
+            long expectedGeneration
+    ) {
 
         if (!activityActive) {
             return;
         }
 
-        if (rideId.isEmpty()
-                || passengerId.isEmpty()
+        if (expectedRideId == null
+                || expectedRideId.trim().isEmpty()) {
+
+            return;
+        }
+
+        if (!expectedRideId.equals(rideId)) {
+            return;
+        }
+
+        if (expectedGeneration != chatGeneration) {
+            return;
+        }
+
+        if (passengerId.isEmpty()
                 || driverId.isEmpty()
                 || myRole.isEmpty()) {
 
@@ -474,14 +542,30 @@ public class RideChatActivity extends Activity {
 
         stopMessageListener();
 
+        /*
+         * Capture the exact ride and generation.
+         * This prevents messages from an old ride from
+         * appearing in a newly opened chat.
+         */
+        final String listenerRideId =
+                expectedRideId;
+
+        final long listenerGeneration =
+                expectedGeneration;
+
         messageListener =
                 db.collection("rides")
-                        .document(rideId)
+                        .document(listenerRideId)
                         .collection("messages")
                         .addSnapshotListener(
                                 (snapshot, error) -> {
 
-                                    if (!activityActive) {
+                                    if (!activityActive
+                                            || listenerGeneration
+                                            != chatGeneration
+                                            || !listenerRideId.equals(
+                                            rideId
+                                    )) {
                                         return;
                                     }
 
@@ -507,10 +591,8 @@ public class RideChatActivity extends Activity {
                                             );
 
                                     /*
-                                     * Sort locally.
-                                     *
-                                     * This avoids needing a Firestore
-                                     * composite index.
+                                     * Sort locally so no composite
+                                     * Firestore index is required.
                                      */
                                     Collections.sort(
                                             messageList,
@@ -565,6 +647,10 @@ public class RideChatActivity extends Activity {
                                             }
                                     );
 
+                                    /*
+                                     * Rebuild the visible list from
+                                     * THIS ride only.
+                                     */
                                     messagesLayout.removeAllViews();
 
                                     if (messageList.isEmpty()) {
@@ -605,6 +691,24 @@ public class RideChatActivity extends Activity {
                                                         doc,
                                                         "senderRole"
                                                 );
+
+                                        /*
+                                         * Extra safety:
+                                         * if a message contains a rideId,
+                                         * it MUST belong to this ride.
+                                         */
+                                        String messageRideId =
+                                                getText(
+                                                        doc,
+                                                        "rideId"
+                                                );
+
+                                        if (!messageRideId.isEmpty()
+                                                && !listenerRideId.equals(
+                                                messageRideId
+                                        )) {
+                                            continue;
+                                        }
 
                                         boolean mine =
                                                 currentUser != null
@@ -654,9 +758,21 @@ public class RideChatActivity extends Activity {
                                     }
 
                                     scrollView.post(
-                                            () -> scrollView.fullScroll(
-                                                    View.FOCUS_DOWN
-                                            )
+                                            () -> {
+
+                                                if (!activityActive
+                                                        || listenerGeneration
+                                                        != chatGeneration
+                                                        || !listenerRideId.equals(
+                                                        rideId
+                                                )) {
+                                                    return;
+                                                }
+
+                                                scrollView.fullScroll(
+                                                        View.FOCUS_DOWN
+                                                );
+                                            }
                                     );
                                 }
                         );
@@ -675,6 +791,10 @@ public class RideChatActivity extends Activity {
                     Toast.LENGTH_SHORT
             ).show();
 
+            return;
+        }
+
+        if (!activityActive) {
             return;
         }
 
@@ -733,6 +853,17 @@ public class RideChatActivity extends Activity {
             return;
         }
 
+        /*
+         * Capture the ride being sent to.
+         * This prevents a delayed success callback from
+         * affecting a different chat.
+         */
+        final String sendingRideId =
+                rideId;
+
+        final long sendingGeneration =
+                chatGeneration;
+
         sendButton.setEnabled(false);
 
         statusText.setText(
@@ -764,7 +895,7 @@ public class RideChatActivity extends Activity {
 
         data.put(
                 "rideId",
-                rideId
+                sendingRideId
         );
 
         data.put(
@@ -773,11 +904,24 @@ public class RideChatActivity extends Activity {
         );
 
         db.collection("rides")
-                .document(rideId)
+                .document(sendingRideId)
                 .collection("messages")
                 .add(data)
                 .addOnSuccessListener(
                         documentReference -> {
+
+                            /*
+                             * Ignore delayed result from an old
+                             * chat/ride.
+                             */
+                            if (!activityActive
+                                    || sendingGeneration
+                                    != chatGeneration
+                                    || !sendingRideId.equals(
+                                    rideId
+                            )) {
+                                return;
+                            }
 
                             messageInput.setText("");
 
@@ -794,15 +938,19 @@ public class RideChatActivity extends Activity {
                                                     : "Passenger"
                                     )
                             );
-
-                            /*
-                             * The snapshot listener will display
-                             * the message automatically.
-                             */
                         }
                 )
                 .addOnFailureListener(
                         e -> {
+
+                            if (!activityActive
+                                    || sendingGeneration
+                                    != chatGeneration
+                                    || !sendingRideId.equals(
+                                    rideId
+                            )) {
+                                return;
+                            }
 
                             sendButton.setEnabled(
                                     chatReady
@@ -926,6 +1074,13 @@ public class RideChatActivity extends Activity {
         messagesLayout.addView(item);
     }
 
+    private void clearDisplayedMessages() {
+
+        if (messagesLayout != null) {
+            messagesLayout.removeAllViews();
+        }
+    }
+
     private String getText(
             DocumentSnapshot document,
             String field
@@ -963,6 +1118,8 @@ public class RideChatActivity extends Activity {
     protected void onDestroy() {
 
         activityActive = false;
+
+        chatGeneration++;
 
         stopRideListener();
         stopMessageListener();
