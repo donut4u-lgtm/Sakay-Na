@@ -114,7 +114,10 @@ service cloud.firestore {
                              "vehicleDescription",
                              "driverProfileComplete",
                              "profileUpdatedAt",
-                             "updatedAt"
+                             "updatedAt",
+                             "driverOnline",
+                             "driverAvailability",
+                             "availabilityUpdatedAt"
                            ])
                     );
     }
