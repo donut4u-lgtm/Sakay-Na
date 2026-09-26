@@ -469,7 +469,7 @@ public class PassengerActivity extends Activity {
         b.setFocusableInTouchMode(false);
         b.setClickable(true);
         b.setEnabled(true);
-        b.setBackgroundColor(Color.rgb(125, 135, 135);
+        b.setBackgroundColor(Color.rgb(125, 135, 135));
 
         return b;
     }
