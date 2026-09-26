@@ -53,6 +53,10 @@ public class PassengerActivity extends Activity {
     private static final double BASE_FARE_PER_PASSENGER = 25.0;
     private static final long BOOKING_CLICK_LOCK_MS = 3000;
 
+    // A REQUESTED ride that has received no driver response for 15 minutes
+    // must no longer block the passenger from making a new booking.
+    private static final long REQUEST_TIMEOUT_MS = 15 * 60 * 1000L;
+
     private FirebaseAuth auth;
     private FirebaseFirestore db;
     private SharedPreferences prefs;
@@ -158,13 +162,14 @@ public class PassengerActivity extends Activity {
                                 newest.get("passengerCount");
 
                         if (savedCount instanceof Number) {
-                            passengerCount = Math.max(
-                                    1,
-                                    Math.min(
-                                            4,
-                                            ((Number) savedCount).intValue()
-                                    )
-                            );
+                            passengerCount =
+                                    Math.max(
+                                            1,
+                                            Math.min(
+                                                    4,
+                                                    ((Number) savedCount).intValue()
+                                            )
+                                    );
                         }
 
                         prefs.edit()
@@ -1132,6 +1137,9 @@ public class PassengerActivity extends Activity {
             return null;
         }
 
+        long now =
+                System.currentTimeMillis();
+
         DocumentSnapshot newest = null;
         long newestCreatedAt = Long.MIN_VALUE;
 
@@ -1141,7 +1149,9 @@ public class PassengerActivity extends Activity {
         ) {
 
             String status =
-                    ride.getString("status");
+                    safeStatus(
+                            ride.getString("status")
+                    );
 
             if (!isActive(status)) {
                 continue;
@@ -1149,6 +1159,26 @@ public class PassengerActivity extends Activity {
 
             long createdAt =
                     readCreatedAt(ride);
+
+            /*
+             * REQUESTED rides expire after 15 minutes if no driver
+             * has accepted them.
+             *
+             * We do NOT delete the Firestore ride here.
+             * We simply stop treating an old REQUESTED ride as
+             * an active booking so the passenger can book again.
+             */
+            if (
+                    "REQUESTED".equals(status)
+                            &&
+                            (
+                                    createdAt <= 0
+                                            ||
+                                    now - createdAt > REQUEST_TIMEOUT_MS
+                            )
+            ) {
+                continue;
+            }
 
             if (
                     newest == null
