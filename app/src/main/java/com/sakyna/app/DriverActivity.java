@@ -61,6 +61,12 @@ public class DriverActivity extends Activity {
 
     private String currentRideId = "";
 
+    /*
+     * Prevents an older asynchronous restore/listener callback
+     * from clearing a newly accepted ride.
+     */
+    private long rideStateGeneration = 0L;
+
     private ListenerRegistration requestListener;
     private ListenerRegistration currentRideListener;
 
@@ -75,9 +81,6 @@ public class DriverActivity extends Activity {
     private final Handler expiryHandler =
             new Handler(Looper.getMainLooper());
 
-    /*
-     * REQUESTED rides older than 30 minutes are no longer valid.
-     */
     private static final long REQUEST_EXPIRATION_MS =
             30L * 60L * 1000L;
 
@@ -1158,14 +1161,6 @@ public class DriverActivity extends Activity {
         );
     }
 
-    /*
-     * DRIVER REQUEST LIST
-     *
-     * Only REQUESTED rides are considered.
-     * Old REQUESTED rides are expired automatically.
-     * If the driver already has an active ride, no additional
-     * booking request is displayed.
-     */
     private void listenForRideRequests() {
 
         if (requestListener != null) {
@@ -1211,13 +1206,6 @@ public class DriverActivity extends Activity {
                         );
     }
 
-    /*
-     * Automatically removes stale REQUESTED bookings from the
-     * live booking queue without deleting the Firestore document.
-     *
-     * The ride becomes EXPIRED so PassengerActivity can no longer
-     * treat it as a current REQUESTED ride.
-     */
     private void expireOldRequestedRides(
             QuerySnapshot snapshots
     ) {
@@ -1317,7 +1305,6 @@ public class DriverActivity extends Activity {
                     )
                     .addOnFailureListener(
                             ignored -> {
-                                // Another update may have won the race.
                             }
                     );
         }
@@ -1482,9 +1469,6 @@ public class DriverActivity extends Activity {
             return;
         }
 
-        /*
-         * One driver handles one active ride at a time.
-         */
         if (!currentRideId.isEmpty()) {
 
             requestsText.setText(
@@ -1495,9 +1479,6 @@ public class DriverActivity extends Activity {
             return;
         }
 
-        /*
-         * Offline means no booking queue is displayed.
-         */
         if (!driverOnline) {
 
             requestsText.setText(
@@ -1746,46 +1727,38 @@ public class DriverActivity extends Activity {
         accept.setOnClickListener(v -> {
 
             if (driverSuspended) {
-
                 Toast.makeText(
                         this,
                         "🚫 Your account is suspended for unpaid dues.",
                         Toast.LENGTH_LONG
                 ).show();
-
                 return;
             }
 
             if (!driverApproved) {
-
                 Toast.makeText(
                         this,
                         "⏳ Admin approval is required before accepting rides.",
                         Toast.LENGTH_LONG
                 ).show();
-
                 return;
             }
 
             if (!driverOnline) {
-
                 Toast.makeText(
                         this,
                         "🔴 Go ONLINE first.",
                         Toast.LENGTH_SHORT
                 ).show();
-
                 return;
             }
 
             if (!currentRideId.isEmpty()) {
-
                 Toast.makeText(
                         this,
                         "🚦 You already have an active ride.",
                         Toast.LENGTH_SHORT
                 ).show();
-
                 return;
             }
 
@@ -1854,12 +1827,9 @@ public class DriverActivity extends Activity {
                         name = "Passenger";
                     }
 
-                    final String finalName =
-                            name;
-
                     details.setText(
                             "\n👤 PASSENGER\n"
-                                    + finalName
+                                    + name
                                     + "\n\n👥 PASSENGERS\n"
                                     + passengerCountText(ride)
                                     + "\n\n📍 PICKUP\n"
@@ -1927,9 +1897,9 @@ public class DriverActivity extends Activity {
     /*
      * ACCEPT RIDE
      *
-     * The transaction checks that the ride is STILL REQUESTED.
-     * This prevents an old/stale card from accepting a ride that
-     * Passenger or another driver already changed.
+     * The generation is increased immediately before the accepted
+     * ride becomes current. Any older restore operation is then
+     * forbidden from changing currentRideId.
      */
     private void acceptRide(
             String rideId,
@@ -1938,48 +1908,32 @@ public class DriverActivity extends Activity {
     ) {
 
         if (driverSuspended) {
-
-            card.setVisibility(
-                    LinearLayout.VISIBLE
-            );
-
+            card.setVisibility(LinearLayout.VISIBLE);
             Toast.makeText(
                     this,
                     "🚫 Driver account is suspended for unpaid dues.",
                     Toast.LENGTH_LONG
             ).show();
-
             return;
         }
 
-        if (!driverApproved
-                || !driverOnline) {
-
-            card.setVisibility(
-                    LinearLayout.VISIBLE
-            );
-
+        if (!driverApproved || !driverOnline) {
+            card.setVisibility(LinearLayout.VISIBLE);
             Toast.makeText(
                     this,
                     "Driver must be approved and ONLINE.",
                     Toast.LENGTH_LONG
             ).show();
-
             return;
         }
 
         if (!currentRideId.isEmpty()) {
-
-            card.setVisibility(
-                    LinearLayout.VISIBLE
-            );
-
+            card.setVisibility(LinearLayout.VISIBLE);
             Toast.makeText(
                     this,
                     "🚦 You already have an active ride.",
                     Toast.LENGTH_SHORT
             ).show();
-
             return;
         }
 
@@ -2210,6 +2164,15 @@ public class DriverActivity extends Activity {
                                         )
                                         .addOnSuccessListener(v -> {
 
+                                            /*
+                                             * THIS IS THE IMPORTANT FIX.
+                                             *
+                                             * Invalidate all older restore
+                                             * operations before assigning
+                                             * the newly accepted ride.
+                                             */
+                                            rideStateGeneration++;
+
                                             currentRideId =
                                                     rideId;
 
@@ -2229,6 +2192,11 @@ public class DriverActivity extends Activity {
                                                     ),
                                                     Toast.LENGTH_LONG
                                             ).show();
+
+                                            showCurrentRide(
+                                                    ride,
+                                                    "ACCEPTED"
+                                            );
 
                                             listenForCurrentRide();
                                             listenForRideRequests();
@@ -2395,19 +2363,22 @@ public class DriverActivity extends Activity {
     }
 
     /*
-     * IMPORTANT:
-     * Restore an active ride from Firestore whenever DriverActivity
-     * starts/reopens.
+     * Restore an active ride.
      *
-     * Previously currentRideId existed only in RAM. After reopening
-     * the Activity it became empty, so ACCEPT/Map/Chat could say
-     * "No active ride" even though Firestore contained ACCEPTED.
+     * IMPORTANT FIX:
+     * Capture the generation before starting the asynchronous
+     * Firestore query. If the driver accepts another ride while
+     * this query is running, its generation becomes outdated and
+     * this callback is ignored.
      */
     private void restoreCurrentRide() {
 
         if (user == null) {
             return;
         }
+
+        final long restoreGeneration =
+                rideStateGeneration;
 
         db.collection("rides")
                 .whereEqualTo(
@@ -2416,6 +2387,11 @@ public class DriverActivity extends Activity {
                 )
                 .get()
                 .addOnSuccessListener(snapshot -> {
+
+                    if (restoreGeneration
+                            != rideStateGeneration) {
+                        return;
+                    }
 
                     DocumentSnapshot newest =
                             null;
@@ -2444,7 +2420,6 @@ public class DriverActivity extends Activity {
                                 );
 
                         if (time <= 0L) {
-
                             time =
                                     longValue(
                                             ride,
@@ -2453,7 +2428,6 @@ public class DriverActivity extends Activity {
                         }
 
                         if (time <= 0L) {
-
                             time =
                                     longValue(
                                             ride,
@@ -2472,6 +2446,15 @@ public class DriverActivity extends Activity {
                             newestTime =
                                     time;
                         }
+                    }
+
+                    /*
+                     * Check AGAIN immediately before changing
+                     * currentRideId.
+                     */
+                    if (restoreGeneration
+                            != rideStateGeneration) {
+                        return;
                     }
 
                     if (newest != null) {
@@ -2512,10 +2495,11 @@ public class DriverActivity extends Activity {
                 })
                 .addOnFailureListener(e -> {
 
-                    /*
-                     * Do not invent a ride locally when Firestore
-                     * cannot be read.
-                     */
+                    if (restoreGeneration
+                            != rideStateGeneration) {
+                        return;
+                    }
+
                     currentRideId = "";
 
                     currentRideText.setText(
@@ -2548,11 +2532,29 @@ public class DriverActivity extends Activity {
         final String rideId =
                 currentRideId;
 
+        final long listenerGeneration =
+                rideStateGeneration;
+
         currentRideListener =
                 db.collection("rides")
                         .document(rideId)
                         .addSnapshotListener(
                                 (ride, error) -> {
+
+                                    /*
+                                     * Ignore callbacks belonging to
+                                     * an older ride/listener.
+                                     */
+                                    if (listenerGeneration
+                                            != rideStateGeneration) {
+                                        return;
+                                    }
+
+                                    if (!rideId.equals(
+                                            currentRideId
+                                    )) {
+                                        return;
+                                    }
 
                                     if (error != null) {
 
@@ -2566,6 +2568,8 @@ public class DriverActivity extends Activity {
 
                                     if (ride == null
                                             || !ride.exists()) {
+
+                                        rideStateGeneration++;
 
                                         currentRideId = "";
 
@@ -2599,6 +2603,8 @@ public class DriverActivity extends Activity {
                                             status
                                     )) {
 
+                                        rideStateGeneration++;
+
                                         currentRideId = "";
 
                                         if ("COMPLETED".equalsIgnoreCase(
@@ -2624,6 +2630,8 @@ public class DriverActivity extends Activity {
                                     }
 
                                     if (!isActive(status)) {
+
+                                        rideStateGeneration++;
 
                                         currentRideId = "";
 
@@ -2750,6 +2758,15 @@ public class DriverActivity extends Activity {
 
                     if (name.isEmpty()) {
                         name = "Passenger";
+                    }
+
+                    /*
+                     * Do not overwrite a newer ride's display.
+                     */
+                    if (!ride.getId().equals(
+                            currentRideId
+                    )) {
+                        return;
                     }
 
                     currentRideText.setText(
@@ -3061,6 +3078,8 @@ public class DriverActivity extends Activity {
                             newStatus
                     )) {
 
+                        rideStateGeneration++;
+
                         currentRideId = "";
 
                         hiddenRequestIds.remove(
@@ -3267,11 +3286,6 @@ public class DriverActivity extends Activity {
                 : value.trim();
     }
 
-    /*
-     * GCash QR PRESERVED.
-     *
-     * R.drawable.gcash_qr is intentionally retained.
-     */
     private void showGcashQr() {
 
         LinearLayout layout =
@@ -3699,6 +3713,12 @@ public class DriverActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+
+        /*
+         * Invalidate every pending ride callback before destroying
+         * the Activity.
+         */
+        rideStateGeneration++;
 
         expiryHandler
                 .removeCallbacksAndMessages(null);
