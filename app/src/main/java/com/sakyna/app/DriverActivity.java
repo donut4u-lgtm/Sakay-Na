@@ -819,12 +819,6 @@ public class DriverActivity extends Activity {
                         );
     }
 
-    /**
-     * Server-authoritative refresh.
-     *
-     * This prevents the driver screen from depending
-     * only on a cached Firestore snapshot.
-     */
     private void refreshRideRequestsFromServer() {
 
         if (!driverOnline) {
@@ -880,20 +874,7 @@ public class DriverActivity extends Activity {
             String rideId = ride.getId();
 
             if (!notifiedRideIds.contains(rideId)) {
-
                 notifiedRideIds.add(rideId);
-
-                try {
-
-                    SakayNaNotificationHelper
-                            .showNotification(
-                                    this,
-                                    "🚖 New Sakay Na Ride",
-                                    "A passenger is requesting a ride."
-                            );
-
-                } catch (Exception ignored) {
-                }
             }
         }
     }
@@ -1071,10 +1052,7 @@ public class DriverActivity extends Activity {
     private void addRideCard(
             DocumentSnapshot ride
     ) {
-
-        // Requests are rendered in requestsText.
-        // This method remains available for compatibility
-        // with the existing DriverActivity flow.
+        // Kept for compatibility.
     }
 
     private void loadPassengerName(
@@ -1136,19 +1114,6 @@ public class DriverActivity extends Activity {
 
         if (!name.isEmpty()) {
             return name;
-        }
-
-        String passengerId =
-                string(
-                        ride.getString(
-                                "passengerId"
-                        )
-                );
-
-        if (!passengerId.isEmpty()) {
-
-            DocumentSnapshot cached =
-                    null;
         }
 
         return "Passenger";
@@ -1345,7 +1310,6 @@ public class DriverActivity extends Activity {
                                         if (error != null ||
                                                 doc == null ||
                                                 !doc.exists()) {
-
                                             return;
                                         }
 
@@ -1538,12 +1502,8 @@ public class DriverActivity extends Activity {
                 currentRideStatus
         );
 
-        if (!passenger.isEmpty() &&
-                "Passenger".equals(passenger)) {
-
-            loadCurrentRidePassengerName(
-                    ride
-            );
+        if ("Passenger".equals(passenger)) {
+            loadCurrentRidePassengerName(ride);
         }
 
         if (!isActive(currentRideStatus)) {
