@@ -18,6 +18,7 @@ import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
@@ -50,12 +51,10 @@ public class PassengerActivity extends Activity {
     private static final int LOCATION_REQUEST = 1001;
     private static final int DESTINATION_REQUEST = 2001;
 
-    private static final double BASE_FARE_PER_PASSENGER = 25.0;
-    private static final long BOOKING_CLICK_LOCK_MS = 3000;
+    private static final long REQUEST_TIMEOUT_MS =
+            15 * 60 * 1000L;
 
-    // A REQUESTED ride that has received no driver response for 15 minutes
-    // must no longer block the passenger from making a new booking.
-    private static final long REQUEST_TIMEOUT_MS = 15 * 60 * 1000L;
+    private static final double BASE_FARE_PER_PASSENGER = 25.0;
 
     private FirebaseAuth auth;
     private FirebaseFirestore db;
@@ -81,38 +80,34 @@ public class PassengerActivity extends Activity {
 
     private LocationManager locationManager;
     private LocationListener locationListener;
+
     private ListenerRegistration rideListener;
 
-    private String activeRideId = null;
-    private String activeRideStatus = "";
-    private String lastNotifiedRideStatus = "";
-
-    private String notificationBaselineRideId = "";
-    private String notificationBaselineStatus = "";
-
-    private boolean bookingInProgress = false;
-
     /*
-     * IMPORTANT:
-     * This number changes whenever the passenger switches/clears rides.
+     * ONLY the currently valid booking may update the screen.
      *
-     * Firestore listeners are asynchronous. Without this guard, a delayed
-     * callback from the PREVIOUS ride can arrive after a NEW ride is booked
-     * and put the old driver/status back onto the screen.
+     * Every time the passenger clears/switches rides this number changes.
+     * Old Firestore callbacks are rejected when their generation is old.
      */
     private long rideGeneration = 0L;
 
-    private double pickupLat = 0;
-    private double pickupLng = 0;
-    private double destinationLat = 0;
-    private double destinationLng = 0;
+    private String activeRideId = null;
+    private String activeRideStatus = "";
 
-    private double baseFare = 25;
-    private double perKm = 10;
-    private double minimumFare = 25;
-    private double maximumFare = 500;
+    private boolean bookingInProgress = false;
+
+    private double pickupLat = 0.0;
+    private double pickupLng = 0.0;
+
+    private double destinationLat = 0.0;
+    private double destinationLng = 0.0;
 
     private int passengerCount = 1;
+
+    private double baseFare = 25.0;
+    private double perKm = 10.0;
+    private double minimumFare = 25.0;
+    private double maximumFare = 500.0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -120,11 +115,22 @@ public class PassengerActivity extends Activity {
 
         auth = FirebaseAuth.getInstance();
         db = FirebaseFirestore.getInstance();
-        prefs = getSharedPreferences("SakayNa", MODE_PRIVATE);
+
+        prefs = getSharedPreferences(
+                "SakayNa",
+                MODE_PRIVATE
+        );
 
         buildScreen();
+
         loadFare();
+
         requestLocation();
+
+        /*
+         * Do NOT trust the locally saved ride ID.
+         * The server is the source of truth.
+         */
         restoreSavedRide();
     }
 
@@ -133,9 +139,9 @@ public class PassengerActivity extends Activity {
         super.onResume();
 
         /*
-         * Invalidate any older asynchronous onResume result.
+         * Every resume invalidates callbacks from the previous screen state.
          */
-        final long resumeGeneration = ++rideGeneration;
+        final long generation = ++rideGeneration;
 
         FirebaseUser user = auth.getCurrentUser();
 
@@ -146,78 +152,35 @@ public class PassengerActivity extends Activity {
         }
 
         db.collection("rides")
-                .whereEqualTo("passengerId", user.getUid())
+                .whereEqualTo(
+                        "passengerId",
+                        user.getUid()
+                )
                 .get(Source.SERVER)
-                .addOnSuccessListener(rides -> {
+                .addOnSuccessListener(query -> {
 
-                    /*
-                     * If another ride operation happened while this
-                     * Firestore request was running, ignore this result.
-                     */
-                    if (resumeGeneration != rideGeneration) {
+                    if (generation != rideGeneration) {
                         return;
                     }
 
-                    DocumentSnapshot newest = findActiveRide(rides);
+                    DocumentSnapshot ride =
+                            findActiveRide(query);
 
-                    if (newest == null) {
+                    if (ride == null) {
                         clearRide();
                         updateButtons();
                         return;
                     }
 
-                    String newestId = newest.getId();
+                    attachToRide(
+                            ride,
+                            generation
+                    );
 
-                    if (activeRideId == null
-                            || !newestId.equals(activeRideId)) {
-
-                        if (rideListener != null) {
-                            rideListener.remove();
-                            rideListener = null;
-                        }
-
-                        activeRideId = newestId;
-
-                        activeRideStatus =
-                                safeStatus(newest.getString("status"));
-
-                        Object savedCount =
-                                newest.get("passengerCount");
-
-                        if (savedCount instanceof Number) {
-                            passengerCount =
-                                    Math.max(
-                                            1,
-                                            Math.min(
-                                                    4,
-                                                    ((Number) savedCount).intValue()
-                                            )
-                                    );
-                        }
-
-                        prefs.edit()
-                                .putString("activeRideId", newestId)
-                                .apply();
-
-                        updatePassengerSelectionUI();
-                        calculateFare();
-                        listenToRide(newestId);
-
-                    } else {
-                        /*
-                         * The same ride is already active.
-                         * Make sure its listener still exists.
-                         */
-                        if (rideListener == null) {
-                            listenToRide(newestId);
-                        }
-                    }
-
-                    updateButtons();
                 })
                 .addOnFailureListener(e -> {
 
-                    if (resumeGeneration != rideGeneration) {
+                    if (generation != rideGeneration) {
                         return;
                     }
 
@@ -227,104 +190,318 @@ public class PassengerActivity extends Activity {
 
     private void buildScreen() {
 
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(Color.rgb(245, 248, 246));
+        LinearLayout root =
+                new LinearLayout(this);
 
-        LinearLayout header = new LinearLayout(this);
-        header.setOrientation(LinearLayout.VERTICAL);
-        header.setGravity(Gravity.CENTER);
-        header.setPadding(12, 18, 12, 18);
-        header.setBackgroundColor(Color.rgb(0, 125, 75));
+        root.setOrientation(
+                LinearLayout.VERTICAL
+        );
 
-        TextView title = new TextView(this);
+        root.setBackgroundColor(
+                Color.rgb(245, 248, 246)
+        );
+
+        LinearLayout header =
+                new LinearLayout(this);
+
+        header.setOrientation(
+                LinearLayout.VERTICAL
+        );
+
+        header.setGravity(
+                Gravity.CENTER
+        );
+
+        header.setPadding(
+                12,
+                18,
+                12,
+                18
+        );
+
+        header.setBackgroundColor(
+                Color.rgb(0, 125, 75)
+        );
+
+        TextView title =
+                new TextView(this);
+
         title.setText("🛺 SAKAY NA");
+
         title.setTextSize(28);
-        title.setTypeface(null, Typeface.BOLD);
-        title.setTextColor(Color.WHITE);
-        title.setGravity(Gravity.CENTER);
-        header.addView(title);
 
-        TextView subtitle = new TextView(this);
-        subtitle.setText("Passenger • Tricycle Ride");
+        title.setTypeface(
+                null,
+                Typeface.BOLD
+        );
+
+        title.setTextColor(
+                Color.WHITE
+        );
+
+        title.setGravity(
+                Gravity.CENTER
+        );
+
+        header.addView(
+                title,
+                full()
+        );
+
+        TextView subtitle =
+                new TextView(this);
+
+        subtitle.setText(
+                "Passenger • Tricycle Ride"
+        );
+
         subtitle.setTextSize(14);
-        subtitle.setTextColor(Color.WHITE);
-        subtitle.setGravity(Gravity.CENTER);
-        header.addView(subtitle);
 
-        root.addView(header, full());
+        subtitle.setTextColor(
+                Color.WHITE
+        );
 
-        ScrollView scroll = new ScrollView(this);
+        subtitle.setGravity(
+                Gravity.CENTER
+        );
 
-        LinearLayout content = new LinearLayout(this);
-        content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(16, 12, 16, 25);
+        header.addView(
+                subtitle,
+                full()
+        );
 
-        TextView heading = text("🚕 BOOK YOUR RIDE", 22);
-        heading.setTypeface(null, Typeface.BOLD);
-        heading.setGravity(Gravity.CENTER);
-        heading.setTextColor(Color.rgb(0, 110, 70));
-        content.addView(heading, full());
+        root.addView(
+                header,
+                full()
+        );
 
-        TextView pickupLabel = text("📍 PICKUP LOCATION", 15);
-        pickupLabel.setTypeface(null, Typeface.BOLD);
-        content.addView(pickupLabel);
+        ScrollView scroll =
+                new ScrollView(this);
 
-        pickupInput = new EditText(this);
-        pickupInput.setHint("Pickup place");
+        LinearLayout content =
+                new LinearLayout(this);
+
+        content.setOrientation(
+                LinearLayout.VERTICAL
+        );
+
+        content.setPadding(
+                16,
+                12,
+                16,
+                25
+        );
+
+        TextView heading =
+                text(
+                        "🚕 BOOK YOUR RIDE",
+                        22
+                );
+
+        heading.setTypeface(
+                null,
+                Typeface.BOLD
+        );
+
+        heading.setGravity(
+                Gravity.CENTER
+        );
+
+        heading.setTextColor(
+                Color.rgb(0, 110, 70)
+        );
+
+        content.addView(
+                heading,
+                full()
+        );
+
+        TextView pickupLabel =
+                text(
+                        "📍 PICKUP LOCATION",
+                        15
+                );
+
+        pickupLabel.setTypeface(
+                null,
+                Typeface.BOLD
+        );
+
+        content.addView(
+                pickupLabel
+        );
+
+        pickupInput =
+                new EditText(this);
+
+        pickupInput.setHint(
+                "Pickup place"
+        );
+
         pickupInput.setTextSize(16);
-        pickupInput.setSingleLine(false);
-        pickupInput.setPadding(16, 12, 16, 12);
-        pickupInput.setBackgroundColor(Color.WHITE);
-        content.addView(pickupInput, full());
 
-        Button gpsButton = button("📍 USE MY CURRENT LOCATION");
-        gpsButton.setOnClickListener(v -> useCurrentLocation());
-        content.addView(gpsButton);
+        pickupInput.setPadding(
+                16,
+                12,
+                16,
+                12
+        );
 
-        TextView destinationLabel = text("🎯 DESTINATION", 15);
-        destinationLabel.setTypeface(null, Typeface.BOLD);
-        content.addView(destinationLabel);
+        pickupInput.setBackgroundColor(
+                Color.WHITE
+        );
 
-        destinationInput = new EditText(this);
-        destinationInput.setHint("Example: Jollibee, SM City");
+        content.addView(
+                pickupInput,
+                full()
+        );
+
+        Button gpsButton =
+                button(
+                        "📍 USE MY CURRENT LOCATION"
+                );
+
+        gpsButton.setOnClickListener(
+                v -> useCurrentLocation()
+        );
+
+        content.addView(
+                gpsButton
+        );
+
+        TextView destinationLabel =
+                text(
+                        "🎯 DESTINATION",
+                        15
+                );
+
+        destinationLabel.setTypeface(
+                null,
+                Typeface.BOLD
+        );
+
+        content.addView(
+                destinationLabel
+        );
+
+        destinationInput =
+                new EditText(this);
+
+        destinationInput.setHint(
+                "Example: Jollibee, SM City"
+        );
+
         destinationInput.setTextSize(16);
-        destinationInput.setSingleLine(false);
-        destinationInput.setPadding(16, 12, 16, 12);
-        destinationInput.setBackgroundColor(Color.WHITE);
-        content.addView(destinationInput, full());
+
+        destinationInput.setPadding(
+                16,
+                12,
+                16,
+                12
+        );
+
+        destinationInput.setBackgroundColor(
+                Color.WHITE
+        );
+
+        content.addView(
+                destinationInput,
+                full()
+        );
 
         Button destinationButton =
-                button("🗺️ SEARCH / CHOOSE DESTINATION");
+                button(
+                        "🗺️ SEARCH / CHOOSE DESTINATION"
+                );
 
-        destinationButton.setOnClickListener(v -> chooseDestination());
-        content.addView(destinationButton);
+        destinationButton.setOnClickListener(
+                v -> chooseDestination()
+        );
 
-        TextView rideType = text("🛺 RIDE TYPE", 15);
-        rideType.setTypeface(null, Typeface.BOLD);
-        content.addView(rideType);
+        content.addView(
+                destinationButton
+        );
 
-        TextView tricycle = text("🛺 TRICYCLE", 18);
-        tricycle.setTypeface(null, Typeface.BOLD);
-        tricycle.setGravity(Gravity.CENTER);
-        tricycle.setTextColor(Color.rgb(0, 110, 70));
-        tricycle.setBackgroundColor(Color.WHITE);
-        content.addView(tricycle, full());
+        TextView rideType =
+                text(
+                        "🛺 RIDE TYPE",
+                        15
+                );
+
+        rideType.setTypeface(
+                null,
+                Typeface.BOLD
+        );
+
+        content.addView(
+                rideType
+        );
+
+        TextView tricycle =
+                text(
+                        "🛺 TRICYCLE",
+                        18
+                );
+
+        tricycle.setTypeface(
+                null,
+                Typeface.BOLD
+        );
+
+        tricycle.setGravity(
+                Gravity.CENTER
+        );
+
+        tricycle.setTextColor(
+                Color.rgb(0, 110, 70)
+        );
+
+        tricycle.setBackgroundColor(
+                Color.WHITE
+        );
+
+        content.addView(
+                tricycle,
+                full()
+        );
 
         TextView passengerLabel =
-                text("👥 NUMBER OF PASSENGERS", 15);
+                text(
+                        "👥 NUMBER OF PASSENGERS",
+                        15
+                );
 
-        passengerLabel.setTypeface(null, Typeface.BOLD);
-        content.addView(passengerLabel);
+        passengerLabel.setTypeface(
+                null,
+                Typeface.BOLD
+        );
 
-        LinearLayout passengerButtons = new LinearLayout(this);
-        passengerButtons.setOrientation(LinearLayout.HORIZONTAL);
-        passengerButtons.setGravity(Gravity.CENTER);
+        content.addView(
+                passengerLabel
+        );
 
-        passengerOneButton = passengerNumberButton("1", 1);
-        passengerTwoButton = passengerNumberButton("2", 2);
-        passengerThreeButton = passengerNumberButton("3", 3);
-        passengerFourButton = passengerNumberButton("4", 4);
+        LinearLayout passengerButtons =
+                new LinearLayout(this);
+
+        passengerButtons.setOrientation(
+                LinearLayout.HORIZONTAL
+        );
+
+        passengerButtons.setGravity(
+                Gravity.CENTER
+        );
+
+        passengerOneButton =
+                passengerNumberButton("1", 1);
+
+        passengerTwoButton =
+                passengerNumberButton("2", 2);
+
+        passengerThreeButton =
+                passengerNumberButton("3", 3);
+
+        passengerFourButton =
+                passengerNumberButton("4", 4);
 
         passengerButtons.addView(
                 passengerOneButton,
@@ -346,14 +523,29 @@ public class PassengerActivity extends Activity {
                 passengerButtonParams()
         );
 
-        content.addView(passengerButtons, full());
+        content.addView(
+                passengerButtons,
+                full()
+        );
 
         passengerSelectedText =
-                text("Selected: 1 passenger", 14);
+                text(
+                        "Selected: 1 passenger",
+                        14
+                );
 
-        passengerSelectedText.setGravity(Gravity.CENTER);
-        passengerSelectedText.setTextColor(Color.rgb(0, 110, 70));
-        passengerSelectedText.setTypeface(null, Typeface.BOLD);
+        passengerSelectedText.setGravity(
+                Gravity.CENTER
+        );
+
+        passengerSelectedText.setTypeface(
+                null,
+                Typeface.BOLD
+        );
+
+        passengerSelectedText.setTextColor(
+                Color.rgb(0, 110, 70)
+        );
 
         content.addView(
                 passengerSelectedText,
@@ -361,37 +553,77 @@ public class PassengerActivity extends Activity {
         );
 
         TextView fareRule =
-                text("₱25 per passenger + ₱10/km", 14);
+                text(
+                        "₱25 per passenger + ₱10/km",
+                        14
+                );
 
-        fareRule.setGravity(Gravity.CENTER);
-        fareRule.setTextColor(Color.rgb(0, 110, 70));
+        fareRule.setGravity(
+                Gravity.CENTER
+        );
 
-        content.addView(fareRule, full());
+        fareRule.setTextColor(
+                Color.rgb(0, 110, 70)
+        );
+
+        content.addView(
+                fareRule,
+                full()
+        );
 
         TextView paymentLabel =
-                text("💳 PAYMENT METHOD", 15);
+                text(
+                        "💳 PAYMENT METHOD",
+                        15
+                );
 
-        paymentLabel.setTypeface(null, Typeface.BOLD);
-        content.addView(paymentLabel);
+        paymentLabel.setTypeface(
+                null,
+                Typeface.BOLD
+        );
 
-        RadioGroup payment = new RadioGroup(this);
-        payment.setOrientation(RadioGroup.HORIZONTAL);
-        payment.setGravity(Gravity.CENTER);
+        content.addView(
+                paymentLabel
+        );
 
-        RadioButton cash = new RadioButton(this);
+        RadioGroup payment =
+                new RadioGroup(this);
+
+        payment.setOrientation(
+                RadioGroup.HORIZONTAL
+        );
+
+        payment.setGravity(
+                Gravity.CENTER
+        );
+
+        RadioButton cash =
+                new RadioButton(this);
+
         cash.setText("Cash");
+
         cash.setChecked(true);
+
         payment.addView(cash);
 
-        RadioButton gcash = new RadioButton(this);
+        RadioButton gcash =
+                new RadioButton(this);
+
         gcash.setText("GCash");
+
         payment.addView(gcash);
 
-        RadioButton maya = new RadioButton(this);
+        RadioButton maya =
+                new RadioButton(this);
+
         maya.setText("Maya");
+
         payment.addView(maya);
 
-        content.addView(payment, full());
+        content.addView(
+                payment,
+                full()
+        );
 
         fareText =
                 text(
@@ -399,20 +631,47 @@ public class PassengerActivity extends Activity {
                         23
                 );
 
-        fareText.setTypeface(null, Typeface.BOLD);
-        fareText.setGravity(Gravity.CENTER);
-        fareText.setTextColor(Color.rgb(0, 125, 75));
-        fareText.setBackgroundColor(Color.WHITE);
+        fareText.setTypeface(
+                null,
+                Typeface.BOLD
+        );
 
-        content.addView(fareText, full());
+        fareText.setGravity(
+                Gravity.CENTER
+        );
+
+        fareText.setTextColor(
+                Color.rgb(0, 125, 75)
+        );
+
+        fareText.setBackgroundColor(
+                Color.WHITE
+        );
+
+        content.addView(
+                fareText,
+                full()
+        );
 
         statusText =
-                text("🟢 Ready to book", 16);
+                text(
+                        "🟢 Ready to book",
+                        16
+                );
 
-        statusText.setTypeface(null, Typeface.BOLD);
-        statusText.setGravity(Gravity.CENTER);
+        statusText.setTypeface(
+                null,
+                Typeface.BOLD
+        );
 
-        content.addView(statusText, full());
+        statusText.setGravity(
+                Gravity.CENTER
+        );
+
+        content.addView(
+                statusText,
+                full()
+        );
 
         driverInfoText =
                 text(
@@ -420,41 +679,126 @@ public class PassengerActivity extends Activity {
                         16
                 );
 
-        driverInfoText.setTypeface(null, Typeface.BOLD);
-        driverInfoText.setTextColor(Color.rgb(0, 100, 70));
-        driverInfoText.setBackgroundColor(Color.WHITE);
-        driverInfoText.setPadding(16, 16, 16, 16);
+        driverInfoText.setTypeface(
+                null,
+                Typeface.BOLD
+        );
 
-        content.addView(driverInfoText, full());
+        driverInfoText.setTextColor(
+                Color.rgb(0, 100, 70)
+        );
 
-        bookButton = button("🛺 BOOK A RIDE");
+        driverInfoText.setBackgroundColor(
+                Color.WHITE
+        );
+
+        driverInfoText.setPadding(
+                16,
+                16,
+                16,
+                16
+        );
+
+        content.addView(
+                driverInfoText,
+                full()
+        );
+
+        bookButton =
+                button(
+                        "🛺 BOOK A RIDE"
+                );
+
         bookButton.setTextSize(19);
-        bookButton.setBackgroundColor(Color.rgb(0, 150, 80));
-        bookButton.setOnClickListener(v -> bookRide(payment));
-        content.addView(bookButton);
 
-        mapButton = button("🗺️ LIVE RIDE MAP");
-        mapButton.setOnClickListener(v -> openLiveMap());
-        content.addView(mapButton);
+        bookButton.setBackgroundColor(
+                Color.rgb(0, 150, 80)
+        );
 
-        chatButton = button("💬 CHAT WITH DRIVER");
-        chatButton.setOnClickListener(v -> openChat());
-        content.addView(chatButton);
+        bookButton.setOnClickListener(
+                v -> bookRide(payment)
+        );
 
-        cancelButton = button("❌ CANCEL RIDE");
-        cancelButton.setBackgroundColor(Color.rgb(190, 55, 55));
-        cancelButton.setOnClickListener(v -> cancelRide());
-        content.addView(cancelButton);
+        content.addView(
+                bookButton
+        );
 
-        Button historyButton = button("📜 RIDE HISTORY");
-        historyButton.setBackgroundColor(Color.rgb(65, 90, 100));
-        historyButton.setOnClickListener(v -> showHistory());
-        content.addView(historyButton);
+        mapButton =
+                button(
+                        "🗺️ LIVE RIDE MAP"
+                );
 
-        Button logoutButton = button("🚪 LOGOUT");
-        logoutButton.setBackgroundColor(Color.rgb(85, 85, 85));
-        logoutButton.setOnClickListener(v -> logout());
-        content.addView(logoutButton);
+        mapButton.setOnClickListener(
+                v -> openLiveMap()
+        );
+
+        content.addView(
+                mapButton
+        );
+
+        chatButton =
+                button(
+                        "💬 CHAT WITH DRIVER"
+                );
+
+        chatButton.setOnClickListener(
+                v -> openChat()
+        );
+
+        content.addView(
+                chatButton
+        );
+
+        cancelButton =
+                button(
+                        "❌ CANCEL RIDE"
+                );
+
+        cancelButton.setBackgroundColor(
+                Color.rgb(190, 55, 55)
+        );
+
+        cancelButton.setOnClickListener(
+                v -> cancelRide()
+        );
+
+        content.addView(
+                cancelButton
+        );
+
+        Button historyButton =
+                button(
+                        "📜 RIDE HISTORY"
+                );
+
+        historyButton.setBackgroundColor(
+                Color.rgb(65, 90, 100)
+        );
+
+        historyButton.setOnClickListener(
+                v -> showHistory()
+        );
+
+        content.addView(
+                historyButton
+        );
+
+        Button logoutButton =
+                button(
+                        "🚪 LOGOUT"
+                );
+
+        logoutButton.setBackgroundColor(
+                Color.rgb(85, 85, 85)
+        );
+
+        logoutButton.setOnClickListener(
+                v -> logout()
+        );
+
+        content.addView(
+                logoutButton
+        );
 
         scroll.addView(content);
 
@@ -470,6 +814,7 @@ public class PassengerActivity extends Activity {
         setContentView(root);
 
         selectPassengerCount(1);
+
         updateButtons();
     }
 
@@ -478,47 +823,38 @@ public class PassengerActivity extends Activity {
             int count
     ) {
 
-        Button b = new Button(this);
+        Button b =
+                new Button(this);
 
         b.setText(number);
+
         b.setTextSize(18);
+
         b.setAllCaps(false);
-        b.setTypeface(null, Typeface.BOLD);
-        b.setTextColor(Color.WHITE);
-        b.setGravity(Gravity.CENTER);
 
-        b.setMinHeight(0);
-        b.setMinimumHeight(0);
+        b.setTypeface(
+                null,
+                Typeface.BOLD
+        );
 
-        b.setPadding(4, 10, 4, 10);
+        b.setTextColor(
+                Color.WHITE
+        );
 
-        b.setFocusable(true);
-        b.setFocusableInTouchMode(false);
-        b.setClickable(true);
-        b.setEnabled(true);
+        b.setPadding(
+                4,
+                10,
+                4,
+                10
+        );
 
         b.setBackgroundColor(
                 Color.rgb(125, 135, 135)
         );
 
-        b.setOnClickListener(v -> {
-
-            if (!v.isEnabled()) {
-                return;
-            }
-
-            selectPassengerCount(count);
-
-            Toast.makeText(
-                    PassengerActivity.this,
-                    count + (
-                            count == 1
-                                    ? " passenger selected."
-                                    : " passengers selected."
-                    ),
-                    Toast.LENGTH_SHORT
-            ).show();
-        });
+        b.setOnClickListener(
+                v -> selectPassengerCount(count)
+        );
 
         return b;
     }
@@ -532,25 +868,32 @@ public class PassengerActivity extends Activity {
                         1
                 );
 
-        p.setMargins(4, 5, 4, 5);
+        p.setMargins(
+                4,
+                5,
+                4,
+                5
+        );
 
         return p;
     }
 
-    private void selectPassengerCount(int count) {
+    private void selectPassengerCount(
+            int count
+    ) {
 
-        if (count < 1) {
-            count = 1;
-        }
-
-        if (count > 4) {
-            count = 4;
-        }
-
-        passengerCount = count;
+        passengerCount =
+                Math.max(
+                        1,
+                        Math.min(
+                                4,
+                                count
+                        )
+                );
 
         updatePassengerSelectionUI();
-        calculateFareOnly();
+
+        calculateFare();
     }
 
     private void updatePassengerSelectionUI() {
@@ -561,87 +904,119 @@ public class PassengerActivity extends Activity {
                     "Selected: "
                             + passengerCount
                             + " passenger"
-                            + (passengerCount == 1 ? "" : "s")
+                            + (
+                            passengerCount == 1
+                                    ? ""
+                                    : "s"
+                    )
             );
         }
 
-        updatePassengerButtonStyles();
-    }
-
-    private void updatePassengerButtonStyles() {
-
-        if (passengerOneButton == null
-                || passengerTwoButton == null
-                || passengerThreeButton == null
-                || passengerFourButton == null) {
-            return;
-        }
-
-        int selectedColor =
+        int selected =
                 Color.rgb(0, 150, 80);
 
-        int normalColor =
+        int normal =
                 Color.rgb(125, 135, 135);
 
-        passengerOneButton.setBackgroundColor(
-                passengerCount == 1
-                        ? selectedColor
-                        : normalColor
-        );
+        if (passengerOneButton != null) {
 
-        passengerTwoButton.setBackgroundColor(
-                passengerCount == 2
-                        ? selectedColor
-                        : normalColor
-        );
+            passengerOneButton.setBackgroundColor(
+                    passengerCount == 1
+                            ? selected
+                            : normal
+            );
 
-        passengerThreeButton.setBackgroundColor(
-                passengerCount == 3
-                        ? selectedColor
-                        : normalColor
-        );
+            passengerTwoButton.setBackgroundColor(
+                    passengerCount == 2
+                            ? selected
+                            : normal
+            );
 
-        passengerFourButton.setBackgroundColor(
-                passengerCount == 4
-                        ? selectedColor
-                        : normalColor
-        );
+            passengerThreeButton.setBackgroundColor(
+                    passengerCount == 3
+                            ? selected
+                            : normal
+            );
 
-        passengerOneButton.setTextColor(Color.WHITE);
-        passengerTwoButton.setTextColor(Color.WHITE);
-        passengerThreeButton.setTextColor(Color.WHITE);
-        passengerFourButton.setTextColor(Color.WHITE);
+            passengerFourButton.setBackgroundColor(
+                    passengerCount == 4
+                            ? selected
+                            : normal
+            );
+        }
     }
 
-    private TextView text(String value, float size) {
+    private TextView text(
+            String value,
+            float size
+    ) {
 
-        TextView t = new TextView(this);
+        TextView t =
+                new TextView(this);
 
         t.setText(value);
+
         t.setTextSize(size);
-        t.setTextColor(Color.rgb(45, 55, 50));
-        t.setPadding(0, 7, 0, 7);
+
+        t.setTextColor(
+                Color.DKGRAY
+        );
+
+        t.setPadding(
+                8,
+                8,
+                8,
+                8
+        );
 
         return t;
     }
 
-    private Button button(String value) {
+    private Button button(
+            String value
+    ) {
 
-        Button b = new Button(this);
+        Button b =
+                new Button(this);
 
         b.setText(value);
+
         b.setTextSize(16);
+
         b.setAllCaps(false);
-        b.setTypeface(null, Typeface.BOLD);
-        b.setTextColor(Color.WHITE);
-        b.setGravity(Gravity.CENTER);
-        b.setPadding(10, 12, 10, 12);
-        b.setBackgroundColor(Color.rgb(0, 125, 75));
+
+        b.setTypeface(
+                null,
+                Typeface.BOLD
+        );
+
+        b.setTextColor(
+                Color.WHITE
+        );
+
+        b.setPadding(
+                12,
+                12,
+                12,
+                12
+        );
+
+        b.setBackgroundColor(
+                Color.rgb(0, 125, 75)
+        );
 
         LinearLayout.LayoutParams p =
-                new LinearLayout.LayoutParams(-1, -2);
+                new LinearLayout.LayoutParams(
+                        -1,
+                        -2
+                );
 
-        p.setMargins(0, 5, 0, 5);
+        p.setMargins(
+                0,
+                7,
+                0,
+                7
+        );
 
         b.setLayoutParams(p);
 
@@ -650,8 +1025,17 @@ public class PassengerActivity extends Activity {
 
     private LinearLayout.LayoutParams full() {
 
-        return new LinearLayout.LayoutParams(-1, -2);
+        return new LinearLayout.LayoutParams(
+                -1,
+                -2
+        );
     }
+
+    /*
+     * ------------------------------------------------------------
+     * FARE
+     * ------------------------------------------------------------
+     */
 
     private void loadFare() {
 
@@ -660,68 +1044,83 @@ public class PassengerActivity extends Activity {
                 .get()
                 .addOnSuccessListener(snapshot -> {
 
+                    if (!snapshot.exists()) {
+                        calculateFare();
+                        return;
+                    }
+
                     baseFare =
-                            BASE_FARE_PER_PASSENGER;
+                            number(
+                                    snapshot.get("baseFare"),
+                                    25.0
+                            );
 
                     perKm =
                             number(
-                                    snapshot,
-                                    "perKm",
-                                    10
+                                    snapshot.get("perKm"),
+                                    10.0
                             );
 
                     minimumFare =
                             number(
-                                    snapshot,
-                                    "minimum",
-                                    25
+                                    snapshot.get("minimumFare"),
+                                    25.0
                             );
 
                     maximumFare =
                             number(
-                                    snapshot,
-                                    "maximum",
-                                    500
+                                    snapshot.get("maximumFare"),
+                                    500.0
                             );
+
+                    /*
+                     * The app requirement is currently:
+                     * ₱25 per passenger + ₱10/km.
+                     *
+                     * Do not allow an old Firebase setting to produce
+                     * an invalid zero fare.
+                     */
+                    if (baseFare <= 0) {
+                        baseFare = 25.0;
+                    }
+
+                    if (perKm <= 0) {
+                        perKm = 10.0;
+                    }
+
+                    if (minimumFare <= 0) {
+                        minimumFare = 25.0;
+                    }
+
+                    if (maximumFare < minimumFare) {
+                        maximumFare = 500.0;
+                    }
 
                     calculateFare();
                 })
-                .addOnFailureListener(e -> {
-
-                    baseFare =
-                            BASE_FARE_PER_PASSENGER;
-
-                    perKm = 10;
-                    minimumFare = 25;
-                    maximumFare = 500;
-
-                    calculateFare();
-                });
+                .addOnFailureListener(
+                        e -> calculateFare()
+                );
     }
 
     private double number(
-            DocumentSnapshot snapshot,
-            String field,
+            Object value,
             double fallback
     ) {
 
+        if (value instanceof Number) {
+
+            return ((Number) value)
+                    .doubleValue();
+        }
+
         try {
 
-            Object value =
-                    snapshot.get(field);
+            if (value != null) {
 
-            if (value instanceof Number) {
-                return ((Number) value).doubleValue();
-            }
-
-            if (value instanceof String) {
-
-                String valueText =
-                        ((String) value).trim();
-
-                if (!valueText.isEmpty()) {
-                    return Double.parseDouble(valueText);
-                }
+                return Double.parseDouble(
+                        String.valueOf(value)
+                );
             }
 
         } catch (Exception ignored) {
@@ -730,177 +1129,1388 @@ public class PassengerActivity extends Activity {
         return fallback;
     }
 
-    private void requestLocation() {
+    private void calculateFare() {
+
+        double distanceKm =
+                distanceInKm(
+                        pickupLat,
+                        pickupLng,
+                        destinationLat,
+                        destinationLng
+                );
+
+        double fare =
+                (baseFare * passengerCount)
+                        +
+                        (perKm * distanceKm);
+
+        if (fare < minimumFare) {
+            fare = minimumFare;
+        }
+
+        if (fare > maximumFare) {
+            fare = maximumFare;
+        }
+
+        if (fareText != null) {
+
+            fareText.setText(
+                    "👥 "
+                            + passengerCount
+                            + " Passenger"
+                            + (
+                            passengerCount == 1
+                                    ? ""
+                                    : "s"
+                    )
+                            + "\n💰 Estimated fare: ₱"
+                            + String.format(
+                            Locale.US,
+                            "%.0f",
+                            fare
+                    )
+            );
+        }
+    }
+
+    private double distanceInKm(
+            double lat1,
+            double lon1,
+            double lat2,
+            double lon2
+    ) {
 
         if (
-                checkSelfPermission(
-                        Manifest.permission.ACCESS_FINE_LOCATION
-                ) != PackageManager.PERMISSION_GRANTED
-                        &&
-                        checkSelfPermission(
-                                Manifest.permission.ACCESS_COARSE_LOCATION
-                        ) != PackageManager.PERMISSION_GRANTED
+                lat1 == 0
+                        ||
+                        lon1 == 0
+                        ||
+                        lat2 == 0
+                        ||
+                        lon2 == 0
+        ) {
+            return 0;
+        }
+
+        float[] result =
+                new float[1];
+
+        Location.distanceBetween(
+                lat1,
+                lon1,
+                lat2,
+                lon2,
+                result
+        );
+
+        return result[0] / 1000.0;
+    }
+
+    /*
+     * ------------------------------------------------------------
+     * BOOKING
+     * ------------------------------------------------------------
+     */
+
+    private void bookRide(
+            RadioGroup paymentGroup
+    ) {
+
+        if (bookingInProgress) {
+            return;
+        }
+
+        FirebaseUser user =
+                auth.getCurrentUser();
+
+        if (user == null) {
+
+            Toast.makeText(
+                    this,
+                    "Please log in first.",
+                    Toast.LENGTH_SHORT
+            ).show();
+
+            return;
+        }
+
+        String pickup =
+                pickupInput
+                        .getText()
+                        .toString()
+                        .trim();
+
+        String destination =
+                destinationInput
+                        .getText()
+                        .toString()
+                        .trim();
+
+        if (pickup.isEmpty()) {
+
+            Toast.makeText(
+                    this,
+                    "Please enter your pickup location.",
+                    Toast.LENGTH_SHORT
+            ).show();
+
+            return;
+        }
+
+        if (destination.isEmpty()) {
+
+            Toast.makeText(
+                    this,
+                    "Please enter your destination.",
+                    Toast.LENGTH_SHORT
+            ).show();
+
+            return;
+        }
+
+        if (
+                pickupLat == 0
+                        ||
+                        pickupLng == 0
         ) {
 
-            requestPermissions(
-                    new String[]{
-                            Manifest.permission.ACCESS_FINE_LOCATION,
-                            Manifest.permission.ACCESS_COARSE_LOCATION
-                    },
-                    LOCATION_REQUEST
+            Toast.makeText(
+                    this,
+                    "Please use your current location for pickup.",
+                    Toast.LENGTH_LONG
+            ).show();
+
+            return;
+        }
+
+        if (
+                destinationLat == 0
+                        ||
+                        destinationLng == 0
+        ) {
+
+            Toast.makeText(
+                    this,
+                    "Please choose the destination on the map.",
+                    Toast.LENGTH_LONG
+            ).show();
+
+            return;
+        }
+
+        /*
+         * IMPORTANT FIX:
+         *
+         * Do NOT simply do:
+         *
+         * if (activeRideId != null) return;
+         *
+         * The local ID can belong to an old booking.
+         *
+         * Always check Firebase SERVER before refusing a new booking.
+         */
+        bookingInProgress = true;
+
+        updateButtons();
+
+        final long bookingGeneration =
+                ++rideGeneration;
+
+        db.collection("rides")
+                .whereEqualTo(
+                        "passengerId",
+                        user.getUid()
+                )
+                .get(Source.SERVER)
+                .addOnSuccessListener(query -> {
+
+                    if (
+                            bookingGeneration
+                                    !=
+                                    rideGeneration
+                    ) {
+                        return;
+                    }
+
+                    DocumentSnapshot existing =
+                            findActiveRide(query);
+
+                    if (existing != null) {
+
+                        attachToRide(
+                                existing,
+                                bookingGeneration
+                        );
+
+                        bookingInProgress = false;
+
+                        updateButtons();
+
+                        Toast.makeText(
+                                this,
+                                "You already have an active ride.",
+                                Toast.LENGTH_LONG
+                        ).show();
+
+                        return;
+                    }
+
+                    /*
+                     * No real active ride exists on the server.
+                     *
+                     * Clear the stale local ride ID WITHOUT allowing an
+                     * old listener to restore the previous driver.
+                     */
+                    clearRideInternal();
+
+                    /*
+                     * The clear above increments rideGeneration.
+                     * From this point forward this booking becomes the
+                     * newest generation.
+                     */
+                    final long createGeneration =
+                            ++rideGeneration;
+
+                    bookingInProgress = true;
+
+                    String paymentMethod =
+                            "Cash";
+
+                    int selected =
+                            paymentGroup.getCheckedRadioButtonId();
+
+                    if (selected != -1) {
+
+                        View selectedView =
+                                paymentGroup.findViewById(
+                                        selected
+                                );
+
+                        if (
+                                selectedView
+                                        instanceof RadioButton
+                        ) {
+
+                            paymentMethod =
+                                    ((RadioButton)
+                                            selectedView)
+                                            .getText()
+                                            .toString();
+                        }
+                    }
+
+                    createRideAfterCheck(
+                            user.getUid(),
+                            pickup,
+                            destination,
+                            paymentMethod,
+                            createGeneration
+                    );
+                })
+                .addOnFailureListener(e -> {
+
+                    if (
+                            bookingGeneration
+                                    !=
+                                    rideGeneration
+                    ) {
+                        return;
+                    }
+
+                    bookingInProgress = false;
+
+                    updateButtons();
+
+                    Toast.makeText(
+                            this,
+                            "Unable to check previous booking:\n"
+                                    + e.getMessage(),
+                            Toast.LENGTH_LONG
+                    ).show();
+                });
+    }
+
+    private void createRideAfterCheck(
+            String passengerId,
+            String pickup,
+            String destination,
+            String paymentMethod,
+            long generation
+    ) {
+
+        double distanceKm =
+                distanceInKm(
+                        pickupLat,
+                        pickupLng,
+                        destinationLat,
+                        destinationLng
+                );
+
+        double fare =
+                (baseFare * passengerCount)
+                        +
+                        (perKm * distanceKm);
+
+        fare =
+                Math.max(
+                        minimumFare,
+                        Math.min(
+                                maximumFare,
+                                fare
+                        )
+                );
+
+        Map<String, Object> ride =
+                new HashMap<>();
+
+        ride.put(
+                "passengerId",
+                passengerId
+        );
+
+        ride.put(
+                "pickup",
+                pickup
+        );
+
+        ride.put(
+                "pickupName",
+                pickup
+        );
+
+        ride.put(
+                "destination",
+                destination
+        );
+
+        ride.put(
+                "destinationName",
+                destination
+        );
+
+        ride.put(
+                "pickupLatitude",
+                pickupLat
+        );
+
+        ride.put(
+                "pickupLongitude",
+                pickupLng
+        );
+
+        ride.put(
+                "destinationLatitude",
+                destinationLat
+        );
+
+        ride.put(
+                "destinationLongitude",
+                destinationLng
+        );
+
+        ride.put(
+                "fare",
+                fare
+        );
+
+        ride.put(
+                "distanceKm",
+                distanceKm
+        );
+
+        ride.put(
+                "baseFare",
+                baseFare
+        );
+
+        ride.put(
+                "perKm",
+                perKm
+        );
+
+        ride.put(
+                "passengerCount",
+                passengerCount
+        );
+
+        ride.put(
+                "paymentMethod",
+                paymentMethod
+        );
+
+        ride.put(
+                "paymentStatus",
+                "PENDING"
+        );
+
+        ride.put(
+                "status",
+                "REQUESTED"
+        );
+
+        ride.put(
+                "createdAt",
+                System.currentTimeMillis()
+        );
+
+        ride.put(
+                "statusUpdatedAt",
+                System.currentTimeMillis()
+        );
+
+        db.collection("rides")
+                .add(ride)
+                .addOnSuccessListener(document -> {
+
+                    if (
+                            generation
+                                    !=
+                                    rideGeneration
+                    ) {
+                        return;
+                    }
+
+                    activeRideId =
+                            document.getId();
+
+                    activeRideStatus =
+                            "REQUESTED";
+
+                    prefs.edit()
+                            .putString(
+                                    "activeRideId",
+                                    activeRideId
+                            )
+                            .apply();
+
+                    bookingInProgress = false;
+
+                    statusText.setText(
+                            "🔎 LOOKING FOR DRIVER..."
+                    );
+
+                    statusText.setTextColor(
+                            Color.rgb(
+                                    0,
+                                    110,
+                                    70
+                            )
+                    );
+
+                    driverInfoText.setText(
+                            "👤 DRIVER: Waiting for driver..."
+                    );
+
+                    listenToRide(
+                            activeRideId
+                    );
+
+                    updateButtons();
+
+                    Toast.makeText(
+                            this,
+                            "Ride booked successfully.",
+                            Toast.LENGTH_SHORT
+                    ).show();
+
+                })
+                .addOnFailureListener(e -> {
+
+                    if (
+                            generation
+                                    !=
+                                    rideGeneration
+                    ) {
+                        return;
+                    }
+
+                    bookingInProgress = false;
+
+                    updateButtons();
+
+                    Toast.makeText(
+                            this,
+                            "Booking failed:\n"
+                                    + e.getMessage(),
+                            Toast.LENGTH_LONG
+                    ).show();
+                });
+    }
+
+    /*
+     * ------------------------------------------------------------
+     * FIND CURRENT SERVER RIDE
+     * ------------------------------------------------------------
+     */
+
+    private DocumentSnapshot findActiveRide(
+            QuerySnapshot query
+    ) {
+
+        if (
+                query == null
+                        ||
+                        query.isEmpty()
+        ) {
+            return null;
+        }
+
+        List<DocumentSnapshot> rides =
+                new ArrayList<>(
+                        query.getDocuments()
+                );
+
+        Collections.sort(
+                rides,
+                new Comparator<DocumentSnapshot>() {
+
+                    @Override
+                    public int compare(
+                            DocumentSnapshot a,
+                            DocumentSnapshot b
+                    ) {
+
+                        return Long.compare(
+                                readTime(b),
+                                readTime(a)
+                        );
+                    }
+                }
+        );
+
+        long now =
+                System.currentTimeMillis();
+
+        for (
+                DocumentSnapshot ride :
+                rides
+        ) {
+
+            String status =
+                    safeStatus(
+                            ride.getString(
+                                    "status"
+                            )
+                    );
+
+            if (!isActive(status)) {
+                continue;
+            }
+
+            /*
+             * CRITICAL FIX:
+             *
+             * A ride containing any terminal marker is already finished.
+             * Do not let it block a new booking even if status was not
+             * correctly changed.
+             */
+            if (hasTerminalMarker(ride)) {
+                continue;
+            }
+
+            /*
+             * REQUESTED rides older than 15 minutes are stale.
+             */
+            if (
+                    "REQUESTED".equalsIgnoreCase(
+                            status
+                    )
+            ) {
+
+                long created =
+                        readTime(
+                                ride.get(
+                                        "createdAt"
+                                )
+                        );
+
+                if (
+                        created > 0
+                                &&
+                                now - created
+                                        >
+                                        REQUEST_TIMEOUT_MS
+                ) {
+                    continue;
+                }
+            }
+
+            return ride;
+        }
+
+        return null;
+    }
+
+    private boolean isActive(
+            String status
+    ) {
+
+        return
+                "REQUESTED".equalsIgnoreCase(status)
+                        ||
+                        "ACCEPTED".equalsIgnoreCase(status)
+                        ||
+                        "DRIVER_ON_THE_WAY".equalsIgnoreCase(status)
+                        ||
+                        "DRIVER_ARRIVED".equalsIgnoreCase(status)
+                        ||
+                        "IN_PROGRESS".equalsIgnoreCase(status)
+                        ||
+                        "ARRIVED".equalsIgnoreCase(status)
+                        ||
+                        "ONGOING".equalsIgnoreCase(status);
+    }
+
+    private boolean hasTerminalMarker(
+            DocumentSnapshot ride
+    ) {
+
+        return
+                readTime(
+                        ride.get("completedAt")
+                ) > 0
+
+                        ||
+
+                readTime(
+                        ride.get("cancelledAt")
+                ) > 0
+
+                        ||
+
+                readTime(
+                        ride.get("declinedAt")
+                ) > 0
+
+                        ||
+
+                readTime(
+                        ride.get("expiredAt")
+                ) > 0;
+    }
+
+    private String safeStatus(
+            String value
+    ) {
+
+        if (
+                value == null
+                        ||
+                        value.trim().isEmpty()
+        ) {
+            return "";
+        }
+
+        return value.trim();
+    }
+
+    private long readTime(
+            Object value
+    ) {
+
+        if (value instanceof Number) {
+
+            return ((Number) value)
+                    .longValue();
+        }
+
+        if (
+                value instanceof
+                        com.google.firebase.Timestamp
+        ) {
+
+            return ((com.google.firebase.Timestamp)
+                    value)
+                    .toDate()
+                    .getTime();
+        }
+
+        if (value instanceof Date) {
+
+            return ((Date) value)
+                    .getTime();
+        }
+
+        try {
+
+            if (value != null) {
+
+                return Long.parseLong(
+                        String.valueOf(value)
+                );
+            }
+
+        } catch (Exception ignored) {
+        }
+
+        return 0L;
+    }
+
+    /*
+     * ------------------------------------------------------------
+     * ATTACH CURRENT RIDE
+     * ------------------------------------------------------------
+     */
+
+    private void attachToRide(
+            DocumentSnapshot ride,
+            long generation
+    ) {
+
+        if (
+                ride == null
+                        ||
+                        !ride.exists()
+        ) {
+            clearRide();
+            return;
+        }
+
+        if (generation != rideGeneration) {
+            return;
+        }
+
+        if (hasTerminalMarker(ride)) {
+
+            clearRide();
+
+            updateButtons();
+
+            return;
+        }
+
+        String rideId =
+                ride.getId();
+
+        String status =
+                safeStatus(
+                        ride.getString(
+                                "status"
+                        )
+                );
+
+        if (!isActive(status)) {
+
+            clearRide();
+
+            updateButtons();
+
+            return;
+        }
+
+        activeRideId =
+                rideId;
+
+        activeRideStatus =
+                status;
+
+        Object count =
+                ride.get(
+                        "passengerCount"
+                );
+
+        if (count instanceof Number) {
+
+            passengerCount =
+                    Math.max(
+                            1,
+                            Math.min(
+                                    4,
+                                    ((Number)
+                                            count)
+                                            .intValue()
+                            )
+                    );
+        }
+
+        String pickup =
+                safe(
+                        ride.getString(
+                                "pickupName"
+                        ),
+                        ride.getString(
+                                "pickup"
+                        )
+                );
+
+        String destination =
+                safe(
+                        ride.getString(
+                                "destinationName"
+                        ),
+                        ride.getString(
+                                "destination"
+                        )
+                );
+
+        if (
+                pickup != null
+                        &&
+                        !pickup.equals("Unknown")
+        ) {
+
+            pickupInput.setText(
+                    pickup
+            );
+        }
+
+        if (
+                destination != null
+                        &&
+                        !destination.equals("Unknown")
+        ) {
+
+            destinationInput.setText(
+                    destination
+            );
+        }
+
+        pickupLat =
+                number(
+                        ride.get(
+                                "pickupLatitude"
+                        ),
+                        pickupLat
+                );
+
+        pickupLng =
+                number(
+                        ride.get(
+                                "pickupLongitude"
+                        ),
+                        pickupLng
+                );
+
+        destinationLat =
+                number(
+                        ride.get(
+                                "destinationLatitude"
+                        ),
+                        destinationLat
+                );
+
+        destinationLng =
+                number(
+                        ride.get(
+                                "destinationLongitude"
+                        ),
+                        destinationLng
+                );
+
+        prefs.edit()
+                .putString(
+                        "activeRideId",
+                        activeRideId
+                )
+                .apply();
+
+        updateStatusText(
+                status
+        );
+
+        updatePassengerSelectionUI();
+
+        calculateFare();
+
+        listenToRide(
+                rideId
+        );
+
+        updateButtons();
+    }
+
+    /*
+     * ------------------------------------------------------------
+     * RIDE LISTENER
+     * ------------------------------------------------------------
+     */
+
+    private void listenToRide(
+            String rideId
+    ) {
+
+        if (
+                rideId == null
+                        ||
+                        rideId.trim().isEmpty()
+        ) {
+            return;
+        }
+
+        if (rideListener != null) {
+
+            rideListener.remove();
+
+            rideListener = null;
+        }
+
+        final long generation =
+                rideGeneration;
+
+        final String listeningRideId =
+                rideId;
+
+        rideListener =
+                db.collection("rides")
+                        .document(rideId)
+                        .addSnapshotListener(
+                                (snapshot, error) -> {
+
+                                    if (
+                                            generation
+                                                    !=
+                                                    rideGeneration
+                                    ) {
+                                        return;
+                                    }
+
+                                    if (
+                                            activeRideId
+                                                    == null
+                                                    ||
+                                                    !listeningRideId.equals(
+                                                            activeRideId
+                                                    )
+                                    ) {
+                                        return;
+                                    }
+
+                                    if (error != null) {
+                                        return;
+                                    }
+
+                                    if (
+                                            snapshot == null
+                                                    ||
+                                                    !snapshot.exists()
+                                    ) {
+
+                                        clearRide();
+
+                                        updateButtons();
+
+                                        return;
+                                    }
+
+                                    /*
+                                     * Never allow a terminal-marker ride
+                                     * to stay on screen.
+                                     */
+                                    if (
+                                            hasTerminalMarker(
+                                                    snapshot
+                                            )
+                                    ) {
+
+                                        clearRide();
+
+                                        updateButtons();
+
+                                        return;
+                                    }
+
+                                    String status =
+                                            safeStatus(
+                                                    snapshot.getString(
+                                                            "status"
+                                                    )
+                                            );
+
+                                    if (
+                                            !isActive(status)
+                                    ) {
+
+                                        clearRide();
+
+                                        statusText.setText(
+                                                "✅ RIDE FINISHED"
+                                        );
+
+                                        updateButtons();
+
+                                        return;
+                                    }
+
+                                    activeRideStatus =
+                                            status;
+
+                                    updateStatusText(
+                                            status
+                                    );
+
+                                    showDriverInformation(
+                                            snapshot,
+                                            generation,
+                                            listeningRideId
+                                    );
+
+                                    Object count =
+                                            snapshot.get(
+                                                    "passengerCount"
+                                            );
+
+                                    if (
+                                            count
+                                                    instanceof Number
+                                    ) {
+
+                                        passengerCount =
+                                                Math.max(
+                                                        1,
+                                                        Math.min(
+                                                                4,
+                                                                ((Number)
+                                                                        count)
+                                                                        .intValue()
+                                                        )
+                                                );
+
+                                        updatePassengerSelectionUI();
+                                    }
+
+                                    updateButtons();
+                                }
+                        );
+    }
+
+    private void updateStatusText(
+            String status
+    ) {
+
+        if (statusText == null) {
+            return;
+        }
+
+        if (
+                "REQUESTED".equalsIgnoreCase(
+                        status
+                )
+        ) {
+
+            statusText.setText(
+                    "🔎 LOOKING FOR DRIVER..."
+            );
+
+            statusText.setTextColor(
+                    Color.rgb(
+                            0,
+                            110,
+                            70
+                    )
+            );
+
+        } else if (
+                "ACCEPTED".equalsIgnoreCase(
+                        status
+                )
+        ) {
+
+            statusText.setText(
+                    "✅ DRIVER ACCEPTED YOUR RIDE"
+            );
+
+            statusText.setTextColor(
+                    Color.rgb(
+                            0,
+                            130,
+                            70
+                    )
+            );
+
+        } else if (
+                "DRIVER_ON_THE_WAY".equalsIgnoreCase(
+                        status
+                )
+        ) {
+
+            statusText.setText(
+                    "🚗 DRIVER IS ON THE WAY"
+            );
+
+        } else if (
+                "DRIVER_ARRIVED".equalsIgnoreCase(
+                        status
+                )
+                ||
+                "ARRIVED".equalsIgnoreCase(
+                        status
+                )
+        ) {
+
+            statusText.setText(
+                    "📍 DRIVER HAS ARRIVED"
+            );
+
+        } else if (
+                "IN_PROGRESS".equalsIgnoreCase(
+                        status
+                )
+                ||
+                "ONGOING".equalsIgnoreCase(
+                        status
+                )
+        ) {
+
+            statusText.setText(
+                    "🛺 RIDE IN PROGRESS"
+            );
+
+        } else {
+
+            statusText.setText(
+                    "🟢 " + status
+            );
+        }
+    }
+
+    /*
+     * ------------------------------------------------------------
+     * DRIVER INFORMATION
+     * ------------------------------------------------------------
+     */
+
+    private void showDriverInformation(
+            DocumentSnapshot ride,
+            long generation,
+            String rideId
+    ) {
+
+        String driverId =
+                ride.getString(
+                        "driverId"
+                );
+
+        if (
+                driverId == null
+                        ||
+                        driverId.trim().isEmpty()
+        ) {
+
+            driverInfoText.setText(
+                    "👤 DRIVER: Waiting for driver..."
             );
 
             return;
         }
 
-        startLocation();
-    }
+        /*
+         * Capture the exact ride/generation.
+         *
+         * If this callback belongs to an old ride, it is ignored.
+         */
+        final String expectedRideId =
+                rideId;
 
-    private void startLocation() {
+        final long expectedGeneration =
+                generation;
 
-        locationManager =
-                (LocationManager) getSystemService(
-                        LOCATION_SERVICE
-                );
+        db.collection("users")
+                .document(driverId)
+                .get()
+                .addOnSuccessListener(user -> {
 
-        if (locationManager == null) return;
+                    if (
+                            expectedGeneration
+                                    !=
+                                    rideGeneration
+                    ) {
+                        return;
+                    }
 
-        locationListener =
-                new LocationListener() {
+                    if (
+                            activeRideId == null
+                                    ||
+                                    !expectedRideId.equals(
+                                            activeRideId
+                                    )
+                    ) {
+                        return;
+                    }
 
-                    @Override
-                    public void onLocationChanged(
-                            @NonNull Location location
+                    if (
+                            user == null
+                                    ||
+                                    !user.exists()
                     ) {
 
-                        pickupLat =
-                                location.getLatitude();
+                        driverInfoText.setText(
+                                "👤 DRIVER: Assigned"
+                        );
 
-                        pickupLng =
-                                location.getLongitude();
-
-                        if (
-                                pickupInput != null
-                                        &&
-                                        pickupInput
-                                                .getText()
-                                                .toString()
-                                                .trim()
-                                                .isEmpty()
-                        ) {
-
-                            String place =
-                                    getAddress(
-                                            pickupLat,
-                                            pickupLng
-                                    );
-
-                            if (
-                                    place == null
-                                            ||
-                                            place.trim().isEmpty()
-                            ) {
-
-                                place =
-                                        String.format(
-                                                Locale.US,
-                                                "%.6f, %.6f",
-                                                pickupLat,
-                                                pickupLng
-                                        );
-                            }
-
-                            pickupInput.setText(place);
-                        }
-
-                        calculateFare();
+                        return;
                     }
-                };
 
-        try {
+                    String name =
+                            safe(
+                                    user.getString(
+                                            "name"
+                                    ),
+                                    user.getString(
+                                            "fullName"
+                                    )
+                            );
 
-            if (
-                    checkSelfPermission(
-                            Manifest.permission.ACCESS_FINE_LOCATION
-                    ) == PackageManager.PERMISSION_GRANTED
-                            ||
-                            checkSelfPermission(
-                                    Manifest.permission.ACCESS_COARSE_LOCATION
-                            ) == PackageManager.PERMISSION_GRANTED
-            ) {
+                    String phone =
+                            safe(
+                                    user.getString(
+                                            "phone"
+                                    ),
+                                    user.getString(
+                                            "phoneNumber"
+                                    )
+                            );
 
-                if (
-                        locationManager.isProviderEnabled(
-                                LocationManager.GPS_PROVIDER
-                        )
-                ) {
+                    String vehicle =
+                            safe(
+                                    user.getString(
+                                            "vehicle"
+                                    ),
+                                    user.getString(
+                                            "tricycleNumber"
+                                    )
+                            );
 
-                    locationManager.requestLocationUpdates(
-                            LocationManager.GPS_PROVIDER,
-                            3000,
-                            10,
-                            locationListener
+                    StringBuilder info =
+                            new StringBuilder();
+
+                    info.append(
+                            "👤 DRIVER: "
                     );
-                }
 
-                if (
-                        locationManager.isProviderEnabled(
-                                LocationManager.NETWORK_PROVIDER
-                        )
-                ) {
-
-                    locationManager.requestLocationUpdates(
-                            LocationManager.NETWORK_PROVIDER,
-                            3000,
-                            10,
-                            locationListener
+                    info.append(
+                            name
                     );
-                }
-            }
 
-        } catch (SecurityException ignored) {
+                    if (
+                            phone != null
+                                    &&
+                                    !phone.equals(
+                                            "Unknown"
+                                    )
+                    ) {
+
+                        info.append(
+                                "\n📞 "
+                        );
+
+                        info.append(
+                                phone
+                        );
+                    }
+
+                    if (
+                            vehicle != null
+                                    &&
+                                    !vehicle.equals(
+                                            "Unknown"
+                                    )
+                    ) {
+
+                        info.append(
+                                "\n🛺 "
+                        );
+
+                        info.append(
+                                vehicle
+                        );
+                    }
+
+                    driverInfoText.setText(
+                            info.toString()
+                    );
+                });
+    }
+
+    /*
+     * ------------------------------------------------------------
+     * CLEAR RIDE
+     * ------------------------------------------------------------
+     */
+
+    private void clearRideInternal() {
+
+        /*
+         * This method is used before creating a new booking.
+         *
+         * It does NOT display a history/finished message.
+         * It simply removes stale local state.
+         */
+        if (rideListener != null) {
+
+            rideListener.remove();
+
+            rideListener = null;
+        }
+
+        activeRideId = null;
+
+        activeRideStatus = "";
+
+        prefs.edit()
+                .remove(
+                        "activeRideId"
+                )
+                .apply();
+
+        driverInfoText.setText(
+                "👤 DRIVER: Waiting for driver..."
+        );
+    }
+
+    private void clearRide() {
+
+        /*
+         * Increment FIRST.
+         *
+         * Any delayed callback from the previous ride now becomes invalid.
+         */
+        rideGeneration++;
+
+        clearRideInternal();
+
+        bookingInProgress = false;
+
+        if (statusText != null) {
+
+            statusText.setText(
+                    "🟢 Ready to book"
+            );
+
+            statusText.setTextColor(
+                    Color.rgb(
+                            0,
+                            110,
+                            70
+                    )
+            );
         }
     }
 
-    private void useCurrentLocation() {
+    /*
+     * ------------------------------------------------------------
+     * SAVED RIDE
+     * ------------------------------------------------------------
+     */
 
-        if (pickupLat == 0 && pickupLng == 0) {
+    private void restoreSavedRide() {
 
-            Toast.makeText(
-                    this,
-                    "Waiting for GPS location...",
-                    Toast.LENGTH_SHORT
-            ).show();
-
-            requestLocation();
-            return;
-        }
-
-        String place =
-                getAddress(
-                        pickupLat,
-                        pickupLng
-                );
-
-        if (
-                place == null
-                        ||
-                        place.trim().isEmpty()
-        ) {
-
-            place =
-                    String.format(
-                            Locale.US,
-                            "%.6f, %.6f",
-                            pickupLat,
-                            pickupLng
-                    );
-        }
-
-        pickupInput.setText(place);
-
-        calculateFare();
+        /*
+         * The saved ID is only a hint.
+         * Never automatically trust it.
+         *
+         * onResume() performs the real SERVER query.
+         */
+        prefs.getString(
+                "activeRideId",
+                null
+        );
     }
+
+    /*
+     * ------------------------------------------------------------
+     * MAP / DESTINATION
+     * ------------------------------------------------------------
+     */
 
     private void chooseDestination() {
 
@@ -913,21 +2523,6 @@ public class PassengerActivity extends Activity {
         intent.putExtra(
                 "mode",
                 "SELECT_DESTINATION"
-        );
-
-        intent.putExtra(
-                "pickup_latitude",
-                pickupLat
-        );
-
-        intent.putExtra(
-                "pickup_longitude",
-                pickupLng
-        );
-
-        intent.putExtra(
-                "pickup_address",
-                pickupInput.getText().toString()
         );
 
         startActivityForResult(
@@ -950,719 +2545,83 @@ public class PassengerActivity extends Activity {
         );
 
         if (
-                requestCode != DESTINATION_REQUEST
-                        ||
-                        resultCode != RESULT_OK
-                        ||
-                        data == null
+                requestCode
+                        !=
+                        DESTINATION_REQUEST
         ) {
+            return;
+        }
+
+        if (
+                resultCode
+                        !=
+                        RESULT_OK
+        ) {
+            return;
+        }
+
+        if (data == null) {
             return;
         }
 
         destinationLat =
                 data.getDoubleExtra(
-                        "destination_latitude",
-                        0
+                        "latitude",
+                        data.getDoubleExtra(
+                                "destination_latitude",
+                                0.0
+                        )
                 );
 
         destinationLng =
                 data.getDoubleExtra(
-                        "destination_longitude",
-                        0
-                );
-
-        String address =
-                data.getStringExtra(
-                        "destination_address"
+                        "longitude",
+                        data.getDoubleExtra(
+                                "destination_longitude",
+                                0.0
+                        )
                 );
 
         String name =
                 data.getStringExtra(
-                        "destinationName"
+                        "place_name"
                 );
+
+        if (
+                name == null
+                        ||
+                        name.trim().isEmpty()
+        ) {
+
+            name =
+                    data.getStringExtra(
+                            "destinationName"
+                    );
+        }
 
         if (
                 name != null
                         &&
                         !name.trim().isEmpty()
         ) {
-            address = name;
-        }
 
-        if (
-                address == null
-                        ||
-                        address.trim().isEmpty()
+            destinationInput.setText(
+                    name
+            );
+
+        } else if (
+                destinationLat != 0
+                        &&
+                        destinationLng != 0
         ) {
 
-            address =
-                    String.format(
-                            Locale.US,
-                            "%.6f, %.6f",
-                            destinationLat,
-                            destinationLng
-                    );
+            reverseGeocodeDestination();
         }
-
-        destinationInput.setText(address);
 
         calculateFare();
     }
 
-    /*
-     * FIXED:
-     *
-     * Do NOT trust the old local activeRideId.
-     *
-     * The old local ID can remain in memory while the previous ride has
-     * already become COMPLETED/CANCELLED on Firestore.
-     *
-     * We now always verify the server first.
-     */
-    private void bookRide(RadioGroup payment) {
-
-        if (bookingInProgress) {
-
-            Toast.makeText(
-                    this,
-                    "⏳ Booking request is already being processed.",
-                    Toast.LENGTH_SHORT
-            ).show();
-
-            return;
-        }
-
-        FirebaseUser user =
-                auth.getCurrentUser();
-
-        if (user == null) {
-
-            Toast.makeText(
-                    this,
-                    "Please log in first.",
-                    Toast.LENGTH_LONG
-            ).show();
-
-            return;
-        }
-
-        /*
-         * Invalidate an older pending Firestore query.
-         */
-        final long bookingGeneration = ++rideGeneration;
-
-        bookingInProgress = true;
-
-        bookButton.setEnabled(false);
-
-        statusText.setText(
-                "🔎 CHECKING ACTIVE BOOKINGS..."
-        );
-
-        db.collection("rides")
-                .whereEqualTo(
-                        "passengerId",
-                        user.getUid()
-                )
-                .get(Source.SERVER)
-                .addOnSuccessListener(existingRides -> {
-
-                    /*
-                     * A newer ride operation has already started.
-                     * Ignore this old query result.
-                     */
-                    if (bookingGeneration != rideGeneration) {
-                        return;
-                    }
-
-                    DocumentSnapshot activeRide =
-                            findActiveRide(existingRides);
-
-                    if (activeRide != null) {
-
-                        /*
-                         * There really is an active ride on the server.
-                         * Restore THAT ride, not the old local ride.
-                         */
-                        if (rideListener != null) {
-                            rideListener.remove();
-                            rideListener = null;
-                        }
-
-                        activeRideId =
-                                activeRide.getId();
-
-                        activeRideStatus =
-                                safeStatus(
-                                        activeRide.getString(
-                                                "status"
-                                        )
-                                );
-
-                        Object count =
-                                activeRide.get(
-                                        "passengerCount"
-                                );
-
-                        if (count instanceof Number) {
-
-                            passengerCount =
-                                    Math.max(
-                                            1,
-                                            Math.min(
-                                                    4,
-                                                    ((Number) count)
-                                                            .intValue()
-                                            )
-                                    );
-
-                            updatePassengerSelectionUI();
-                        }
-
-                        prefs.edit()
-                                .putString(
-                                        "activeRideId",
-                                        activeRideId
-                                )
-                                .apply();
-
-                        bookingInProgress = false;
-
-                        statusText.setText(
-                                "🟢 ACTIVE RIDE FOUND"
-                        );
-
-                        Toast.makeText(
-                                this,
-                                "You already have an active ride. Please finish or cancel it before booking another.",
-                                Toast.LENGTH_LONG
-                        ).show();
-
-                        listenToRide(activeRideId);
-                        updateButtons();
-
-                        return;
-                    }
-
-                    /*
-                     * IMPORTANT:
-                     * Server says there is NO active ride.
-                     *
-                     * Remove the old local ride/listener/preferences
-                     * BEFORE creating the new ride.
-                     */
-                    clearRide();
-
-                    bookingInProgress = true;
-                    bookButton.setEnabled(false);
-
-                    statusText.setText(
-                            "🔎 PREPARING NEW RIDE..."
-                    );
-
-                    createRideAfterSpamCheck(
-                            user,
-                            payment
-                    );
-                })
-                .addOnFailureListener(e -> {
-
-                    if (bookingGeneration != rideGeneration) {
-                        return;
-                    }
-
-                    bookingInProgress = false;
-                    bookButton.setEnabled(true);
-
-                    statusText.setText(
-                            "🔴 BOOKING CHECK FAILED"
-                    );
-
-                    String message =
-                            e.getMessage();
-
-                    if (
-                            message == null
-                                    ||
-                                    message.trim().isEmpty()
-                    ) {
-                        message =
-                                "Unable to verify existing bookings.";
-                    }
-
-                    Toast.makeText(
-                            this,
-                            "Booking blocked for safety:\n"
-                                    + message,
-                            Toast.LENGTH_LONG
-                    ).show();
-
-                    updateButtons();
-                });
-    }
-
-    private DocumentSnapshot findActiveRide(
-            QuerySnapshot query
-    ) {
-
-        if (
-                query == null
-                        ||
-                        query.isEmpty()
-        ) {
-            return null;
-        }
-
-        long now =
-                System.currentTimeMillis();
-
-        DocumentSnapshot newest = null;
-        long newestCreatedAt = Long.MIN_VALUE;
-
-        for (
-                DocumentSnapshot ride :
-                query.getDocuments()
-        ) {
-
-            String status =
-                    safeStatus(
-                            ride.getString("status")
-                    );
-
-            if (!isActive(status)) {
-                continue;
-            }
-
-            long createdAt =
-                    readCreatedAt(ride);
-
-            /*
-             * REQUESTED rides expire after 15 minutes if no driver
-             * has accepted them.
-             */
-            if (
-                    "REQUESTED".equals(status)
-                            &&
-                            (
-                                    createdAt <= 0
-                                            ||
-                                    now - createdAt > REQUEST_TIMEOUT_MS
-                            )
-            ) {
-                continue;
-            }
-
-            if (
-                    newest == null
-                            ||
-                            createdAt > newestCreatedAt
-            ) {
-
-                newest = ride;
-                newestCreatedAt = createdAt;
-            }
-        }
-
-        return newest;
-    }
-
-    private long longValue(
-            DocumentSnapshot doc,
-            String field
-    ) {
-
-        Object value =
-                doc.get(field);
-
-        if (value instanceof Number) {
-            return ((Number) value).longValue();
-        }
-
-        if (value instanceof String) {
-
-            try {
-                return Long.parseLong(
-                        ((String) value).trim()
-                );
-            } catch (Exception ignored) {
-            }
-        }
-
-        if (
-                value instanceof
-                        com.google.firebase.Timestamp
-        ) {
-
-            return ((com.google.firebase.Timestamp) value)
-                    .toDate()
-                    .getTime();
-        }
-
-        if (value instanceof Date) {
-            return ((Date) value).getTime();
-        }
-
-        return 0;
-    }
-
-    private String safeStatus(String status) {
-
-        if (
-                status == null
-                        ||
-                        status.trim().isEmpty()
-        ) {
-            return "REQUESTED";
-        }
-
-        return status.trim()
-                .toUpperCase(Locale.US);
-    }
-
-    private void createRideAfterSpamCheck(
-            FirebaseUser user,
-            RadioGroup payment
-    ) {
-
-        String pickup =
-                pickupInput.getText()
-                        .toString()
-                        .trim();
-
-        String destination =
-                destinationInput.getText()
-                        .toString()
-                        .trim();
-
-        if (pickup.isEmpty()) {
-
-            bookingInProgress = false;
-            bookButton.setEnabled(true);
-
-            statusText.setText(
-                    "🟢 Ready to book"
-            );
-
-            Toast.makeText(
-                    this,
-                    "Please select pickup location.",
-                    Toast.LENGTH_LONG
-            ).show();
-
-            return;
-        }
-
-        if (pickupLat == 0 && pickupLng == 0) {
-
-            bookingInProgress = false;
-            bookButton.setEnabled(true);
-
-            statusText.setText(
-                    "🟢 Ready to book"
-            );
-
-            Toast.makeText(
-                    this,
-                    "Please use your current location first.",
-                    Toast.LENGTH_LONG
-            ).show();
-
-            return;
-        }
-
-        if (destination.isEmpty()) {
-
-            bookingInProgress = false;
-            bookButton.setEnabled(true);
-
-            statusText.setText(
-                    "🟢 Ready to book"
-            );
-
-            Toast.makeText(
-                    this,
-                    "Please select a destination.",
-                    Toast.LENGTH_LONG
-            ).show();
-
-            return;
-        }
-
-        if (
-                destinationLat == 0
-                        ||
-                        destinationLng == 0
-        ) {
-
-            bookingInProgress = false;
-            bookButton.setEnabled(true);
-
-            statusText.setText(
-                    "🟢 Ready to book"
-            );
-
-            Toast.makeText(
-                    this,
-                    "Choose the destination on the map.",
-                    Toast.LENGTH_LONG
-            ).show();
-
-            return;
-        }
-
-        String paymentMethod = "Cash";
-
-        int selected =
-                payment.getCheckedRadioButtonId();
-
-        if (selected != -1) {
-
-            RadioButton radio =
-                    findViewById(selected);
-
-            if (radio != null) {
-                paymentMethod =
-                        radio.getText().toString();
-            }
-        }
-
-        double fare =
-                getCurrentFare();
-
-        double totalBaseFare =
-                passengerCount
-                        * BASE_FARE_PER_PASSENGER;
-
-        double distanceKm =
-                getDistanceKm();
-
-        Map<String, Object> ride =
-                new HashMap<>();
-
-        ride.put("passengerId", user.getUid());
-        ride.put("pickup", pickup);
-        ride.put("pickupName", pickup);
-        ride.put("destination", destination);
-        ride.put("destinationName", destination);
-
-        ride.put("pickupLatitude", pickupLat);
-        ride.put("pickupLongitude", pickupLng);
-
-        ride.put("destinationLatitude", destinationLat);
-        ride.put("destinationLongitude", destinationLng);
-
-        ride.put("paymentMethod", paymentMethod);
-        ride.put("paymentStatus", "PENDING");
-
-        ride.put("passengerCount", passengerCount);
-        ride.put(
-                "baseFarePerPassenger",
-                BASE_FARE_PER_PASSENGER
-        );
-        ride.put("baseFare", totalBaseFare);
-        ride.put("perKm", perKm);
-        ride.put("distanceKm", distanceKm);
-        ride.put("fare", fare);
-        ride.put("status", "REQUESTED");
-        ride.put("createdAt", System.currentTimeMillis());
-
-        statusText.setText(
-                "🔎 SENDING RIDE REQUEST..."
-        );
-
-        db.collection("rides")
-                .add(ride)
-                .addOnSuccessListener(document -> {
-
-                    bookingInProgress = false;
-
-                    /*
-                     * The ONLY ride now becomes the newly-created ride.
-                     */
-                    activeRideId =
-                            document.getId();
-
-                    activeRideStatus =
-                            "REQUESTED";
-
-                    lastNotifiedRideStatus = "";
-
-                    notificationBaselineRideId = "";
-                    notificationBaselineStatus = "";
-
-                    prefs.edit()
-                            .putString(
-                                    "activeRideId",
-                                    activeRideId
-                            )
-                            .apply();
-
-                    statusText.setText(
-                            "🟢 RIDE REQUEST SENT\n"
-                                    + "Waiting for a driver..."
-                    );
-
-                    driverInfoText.setText(
-                            "👤 DRIVER\n"
-                                    + "Waiting for a driver to accept..."
-                    );
-
-                    listenToRide(activeRideId);
-                    updateButtons();
-
-                    Toast.makeText(
-                            this,
-                            "🛺 Ride request sent.",
-                            Toast.LENGTH_LONG
-                    ).show();
-                })
-                .addOnFailureListener(e -> {
-
-                    bookingInProgress = false;
-
-                    activeRideId = null;
-                    activeRideStatus = "";
-                    lastNotifiedRideStatus = "";
-
-                    notificationBaselineRideId = "";
-                    notificationBaselineStatus = "";
-
-                    prefs.edit()
-                            .remove("activeRideId")
-                            .apply();
-
-                    bookButton.setEnabled(true);
-
-                    statusText.setText(
-                            "🔴 BOOKING FAILED"
-                    );
-
-                    Toast.makeText(
-                            this,
-                            "Booking failed:\n"
-                                    + e.getMessage(),
-                            Toast.LENGTH_LONG
-                    ).show();
-
-                    updateButtons();
-                });
-    }
-
-    private void calculateFare() {
-
-        if (fareText == null) {
-            return;
-        }
-
-        fareText.setText(
-                String.format(
-                        Locale.US,
-                        "👥 %d Passenger%s\n"
-                                + "💰 Estimated fare: ₱%.0f",
-                        passengerCount,
-                        passengerCount == 1
-                                ? ""
-                                : "s",
-                        getCurrentFare()
-                )
-        );
-
-        updatePassengerSelectionUI();
-    }
-
-    private void calculateFareOnly() {
-
-        if (fareText == null) {
-            return;
-        }
-
-        fareText.setText(
-                String.format(
-                        Locale.US,
-                        "👥 %d Passenger%s\n"
-                                + "💰 Estimated fare: ₱%.0f",
-                        passengerCount,
-                        passengerCount == 1
-                                ? ""
-                                : "s",
-                        getCurrentFare()
-                )
-        );
-    }
-
-    private double getCurrentFare() {
-
-        double passengerBase =
-                passengerCount
-                        * BASE_FARE_PER_PASSENGER;
-
-        if (
-                pickupLat == 0
-                        ||
-                        pickupLng == 0
-                        ||
-                        destinationLat == 0
-                        ||
-                        destinationLng == 0
-        ) {
-
-            return Math.max(
-                    passengerBase,
-                    Math.min(
-                            maximumFare,
-                            passengerBase
-                    )
-            );
-        }
-
-        double kilometers =
-                getDistanceKm();
-
-        double fare =
-                passengerBase
-                        + kilometers * perKm;
-
-        return Math.max(
-                passengerBase,
-                Math.min(
-                        maximumFare,
-                        fare
-                )
-        );
-    }
-
-    private double getDistanceKm() {
-
-        if (
-                pickupLat == 0
-                        ||
-                        pickupLng == 0
-                        ||
-                        destinationLat == 0
-                        ||
-                        destinationLng == 0
-        ) {
-            return 0;
-        }
-
-        float[] distance =
-                new float[1];
-
-        Location.distanceBetween(
-                pickupLat,
-                pickupLng,
-                destinationLat,
-                destinationLng,
-                distance
-        );
-
-        return distance[0] / 1000.0;
-    }
-
-    private String getAddress(
-            double lat,
-            double lng
-    ) {
+    private void reverseGeocodeDestination() {
 
         try {
 
@@ -1674,8 +2633,8 @@ public class PassengerActivity extends Activity {
 
             List<Address> addresses =
                     geocoder.getFromLocation(
-                            lat,
-                            lng,
+                            destinationLat,
+                            destinationLng,
                             1
                     );
 
@@ -1688,847 +2647,53 @@ public class PassengerActivity extends Activity {
                 Address address =
                         addresses.get(0);
 
-                String line =
-                        address.getAddressLine(0);
+                StringBuilder name =
+                        new StringBuilder();
 
-                if (
-                        line != null
-                                &&
-                                !line.trim().isEmpty()
+                for (
+                        int i = 0;
+                        i <= address.getMaxAddressLineIndex();
+                        i++
                 ) {
-                    return line;
+
+                    String line =
+                            address.getAddressLine(
+                                    i
+                            );
+
+                    if (
+                            line != null
+                                    &&
+                                    !line.trim().isEmpty()
+                    ) {
+
+                        if (name.length() > 0) {
+                            name.append(
+                                    ", "
+                            );
+                        }
+
+                        name.append(line);
+                    }
+                }
+
+                if (name.length() > 0) {
+
+                    destinationInput.setText(
+                            name.toString()
+                    );
                 }
             }
 
         } catch (Exception ignored) {
         }
-
-        return "";
-    }
-
-    private void restoreSavedRide() {
-
-        FirebaseUser user =
-                auth.getCurrentUser();
-
-        if (user == null) {
-
-            clearRide();
-            updateButtons();
-            return;
-        }
-
-        /*
-         * Do not let this older restore request overwrite a newer
-         * booking/onResume operation.
-         */
-        final long restoreGeneration = rideGeneration;
-
-        db.collection("rides")
-                .whereEqualTo(
-                        "passengerId",
-                        user.getUid()
-                )
-                .get(Source.SERVER)
-                .addOnSuccessListener(rides -> {
-
-                    if (restoreGeneration != rideGeneration) {
-                        return;
-                    }
-
-                    DocumentSnapshot newest =
-                            findActiveRide(rides);
-
-                    if (newest == null) {
-
-                        clearRide();
-                        updateButtons();
-                        return;
-                    }
-
-                    String rideId =
-                            newest.getId();
-
-                    activeRideId =
-                            rideId;
-
-                    activeRideStatus =
-                            safeStatus(
-                                    newest.getString(
-                                            "status"
-                                    )
-                            );
-
-                    Object savedCount =
-                            newest.get(
-                                    "passengerCount"
-                            );
-
-                    if (savedCount instanceof Number) {
-
-                        passengerCount =
-                                Math.max(
-                                        1,
-                                        Math.min(
-                                                4,
-                                                ((Number) savedCount)
-                                                        .intValue()
-                                        )
-                                );
-                    }
-
-                    prefs.edit()
-                            .putString(
-                                    "activeRideId",
-                                    rideId
-                            )
-                            .apply();
-
-                    updatePassengerSelectionUI();
-                    calculateFare();
-                    listenToRide(rideId);
-                    updateButtons();
-                })
-                .addOnFailureListener(e -> {
-
-                    if (restoreGeneration != rideGeneration) {
-                        return;
-                    }
-
-                    clearRide();
-                    updateButtons();
-
-                    if (statusText != null) {
-
-                        statusText.setText(
-                                "🔴 Unable to check active ride."
-                        );
-                    }
-                });
-    }
-
-    private boolean isActive(String status) {
-
-        return
-                "REQUESTED".equalsIgnoreCase(status)
-                        ||
-                        "ACCEPTED".equalsIgnoreCase(status)
-                        ||
-                        "DRIVER_ON_THE_WAY".equalsIgnoreCase(status)
-                        ||
-                        "DRIVER_ARRIVED".equalsIgnoreCase(status)
-                        ||
-                        "IN_PROGRESS".equalsIgnoreCase(status);
-    }
-
-    /*
-     * FIXED:
-     *
-     * Every ride listener gets its own generation number and ride ID.
-     *
-     * If a previous ride sends a delayed Firestore callback after the
-     * passenger has started another ride, that callback is ignored.
-     */
-    private void listenToRide(String rideId) {
-
-        if (
-                rideId == null
-                        ||
-                        rideId.trim().isEmpty()
-        ) {
-            return;
-        }
-
-        if (rideListener != null) {
-            rideListener.remove();
-            rideListener = null;
-        }
-
-        final long listeningGeneration = ++rideGeneration;
-        final String listeningRideId = rideId;
-
-        activeRideId = listeningRideId;
-
-        notificationBaselineRideId =
-                listeningRideId;
-
-        notificationBaselineStatus =
-                safeStatus(activeRideStatus);
-
-        lastNotifiedRideStatus =
-                notificationBaselineStatus;
-
-        rideListener =
-                db.collection("rides")
-                        .document(listeningRideId)
-                        .addSnapshotListener(
-                                (snapshot, error) -> {
-
-                                    /*
-                                     * Ignore callbacks from an older ride.
-                                     */
-                                    if (
-                                            listeningGeneration
-                                                    != rideGeneration
-                                    ) {
-                                        return;
-                                    }
-
-                                    /*
-                                     * Ignore callbacks if another ride
-                                     * has become the current ride.
-                                     */
-                                    if (
-                                            activeRideId == null
-                                                    ||
-                                                    !listeningRideId.equals(
-                                                            activeRideId
-                                                    )
-                                    ) {
-                                        return;
-                                    }
-
-                                    if (error != null) {
-
-                                        statusText.setText(
-                                                "🔴 RIDE UPDATE ERROR"
-                                        );
-
-                                        return;
-                                    }
-
-                                    if (
-                                            snapshot == null
-                                                    ||
-                                                    !snapshot.exists()
-                                    ) {
-
-                                        clearRide();
-                                        updateButtons();
-                                        return;
-                                    }
-
-                                    String status =
-                                            snapshot.getString(
-                                                    "status"
-                                            );
-
-                                    if (
-                                            status == null
-                                                    ||
-                                                    status.trim().isEmpty()
-                                    ) {
-                                        status = "REQUESTED";
-                                    }
-
-                                    status =
-                                            status.trim()
-                                                    .toUpperCase(
-                                                            Locale.US
-                                                    );
-
-                                    activeRideStatus =
-                                            status;
-
-                                    Object count =
-                                            snapshot.get(
-                                                    "passengerCount"
-                                            );
-
-                                    if (count instanceof Number) {
-
-                                        passengerCount =
-                                                Math.max(
-                                                        1,
-                                                        Math.min(
-                                                                4,
-                                                                ((Number) count)
-                                                                        .intValue()
-                                                )
-                                        );
-
-                                        updatePassengerSelectionUI();
-                                    }
-
-                                    String driverId =
-                                            snapshot.getString(
-                                                    "driverId"
-                                            );
-
-                                    boolean sameBaselineRide =
-                                            listeningRideId.equals(
-                                                    notificationBaselineRideId
-                                            );
-
-                                    boolean firstSnapshot =
-                                            notificationBaselineStatus == null
-                                                    ||
-                                                    notificationBaselineStatus
-                                                            .trim()
-                                                            .isEmpty();
-
-                                    if (!sameBaselineRide) {
-
-                                        notificationBaselineRideId =
-                                                listeningRideId;
-
-                                        notificationBaselineStatus =
-                                                status;
-
-                                        lastNotifiedRideStatus =
-                                                status;
-
-                                    } else if (firstSnapshot) {
-
-                                        notificationBaselineStatus =
-                                                status;
-
-                                        lastNotifiedRideStatus =
-                                                status;
-
-                                    } else if (
-                                            !status.equals(
-                                                    notificationBaselineStatus
-                                            )
-                                    ) {
-
-                                        notificationBaselineStatus =
-                                                status;
-
-                                        notifyPassengerRideStatus(
-                                                status,
-                                                snapshot
-                                        );
-                                    }
-
-                                    if (
-                                            "REQUESTED".equals(status)
-                                    ) {
-
-                                        statusText.setText(
-                                                "🔎 LOOKING FOR DRIVER..."
-                                        );
-
-                                        driverInfoText.setText(
-                                                "👤 DRIVER\n"
-                                                        + "Waiting for a driver to accept..."
-                                        );
-
-                                    } else if (
-                                            "ACCEPTED".equals(status)
-                                    ) {
-
-                                        statusText.setText(
-                                                "🟢 DRIVER ACCEPTED\n"
-                                                        + "Your ride is confirmed."
-                                        );
-
-                                        showDriverInformation(
-                                                snapshot,
-                                                driverId,
-                                                listeningRideId
-                                        );
-
-                                    } else if (
-                                            "DRIVER_ON_THE_WAY"
-                                                    .equals(status)
-                                                    ||
-                                                    "DRIVER_ARRIVED"
-                                                            .equals(status)
-                                                    ||
-                                                    "IN_PROGRESS"
-                                                            .equals(status)
-                                    ) {
-
-                                        statusText.setText(
-                                                "🚦 RIDE STATUS: "
-                                                        + status
-                                        );
-
-                                        showDriverInformation(
-                                                snapshot,
-                                                driverId,
-                                                listeningRideId
-                                        );
-
-                                    } else {
-
-                                        statusText.setText(
-                                                "🚦 RIDE STATUS: "
-                                                        + status
-                                        );
-                                    }
-
-                                    calculateFare();
-
-                                    /*
-                                     * Terminal statuses immediately clear
-                                     * the passenger's local active ride.
-                                     */
-                                    if (!isActive(status)) {
-
-                                        driverInfoText.setText(
-                                                "👤 DRIVER\n"
-                                                        + "Trip completed."
-                                        );
-
-                                        clearRide();
-                                        updateButtons();
-                                    }
-                                }
-                        );
-    }
-
-    private void notifyPassengerRideStatus(
-            String status,
-            DocumentSnapshot ride
-    ) {
-
-        if (
-                status == null
-                        ||
-                        status.trim().isEmpty()
-        ) {
-            return;
-        }
-
-        String normalized =
-                status.trim()
-                        .toUpperCase(Locale.US);
-
-        if (
-                normalized.equals(
-                        lastNotifiedRideStatus
-                )
-        ) {
-            return;
-        }
-
-        lastNotifiedRideStatus =
-                normalized;
-
-        String title;
-        String message;
-
-        if ("REQUESTED".equals(normalized)) {
-
-            title = "🛺 Sakay Na";
-            message =
-                    "Your ride request is looking for a driver.";
-
-        } else if ("ACCEPTED".equals(normalized)) {
-
-            title = "✅ Driver Accepted";
-            message =
-                    "Your Sakay Na driver accepted your ride.";
-
-        } else if (
-                "DRIVER_ON_THE_WAY".equals(normalized)
-        ) {
-
-            title = "🚗 Driver On The Way";
-            message =
-                    "Your driver is on the way to your pickup location.";
-
-        } else if (
-                "DRIVER_ARRIVED".equals(normalized)
-        ) {
-
-            title = "📍 Driver Arrived";
-            message =
-                    "Your driver has arrived at the pickup location.";
-
-        } else if ("IN_PROGRESS".equals(normalized)) {
-
-            title = "▶️ Ride Started";
-            message =
-                    "Your Sakay Na ride has started.";
-
-        } else if ("COMPLETED".equals(normalized)) {
-
-            title = "🏁 Ride Completed";
-            message =
-                    "Your Sakay Na ride has been completed.";
-
-        } else if ("CANCELLED".equals(normalized)) {
-
-            title = "❌ Ride Cancelled";
-            message =
-                    "Your Sakay Na ride was cancelled.";
-
-        } else {
-
-            return;
-        }
-
-        int notificationId =
-                Math.abs(
-                        (
-                                "PASSENGER:"
-                                        + activeRideId
-                                        + ":"
-                                        + normalized
-                        ).hashCode()
-                );
-
-        SakayNaNotificationHelper.show(
-                this,
-                notificationId,
-                title,
-                message
-        );
-    }
-
-    /*
-     * FIXED:
-     *
-     * Driver profile loading is asynchronous too.
-     *
-     * If the old driver's profile comes back after the passenger has
-     * booked a new ride, it must NOT be displayed on the new ride.
-     */
-    private void showDriverInformation(
-            DocumentSnapshot ride,
-            String driverId,
-            String rideId
-    ) {
-
-        if (
-                rideId == null
-                        ||
-                        activeRideId == null
-                        ||
-                        !rideId.equals(activeRideId)
-        ) {
-            return;
-        }
-
-        String driverName =
-                ride.getString("driverName");
-
-        String driverPhone =
-                ride.getString("driverPhone");
-
-        String driverPlate =
-                ride.getString("driverPlateNumber");
-
-        String driverVehicle =
-                ride.getString("driverVehicle");
-
-        boolean hasRideDriverInfo =
-                hasText(driverName)
-                        ||
-                        hasText(driverPhone)
-                        ||
-                        hasText(driverPlate)
-                        ||
-                        hasText(driverVehicle);
-
-        if (hasRideDriverInfo) {
-
-            displayDriverInformation(
-                    driverName,
-                    driverPhone,
-                    driverPlate,
-                    driverVehicle
-            );
-
-            return;
-        }
-
-        if (
-                driverId == null
-                        ||
-                        driverId.trim().isEmpty()
-        ) {
-
-            driverInfoText.setText(
-                    "👤 DRIVER\n"
-                            + "Driver accepted the ride.\n"
-                            + "Driver information is not available yet."
-            );
-
-            return;
-        }
-
-        final String lookupRideId = rideId;
-
-        db.collection("users")
-                .document(driverId)
-                .get()
-                .addOnSuccessListener(userSnapshot -> {
-
-                    /*
-                     * VERY IMPORTANT:
-                     * Do not display the old driver's profile if the
-                     * passenger has already moved to another ride.
-                     */
-                    if (
-                            activeRideId == null
-                                    ||
-                                    !lookupRideId.equals(
-                                            activeRideId
-                                    )
-                    ) {
-                        return;
-                    }
-
-                    if (
-                            userSnapshot != null
-                                    &&
-                                    userSnapshot.exists()
-                    ) {
-
-                        String name =
-                                firstNonEmpty(
-                                        userSnapshot.getString(
-                                                "driverName"
-                                        ),
-                                        userSnapshot.getString(
-                                                "name"
-                                        )
-                                );
-
-                        String phone =
-                                firstNonEmpty(
-                                        userSnapshot.getString(
-                                                "phone"
-                                        ),
-                                        userSnapshot.getString(
-                                                "driverPhone"
-                                        )
-                                );
-
-                        String plate =
-                                userSnapshot.getString(
-                                        "plateNumber"
-                                );
-
-                        String vehicle =
-                                userSnapshot.getString(
-                                        "vehicleDescription"
-                                );
-
-                        displayDriverInformation(
-                                name,
-                                phone,
-                                plate,
-                                vehicle
-                        );
-
-                    } else {
-
-                        driverInfoText.setText(
-                                "👤 DRIVER\n"
-                                        + "Driver accepted the ride.\n"
-                                        + "Driver profile not found."
-                        );
-                    }
-                })
-                .addOnFailureListener(e -> {
-
-                    if (
-                            activeRideId == null
-                                    ||
-                                    !lookupRideId.equals(
-                                            activeRideId
-                                    )
-                    ) {
-                        return;
-                    }
-
-                    driverInfoText.setText(
-                            "👤 DRIVER\n"
-                                    + "Driver accepted the ride.\n"
-                                    + "Unable to load driver information."
-                    );
-                });
-    }
-
-    private void displayDriverInformation(
-            String name,
-            String phone,
-            String plate,
-            String vehicle
-    ) {
-
-        name =
-                safeDriverValue(
-                        name,
-                        "Not provided"
-                );
-
-        phone =
-                safeDriverValue(
-                        phone,
-                        "Not provided"
-                );
-
-        plate =
-                safeDriverValue(
-                        plate,
-                        "Not provided"
-                );
-
-        vehicle =
-                safeDriverValue(
-                        vehicle,
-                        "Tricycle"
-                );
-
-        driverInfoText.setText(
-                "👤 DRIVER\n\n"
-                        + "Name: " + name + "\n"
-                        + "📱 Phone: " + phone + "\n"
-                        + "🔢 Plate: " + plate + "\n"
-                        + "🛺 Vehicle: " + vehicle
-        );
-    }
-
-    private String firstNonEmpty(
-            String first,
-            String second
-    ) {
-
-        if (
-                first != null
-                        &&
-                        !first.trim().isEmpty()
-        ) {
-            return first;
-        }
-
-        if (
-                second != null
-                        &&
-                        !second.trim().isEmpty()
-        ) {
-            return second;
-        }
-
-        return "";
-    }
-
-    private String safeDriverValue(
-            String value,
-            String fallback
-    ) {
-
-        if (
-                value == null
-                        ||
-                        value.trim().isEmpty()
-        ) {
-            return fallback;
-        }
-
-        return value;
-    }
-
-    private boolean hasText(String value) {
-
-        return
-                value != null
-                        &&
-                        !value.trim().isEmpty();
-    }
-
-    /*
-     * FIXED:
-     *
-     * Increment rideGeneration here.
-     *
-     * This invalidates ALL delayed callbacks belonging to the previous
-     * ride before the local ride information is cleared.
-     */
-    private void clearRide() {
-
-        rideGeneration++;
-
-        lastNotifiedRideStatus = "";
-
-        notificationBaselineRideId = "";
-        notificationBaselineStatus = "";
-
-        activeRideId = null;
-        activeRideStatus = "";
-        bookingInProgress = false;
-
-        prefs.edit()
-                .remove("activeRideId")
-                .apply();
-
-        if (rideListener != null) {
-
-            rideListener.remove();
-            rideListener = null;
-        }
-
-        if (driverInfoText != null) {
-
-            driverInfoText.setText(
-                    "👤 DRIVER: Waiting for driver..."
-            );
-        }
-    }
-
-    private void updateButtons() {
-
-        boolean active =
-                activeRideId != null
-                        &&
-                        !activeRideId.isEmpty();
-
-        if (bookButton != null) {
-
-            bookButton.setEnabled(
-                    !active
-                            &&
-                            !bookingInProgress
-            );
-        }
-
-        if (mapButton != null) {
-            mapButton.setEnabled(active);
-        }
-
-        if (chatButton != null) {
-            chatButton.setEnabled(active);
-        }
-
-        if (cancelButton != null) {
-
-            cancelButton.setEnabled(
-                    active
-                            &&
-                            "REQUESTED".equalsIgnoreCase(
-                                    activeRideStatus
-                            )
-            );
-        }
-
-        if (passengerOneButton != null) {
-            passengerOneButton.setEnabled(true);
-        }
-
-        if (passengerTwoButton != null) {
-            passengerTwoButton.setEnabled(true);
-        }
-
-        if (passengerThreeButton != null) {
-            passengerThreeButton.setEnabled(true);
-        }
-
-        if (passengerFourButton != null) {
-            passengerFourButton.setEnabled(true);
-        }
-
-        updatePassengerSelectionUI();
     }
 
     private void openLiveMap() {
 
-        if (!hasActiveRide()) return;
+        if (!hasActiveRide()) {
+            return;
+        }
 
         Intent intent =
                 new Intent(
@@ -2549,17 +2714,27 @@ public class PassengerActivity extends Activity {
         startActivity(intent);
     }
 
+    /*
+     * ------------------------------------------------------------
+     * CHAT
+     * ------------------------------------------------------------
+     */
+
     private void openChat() {
 
-        if (!hasActiveRide()) return;
+        if (!hasActiveRide()) {
+            return;
+        }
 
         /*
-         * Always pass the CURRENT active ride ID.
+         * CRITICAL:
+         * Always use the CURRENT ride ID.
          *
-         * This prevents the chat screen from being opened with the
-         * previous booking's ride ID.
+         * A new booking gets a new Firestore document and therefore
+         * a completely separate rides/{rideId}/messages collection.
          */
-        final String currentRideId = activeRideId;
+        String currentRideId =
+                activeRideId;
 
         Intent intent =
                 new Intent(
@@ -2585,7 +2760,7 @@ public class PassengerActivity extends Activity {
         if (
                 activeRideId == null
                         ||
-                        activeRideId.isEmpty()
+                        activeRideId.trim().isEmpty()
         ) {
 
             Toast.makeText(
@@ -2600,90 +2775,366 @@ public class PassengerActivity extends Activity {
         return true;
     }
 
+    /*
+     * ------------------------------------------------------------
+     * CANCEL
+     * ------------------------------------------------------------
+     */
+
     private void cancelRide() {
 
-        if (!hasActiveRide()) return;
+        if (!hasActiveRide()) {
+            return;
+        }
 
         final String rideId =
                 activeRideId;
 
-        db.runTransaction(transaction -> {
+        db.runTransaction(
+                transaction -> {
 
-            DocumentSnapshot ride =
-                    transaction.get(
-                            db.collection("rides")
-                                    .document(rideId)
+                    DocumentSnapshot ride =
+                            transaction.get(
+                                    db.collection("rides")
+                                            .document(
+                                                    rideId
+                                            )
+                            );
+
+                    if (!ride.exists()) {
+
+                        throw new IllegalStateException(
+                                "Ride no longer exists."
+                        );
+                    }
+
+                    String status =
+                            safeStatus(
+                                    ride.getString(
+                                            "status"
+                                    )
+                            );
+
+                    if (
+                            !"REQUESTED"
+                                    .equalsIgnoreCase(
+                                            status
+                                    )
+                    ) {
+
+                        throw new IllegalStateException(
+                                "The driver has already accepted this booking."
+                        );
+                    }
+
+                    transaction.update(
+                            ride.getReference(),
+                            "status",
+                            "CANCELLED",
+                            "cancelledBy",
+                            "PASSENGER",
+                            "cancelledAt",
+                            System.currentTimeMillis(),
+                            "statusUpdatedAt",
+                            System.currentTimeMillis()
                     );
 
-            if (!ride.exists()) {
+                    return null;
+                }
+        )
+                .addOnSuccessListener(
+                        v -> {
 
-                throw new IllegalStateException(
-                        "Ride no longer exists."
+                            clearRide();
+
+                            statusText.setText(
+                                    "❌ RIDE CANCELLED"
+                            );
+
+                            updateButtons();
+                        }
+                )
+                .addOnFailureListener(
+                        e -> Toast.makeText(
+                                this,
+                                "Unable to cancel:\n"
+                                        + e.getMessage(),
+                                Toast.LENGTH_LONG
+                        ).show()
                 );
-            }
+    }
 
-            String currentStatus =
-                    ride.getString("status");
+    /*
+     * ------------------------------------------------------------
+     * GCASH QR
+     * ------------------------------------------------------------
+     */
 
-            if (
-                    !"REQUESTED".equalsIgnoreCase(
-                            currentStatus
-                    )
-            ) {
+    private void showGcashQr() {
 
-                throw new IllegalStateException(
-                        "The driver has already accepted this booking. Passenger cancellation is no longer allowed."
+        /*
+         * KEEPING THE EXISTING GCash resource.
+         *
+         * This booking fix does NOT modify gcash_qr.
+         */
+        ImageView image =
+                new ImageView(this);
+
+        image.setImageResource(
+                R.drawable.gcash_qr
+        );
+
+        image.setAdjustViewBounds(
+                true
+        );
+
+        image.setScaleType(
+                ImageView.ScaleType.CENTER_INSIDE
+        );
+
+        LinearLayout container =
+                new LinearLayout(this);
+
+        container.setOrientation(
+                LinearLayout.VERTICAL
+        );
+
+        container.setPadding(
+                20,
+                20,
+                20,
+                20
+        );
+
+        TextView title =
+                text(
+                        "📱 GCash Payment QR",
+                        20
                 );
-            }
 
-            transaction.update(
-                    ride.getReference(),
-                    "status",
-                    "CANCELLED",
-                    "cancelledBy",
-                    "PASSENGER",
-                    "cancelledAt",
-                    System.currentTimeMillis()
+        title.setGravity(
+                Gravity.CENTER
+        );
+
+        title.setTypeface(
+                null,
+                Typeface.BOLD
+        );
+
+        container.addView(
+                title,
+                full()
+        );
+
+        container.addView(
+                image,
+                new LinearLayout.LayoutParams(
+                        -1,
+                        600
+                )
+        );
+
+        new AlertDialog.Builder(this)
+                .setView(container)
+                .setPositiveButton(
+                        "Close",
+                        null
+                )
+                .show();
+    }
+
+    /*
+     * ------------------------------------------------------------
+     * LOCATION
+     * ------------------------------------------------------------
+     */
+
+    private void requestLocation() {
+
+        if (
+                checkSelfPermission(
+                        Manifest.permission.ACCESS_FINE_LOCATION
+                )
+                        !=
+                        PackageManager.PERMISSION_GRANTED
+        ) {
+
+            requestPermissions(
+                    new String[]{
+                            Manifest.permission.ACCESS_FINE_LOCATION,
+                            Manifest.permission.ACCESS_COARSE_LOCATION
+                    },
+                    LOCATION_REQUEST
             );
 
-            return null;
+            return;
+        }
 
-        }).addOnSuccessListener(v -> {
+        startLocation();
+    }
 
-            /*
-             * clearRide() invalidates the old listener immediately.
-             */
-            clearRide();
+    private void startLocation() {
 
-            statusText.setText(
-                    "❌ RIDE CANCELLED"
+        try {
+
+            locationManager =
+                    (LocationManager)
+                            getSystemService(
+                                    LOCATION_SERVICE
+                            );
+
+            locationListener =
+                    new LocationListener() {
+
+                        @Override
+                        public void onLocationChanged(
+                                @NonNull Location location
+                        ) {
+
+                            pickupLat =
+                                    location.getLatitude();
+
+                            pickupLng =
+                                    location.getLongitude();
+
+                            /*
+                             * Only fill pickup automatically if it is
+                             * currently empty.
+                             */
+                            if (
+                                    pickupInput
+                                            .getText()
+                                            .toString()
+                                            .trim()
+                                            .isEmpty()
+                            ) {
+
+                                reverseGeocodePickup();
+                            }
+
+                            calculateFare();
+                        }
+                    };
+
+            locationManager.requestLocationUpdates(
+                    LocationManager.GPS_PROVIDER,
+                    2000,
+                    5,
+                    locationListener
             );
 
-            updateButtons();
+            locationManager.requestLocationUpdates(
+                    LocationManager.NETWORK_PROVIDER,
+                    3000,
+                    5,
+                    locationListener
+            );
 
-        }).addOnFailureListener(e -> {
+        } catch (SecurityException ignored) {
+        }
+    }
 
-            String message =
-                    e.getMessage();
+    private void useCurrentLocation() {
 
-            if (
-                    message == null
-                            ||
-                            message.trim().isEmpty()
-            ) {
-                message =
-                        "Unable to cancel booking.";
-            }
+        if (
+                pickupLat == 0
+                        ||
+                        pickupLng == 0
+        ) {
+
+            requestLocation();
 
             Toast.makeText(
                     this,
-                    message,
-                    Toast.LENGTH_LONG
+                    "Getting your current location...",
+                    Toast.LENGTH_SHORT
             ).show();
 
-            updateButtons();
-        });
+            return;
+        }
+
+        reverseGeocodePickup();
+
+        Toast.makeText(
+                this,
+                "Pickup location updated.",
+                Toast.LENGTH_SHORT
+        ).show();
     }
+
+    private void reverseGeocodePickup() {
+
+        try {
+
+            Geocoder geocoder =
+                    new Geocoder(
+                            this,
+                            Locale.getDefault()
+                    );
+
+            List<Address> addresses =
+                    geocoder.getFromLocation(
+                            pickupLat,
+                            pickupLng,
+                            1
+                    );
+
+            if (
+                    addresses != null
+                            &&
+                            !addresses.isEmpty()
+            ) {
+
+                Address address =
+                        addresses.get(0);
+
+                StringBuilder name =
+                        new StringBuilder();
+
+                for (
+                        int i = 0;
+                        i <= address.getMaxAddressLineIndex();
+                        i++
+                ) {
+
+                    String line =
+                            address.getAddressLine(
+                                    i
+                            );
+
+                    if (
+                            line != null
+                                    &&
+                                    !line.trim().isEmpty()
+                    ) {
+
+                        if (name.length() > 0) {
+                            name.append(
+                                    ", "
+                            );
+                        }
+
+                        name.append(line);
+                    }
+                }
+
+                if (name.length() > 0) {
+
+                    pickupInput.setText(
+                            name.toString()
+                    );
+                }
+            }
+
+        } catch (Exception ignored) {
+        }
+    }
+
+    /*
+     * ------------------------------------------------------------
+     * HISTORY
+     * ------------------------------------------------------------
+     */
 
     private void showHistory() {
 
@@ -2691,223 +3142,203 @@ public class PassengerActivity extends Activity {
                 auth.getCurrentUser();
 
         if (user == null) {
-
-            Toast.makeText(
-                    this,
-                    "Please log in first.",
-                    Toast.LENGTH_SHORT
-            ).show();
-
             return;
         }
-
-        final String passengerId =
-                user.getUid();
 
         db.collection("rides")
                 .whereEqualTo(
                         "passengerId",
-                        passengerId
+                        user.getUid()
                 )
                 .get(Source.SERVER)
-                .addOnSuccessListener(query -> {
+                .addOnSuccessListener(
+                        query -> {
 
-                    try {
+                            if (
+                                    query == null
+                                            ||
+                                            query.isEmpty()
+                            ) {
 
-                        if (
-                                query == null
-                                        ||
-                                        query.isEmpty()
-                        ) {
+                                new AlertDialog.Builder(
+                                        this
+                                )
+                                        .setTitle(
+                                                "📜 Ride History"
+                                        )
+                                        .setMessage(
+                                                "No ride history yet."
+                                        )
+                                        .setPositiveButton(
+                                                "Close",
+                                                null
+                                        )
+                                        .show();
 
-                            new AlertDialog.Builder(this)
+                                return;
+                            }
+
+                            List<DocumentSnapshot> rides =
+                                    new ArrayList<>(
+                                            query.getDocuments()
+                                    );
+
+                            Collections.sort(
+                                    rides,
+                                    (
+                                            a,
+                                            b
+                                    ) ->
+                                            Long.compare(
+                                                    readTime(
+                                                            b.get(
+                                                                    "createdAt"
+                                                            )
+                                                    ),
+                                                    readTime(
+                                                            a.get(
+                                                                    "createdAt"
+                                                            )
+                                                    )
+                                            )
+                            );
+
+                            SimpleDateFormat format =
+                                    new SimpleDateFormat(
+                                            "MMM dd, yyyy • hh:mm a",
+                                            Locale.US
+                                    );
+
+                            StringBuilder history =
+                                    new StringBuilder();
+
+                            for (
+                                    DocumentSnapshot ride :
+                                    rides
+                            ) {
+
+                                String pickup =
+                                        safe(
+                                                ride.getString(
+                                                        "pickupName"
+                                                ),
+                                                ride.getString(
+                                                        "pickup"
+                                                )
+                                        );
+
+                                String destination =
+                                        safe(
+                                                ride.getString(
+                                                        "destinationName"
+                                                ),
+                                                ride.getString(
+                                                        "destination"
+                                                )
+                                        );
+
+                                String status =
+                                        safe(
+                                                ride.getString(
+                                                        "status"
+                                                ),
+                                                "UNKNOWN"
+                                        );
+
+                                double fare =
+                                        number(
+                                                ride.get(
+                                                        "fare"
+                                                ),
+                                                0
+                                        );
+
+                                String payment =
+                                        safe(
+                                                ride.getString(
+                                                        "paymentMethod"
+                                                ),
+                                                "Not provided"
+                                        );
+
+                                long created =
+                                        readTime(
+                                                ride.get(
+                                                        "createdAt"
+                                                )
+                                        );
+
+                                history.append(
+                                        "🗓️ "
+                                                + (
+                                                created > 0
+                                                        ? format.format(
+                                                        new Date(
+                                                                created
+                                                        )
+                                                )
+                                                        : "Date unavailable"
+                                        )
+                                                + "\n"
+                                );
+
+                                history.append(
+                                        "📍 "
+                                                + pickup
+                                                + "\n"
+                                );
+
+                                history.append(
+                                        "🎯 "
+                                                + destination
+                                                + "\n"
+                                );
+
+                                history.append(
+                                        "💰 ₱"
+                                                + String.format(
+                                                Locale.US,
+                                                "%.0f",
+                                                fare
+                                        )
+                                                + "\n"
+                                );
+
+                                history.append(
+                                        "💳 "
+                                                + payment
+                                                + "\n"
+                                );
+
+                                history.append(
+                                        "🚦 "
+                                                + status
+                                                + "\n"
+                                );
+
+                                history.append(
+                                        "────────────────\n\n"
+                                );
+                            }
+
+                            new AlertDialog.Builder(
+                                    this
+                            )
                                     .setTitle(
-                                            "📜 Ride History"
+                                            "📜 RIDE HISTORY"
                                     )
                                     .setMessage(
-                                            "No ride history yet."
+                                            history.toString()
                                     )
                                     .setPositiveButton(
                                             "Close",
                                             null
                                     )
                                     .show();
-
-                            return;
                         }
-
-                        List<DocumentSnapshot> rides =
-                                new ArrayList<>(
-                                        query.getDocuments()
-                                );
-
-                        Collections.sort(
-                                rides,
-                                new Comparator<DocumentSnapshot>() {
-
-                                    @Override
-                                    public int compare(
-                                            DocumentSnapshot a,
-                                            DocumentSnapshot b
-                                    ) {
-
-                                        return Long.compare(
-                                                readCreatedAt(b),
-                                                readCreatedAt(a)
-                                        );
-                                    }
-                                }
-                        );
-
-                        StringBuilder history =
-                                new StringBuilder();
-
-                        SimpleDateFormat dateFormat =
-                                new SimpleDateFormat(
-                                        "MMM dd, yyyy • hh:mm a",
-                                        Locale.US
-                                );
-
-                        for (
-                                DocumentSnapshot ride :
-                                rides
-                        ) {
-
-                            String pickup =
-                                    safe(
-                                            ride.getString(
-                                                    "pickupName"
-                                            ),
-                                            ride.getString(
-                                                    "pickup"
-                                            )
-                                    );
-
-                            String destination =
-                                    safe(
-                                            ride.getString(
-                                                    "destinationName"
-                                            ),
-                                            ride.getString(
-                                                    "destination"
-                                            )
-                                    );
-
-                            String status =
-                                    safe(
-                                            ride.getString(
-                                                    "status"
-                                            ),
-                                            "UNKNOWN"
-                                    );
-
-                            double fare =
-                                    readFare(ride);
-
-                            String paymentMethod =
-                                    safe(
-                                            ride.getString(
-                                                    "paymentMethod"
-                                            ),
-                                            "Not provided"
-                                    );
-
-                            long createdAt =
-                                    readCreatedAt(ride);
-
-                            String dateText =
-                                    createdAt > 0
-                                            ? dateFormat.format(
-                                            new Date(createdAt)
-                                    )
-                                            : "Date not available";
-
-                            history.append(
-                                    "🗓️ "
-                                            + dateText
-                                            + "\n"
-                            );
-
-                            history.append(
-                                    "📍 "
-                                            + pickup
-                                            + "\n"
-                            );
-
-                            history.append(
-                                    "🎯 "
-                                            + destination
-                                            + "\n"
-                            );
-
-                            history.append(
-                                    "👥 Passengers: "
-                                            + (
-                                            ride.get(
-                                                    "passengerCount"
-                                            ) instanceof Number
-                                                    ? ((Number)
-                                                    ride.get(
-                                                            "passengerCount"
-                                                    )).intValue()
-                                                    : 1
-                                    )
-                                            + "\n"
-                            );
-
-                            history.append(
-                                    "💰 ₱"
-                                            + String.format(
-                                            Locale.US,
-                                            "%.0f",
-                                            fare
-                                    )
-                                            + "\n"
-                            );
-
-                            history.append(
-                                    "💳 "
-                                            + paymentMethod
-                                            + "\n"
-                            );
-
-                            history.append(
-                                    "🚦 "
-                                            + status
-                                            + "\n"
-                            );
-
-                            history.append(
-                                    "────────────────\n\n"
-                            );
-                        }
-
-                        new AlertDialog.Builder(this)
-                                .setTitle(
-                                        "📜 RIDE HISTORY"
-                                )
-                                .setMessage(
-                                        history.toString()
-                                )
-                                .setPositiveButton(
-                                        "Close",
-                                        null
-                                )
-                                .show();
-
-                    } catch (Exception e) {
-
-                        Toast.makeText(
-                                this,
-                                "Unable to display ride history:\n"
-                                        + e.getMessage(),
-                                Toast.LENGTH_LONG
-                        ).show();
-                    }
-
-                })
-                .addOnFailureListener(e ->
-                        Toast.makeText(
+                )
+                .addOnFailureListener(
+                        e -> Toast.makeText(
                                 this,
                                 "History failed:\n"
                                         + e.getMessage(),
@@ -2916,85 +3347,11 @@ public class PassengerActivity extends Activity {
                 );
     }
 
-    private long readCreatedAt(
-            DocumentSnapshot ride
-    ) {
-
-        try {
-
-            Object value =
-                    ride.get("createdAt");
-
-            if (value instanceof Number) {
-                return ((Number) value).longValue();
-            }
-
-            if (value instanceof String) {
-
-                String valueText =
-                        ((String) value).trim();
-
-                if (!valueText.isEmpty()) {
-
-                    return Long.parseLong(
-                            valueText
-                    );
-                }
-            }
-
-            if (
-                    value instanceof
-                            com.google.firebase.Timestamp
-            ) {
-
-                return ((com.google.firebase.Timestamp) value)
-                        .toDate()
-                        .getTime();
-            }
-
-            if (value instanceof Date) {
-                return ((Date) value).getTime();
-            }
-
-        } catch (Exception ignored) {
-        }
-
-        return 0;
-    }
-
-    private double readFare(
-            DocumentSnapshot ride
-    ) {
-
-        try {
-
-            Object value =
-                    ride.get("fare");
-
-            if (value instanceof Number) {
-
-                return ((Number) value)
-                        .doubleValue();
-            }
-
-            if (value instanceof String) {
-
-                String valueText =
-                        ((String) value).trim();
-
-                if (!valueText.isEmpty()) {
-
-                    return Double.parseDouble(
-                            valueText
-                    );
-                }
-            }
-
-        } catch (Exception ignored) {
-        }
-
-        return 0;
-    }
+    /*
+     * ------------------------------------------------------------
+     * HELPERS
+     * ------------------------------------------------------------
+     */
 
     private String safe(
             String first,
@@ -3020,6 +3377,60 @@ public class PassengerActivity extends Activity {
         return "Unknown";
     }
 
+    private void updateButtons() {
+
+        boolean active =
+                activeRideId != null
+                        &&
+                        !activeRideId.trim().isEmpty();
+
+        if (bookButton != null) {
+
+            bookButton.setEnabled(
+                    !bookingInProgress
+            );
+
+            /*
+             * IMPORTANT:
+             * The button remains enabled while the server verifies
+             * whether the previous ride is actually finished.
+             */
+            if (active) {
+
+                bookButton.setText(
+                        "🛺 NEW BOOKING / CHECK RIDE"
+                );
+
+            } else {
+
+                bookButton.setText(
+                        "🛺 BOOK A RIDE"
+                );
+            }
+        }
+
+        if (mapButton != null) {
+            mapButton.setEnabled(active);
+        }
+
+        if (chatButton != null) {
+            chatButton.setEnabled(active);
+        }
+
+        if (cancelButton != null) {
+
+            cancelButton.setEnabled(
+                    active
+                            &&
+                            "REQUESTED".equalsIgnoreCase(
+                                    activeRideStatus
+                            )
+            );
+        }
+
+        updatePassengerSelectionUI();
+    }
+
     private void logout() {
 
         clearRide();
@@ -3039,6 +3450,7 @@ public class PassengerActivity extends Activity {
         );
 
         startActivity(intent);
+
         finish();
     }
 
@@ -3046,28 +3458,34 @@ public class PassengerActivity extends Activity {
     public void onRequestPermissionsResult(
             int requestCode,
             @NonNull String[] permissions,
-            @NonNull int[] results
+            @NonNull int[] grantResults
     ) {
 
         super.onRequestPermissionsResult(
                 requestCode,
                 permissions,
-                results
+                grantResults
         );
 
         if (
-                requestCode ==
+                requestCode
+                        ==
                         LOCATION_REQUEST
         ) {
 
-            for (int result : results) {
+            for (
+                    int result :
+                    grantResults
+            ) {
 
                 if (
-                        result ==
+                        result
+                                ==
                                 PackageManager.PERMISSION_GRANTED
                 ) {
 
                     startLocation();
+
                     return;
                 }
             }
@@ -3084,14 +3502,14 @@ public class PassengerActivity extends Activity {
     protected void onDestroy() {
 
         /*
-         * Invalidate all asynchronous ride callbacks when the activity
-         * is destroyed.
+         * Invalidate every outstanding callback.
          */
         rideGeneration++;
 
         if (rideListener != null) {
 
             rideListener.remove();
+
             rideListener = null;
         }
 
