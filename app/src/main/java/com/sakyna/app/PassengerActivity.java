@@ -83,6 +83,18 @@ public class PassengerActivity extends Activity {
     private String activeRideStatus = "";
     private String lastNotifiedRideStatus = "";
 
+    /*
+     * Notification baseline.
+     *
+     * The first Firestore snapshot for a ride is treated as
+     * the current state and DOES NOT create a notification.
+     *
+     * Notifications are only sent when the ride status changes
+     * after that initial baseline.
+     */
+    private String notificationBaselineRideId = "";
+    private String notificationBaselineStatus = "";
+
     private boolean bookingInProgress = false;
 
     private double pickupLat = 0;
@@ -304,11 +316,6 @@ public class PassengerActivity extends Activity {
                 passengerButtonParams()
         );
 
-        /*
-         * DIRECT CLICK HANDLERS
-         * Each passenger button immediately selects
-         * its passenger count.
-         */
         passengerOneButton.setOnClickListener(
                 v -> selectPassengerCount(1)
         );
@@ -469,7 +476,9 @@ public class PassengerActivity extends Activity {
         b.setFocusableInTouchMode(false);
         b.setClickable(true);
         b.setEnabled(true);
-        b.setBackgroundColor(Color.rgb(125, 135, 135);
+
+        // FIXED GREEN SYNTAX
+        b.setBackgroundColor(Color.rgb(125, 135, 135));
 
         return b;
     }
@@ -488,12 +497,6 @@ public class PassengerActivity extends Activity {
         return p;
     }
 
-    /*
-     * PASSENGER COUNT FIX
-     *
-     * This is now the single place that changes
-     * the selected passenger number.
-     */
     private void selectPassengerCount(int count) {
 
         if (count < 1) {
@@ -510,10 +513,6 @@ public class PassengerActivity extends Activity {
         calculateFare();
     }
 
-    /*
-     * Directly updates the four buttons and the
-     * selected-passenger text.
-     */
     private void updatePassengerSelectionUI() {
 
         if (passengerSelectedText != null) {
@@ -1215,7 +1214,8 @@ public class PassengerActivity extends Activity {
             return "REQUESTED";
         }
 
-        return status.trim();
+        return status.trim()
+                .toUpperCase(Locale.US);
     }
 
     private void createRideAfterSpamCheck(
@@ -1393,10 +1393,6 @@ public class PassengerActivity extends Activity {
                 "PENDING"
         );
 
-        /*
-         * IMPORTANT:
-         * This is the actual selected number of passengers.
-         */
         ride.put(
                 "passengerCount",
                 passengerCount
@@ -1455,6 +1451,9 @@ public class PassengerActivity extends Activity {
 
                     lastNotifiedRideStatus = "";
 
+                    notificationBaselineRideId = "";
+                    notificationBaselineStatus = "";
+
                     prefs.edit()
                             .putString(
                                     "activeRideId",
@@ -1488,6 +1487,9 @@ public class PassengerActivity extends Activity {
                     activeRideId = null;
                     activeRideStatus = "";
                     lastNotifiedRideStatus = "";
+
+                    notificationBaselineRideId = "";
+                    notificationBaselineStatus = "";
 
                     prefs.edit()
                             .remove("activeRideId")
@@ -1738,22 +1740,41 @@ public class PassengerActivity extends Activity {
     private boolean isActive(String status) {
 
         return
-                "REQUESTED".equals(status)
+                "REQUESTED".equalsIgnoreCase(status)
                         ||
-                        "ACCEPTED".equals(status)
+                        "ACCEPTED".equalsIgnoreCase(status)
                         ||
-                        "DRIVER_ON_THE_WAY".equals(status)
+                        "DRIVER_ON_THE_WAY".equalsIgnoreCase(status)
                         ||
-                        "DRIVER_ARRIVED".equals(status)
+                        "DRIVER_ARRIVED".equalsIgnoreCase(status)
                         ||
-                        "IN_PROGRESS".equals(status);
+                        "IN_PROGRESS".equalsIgnoreCase(status);
     }
 
+    /*
+     * GREEN NOTIFICATION FIX
+     *
+     * The first snapshot is only used to establish the current
+     * ride status. It does NOT generate a notification.
+     *
+     * Notifications are generated only when Firestore later
+     * changes the ride status.
+     */
     private void listenToRide(String rideId) {
 
         if (rideListener != null) {
             rideListener.remove();
+            rideListener = null;
         }
+
+        notificationBaselineRideId =
+                rideId == null ? "" : rideId;
+
+        notificationBaselineStatus =
+                safeStatus(activeRideStatus);
+
+        lastNotifiedRideStatus =
+                notificationBaselineStatus;
 
         rideListener =
                 db.collection("rides")
@@ -1789,10 +1810,16 @@ public class PassengerActivity extends Activity {
                                     if (
                                             status == null
                                                     ||
-                                                    status.isEmpty()
+                                                    status.trim().isEmpty()
                                     ) {
                                         status = "REQUESTED";
                                     }
+
+                                    status =
+                                            status.trim()
+                                                    .toUpperCase(
+                                                            Locale.US
+                                                    );
 
                                     activeRideStatus =
                                             status;
@@ -1811,8 +1838,8 @@ public class PassengerActivity extends Activity {
                                                                 4,
                                                                 ((Number) count)
                                                                         .intValue()
-                                                        )
-                                                );
+                                                )
+                                        );
 
                                         updatePassengerSelectionUI();
                                     }
@@ -1824,10 +1851,56 @@ public class PassengerActivity extends Activity {
                                                     "driverId"
                                             );
 
-                                    notifyPassengerRideStatus(
-                                            status,
-                                            snapshot
-                                    );
+                                    /*
+                                     * Do not notify on the first
+                                     * snapshot. Only notify when
+                                     * the status actually changes.
+                                     */
+                                    boolean sameBaselineRide =
+                                            rideId.equals(
+                                                    notificationBaselineRideId
+                                            );
+
+                                    boolean firstSnapshot =
+                                            notificationBaselineStatus == null
+                                                    ||
+                                                    notificationBaselineStatus
+                                                            .trim()
+                                                            .isEmpty();
+
+                                    if (!sameBaselineRide) {
+
+                                        notificationBaselineRideId =
+                                                rideId;
+
+                                        notificationBaselineStatus =
+                                                status;
+
+                                        lastNotifiedRideStatus =
+                                                status;
+
+                                    } else if (firstSnapshot) {
+
+                                        notificationBaselineStatus =
+                                                status;
+
+                                        lastNotifiedRideStatus =
+                                                status;
+
+                                    } else if (
+                                            !status.equals(
+                                                    notificationBaselineStatus
+                                            )
+                                    ) {
+
+                                        notificationBaselineStatus =
+                                                status;
+
+                                        notifyPassengerRideStatus(
+                                                status,
+                                                snapshot
+                                        );
+                                    }
 
                                     if (
                                             "REQUESTED".equals(status)
@@ -2219,6 +2292,9 @@ public class PassengerActivity extends Activity {
 
         lastNotifiedRideStatus = "";
 
+        notificationBaselineRideId = "";
+        notificationBaselineStatus = "";
+
         activeRideId = null;
         activeRideStatus = "";
         bookingInProgress = false;
@@ -2309,10 +2385,6 @@ public class PassengerActivity extends Activity {
             );
         }
 
-        /*
-         * Re-apply the selected state after changing
-         * enabled/disabled state.
-         */
         updatePassengerSelectionUI();
     }
 
