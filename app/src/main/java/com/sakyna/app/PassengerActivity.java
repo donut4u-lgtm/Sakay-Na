@@ -429,13 +429,6 @@ public class PassengerActivity extends Activity {
         updateButtons();
     }
 
-    /*
-     * Passenger selector.
-     *
-     * Each button receives its own click listener here.
-     * This prevents another screen update from accidentally
-     * replacing the passenger button listener.
-     */
     private Button passengerNumberButton(
             String number,
             int count
@@ -1472,11 +1465,6 @@ public class PassengerActivity extends Activity {
         updatePassengerSelectionUI();
     }
 
-    /*
-     * Used by the passenger selector so that changing
-     * 1 / 2 / 3 / 4 does not recursively refresh the
-     * passenger selector.
-     */
     private void calculateFareOnly() {
 
         if (fareText == null) {
@@ -1792,6 +1780,7 @@ public class PassengerActivity extends Activity {
                                                                 4,
                                                                 ((Number) count)
                                                                         .intValue()
+                                                        )
                                                 );
 
                                         updatePassengerSelectionUI();
@@ -2291,16 +2280,6 @@ public class PassengerActivity extends Activity {
             );
         }
 
-        /*
-         * IMPORTANT:
-         *
-         * The passenger selector stays enabled on the
-         * Passenger screen. The selected number is used
-         * when a NEW ride is booked.
-         *
-         * This prevents onResume()/Firestore refreshes
-         * from making the 1/2/3/4 buttons appear dead.
-         */
         if (passengerOneButton != null) {
             passengerOneButton.setEnabled(true);
         }
