@@ -83,20 +83,25 @@ public class PassengerActivity extends Activity {
 
     /*
      * ============================================================
-     * RED MANTRA
+     * CURRENT BOOKING ONLY
      * ============================================================
      *
-     * ONLY the CURRENT VALID BOOKING may control this screen.
+     * IMPORTANT:
      *
-     * Old Firestore callbacks are NEVER allowed to restore:
+     * PassengerActivity NO LONGER scans old Firestore rides
+     * and resurrects them as the current booking.
      *
-     * - old booking
-     * - old driver
-     * - old status
-     * - old map
-     * - old chat ride
+     * The current ride is the ride created by this screen.
      *
-     * Every ride switch/clear increments this generation.
+     * When it ends:
+     *
+     * - current ride ID is cleared
+     * - current status is cleared
+     * - driver information is cleared
+     * - local activeRideId is removed
+     * - old rides are NEVER restored
+     *
+     * Old rides remain available to Ride History/Admin.
      * ============================================================
      */
     private long rideGeneration = 0L;
@@ -138,10 +143,18 @@ public class PassengerActivity extends Activity {
         requestLocation();
 
         /*
-         * Local activeRideId is NOT trusted.
-         * Firebase SERVER is the source of truth.
+         * IMPORTANT:
+         *
+         * Do NOT restore an old ride from Firestore.
+         *
+         * A new PassengerActivity starts clean.
+         *
+         * The saved activeRideId is deliberately removed here
+         * so an old booking can never be resurrected.
          */
-        restoreSavedRide();
+        prefs.edit()
+                .remove("activeRideId")
+                .apply();
     }
 
     @Override
@@ -149,15 +162,28 @@ public class PassengerActivity extends Activity {
         super.onResume();
 
         /*
-         * Invalidate callbacks from previous screen state.
+         * Do NOT search all passenger rides here.
+         *
+         * The previous implementation did:
+         *
+         * rides.whereEqualTo(passengerId)
+         *
+         * then searched the whole history.
+         *
+         * That caused:
+         *
+         * booking 10
+         * booking 9
+         * booking 8
+         * ...
+         *
+         * to reappear one after another.
+         *
+         * Current booking state is now controlled only by
+         * activeRideId created in this PassengerActivity.
          */
-        final long generation =
-                ++rideGeneration;
 
-        FirebaseUser user =
-                auth.getCurrentUser();
-
-        if (user == null) {
+        if (auth.getCurrentUser() == null) {
 
             clearRide();
 
@@ -166,57 +192,7 @@ public class PassengerActivity extends Activity {
             return;
         }
 
-        db.collection("rides")
-                .whereEqualTo(
-                        "passengerId",
-                        user.getUid()
-                )
-                .get(Source.SERVER)
-                .addOnSuccessListener(query -> {
-
-                    if (
-                            generation
-                                    !=
-                                    rideGeneration
-                    ) {
-                        return;
-                    }
-
-                    DocumentSnapshot ride =
-                            findActiveRide(query);
-
-                    /*
-                     * RED MANTRA:
-                     *
-                     * No valid active ride exists on SERVER.
-                     * Destroy all local ride state.
-                     */
-                    if (ride == null) {
-
-                        clearRide();
-
-                        updateButtons();
-
-                        return;
-                    }
-
-                    attachToRide(
-                            ride,
-                            generation
-                    );
-                })
-                .addOnFailureListener(e -> {
-
-                    if (
-                            generation
-                                    !=
-                                    rideGeneration
-                    ) {
-                        return;
-                    }
-
-                    updateButtons();
-                });
+        updateButtons();
     }
 
     private void buildScreen() {
@@ -872,9 +848,7 @@ public class PassengerActivity extends Activity {
                 new Button(this);
 
         b.setText(number);
-
         b.setTextSize(18);
-
         b.setAllCaps(false);
 
         b.setTypeface(
@@ -1008,7 +982,6 @@ public class PassengerActivity extends Activity {
                 new TextView(this);
 
         t.setText(value);
-
         t.setTextSize(size);
 
         t.setTextColor(
@@ -1033,9 +1006,7 @@ public class PassengerActivity extends Activity {
                 new Button(this);
 
         b.setText(value);
-
         b.setTextSize(16);
-
         b.setAllCaps(false);
 
         b.setTypeface(
@@ -1260,7 +1231,7 @@ public class PassengerActivity extends Activity {
 
     /*
      * ============================================================
-     * BOOKING
+     * BOOK NEW RIDE
      * ============================================================
      */
 
@@ -1281,6 +1252,25 @@ public class PassengerActivity extends Activity {
                     this,
                     "Please log in first.",
                     Toast.LENGTH_SHORT
+            ).show();
+
+            return;
+        }
+
+        /*
+         * CRITICAL:
+         *
+         * If a current ride exists, do NOT search Firestore
+         * for another one.
+         *
+         * The current ride belongs to this session.
+         */
+        if (hasCurrentRideWithoutToast()) {
+
+            Toast.makeText(
+                    this,
+                    "You already have an active ride.",
+                    Toast.LENGTH_LONG
             ).show();
 
             return;
@@ -1352,133 +1342,71 @@ public class PassengerActivity extends Activity {
 
         bookingInProgress = true;
 
-        updateButtons();
-
-        final long bookingGeneration =
+        /*
+         * New generation = new booking session.
+         */
+        final long generation =
                 ++rideGeneration;
 
-        db.collection("rides")
-                .whereEqualTo(
-                        "passengerId",
-                        user.getUid()
-                )
-                .get(Source.SERVER)
-                .addOnSuccessListener(query -> {
+        String paymentMethod =
+                "Cash";
 
-                    if (
-                            bookingGeneration
-                                    !=
-                                    rideGeneration
-                    ) {
-                        return;
-                    }
+        int selected =
+                paymentGroup.getCheckedRadioButtonId();
 
-                    DocumentSnapshot existing =
-                            findActiveRide(query);
+        if (selected != -1) {
 
-                    /*
-                     * RED MANTRA:
-                     *
-                     * Only a REAL valid active ride gets here.
-                     *
-                     * Old DRIVER_ARRIVED without driverId
-                     * was already rejected by findActiveRide().
-                     */
-                    if (existing != null) {
-
-                        attachToRide(
-                                existing,
-                                bookingGeneration
-                        );
-
-                        bookingInProgress = false;
-
-                        updateButtons();
-
-                        Toast.makeText(
-                                this,
-                                "You already have an active ride.",
-                                Toast.LENGTH_LONG
-                        ).show();
-
-                        return;
-                    }
-
-                    /*
-                     * NO VALID SERVER RIDE.
-                     *
-                     * Completely remove stale local ride state.
-                     */
-                    clearRideInternal();
-
-                    /*
-                     * New booking generation.
-                     */
-                    final long createGeneration =
-                            ++rideGeneration;
-
-                    bookingInProgress = true;
-
-                    String paymentMethod =
-                            "Cash";
-
-                    int selected =
-                            paymentGroup
-                                    .getCheckedRadioButtonId();
-
-                    if (selected != -1) {
-
-                        View selectedView =
-                                paymentGroup
-                                        .findViewById(
-                                                selected
-                                        );
-
-                        if (
-                                selectedView
-                                        instanceof RadioButton
-                        ) {
-
-                            paymentMethod =
-                                    ((RadioButton)
-                                            selectedView)
-                                            .getText()
-                                            .toString();
-                        }
-                    }
-
-                    createRideAfterCheck(
-                            user.getUid(),
-                            pickup,
-                            destination,
-                            paymentMethod,
-                            createGeneration
+            View selectedView =
+                    paymentGroup.findViewById(
+                            selected
                     );
-                })
-                .addOnFailureListener(e -> {
 
-                    if (
-                            bookingGeneration
-                                    !=
-                                    rideGeneration
-                    ) {
-                        return;
-                    }
+            if (
+                    selectedView
+                            instanceof RadioButton
+            ) {
 
-                    bookingInProgress = false;
+                paymentMethod =
+                        ((RadioButton)
+                                selectedView)
+                                .getText()
+                                .toString();
+            }
+        }
 
-                    updateButtons();
+        createRide(
+                user.getUid(),
+                pickup,
+                destination,
+                paymentMethod,
+                generation
+        );
 
-                    Toast.makeText(
-                            this,
-                            "Unable to check previous booking:\n"
-                                    + e.getMessage(),
-                            Toast.LENGTH_LONG
-                    ).show();
-                });
+        updateButtons();
     }
 
-    private void createRideAfterCheck(
+    private boolean hasCurrentRideWithoutToast() {
+
+        if (
+                activeRideId == null
+                        ||
+                        activeRideId.trim().isEmpty()
+        ) {
+            return false;
+        }
+
+        if (
+                !isActive(
+                        activeRideStatus
+                )
+        ) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private void createRide(
             String passengerId,
             String pickup,
             String destination,
@@ -1507,6 +1435,9 @@ public class PassengerActivity extends Activity {
                                 fare
                         )
                 );
+
+        long now =
+                System.currentTimeMillis();
 
         Map<String, Object> ride =
                 new HashMap<>();
@@ -1598,12 +1529,21 @@ public class PassengerActivity extends Activity {
 
         ride.put(
                 "createdAt",
-                System.currentTimeMillis()
+                now
         );
 
         ride.put(
                 "statusUpdatedAt",
-                System.currentTimeMillis()
+                now
+        );
+
+        /*
+         * This is useful for identifying the current booking
+         * without ever scanning old rides.
+         */
+        ride.put(
+                "passengerBookingSession",
+                now
         );
 
         db.collection("rides")
@@ -1618,6 +1558,9 @@ public class PassengerActivity extends Activity {
                         return;
                     }
 
+                    /*
+                     * THIS is the ONLY ride ID that becomes current.
+                     */
                     activeRideId =
                             document.getId();
 
@@ -1660,7 +1603,6 @@ public class PassengerActivity extends Activity {
                             "Ride booked successfully.",
                             Toast.LENGTH_SHORT
                     ).show();
-
                 })
                 .addOnFailureListener(e -> {
 
@@ -1687,204 +1629,9 @@ public class PassengerActivity extends Activity {
 
     /*
      * ============================================================
-     * FIND ACTIVE RIDE
-     * ============================================================
-     *
-     * RED MANTRA:
-     *
-     * 1. Terminal rides NEVER block.
-     * 2. Old REQUESTED rides NEVER block after timeout.
-     * 3. Driver-stage rides WITHOUT driverId NEVER block.
-     * 4. Sort by the actual createdAt field.
+     * ACTIVE STATUS
      * ============================================================
      */
-
-    private DocumentSnapshot findActiveRide(
-            QuerySnapshot query
-    ) {
-
-        if (
-                query == null
-                        ||
-                        query.isEmpty()
-        ) {
-            return null;
-        }
-
-        List<DocumentSnapshot> rides =
-                new ArrayList<>(
-                        query.getDocuments()
-                );
-
-        /*
-         * IMPORTANT FIX:
-         *
-         * The previous version used readTime(DocumentSnapshot),
-         * which returned 0 because readTime() expects a field value.
-         *
-         * Now we REALLY sort by createdAt.
-         */
-        Collections.sort(
-                rides,
-                new Comparator<DocumentSnapshot>() {
-
-                    @Override
-                    public int compare(
-                            DocumentSnapshot a,
-                            DocumentSnapshot b
-                    ) {
-
-                        return Long.compare(
-                                readTime(
-                                        b.get(
-                                                "createdAt"
-                                        )
-                                ),
-                                readTime(
-                                        a.get(
-                                                "createdAt"
-                                        )
-                                )
-                        );
-                    }
-                }
-        );
-
-        long now =
-                System.currentTimeMillis();
-
-        for (
-                DocumentSnapshot ride :
-                rides
-        ) {
-
-            if (
-                    ride == null
-                            ||
-                            !ride.exists()
-            ) {
-                continue;
-            }
-
-            String status =
-                    safeStatus(
-                            ride.getString(
-                                    "status"
-                            )
-                    );
-
-            /*
-             * RED MANTRA #1
-             *
-             * Terminal ride = NEVER ACTIVE.
-             */
-            if (hasTerminalMarker(ride)) {
-                continue;
-            }
-
-            /*
-             * Explicit terminal statuses.
-             */
-            if (
-                    "COMPLETED".equalsIgnoreCase(status)
-                            ||
-                            "CANCELLED".equalsIgnoreCase(status)
-                            ||
-                            "DECLINED".equalsIgnoreCase(status)
-                            ||
-                            "EXPIRED".equalsIgnoreCase(status)
-                            ||
-                            "FINISHED".equalsIgnoreCase(status)
-            ) {
-                continue;
-            }
-
-            if (!isActive(status)) {
-                continue;
-            }
-
-            /*
-             * RED MANTRA #2
-             *
-             * REQUESTED older than 15 minutes = stale.
-             */
-            if (
-                    "REQUESTED".equalsIgnoreCase(status)
-            ) {
-
-                long created =
-                        readTime(
-                                ride.get(
-                                        "createdAt"
-                                )
-                        );
-
-                if (
-                        created > 0
-                                &&
-                                now - created
-                                        >
-                                        REQUEST_TIMEOUT_MS
-                ) {
-                    continue;
-                }
-            }
-
-            /*
-             * RED MANTRA #3
-             *
-             * These statuses MUST have a real driver.
-             *
-             * This kills the exact broken record:
-             *
-             * DRIVER_ARRIVED
-             * +
-             * NO driverId
-             */
-            if (requiresDriver(status)) {
-
-                String driverId =
-                        ride.getString(
-                                "driverId"
-                        );
-
-                if (
-                        driverId == null
-                                ||
-                                driverId.trim().isEmpty()
-                ) {
-
-                    continue;
-                }
-            }
-
-            /*
-             * ONLY a genuinely valid active ride
-             * can block a new booking.
-             */
-            return ride;
-        }
-
-        return null;
-    }
-
-    private boolean requiresDriver(
-            String status
-    ) {
-
-        return
-                "ACCEPTED".equalsIgnoreCase(status)
-                        ||
-                        "DRIVER_ON_THE_WAY".equalsIgnoreCase(status)
-                        ||
-                        "DRIVER_ARRIVED".equalsIgnoreCase(status)
-                        ||
-                        "ARRIVED".equalsIgnoreCase(status)
-                        ||
-                        "IN_PROGRESS".equalsIgnoreCase(status)
-                        ||
-                        "ONGOING".equalsIgnoreCase(status);
-    }
 
     private boolean isActive(
             String status
@@ -1902,6 +1649,24 @@ public class PassengerActivity extends Activity {
                         "IN_PROGRESS".equalsIgnoreCase(status)
                         ||
                         "ARRIVED".equalsIgnoreCase(status)
+                        ||
+                        "ONGOING".equalsIgnoreCase(status);
+    }
+
+    private boolean requiresDriver(
+            String status
+    ) {
+
+        return
+                "ACCEPTED".equalsIgnoreCase(status)
+                        ||
+                        "DRIVER_ON_THE_WAY".equalsIgnoreCase(status)
+                        ||
+                        "DRIVER_ARRIVED".equalsIgnoreCase(status)
+                        ||
+                        "ARRIVED".equalsIgnoreCase(status)
+                        ||
+                        "IN_PROGRESS".equalsIgnoreCase(status)
                         ||
                         "ONGOING".equalsIgnoreCase(status);
     }
@@ -1941,41 +1706,31 @@ public class PassengerActivity extends Activity {
 
         return
                 readTime(
-                        ride.get(
-                                "completedAt"
-                        )
+                        ride.get("completedAt")
                 ) > 0
 
                         ||
 
                 readTime(
-                        ride.get(
-                                "finishedAt"
-                        )
+                        ride.get("finishedAt")
                 ) > 0
 
                         ||
 
                 readTime(
-                        ride.get(
-                                "cancelledAt"
-                        )
+                        ride.get("cancelledAt")
                 ) > 0
 
                         ||
 
                 readTime(
-                        ride.get(
-                                "declinedAt"
-                        )
+                        ride.get("declinedAt")
                 ) > 0
 
                         ||
 
                 readTime(
-                        ride.get(
-                                "expiredAt"
-                        )
+                        ride.get("expiredAt")
                 ) > 0;
     }
 
@@ -2038,221 +1793,7 @@ public class PassengerActivity extends Activity {
 
     /*
      * ============================================================
-     * ATTACH RIDE
-     * ============================================================
-     */
-
-    private void attachToRide(
-            DocumentSnapshot ride,
-            long generation
-    ) {
-
-        if (
-                ride == null
-                        ||
-                        !ride.exists()
-        ) {
-
-            clearRide();
-
-            return;
-        }
-
-        if (
-                generation
-                        !=
-                        rideGeneration
-        ) {
-            return;
-        }
-
-        /*
-         * RED MANTRA:
-         * Finished ride cannot be attached.
-         */
-        if (hasTerminalMarker(ride)) {
-
-            clearRide();
-
-            updateButtons();
-
-            return;
-        }
-
-        String rideId =
-                ride.getId();
-
-        String status =
-                safeStatus(
-                        ride.getString(
-                                "status"
-                        )
-                );
-
-        if (!isActive(status)) {
-
-            clearRide();
-
-            updateButtons();
-
-            return;
-        }
-
-        /*
-         * RED MANTRA:
-         *
-         * Driver-stage status with no driverId
-         * is broken/stale and MUST NOT be attached.
-         */
-        if (requiresDriver(status)) {
-
-            String driverId =
-                    ride.getString(
-                            "driverId"
-                    );
-
-            if (
-                    driverId == null
-                            ||
-                            driverId.trim().isEmpty()
-            ) {
-
-                clearRide();
-
-                updateButtons();
-
-                return;
-            }
-        }
-
-        activeRideId =
-                rideId;
-
-        activeRideStatus =
-                status;
-
-        Object count =
-                ride.get(
-                        "passengerCount"
-                );
-
-        if (count instanceof Number) {
-
-            passengerCount =
-                    Math.max(
-                            1,
-                            Math.min(
-                                    4,
-                                    ((Number)
-                                            count)
-                                            .intValue()
-                            )
-                    );
-        }
-
-        String pickup =
-                safe(
-                        ride.getString(
-                                "pickupName"
-                        ),
-                        ride.getString(
-                                "pickup"
-                        )
-                );
-
-        String destination =
-                safe(
-                        ride.getString(
-                                "destinationName"
-                        ),
-                        ride.getString(
-                                "destination"
-                        )
-                );
-
-        if (
-                pickup != null
-                        &&
-                        !pickup.equals(
-                                "Unknown"
-                        )
-        ) {
-
-            pickupInput.setText(
-                    pickup
-            );
-        }
-
-        if (
-                destination != null
-                        &&
-                        !destination.equals(
-                                "Unknown"
-                        )
-        ) {
-
-            destinationInput.setText(
-                    destination
-            );
-        }
-
-        pickupLat =
-                number(
-                        ride.get(
-                                "pickupLatitude"
-                        ),
-                        pickupLat
-                );
-
-        pickupLng =
-                number(
-                        ride.get(
-                                "pickupLongitude"
-                        ),
-                        pickupLng
-                );
-
-        destinationLat =
-                number(
-                        ride.get(
-                                "destinationLatitude"
-                        ),
-                        destinationLat
-                );
-
-        destinationLng =
-                number(
-                        ride.get(
-                                "destinationLongitude"
-                        ),
-                        destinationLng
-                );
-
-        prefs.edit()
-                .putString(
-                        "activeRideId",
-                        activeRideId
-                )
-                .apply();
-
-        updateStatusText(
-                status
-        );
-
-        updatePassengerSelectionUI();
-
-        calculateFare();
-
-        listenToRide(
-                rideId
-        );
-
-        updateButtons();
-    }
-
-    /*
-     * ============================================================
-     * REALTIME RIDE LISTENER
+     * REALTIME CURRENT RIDE LISTENER
      * ============================================================
      */
 
@@ -2288,10 +1829,7 @@ public class PassengerActivity extends Activity {
                                 (snapshot, error) -> {
 
                                     /*
-                                     * RED MANTRA:
-                                     *
-                                     * Old callbacks cannot update
-                                     * the current screen.
+                                     * Old booking callback.
                                      */
                                     if (
                                             generation
@@ -2301,9 +1839,11 @@ public class PassengerActivity extends Activity {
                                         return;
                                     }
 
+                                    /*
+                                     * Old ride callback.
+                                     */
                                     if (
-                                            activeRideId
-                                                    == null
+                                            activeRideId == null
                                                     ||
                                                     !listeningRideId.equals(
                                                             activeRideId
@@ -2316,22 +1856,33 @@ public class PassengerActivity extends Activity {
                                         return;
                                     }
 
+                                    /*
+                                     * Ride document disappeared.
+                                     * Completely clear passenger state.
+                                     */
                                     if (
                                             snapshot == null
                                                     ||
                                                     !snapshot.exists()
                                     ) {
 
-                                        clearRide();
-
-                                        updateButtons();
+                                        finishCurrentBooking(
+                                                "🟢 READY TO BOOK"
+                                        );
 
                                         return;
                                     }
 
                                     /*
-                                     * Finished/cancelled ride
-                                     * disappears immediately.
+                                     * Terminal ride.
+                                     *
+                                     * COMPLETED
+                                     * CANCELLED
+                                     * DECLINED
+                                     * EXPIRED
+                                     * FINISHED
+                                     *
+                                     * MUST NEVER remain current.
                                      */
                                     if (
                                             hasTerminalMarker(
@@ -2339,9 +1890,13 @@ public class PassengerActivity extends Activity {
                                             )
                                     ) {
 
-                                        clearRide();
-
-                                        updateButtons();
+                                        finishCurrentBooking(
+                                                terminalMessage(
+                                                        snapshot.getString(
+                                                                "status"
+                                                        )
+                                                )
+                                        );
 
                                         return;
                                     }
@@ -2353,30 +1908,24 @@ public class PassengerActivity extends Activity {
                                                     )
                                             );
 
+                                    /*
+                                     * Unknown/non-active status
+                                     * cannot remain on dashboard.
+                                     */
                                     if (
                                             !isActive(status)
                                     ) {
 
-                                        clearRide();
-
-                                        statusText.setText(
+                                        finishCurrentBooking(
                                                 "🟢 READY TO BOOK"
                                         );
-
-                                        updateButtons();
 
                                         return;
                                     }
 
                                     /*
-                                     * RED MANTRA:
-                                     *
-                                     * NEVER show:
-                                     *
-                                     * DRIVER HAS ARRIVED
-                                     * DRIVER: Waiting for driver
-                                     *
-                                     * at the same time.
+                                     * Driver-stage status MUST have
+                                     * a real driver.
                                      */
                                     if (
                                             requiresDriver(
@@ -2395,25 +1944,16 @@ public class PassengerActivity extends Activity {
                                                         driverId.trim().isEmpty()
                                         ) {
 
-                                            clearRide();
-
-                                            statusText.setText(
+                                            finishCurrentBooking(
                                                     "🟢 READY TO BOOK"
                                             );
-
-                                            driverInfoText.setText(
-                                                    "👤 DRIVER: Waiting for driver..."
-                                            );
-
-                                            updateButtons();
 
                                             return;
                                         }
                                     }
 
                                     /*
-                                     * ONLY NOW can this ride
-                                     * control the passenger screen.
+                                     * ONLY CURRENT RIDE reaches here.
                                      */
                                     activeRideStatus =
                                             status;
@@ -2457,6 +1997,153 @@ public class PassengerActivity extends Activity {
                         );
     }
 
+    private String terminalMessage(
+            String status
+    ) {
+
+        if (
+                "COMPLETED".equalsIgnoreCase(
+                        status
+                )
+                        ||
+                        "FINISHED".equalsIgnoreCase(
+                                status
+                        )
+        ) {
+
+            return "✅ RIDE COMPLETED — READY FOR NEW BOOKING";
+        }
+
+        if (
+                "CANCELLED".equalsIgnoreCase(
+                        status
+                )
+        ) {
+
+            return "❌ RIDE CANCELLED — READY FOR NEW BOOKING";
+        }
+
+        if (
+                "DECLINED".equalsIgnoreCase(
+                        status
+                )
+        ) {
+
+            return "⚠️ RIDE DECLINED — READY FOR NEW BOOKING";
+        }
+
+        if (
+                "EXPIRED".equalsIgnoreCase(
+                        status
+                )
+        ) {
+
+            return "⌛ RIDE EXPIRED — READY FOR NEW BOOKING";
+        }
+
+        return "🟢 READY TO BOOK";
+    }
+
+    /*
+     * ============================================================
+     * COMPLETELY FINISH CURRENT PASSENGER BOOKING
+     * ============================================================
+     */
+
+    private void finishCurrentBooking(
+            String message
+    ) {
+
+        /*
+         * FIRST invalidate callbacks.
+         */
+        rideGeneration++;
+
+        /*
+         * Remove Firestore listener.
+         */
+        if (rideListener != null) {
+
+            rideListener.remove();
+
+            rideListener = null;
+        }
+
+        /*
+         * Forget the current ride.
+         */
+        activeRideId = null;
+        activeRideStatus = "";
+
+        /*
+         * Forget saved current ride.
+         */
+        prefs.edit()
+                .remove(
+                        "activeRideId"
+                )
+                .apply();
+
+        bookingInProgress = false;
+
+        /*
+         * Clear driver display.
+         */
+        if (driverInfoText != null) {
+
+            driverInfoText.setText(
+                    "👤 DRIVER: Waiting for driver..."
+            );
+        }
+
+        /*
+         * Clear booking-specific fare display.
+         */
+        if (fareText != null) {
+
+            fareText.setText(
+                    "👥 "
+                            + passengerCount
+                            + " Passenger"
+                            + (
+                            passengerCount == 1
+                                    ? ""
+                                    : "s"
+                    )
+                            + "\n💰 Estimated fare: ₱"
+                            + String.format(
+                            Locale.US,
+                            "%.0f",
+                            minimumFare
+                    )
+            );
+        }
+
+        if (statusText != null) {
+
+            statusText.setText(
+                    message
+            );
+
+            statusText.setTextColor(
+                    Color.rgb(
+                            0,
+                            110,
+                            70
+                    )
+            );
+        }
+
+        /*
+         * The dashboard is now free for a NEW booking.
+         *
+         * IMPORTANT:
+         *
+         * We deliberately DO NOT query old rides here.
+         */
+        updateButtons();
+    }
+
     private void updateStatusText(
             String status
     ) {
@@ -2491,14 +2178,6 @@ public class PassengerActivity extends Activity {
 
             statusText.setText(
                     "✅ DRIVER ACCEPTED YOUR RIDE"
-            );
-
-            statusText.setTextColor(
-                    Color.rgb(
-                            0,
-                            130,
-                            70
-                    )
             );
 
         } else if (
@@ -2589,10 +2268,8 @@ public class PassengerActivity extends Activity {
                 .addOnSuccessListener(user -> {
 
                     /*
-                     * RED MANTRA:
-                     *
-                     * Old user lookup cannot overwrite
-                     * the current booking.
+                     * Never allow an old driver lookup
+                     * to return after a new booking.
                      */
                     if (
                             expectedGeneration
@@ -2722,7 +2399,6 @@ public class PassengerActivity extends Activity {
         }
 
         activeRideId = null;
-
         activeRideStatus = "";
 
         prefs.edit()
@@ -2741,14 +2417,6 @@ public class PassengerActivity extends Activity {
 
     private void clearRide() {
 
-        /*
-         * IMPORTANT:
-         *
-         * Increment FIRST.
-         *
-         * This invalidates every old Firestore callback
-         * before clearing the ride.
-         */
         rideGeneration++;
 
         clearRideInternal();
@@ -2769,19 +2437,6 @@ public class PassengerActivity extends Activity {
                     )
             );
         }
-    }
-
-    private void restoreSavedRide() {
-
-        /*
-         * Deliberately do nothing with the saved ID.
-         *
-         * Firebase SERVER is authoritative.
-         */
-        prefs.getString(
-                "activeRideId",
-                null
-        );
     }
 
     /*
@@ -2976,7 +2631,7 @@ public class PassengerActivity extends Activity {
             return;
         }
 
-        final String currentRideId =
+        String currentRideId =
                 activeRideId;
 
         Intent intent =
@@ -3002,11 +2657,6 @@ public class PassengerActivity extends Activity {
      * ============================================================
      * CHAT
      * ============================================================
-     *
-     * PassengerActivity only passes the CURRENT ride ID.
-     *
-     * RideChatActivity must separately clear its old listener/UI.
-     * ============================================================
      */
 
     private void openChat() {
@@ -3015,7 +2665,7 @@ public class PassengerActivity extends Activity {
             return;
         }
 
-        final String currentRideId =
+        String currentRideId =
                 activeRideId;
 
         if (
@@ -3032,14 +2682,14 @@ public class PassengerActivity extends Activity {
                         RideChatActivity.class
                 );
 
+        /*
+         * ONLY the current ride ID.
+         */
         intent.putExtra(
                 "ride_id",
                 currentRideId
         );
 
-        /*
-         * Keep both names for compatibility.
-         */
         intent.putExtra(
                 "rideId",
                 currentRideId
@@ -3050,11 +2700,6 @@ public class PassengerActivity extends Activity {
 
     private boolean hasActiveRide() {
 
-        /*
-         * RED MANTRA:
-         *
-         * Local ID alone is NOT enough.
-         */
         if (
                 activeRideId == null
                         ||
@@ -3074,23 +2719,23 @@ public class PassengerActivity extends Activity {
             return false;
         }
 
-        /*
-         * A driver-stage ride without driverId
-         * is never considered valid.
-         */
         if (
                 requiresDriver(
                         activeRideStatus
                 )
         ) {
 
-            Toast.makeText(
-                    this,
-                    "No valid active ride.",
-                    Toast.LENGTH_SHORT
-            ).show();
+            /*
+             * We cannot safely open driver chat/map
+             * if this local state says a driver-stage ride
+             * exists without verified driver state.
+             */
+            if (
+                    driverInfoText == null
+            ) {
 
-            return false;
+                return false;
+            }
         }
 
         return true;
@@ -3166,13 +2811,14 @@ public class PassengerActivity extends Activity {
                 .addOnSuccessListener(
                         v -> {
 
-                            clearRide();
-
-                            statusText.setText(
-                                    "❌ RIDE CANCELLED"
+                            /*
+                             * Immediately release the dashboard.
+                             *
+                             * Do NOT search old rides.
+                             */
+                            finishCurrentBooking(
+                                    "❌ RIDE CANCELLED — READY FOR NEW BOOKING"
                             );
-
-                            updateButtons();
                         }
                 )
                 .addOnFailureListener(
@@ -3449,6 +3095,11 @@ public class PassengerActivity extends Activity {
      * ============================================================
      * HISTORY
      * ============================================================
+     *
+     * History is intentionally NOT deleted.
+     *
+     * This is separate from the current booking.
+     * ============================================================
      */
 
     private void showHistory() {
@@ -3695,28 +3346,7 @@ public class PassengerActivity extends Activity {
     private void updateButtons() {
 
         boolean active =
-                activeRideId != null
-                        &&
-                        !activeRideId.trim().isEmpty()
-                        &&
-                        isActive(
-                                activeRideStatus
-                        );
-
-        /*
-         * A driver-stage ride without driverId
-         * is never allowed to remain active locally.
-         */
-        if (
-                active
-                        &&
-                        requiresDriver(
-                                activeRideStatus
-                        )
-        ) {
-
-            active = false;
-        }
+                hasCurrentRideWithoutToast();
 
         if (bookButton != null) {
 
@@ -3724,18 +3354,15 @@ public class PassengerActivity extends Activity {
                     !bookingInProgress
             );
 
-            if (active) {
-
-                bookButton.setText(
-                        "🛺 NEW BOOKING / CHECK RIDE"
-                );
-
-            } else {
-
-                bookButton.setText(
-                        "🛺 BOOK A RIDE"
-                );
-            }
+            /*
+             * Always show the normal booking button.
+             *
+             * If an active ride exists, pressing it simply
+             * reports that the current ride is still active.
+             */
+            bookButton.setText(
+                    "🛺 BOOK A RIDE"
+            );
         }
 
         if (mapButton != null) {
@@ -3836,9 +3463,6 @@ public class PassengerActivity extends Activity {
     @Override
     protected void onDestroy() {
 
-        /*
-         * Invalidate every outstanding callback.
-         */
         rideGeneration++;
 
         if (rideListener != null) {
