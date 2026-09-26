@@ -83,15 +83,6 @@ public class PassengerActivity extends Activity {
     private String activeRideStatus = "";
     private String lastNotifiedRideStatus = "";
 
-    /*
-     * Notification baseline.
-     *
-     * The first Firestore snapshot for a ride is treated as
-     * the current state and DOES NOT create a notification.
-     *
-     * Notifications are only sent when the ride status changes
-     * after that initial baseline.
-     */
     private String notificationBaselineRideId = "";
     private String notificationBaselineStatus = "";
 
@@ -161,9 +152,7 @@ public class PassengerActivity extends Activity {
                         activeRideId = newestId;
 
                         activeRideStatus =
-                                safeStatus(
-                                        newest.getString("status")
-                                );
+                                safeStatus(newest.getString("status"));
 
                         Object savedCount =
                                 newest.get("passengerCount");
@@ -179,10 +168,7 @@ public class PassengerActivity extends Activity {
                         }
 
                         prefs.edit()
-                                .putString(
-                                        "activeRideId",
-                                        newestId
-                                )
+                                .putString("activeRideId", newestId)
                                 .apply();
 
                         updatePassengerSelectionUI();
@@ -291,10 +277,10 @@ public class PassengerActivity extends Activity {
         passengerButtons.setOrientation(LinearLayout.HORIZONTAL);
         passengerButtons.setGravity(Gravity.CENTER);
 
-        passengerOneButton = passengerNumberButton("1");
-        passengerTwoButton = passengerNumberButton("2");
-        passengerThreeButton = passengerNumberButton("3");
-        passengerFourButton = passengerNumberButton("4");
+        passengerOneButton = passengerNumberButton("1", 1);
+        passengerTwoButton = passengerNumberButton("2", 2);
+        passengerThreeButton = passengerNumberButton("3", 3);
+        passengerFourButton = passengerNumberButton("4", 4);
 
         passengerButtons.addView(
                 passengerOneButton,
@@ -314,22 +300,6 @@ public class PassengerActivity extends Activity {
         passengerButtons.addView(
                 passengerFourButton,
                 passengerButtonParams()
-        );
-
-        passengerOneButton.setOnClickListener(
-                v -> selectPassengerCount(1)
-        );
-
-        passengerTwoButton.setOnClickListener(
-                v -> selectPassengerCount(2)
-        );
-
-        passengerThreeButton.setOnClickListener(
-                v -> selectPassengerCount(3)
-        );
-
-        passengerFourButton.setOnClickListener(
-                v -> selectPassengerCount(4)
         );
 
         content.addView(passengerButtons, full());
@@ -459,7 +429,17 @@ public class PassengerActivity extends Activity {
         updateButtons();
     }
 
-    private Button passengerNumberButton(String number) {
+    /*
+     * Passenger selector.
+     *
+     * Each button receives its own click listener here.
+     * This prevents another screen update from accidentally
+     * replacing the passenger button listener.
+     */
+    private Button passengerNumberButton(
+            String number,
+            int count
+    ) {
 
         Button b = new Button(this);
 
@@ -469,16 +449,39 @@ public class PassengerActivity extends Activity {
         b.setTypeface(null, Typeface.BOLD);
         b.setTextColor(Color.WHITE);
         b.setGravity(Gravity.CENTER);
+
         b.setMinHeight(0);
         b.setMinimumHeight(0);
+
         b.setPadding(4, 10, 4, 10);
+
         b.setFocusable(true);
         b.setFocusableInTouchMode(false);
         b.setClickable(true);
         b.setEnabled(true);
 
-        // FIXED GREEN SYNTAX
-        b.setBackgroundColor(Color.rgb(125, 135, 135));
+        b.setBackgroundColor(
+                Color.rgb(125, 135, 135)
+        );
+
+        b.setOnClickListener(v -> {
+
+            if (!v.isEnabled()) {
+                return;
+            }
+
+            selectPassengerCount(count);
+
+            Toast.makeText(
+                    PassengerActivity.this,
+                    count + (
+                            count == 1
+                                    ? " passenger selected."
+                                    : " passengers selected."
+                    ),
+                    Toast.LENGTH_SHORT
+            ).show();
+        });
 
         return b;
     }
@@ -510,7 +513,7 @@ public class PassengerActivity extends Activity {
         passengerCount = count;
 
         updatePassengerSelectionUI();
-        calculateFare();
+        calculateFareOnly();
     }
 
     private void updatePassengerSelectionUI() {
@@ -537,8 +540,11 @@ public class PassengerActivity extends Activity {
             return;
         }
 
-        int selectedColor = Color.rgb(0, 150, 80);
-        int normalColor = Color.rgb(125, 135, 135);
+        int selectedColor =
+                Color.rgb(0, 150, 80);
+
+        int normalColor =
+                Color.rgb(125, 135, 135);
 
         passengerOneButton.setBackgroundColor(
                 passengerCount == 1
@@ -1338,100 +1344,32 @@ public class PassengerActivity extends Activity {
         Map<String, Object> ride =
                 new HashMap<>();
 
-        ride.put(
-                "passengerId",
-                user.getUid()
-        );
+        ride.put("passengerId", user.getUid());
+        ride.put("pickup", pickup);
+        ride.put("pickupName", pickup);
+        ride.put("destination", destination);
+        ride.put("destinationName", destination);
 
-        ride.put(
-                "pickup",
-                pickup
-        );
+        ride.put("pickupLatitude", pickupLat);
+        ride.put("pickupLongitude", pickupLng);
 
-        ride.put(
-                "pickupName",
-                pickup
-        );
+        ride.put("destinationLatitude", destinationLat);
+        ride.put("destinationLongitude", destinationLng);
 
-        ride.put(
-                "destination",
-                destination
-        );
+        ride.put("paymentMethod", paymentMethod);
+        ride.put("paymentStatus", "PENDING");
 
-        ride.put(
-                "destinationName",
-                destination
-        );
-
-        ride.put(
-                "pickupLatitude",
-                pickupLat
-        );
-
-        ride.put(
-                "pickupLongitude",
-                pickupLng
-        );
-
-        ride.put(
-                "destinationLatitude",
-                destinationLat
-        );
-
-        ride.put(
-                "destinationLongitude",
-                destinationLng
-        );
-
-        ride.put(
-                "paymentMethod",
-                paymentMethod
-        );
-
-        ride.put(
-                "paymentStatus",
-                "PENDING"
-        );
-
-        ride.put(
-                "passengerCount",
-                passengerCount
-        );
-
+        ride.put("passengerCount", passengerCount);
         ride.put(
                 "baseFarePerPassenger",
                 BASE_FARE_PER_PASSENGER
         );
-
-        ride.put(
-                "baseFare",
-                totalBaseFare
-        );
-
-        ride.put(
-                "perKm",
-                perKm
-        );
-
-        ride.put(
-                "distanceKm",
-                distanceKm
-        );
-
-        ride.put(
-                "fare",
-                fare
-        );
-
-        ride.put(
-                "status",
-                "REQUESTED"
-        );
-
-        ride.put(
-                "createdAt",
-                System.currentTimeMillis()
-        );
+        ride.put("baseFare", totalBaseFare);
+        ride.put("perKm", perKm);
+        ride.put("distanceKm", distanceKm);
+        ride.put("fare", fare);
+        ride.put("status", "REQUESTED");
+        ride.put("createdAt", System.currentTimeMillis());
 
         statusText.setText(
                 "🔎 SENDING RIDE REQUEST..."
@@ -1532,6 +1470,31 @@ public class PassengerActivity extends Activity {
         );
 
         updatePassengerSelectionUI();
+    }
+
+    /*
+     * Used by the passenger selector so that changing
+     * 1 / 2 / 3 / 4 does not recursively refresh the
+     * passenger selector.
+     */
+    private void calculateFareOnly() {
+
+        if (fareText == null) {
+            return;
+        }
+
+        fareText.setText(
+                String.format(
+                        Locale.US,
+                        "👥 %d Passenger%s\n"
+                                + "💰 Estimated fare: ₱%.0f",
+                        passengerCount,
+                        passengerCount == 1
+                                ? ""
+                                : "s",
+                        getCurrentFare()
+                )
+        );
     }
 
     private double getCurrentFare() {
@@ -1751,15 +1714,6 @@ public class PassengerActivity extends Activity {
                         "IN_PROGRESS".equalsIgnoreCase(status);
     }
 
-    /*
-     * GREEN NOTIFICATION FIX
-     *
-     * The first snapshot is only used to establish the current
-     * ride status. It does NOT generate a notification.
-     *
-     * Notifications are generated only when Firestore later
-     * changes the ride status.
-     */
     private void listenToRide(String rideId) {
 
         if (rideListener != null) {
@@ -1838,24 +1792,16 @@ public class PassengerActivity extends Activity {
                                                                 4,
                                                                 ((Number) count)
                                                                         .intValue()
-                                                )
-                                        );
+                                                );
 
                                         updatePassengerSelectionUI();
                                     }
-
-                                    updateButtons();
 
                                     String driverId =
                                             snapshot.getString(
                                                     "driverId"
                                             );
 
-                                    /*
-                                     * Do not notify on the first
-                                     * snapshot. Only notify when
-                                     * the status actually changes.
-                                     */
                                     boolean sameBaselineRide =
                                             rideId.equals(
                                                     notificationBaselineRideId
@@ -2008,14 +1954,12 @@ public class PassengerActivity extends Activity {
         if ("REQUESTED".equals(normalized)) {
 
             title = "🛺 Sakay Na";
-
             message =
                     "Your ride request is looking for a driver.";
 
         } else if ("ACCEPTED".equals(normalized)) {
 
             title = "✅ Driver Accepted";
-
             message =
                     "Your Sakay Na driver accepted your ride.";
 
@@ -2024,7 +1968,6 @@ public class PassengerActivity extends Activity {
         ) {
 
             title = "🚗 Driver On The Way";
-
             message =
                     "Your driver is on the way to your pickup location.";
 
@@ -2033,28 +1976,24 @@ public class PassengerActivity extends Activity {
         ) {
 
             title = "📍 Driver Arrived";
-
             message =
                     "Your driver has arrived at the pickup location.";
 
         } else if ("IN_PROGRESS".equals(normalized)) {
 
             title = "▶️ Ride Started";
-
             message =
                     "Your Sakay Na ride has started.";
 
         } else if ("COMPLETED".equals(normalized)) {
 
             title = "🏁 Ride Completed";
-
             message =
                     "Your Sakay Na ride has been completed.";
 
         } else if ("CANCELLED".equals(normalized)) {
 
             title = "❌ Ride Cancelled";
-
             message =
                     "Your Sakay Na ride was cancelled.";
 
@@ -2352,37 +2291,30 @@ public class PassengerActivity extends Activity {
             );
         }
 
-        boolean passengerButtonsEnabled =
-                !active
-                        &&
-                        !bookingInProgress;
-
+        /*
+         * IMPORTANT:
+         *
+         * The passenger selector stays enabled on the
+         * Passenger screen. The selected number is used
+         * when a NEW ride is booked.
+         *
+         * This prevents onResume()/Firestore refreshes
+         * from making the 1/2/3/4 buttons appear dead.
+         */
         if (passengerOneButton != null) {
-
-            passengerOneButton.setEnabled(
-                    passengerButtonsEnabled
-            );
+            passengerOneButton.setEnabled(true);
         }
 
         if (passengerTwoButton != null) {
-
-            passengerTwoButton.setEnabled(
-                    passengerButtonsEnabled
-            );
+            passengerTwoButton.setEnabled(true);
         }
 
         if (passengerThreeButton != null) {
-
-            passengerThreeButton.setEnabled(
-                    passengerButtonsEnabled
-            );
+            passengerThreeButton.setEnabled(true);
         }
 
         if (passengerFourButton != null) {
-
-            passengerFourButton.setEnabled(
-                    passengerButtonsEnabled
-            );
+            passengerFourButton.setEnabled(true);
         }
 
         updatePassengerSelectionUI();
