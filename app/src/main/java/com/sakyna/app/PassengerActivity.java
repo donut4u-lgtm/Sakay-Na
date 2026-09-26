@@ -84,10 +84,18 @@ public class PassengerActivity extends Activity {
     private ListenerRegistration rideListener;
 
     /*
-     * ONLY the currently valid booking may update the screen.
+     * ============================================================
+     * RED MANTRA
+     * ============================================================
      *
-     * Every time the passenger clears/switches rides this number changes.
-     * Old Firestore callbacks are rejected when their generation is old.
+     * ONLY the CURRENT valid booking may update the screen.
+     *
+     * Old callbacks must never restore an old driver,
+     * old booking, old status, or old chat ride.
+     *
+     * Every time the passenger clears/switches rides this number
+     * changes. Old Firestore callbacks are rejected.
+     * ============================================================
      */
     private long rideGeneration = 0L;
 
@@ -129,7 +137,7 @@ public class PassengerActivity extends Activity {
 
         /*
          * Do NOT trust the locally saved ride ID.
-         * The server is the source of truth.
+         * Firebase SERVER is the source of truth.
          */
         restoreSavedRide();
     }
@@ -139,7 +147,7 @@ public class PassengerActivity extends Activity {
         super.onResume();
 
         /*
-         * Every resume invalidates callbacks from the previous screen state.
+         * Every resume invalidates callbacks from the previous state.
          */
         final long generation = ++rideGeneration;
 
@@ -1073,13 +1081,6 @@ public class PassengerActivity extends Activity {
                                     500.0
                             );
 
-                    /*
-                     * The app requirement is currently:
-                     * ₱25 per passenger + ₱10/km.
-                     *
-                     * Do not allow an old Firebase setting to produce
-                     * an invalid zero fare.
-                     */
                     if (baseFare <= 0) {
                         baseFare = 25.0;
                     }
@@ -1298,17 +1299,6 @@ public class PassengerActivity extends Activity {
             return;
         }
 
-        /*
-         * IMPORTANT FIX:
-         *
-         * Do NOT simply do:
-         *
-         * if (activeRideId != null) return;
-         *
-         * The local ID can belong to an old booking.
-         *
-         * Always check Firebase SERVER before refusing a new booking.
-         */
         bookingInProgress = true;
 
         updateButtons();
@@ -1356,18 +1346,14 @@ public class PassengerActivity extends Activity {
                     }
 
                     /*
-                     * No real active ride exists on the server.
+                     * RED MANTRA:
                      *
-                     * Clear the stale local ride ID WITHOUT allowing an
-                     * old listener to restore the previous driver.
+                     * No real active ride exists on the SERVER.
+                     *
+                     * Clear stale local state before creating the new ride.
                      */
                     clearRideInternal();
 
-                    /*
-                     * The clear above increments rideGeneration.
-                     * From this point forward this booking becomes the
-                     * newest generation.
-                     */
                     final long createGeneration =
                             ++rideGeneration;
 
@@ -1641,6 +1627,16 @@ public class PassengerActivity extends Activity {
      * ------------------------------------------------------------
      * FIND CURRENT SERVER RIDE
      * ------------------------------------------------------------
+     *
+     * RED MANTRA:
+     *
+     * FINISHED = NEVER ACTIVE
+     *
+     * An old DRIVER_ARRIVED/ACCEPTED/IN_PROGRESS ride WITHOUT
+     * driverId = NOT A VALID CURRENT RIDE.
+     *
+     * Therefore it cannot block a new booking.
+     * ------------------------------------------------------------
      */
 
     private DocumentSnapshot findActiveRide(
@@ -1686,6 +1682,14 @@ public class PassengerActivity extends Activity {
                 rides
         ) {
 
+            if (
+                    ride == null
+                            ||
+                            !ride.exists()
+            ) {
+                continue;
+            }
+
             String status =
                     safeStatus(
                             ride.getString(
@@ -1693,18 +1697,34 @@ public class PassengerActivity extends Activity {
                             )
                     );
 
-            if (!isActive(status)) {
+            /*
+             * RED MANTRA:
+             *
+             * Terminal marker = finished.
+             * Finished rides NEVER block a new booking.
+             */
+            if (hasTerminalMarker(ride)) {
                 continue;
             }
 
             /*
-             * CRITICAL FIX:
-             *
-             * A ride containing any terminal marker is already finished.
-             * Do not let it block a new booking even if status was not
-             * correctly changed.
+             * Explicit terminal statuses.
              */
-            if (hasTerminalMarker(ride)) {
+            if (
+                    "COMPLETED".equalsIgnoreCase(status)
+                            ||
+                            "CANCELLED".equalsIgnoreCase(status)
+                            ||
+                            "DECLINED".equalsIgnoreCase(status)
+                            ||
+                            "EXPIRED".equalsIgnoreCase(status)
+                            ||
+                            "FINISHED".equalsIgnoreCase(status)
+            ) {
+                continue;
+            }
+
+            if (!isActive(status)) {
                 continue;
             }
 
@@ -1712,9 +1732,7 @@ public class PassengerActivity extends Activity {
              * REQUESTED rides older than 15 minutes are stale.
              */
             if (
-                    "REQUESTED".equalsIgnoreCase(
-                            status
-                    )
+                    "REQUESTED".equalsIgnoreCase(status)
             ) {
 
                 long created =
@@ -1735,6 +1753,49 @@ public class PassengerActivity extends Activity {
                 }
             }
 
+            /*
+             * RED MANTRA:
+             *
+             * A driver-stage ride MUST have a driverId.
+             *
+             * This specifically fixes the broken old record:
+             *
+             * DRIVER_ARRIVED
+             * driverId = missing
+             *
+             * That record is NOT allowed to block a new booking.
+             */
+            if (
+                    "ACCEPTED".equalsIgnoreCase(status)
+                            ||
+                            "DRIVER_ON_THE_WAY".equalsIgnoreCase(status)
+                            ||
+                            "DRIVER_ARRIVED".equalsIgnoreCase(status)
+                            ||
+                            "ARRIVED".equalsIgnoreCase(status)
+                            ||
+                            "IN_PROGRESS".equalsIgnoreCase(status)
+                            ||
+                            "ONGOING".equalsIgnoreCase(status)
+            ) {
+
+                String driverId =
+                        ride.getString(
+                                "driverId"
+                        );
+
+                if (
+                        driverId == null
+                                ||
+                                driverId.trim().isEmpty()
+                ) {
+                    continue;
+                }
+            }
+
+            /*
+             * This is a REAL active ride.
+             */
             return ride;
         }
 
@@ -1761,13 +1822,60 @@ public class PassengerActivity extends Activity {
                         "ONGOING".equalsIgnoreCase(status);
     }
 
+    /*
+     * RED MANTRA:
+     *
+     * Explicit finished status OR terminal timestamp
+     * means this ride is finished.
+     */
     private boolean hasTerminalMarker(
             DocumentSnapshot ride
     ) {
 
+        if (
+                ride == null
+                        ||
+                        !ride.exists()
+        ) {
+            return true;
+        }
+
+        String status =
+                safeStatus(
+                        ride.getString(
+                                "status"
+                        )
+                );
+
+        /*
+         * Explicit terminal statuses.
+         */
+        if (
+                "COMPLETED".equalsIgnoreCase(status)
+                        ||
+                        "CANCELLED".equalsIgnoreCase(status)
+                        ||
+                        "DECLINED".equalsIgnoreCase(status)
+                        ||
+                        "EXPIRED".equalsIgnoreCase(status)
+                        ||
+                        "FINISHED".equalsIgnoreCase(status)
+        ) {
+            return true;
+        }
+
+        /*
+         * Terminal timestamps.
+         */
         return
                 readTime(
                         ride.get("completedAt")
+                ) > 0
+
+                        ||
+
+                readTime(
+                        ride.get("finishedAt")
                 ) > 0
 
                         ||
@@ -1896,6 +2004,45 @@ public class PassengerActivity extends Activity {
             updateButtons();
 
             return;
+        }
+
+        /*
+         * RED MANTRA:
+         *
+         * Driver-stage active ride without driverId
+         * must NOT be attached to the passenger screen.
+         */
+        if (
+                "ACCEPTED".equalsIgnoreCase(status)
+                        ||
+                        "DRIVER_ON_THE_WAY".equalsIgnoreCase(status)
+                        ||
+                        "DRIVER_ARRIVED".equalsIgnoreCase(status)
+                        ||
+                        "ARRIVED".equalsIgnoreCase(status)
+                        ||
+                        "IN_PROGRESS".equalsIgnoreCase(status)
+                        ||
+                        "ONGOING".equalsIgnoreCase(status)
+        ) {
+
+            String driverId =
+                    ride.getString(
+                            "driverId"
+                    );
+
+            if (
+                    driverId == null
+                            ||
+                            driverId.trim().isEmpty()
+            ) {
+
+                clearRide();
+
+                updateButtons();
+
+                return;
+            }
         }
 
         activeRideId =
@@ -2093,8 +2240,9 @@ public class PassengerActivity extends Activity {
                                     }
 
                                     /*
-                                     * Never allow a terminal-marker ride
-                                     * to stay on screen.
+                                     * RED MANTRA:
+                                     *
+                                     * Terminal rides disappear immediately.
                                      */
                                     if (
                                             hasTerminalMarker(
@@ -2129,6 +2277,45 @@ public class PassengerActivity extends Activity {
                                         updateButtons();
 
                                         return;
+                                    }
+
+                                    /*
+                                     * RED MANTRA:
+                                     *
+                                     * Never display an old driver-stage ride
+                                     * when driverId is missing.
+                                     */
+                                    if (
+                                            "ACCEPTED".equalsIgnoreCase(status)
+                                                    ||
+                                                    "DRIVER_ON_THE_WAY".equalsIgnoreCase(status)
+                                                    ||
+                                                    "DRIVER_ARRIVED".equalsIgnoreCase(status)
+                                                    ||
+                                                    "ARRIVED".equalsIgnoreCase(status)
+                                                    ||
+                                                    "IN_PROGRESS".equalsIgnoreCase(status)
+                                                    ||
+                                                    "ONGOING".equalsIgnoreCase(status)
+                                    ) {
+
+                                        String driverId =
+                                                snapshot.getString(
+                                                        "driverId"
+                                                );
+
+                                        if (
+                                                driverId == null
+                                                        ||
+                                                        driverId.trim().isEmpty()
+                                        ) {
+
+                                            clearRide();
+
+                                            updateButtons();
+
+                                            return;
+                                        }
                                     }
 
                                     activeRideStatus =
@@ -2293,11 +2480,6 @@ public class PassengerActivity extends Activity {
             return;
         }
 
-        /*
-         * Capture the exact ride/generation.
-         *
-         * If this callback belongs to an old ride, it is ignored.
-         */
         final String expectedRideId =
                 rideId;
 
@@ -2429,12 +2611,6 @@ public class PassengerActivity extends Activity {
 
     private void clearRideInternal() {
 
-        /*
-         * This method is used before creating a new booking.
-         *
-         * It does NOT display a history/finished message.
-         * It simply removes stale local state.
-         */
         if (rideListener != null) {
 
             rideListener.remove();
@@ -2462,7 +2638,7 @@ public class PassengerActivity extends Activity {
         /*
          * Increment FIRST.
          *
-         * Any delayed callback from the previous ride now becomes invalid.
+         * Any delayed callback from the previous ride is now invalid.
          */
         rideGeneration++;
 
@@ -2495,9 +2671,7 @@ public class PassengerActivity extends Activity {
     private void restoreSavedRide() {
 
         /*
-         * The saved ID is only a hint.
-         * Never automatically trust it.
-         *
+         * Saved ID is only a hint.
          * onResume() performs the real SERVER query.
          */
         prefs.getString(
@@ -2730,8 +2904,7 @@ public class PassengerActivity extends Activity {
          * CRITICAL:
          * Always use the CURRENT ride ID.
          *
-         * A new booking gets a new Firestore document and therefore
-         * a completely separate rides/{rideId}/messages collection.
+         * Every booking has its own Firestore document.
          */
         String currentRideId =
                 activeRideId;
@@ -2874,8 +3047,6 @@ public class PassengerActivity extends Activity {
 
         /*
          * KEEPING THE EXISTING GCash resource.
-         *
-         * This booking fix does NOT modify gcash_qr.
          */
         ImageView image =
                 new ImageView(this);
@@ -2997,10 +3168,6 @@ public class PassengerActivity extends Activity {
                             pickupLng =
                                     location.getLongitude();
 
-                            /*
-                             * Only fill pickup automatically if it is
-                             * currently empty.
-                             */
                             if (
                                     pickupInput
                                             .getText()
@@ -3390,11 +3557,6 @@ public class PassengerActivity extends Activity {
                     !bookingInProgress
             );
 
-            /*
-             * IMPORTANT:
-             * The button remains enabled while the server verifies
-             * whether the previous ride is actually finished.
-             */
             if (active) {
 
                 bookButton.setText(
