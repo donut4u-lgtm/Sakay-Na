@@ -21,12 +21,19 @@ android {
             val keystorePath = System.getenv("SAKAYNA_KEYSTORE_PATH")
             val keystorePassword = System.getenv("SAKAYNA_KEYSTORE_PASSWORD")
             val keyAliasValue = System.getenv("SAKAYNA_KEY_ALIAS")
+            val keyPasswordValue = System.getenv("SAKAYNA_KEY_PASSWORD")
 
             if (!keystorePath.isNullOrBlank()) {
                 storeFile = file(keystorePath)
                 storePassword = keystorePassword
                 keyAlias = keyAliasValue
-                keyPassword = keystorePassword
+
+                keyPassword =
+                    if (!keyPasswordValue.isNullOrBlank()) {
+                        keyPasswordValue
+                    } else {
+                        keystorePassword
+                    }
             }
         }
     }
