@@ -28,12 +28,11 @@ android {
                 storePassword = keystorePassword
                 keyAlias = keyAliasValue
 
-                keyPassword =
-                    if (!keyPasswordValue.isNullOrBlank()) {
-                        keyPasswordValue
-                    } else {
-                        keystorePassword
-                    }
+                keyPassword = if (!keyPasswordValue.isNullOrBlank()) {
+                    keyPasswordValue
+                } else {
+                    keystorePassword
+                }
             }
         }
     }
