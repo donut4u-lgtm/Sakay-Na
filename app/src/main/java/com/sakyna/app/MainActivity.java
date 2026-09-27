@@ -1020,6 +1020,18 @@ public class MainActivity extends Activity {
             Class<?> target
     ) {
 
+        /*
+         * Start the FREE chat notification monitor
+         * only for Passenger and Driver accounts.
+         *
+         * Admin does not need ride chat monitoring.
+         */
+        if (target == PassengerActivity.class
+                || target == DriverActivity.class) {
+
+            startChatNotificationService();
+        }
+
         Intent intent =
                 new Intent(
                         MainActivity.this,
@@ -1034,6 +1046,38 @@ public class MainActivity extends Activity {
         startActivity(intent);
 
         finish();
+    }
+
+    private void startChatNotificationService() {
+
+        Intent intent =
+                new Intent(
+                        MainActivity.this,
+                        SakayNaChatNotificationService.class
+                );
+
+        try {
+
+            if (Build.VERSION.SDK_INT >= 26) {
+
+                startForegroundService(
+                        intent
+                );
+
+            } else {
+
+                startService(
+                        intent
+                );
+            }
+
+        } catch (Exception e) {
+
+            /*
+             * Do not block normal login if the device
+             * refuses the background service.
+             */
+        }
     }
 
     private String normalizePhone(
