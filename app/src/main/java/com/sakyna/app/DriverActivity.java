@@ -92,6 +92,20 @@ public class DriverActivity extends Activity {
     private LocationManager locationManager;
     private LocationListener locationListener;
 
+    /*
+     * Current driver's latest GPS location.
+     *
+     * Used only to determine when FINISHED can be
+     * enabled at the booked destination.
+     */
+    private Location currentDriverLocation;
+
+    /*
+     * Keeps the current ride snapshot so the
+     * FINISHED button can refresh when GPS moves.
+     */
+    private DocumentSnapshot currentRideSnapshot;
+
     private static final int LOCATION_PERMISSION = 2001;
 
     @Override
@@ -1878,8 +1892,8 @@ public class DriverActivity extends Activity {
 
                                 /*
                                  * Re-check approval immediately before
-                                 * accepting. This now supports both the
-                                 * current and older approval records.
+                                 * accepting. This supports both current
+                                 * and older approval records.
                                  */
 
                                 boolean approvedField =
@@ -2028,6 +2042,9 @@ public class DriverActivity extends Activity {
 
                                             currentRideId =
                                                     rideId;
+
+                                            currentRideSnapshot =
+                                                    null;
 
                                             Toast.makeText(
                                                     this,
@@ -2204,6 +2221,8 @@ public class DriverActivity extends Activity {
 
         if (currentRideId.isEmpty()) {
 
+            currentRideSnapshot = null;
+
             currentRideText.setText(
                     "No current ride."
             );
@@ -2232,6 +2251,8 @@ public class DriverActivity extends Activity {
                                     if (ride == null
                                             || !ride.exists()) {
 
+                                        currentRideSnapshot = null;
+
                                         currentRideText.setText(
                                                 "No current ride."
                                         );
@@ -2240,6 +2261,9 @@ public class DriverActivity extends Activity {
 
                                         return;
                                     }
+
+                                    currentRideSnapshot =
+                                            ride;
 
                                     String status =
                                             string(
@@ -2250,6 +2274,9 @@ public class DriverActivity extends Activity {
                                     if ("COMPLETED".equalsIgnoreCase(
                                             status
                                     )) {
+
+                                        currentRideSnapshot =
+                                                null;
 
                                         currentRideText.setText(
                                                 "✅ TRIP FINISHED"
@@ -2272,6 +2299,9 @@ public class DriverActivity extends Activity {
             DocumentSnapshot ride,
             String status
     ) {
+
+        currentRideSnapshot =
+                ride;
 
         String pickup =
                 placeName(ride, "pickup");
@@ -2337,7 +2367,15 @@ public class DriverActivity extends Activity {
                 status
         );
 
-        showRideStatusButtons(status);
+        /*
+         * The current ride snapshot is passed to the
+         * status controls so FINISHED can use the
+         * booked destination coordinates.
+         */
+        showRideStatusButtons(
+                ride,
+                status
+        );
     }
 
     private void loadCurrentRidePassengerName(
@@ -2435,9 +2473,39 @@ public class DriverActivity extends Activity {
         return "1";
     }
 
+    /*
+     * =========================================================
+     * NEW DRIVER RIDE STATUS FLOW
+     *
+     * ACCEPTED
+     *     ↓
+     * START
+     *     ↓
+     * DRIVE IN PROGRESS — AUTOMATIC
+     *     ↓
+     * ARRIVED
+     *     ↓
+     * PASSENGER RIDE IN PROGRESS
+     *     ↓
+     * DESTINATION
+     *     ↓
+     * FINISHED
+     *
+     * There is intentionally NO:
+     * - DRIVER ON THE WAY button
+     * - START RIDE button after ARRIVED
+     * - DRIVE IN PROGRESS button
+     * =========================================================
+     */
+
     private void showRideStatusButtons(
+            DocumentSnapshot ride,
             String status
     ) {
+
+        if (rideStatusContainer == null) {
+            return;
+        }
 
         rideStatusContainer.removeAllViews();
 
@@ -2470,127 +2538,343 @@ public class DriverActivity extends Activity {
                         ? ""
                         : status.trim().toUpperCase();
 
-        Button onTheWay =
-                new Button(this);
+        /*
+         * ACCEPTED
+         *
+         * First and only button at this stage:
+         * START
+         */
+        if ("ACCEPTED".equals(
+                normalizedStatus
+        )) {
 
-        onTheWay.setText(
-                "🚗 DRIVER ON THE WAY"
+            Button start =
+                    new Button(this);
+
+            start.setText(
+                    "▶️ START"
+            );
+
+            start.setTextColor(
+                    Color.WHITE
+            );
+
+            start.setTextSize(17);
+
+            start.setBackgroundColor(
+                    Color.rgb(0, 145, 75)
+            );
+
+            start.setOnClickListener(
+                    v -> updateRideStatus(
+                            "DRIVER_ON_THE_WAY"
+                    )
+            );
+
+            rideStatusContainer.addView(
+                    start
+            );
+
+            return;
+        }
+
+        /*
+         * DRIVER_ON_THE_WAY
+         *
+         * This is the automatic DRIVE IN PROGRESS
+         * state after START.
+         *
+         * There is NO button for DRIVE IN PROGRESS.
+         */
+        if ("DRIVER_ON_THE_WAY".equals(
+                normalizedStatus
+        )
+                || "ON_THE_WAY".equals(
+                normalizedStatus
+        )) {
+
+            TextView progress =
+                    new TextView(this);
+
+            progress.setText(
+                    "🚗 DRIVE IN PROGRESS\n\n"
+                            + "This status is automatic.\n"
+                            + "Drive to the passenger pickup location."
+            );
+
+            progress.setTextSize(18);
+
+            progress.setTextColor(
+                    Color.rgb(200, 95, 0)
+            );
+
+            progress.setPadding(
+                    10,
+                    10,
+                    10,
+                    15
+            );
+
+            rideStatusContainer.addView(
+                    progress
+            );
+
+            /*
+             * ARRIVED is the next action.
+             */
+            Button arrived =
+                    new Button(this);
+
+            arrived.setText(
+                    "📍 ARRIVED"
+            );
+
+            arrived.setTextColor(
+                    Color.WHITE
+            );
+
+            arrived.setTextSize(17);
+
+            arrived.setBackgroundColor(
+                    Color.rgb(0, 120, 200)
+            );
+
+            arrived.setOnClickListener(
+                    v -> updateRideStatus(
+                            "DRIVER_ARRIVED"
+                    )
+            );
+
+            rideStatusContainer.addView(
+                    arrived
+            );
+
+            return;
+        }
+
+        /*
+         * ARRIVED
+         *
+         * After the driver reaches the passenger,
+         * there is no START button.
+         *
+         * The driver drives the passenger to the
+         * booked destination.
+         */
+        if ("DRIVER_ARRIVED".equals(
+                normalizedStatus
+        )
+                || "ARRIVED".equals(
+                normalizedStatus
+        )
+                || "IN_PROGRESS".equals(
+                normalizedStatus
+        )
+                || "ONGOING".equals(
+                normalizedStatus
+        )) {
+
+            TextView instruction =
+                    new TextView(this);
+
+            instruction.setText(
+                    "🚕 RIDE IN PROGRESS\n\n"
+                            + "Drive the passenger to the booked destination."
+                            + "\n\n"
+                            + "🏁 FINISHED is available only when you reach the destination."
+            );
+
+            instruction.setTextSize(17);
+
+            instruction.setTextColor(
+                    Color.DKGRAY
+            );
+
+            instruction.setPadding(
+                    10,
+                    10,
+                    10,
+                    15
+            );
+
+            rideStatusContainer.addView(
+                    instruction
+            );
+
+            Button finish =
+                    new Button(this);
+
+            finish.setText(
+                    "🏁 FINISHED"
+            );
+
+            finish.setTextColor(
+                    Color.WHITE
+            );
+
+            finish.setTextSize(17);
+
+            finish.setBackgroundColor(
+                    Color.rgb(150, 0, 150)
+            );
+
+            /*
+             * FINISHED is enabled only when the
+             * driver's current GPS position is
+             * within 120 meters of the booked
+             * destination.
+             */
+            boolean destinationReached =
+                    isAtDestination(
+                            ride
+                    );
+
+            finish.setEnabled(
+                    destinationReached
+            );
+
+            if (destinationReached) {
+
+                finish.setText(
+                        "🏁 FINISHED — AT DESTINATION"
+                );
+
+            } else {
+
+                TextView destinationNotice =
+                        new TextView(this);
+
+                destinationNotice.setText(
+                        "📍 Continue to the booked destination.\n"
+                                + "The FINISHED button will unlock when you arrive."
+                );
+
+                destinationNotice.setTextSize(15);
+
+                destinationNotice.setTextColor(
+                        Color.rgb(150, 0, 0)
+                );
+
+                destinationNotice.setPadding(
+                        10,
+                        5,
+                        10,
+                        10
+                );
+
+                rideStatusContainer.addView(
+                        destinationNotice
+                );
+            }
+
+            finish.setOnClickListener(
+                    v -> {
+
+                        /*
+                         * Check again immediately before
+                         * completing the ride.
+                         */
+                        if (!isAtDestination(
+                                ride
+                        )) {
+
+                            Toast.makeText(
+                                    this,
+                                    "📍 You have not reached the booked destination yet.",
+                                    Toast.LENGTH_SHORT
+                            ).show();
+
+                            return;
+                        }
+
+                        updateRideStatus(
+                                "COMPLETED"
+                        );
+                    }
+            );
+
+            rideStatusContainer.addView(
+                    finish
+            );
+        }
+    }
+
+    private boolean isAtDestination(
+            DocumentSnapshot ride
+    ) {
+
+        if (currentDriverLocation == null
+                || ride == null) {
+
+            return false;
+        }
+
+        /*
+         * These are the same destination coordinate
+         * field names already supported by placeName().
+         */
+        Double destinationLatitude =
+                doubleValue(
+                        ride,
+                        "destinationLatitude"
+                );
+
+        Double destinationLongitude =
+                doubleValue(
+                        ride,
+                        "destinationLongitude"
+                );
+
+        if (destinationLatitude == null
+                || destinationLongitude == null) {
+
+            return false;
+        }
+
+        float[] distance =
+                new float[1];
+
+        Location.distanceBetween(
+                currentDriverLocation.getLatitude(),
+                currentDriverLocation.getLongitude(),
+                destinationLatitude,
+                destinationLongitude,
+                distance
         );
 
-        onTheWay.setTextColor(
-                Color.WHITE
-        );
+        /*
+         * FINISHED unlocks when the driver is
+         * within 120 meters of the booked destination.
+         */
+        return distance[0] <= 120.0f;
+    }
 
-        onTheWay.setBackgroundColor(
-                Color.rgb(255, 140, 0)
-        );
+    private Double doubleValue(
+            DocumentSnapshot doc,
+            String field
+    ) {
 
-        Button arrived =
-                new Button(this);
+        Object value =
+                doc.get(field);
 
-        arrived.setText(
-                "📍 I HAVE ARRIVED"
-        );
+        if (value instanceof Number) {
 
-        arrived.setTextColor(
-                Color.WHITE
-        );
+            return ((Number) value).doubleValue();
+        }
 
-        arrived.setBackgroundColor(
-                Color.rgb(0, 120, 200)
-        );
+        if (value != null) {
 
-        Button start =
-                new Button(this);
+            try {
 
-        start.setText(
-                "▶️ START RIDE"
-        );
+                return Double.parseDouble(
+                        String.valueOf(value)
+                );
 
-        start.setTextColor(
-                Color.WHITE
-        );
+            } catch (Exception ignored) {
+            }
+        }
 
-        start.setBackgroundColor(
-                Color.rgb(0, 145, 75)
-        );
-
-        Button finish =
-                new Button(this);
-
-        finish.setText(
-                "🏁 FINISHED TRIP"
-        );
-
-        finish.setTextColor(
-                Color.WHITE
-        );
-
-        finish.setBackgroundColor(
-                Color.rgb(150, 0, 150)
-        );
-
-        onTheWay.setEnabled(
-                "ACCEPTED".equals(
-                        normalizedStatus
-                )
-        );
-
-        arrived.setEnabled(
-                "DRIVER_ON_THE_WAY".equals(
-                        normalizedStatus
-                )
-                        || "ON_THE_WAY".equals(
-                        normalizedStatus
-                )
-        );
-
-        start.setEnabled(
-                "DRIVER_ARRIVED".equals(
-                        normalizedStatus
-                )
-                        || "ARRIVED".equals(
-                        normalizedStatus
-                )
-        );
-
-        finish.setEnabled(
-                "IN_PROGRESS".equals(
-                        normalizedStatus
-                )
-                        || "ONGOING".equals(
-                        normalizedStatus
-                )
-        );
-
-        onTheWay.setOnClickListener(
-                v -> updateRideStatus(
-                        "DRIVER_ON_THE_WAY"
-                )
-        );
-
-        arrived.setOnClickListener(
-                v -> updateRideStatus(
-                        "DRIVER_ARRIVED"
-                )
-        );
-
-        start.setOnClickListener(
-                v -> updateRideStatus(
-                        "IN_PROGRESS"
-                )
-        );
-
-        finish.setOnClickListener(
-                v -> updateRideStatus(
-                        "COMPLETED"
-                )
-        );
-
-        rideStatusContainer.addView(onTheWay);
-        rideStatusContainer.addView(arrived);
-        rideStatusContainer.addView(start);
-        rideStatusContainer.addView(finish);
+        return null;
     }
 
     private void clearRideStatusButtons() {
@@ -2662,6 +2946,25 @@ public class DriverActivity extends Activity {
                 newStatus
         )) {
 
+            /*
+             * Safety check:
+             * the driver cannot complete the ride
+             * unless GPS is at the destination.
+             */
+            if (currentRideSnapshot != null
+                    && !isAtDestination(
+                    currentRideSnapshot
+            )) {
+
+                Toast.makeText(
+                        this,
+                        "📍 Drive to the booked destination before finishing the trip.",
+                        Toast.LENGTH_LONG
+                ).show();
+
+                return;
+            }
+
             update.put(
                     "completedAt",
                     System.currentTimeMillis()
@@ -2684,6 +2987,8 @@ public class DriverActivity extends Activity {
                     )) {
 
                         currentRideId = "";
+
+                        currentRideSnapshot = null;
 
                         hiddenRequestIds.remove(
                                 rideId
@@ -2718,7 +3023,7 @@ public class DriverActivity extends Activity {
     ) {
 
         if ("DRIVER_ON_THE_WAY".equals(status)) {
-            return "🚗 Driver is on the way.";
+            return "🚗 Drive in progress.";
         }
 
         if ("DRIVER_ARRIVED".equals(status)) {
@@ -3196,6 +3501,14 @@ public class DriverActivity extends Activity {
             Location location
     ) {
 
+        /*
+         * Keep the latest GPS position locally.
+         * This does not change the existing Firebase
+         * driver-location structure.
+         */
+        currentDriverLocation =
+                location;
+
         Map<String, Object> data =
                 new HashMap<>();
 
@@ -3225,6 +3538,31 @@ public class DriverActivity extends Activity {
                         data,
                         SetOptions.merge()
                 );
+
+        /*
+         * Refresh the FINISHED button as the driver
+         * moves. Once GPS enters the destination
+         * radius, FINISHED becomes enabled.
+         */
+        if (currentRideSnapshot != null) {
+
+            String status =
+                    string(
+                            currentRideSnapshot,
+                            "status"
+                    );
+
+            if ("DRIVER_ARRIVED".equalsIgnoreCase(status)
+                    || "ARRIVED".equalsIgnoreCase(status)
+                    || "IN_PROGRESS".equalsIgnoreCase(status)
+                    || "ONGOING".equalsIgnoreCase(status)) {
+
+                showRideStatusButtons(
+                        currentRideSnapshot,
+                        status
+                );
+            }
+        }
     }
 
     @Override
@@ -3326,6 +3664,9 @@ public class DriverActivity extends Activity {
             currentRideListener.remove();
             currentRideListener = null;
         }
+
+        currentRideSnapshot = null;
+        currentDriverLocation = null;
 
         if (locationManager != null
                 && locationListener != null) {
