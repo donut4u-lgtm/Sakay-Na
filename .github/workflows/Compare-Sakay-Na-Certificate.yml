@@ -1,0 +1,54 @@
+name: Compare Sakay Na Signing Certificate
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Restore stored keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.SAKAYNA_KEYSTORE_BASE64 }}
+        run: |
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > sakayna-release.jks
+
+          if [ ! -s sakayna-release.jks ]; then
+            echo "RED: Keystore could not be restored."
+            exit 1
+          fi
+
+          echo "Keystore restored."
+
+      - name: Try known GitHub secret password
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: |
+          echo "Checking whether the stored keystore can be opened."
+
+          if keytool -list \
+            -v \
+            -keystore sakayna-release.jks \
+            -storepass "$KEYSTORE_PASSWORD" \
+            > keystore-info.txt 2>&1
+          then
+            echo "GREEN: KEYSTORE_PASSWORD opens the keystore."
+
+            echo
+            echo "Certificate information:"
+            grep -E "Alias name:|SHA256:" keystore-info.txt || true
+
+            echo
+            echo "Expected fingerprint from installed APK:"
+            echo "f1fbb77d0fa7d5464db0cc3f887d951a61b9f4933862d8e5c9c4a40cbe5347cf"
+
+          else
+            echo "RED: KEYSTORE_PASSWORD does not open this keystore."
+            echo
+            echo "The certificate cannot be compared until the correct keystore password is recovered."
+            exit 1
+          fi
