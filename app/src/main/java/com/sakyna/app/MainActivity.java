@@ -63,6 +63,9 @@ public class MainActivity extends Activity {
         requestNotificationPermission();
 
         showLoginScreen();
+
+        // Check for a newer public Sakay Na APK.
+        UpdateChecker.check(this);
     }
 
     private void showLoginScreen() {
