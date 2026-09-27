@@ -35,34 +35,51 @@ jobs:
         env:
           KEYSTORE_BASE64: ${{ secrets.SAKAYNA_KEYSTORE_BASE64 }}
         run: |
-          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > sakayna-release.jks
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "RED: SAKAYNA_KEYSTORE_BASE64 secret is missing."
+            exit 1
+          fi
 
-          if [ ! -s sakayna-release.jks ]; then
-            echo "RED: Keystore file is empty."
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/sakayna-release.jks"
+
+          if [ ! -s "$RUNNER_TEMP/sakayna-release.jks" ]; then
+            echo "RED: Existing release keystore could not be restored."
             exit 1
           fi
 
           echo "GREEN: Existing release keystore restored."
 
+      - name: Detect original keystore alias
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.SAKAYNA_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_PASSWORD" ]; then
+            echo "RED: SAKAYNA_KEYSTORE_PASSWORD secret is missing."
+            exit 1
+          fi
+
+          ALIAS=$(keytool -list \
+            -v \
+            -keystore "$RUNNER_TEMP/sakayna-release.jks" \
+            -storepass "$KEYSTORE_PASSWORD" \
+            2>/dev/null \
+            | awk -F': ' '/Alias name:/ {print $2; exit}')
+
+          if [ -z "$ALIAS" ]; then
+            echo "RED: Could not detect the original keystore alias."
+            exit 1
+          fi
+
+          echo "GREEN: Original keystore alias detected."
+          echo "SAKAYNA_KEY_ALIAS=$ALIAS" >> "$GITHUB_ENV"
+
       - name: Build signed release APK
         env:
-          SAKAYNA_KEYSTORE_PATH: ${{ github.workspace }}/sakayna-release.jks
-          SAKAYNA_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          SAKAYNA_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-          SAKAYNA_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          SAKAYNA_KEYSTORE_PATH: ${{ runner.temp }}/sakayna-release.jks
+          SAKAYNA_KEYSTORE_PASSWORD: ${{ secrets.SAKAYNA_KEYSTORE_PASSWORD }}
         run: |
           if [ -z "$SAKAYNA_KEYSTORE_PASSWORD" ]; then
-            echo "RED: KEYSTORE_PASSWORD secret is missing."
-            exit 1
-          fi
-
-          if [ -z "$SAKAYNA_KEY_PASSWORD" ]; then
-            echo "RED: KEY_PASSWORD secret is missing."
-            exit 1
-          fi
-
-          if [ -z "$SAKAYNA_KEY_ALIAS" ]; then
-            echo "RED: KEY_ALIAS secret is missing."
+            echo "RED: SAKAYNA_KEYSTORE_PASSWORD secret is missing."
             exit 1
           fi
 
@@ -70,7 +87,9 @@ jobs:
 
       - name: Verify APK
         run: |
-          if [ ! -s "app/build/outputs/apk/release/app-release.apk" ]; then
+          APK="app/build/outputs/apk/release/app-release.apk"
+
+          if [ ! -s "$APK" ]; then
             echo "RED: Release APK was not produced."
             exit 1
           fi
