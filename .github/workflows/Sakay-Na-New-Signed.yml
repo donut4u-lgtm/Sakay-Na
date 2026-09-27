@@ -1,4 +1,4 @@
-name: Build New Sakay Na Signed APK
+name: Test Key and Build Sakay Na Signed APK
 
 on:
   workflow_dispatch:
@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout current Green code
+      - name: Checkout Green code
         uses: actions/checkout@v4
         with:
           ref: main
@@ -22,20 +22,28 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Check signing secrets
+      - name: Check required secrets
         env:
           KEYSTORE_BASE64: ${{ secrets.SAKAYNA_KEYSTORE_BASE64 }}
-          KEYSTORE_PASSWORD: ${{ secrets.SAKAYNA_KEYSTORE_PASSWORD }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
           if [ -z "$KEYSTORE_BASE64" ]; then
-            echo "Missing SAKAYNA_KEYSTORE_BASE64"
+            echo "RED: SAKAYNA_KEYSTORE_BASE64 is missing."
             exit 1
           fi
 
           if [ -z "$KEYSTORE_PASSWORD" ]; then
-            echo "Missing SAKAYNA_KEYSTORE_PASSWORD"
+            echo "RED: KEYSTORE_PASSWORD is missing."
             exit 1
           fi
+
+          if [ -z "$KEY_ALIAS" ]; then
+            echo "RED: KEY_ALIAS is missing."
+            exit 1
+          fi
+
+          echo "Required secrets are present."
 
       - name: Restore release keystore
         env:
@@ -44,30 +52,34 @@ jobs:
           printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/sakayna-release.jks"
 
           if [ ! -s "$RUNNER_TEMP/sakayna-release.jks" ]; then
-            echo "Keystore restore failed."
+            echo "RED: Keystore file is empty."
             exit 1
           fi
 
           echo "Keystore restored."
 
-      - name: Detect keystore alias
+      - name: Verify keystore password and alias
         env:
-          KEYSTORE_PASSWORD: ${{ secrets.SAKAYNA_KEYSTORE_PASSWORD }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
-          ALIAS=$(keytool -list \
-            -v \
+          echo "Checking keystore..."
+
+          keytool -list \
             -keystore "$RUNNER_TEMP/sakayna-release.jks" \
             -storepass "$KEYSTORE_PASSWORD" \
-            2>/dev/null \
-            | awk -F': ' '/Alias name:/ {print $2; exit}')
+            -alias "$KEY_ALIAS" \
+            >/tmp/keytool-check.txt 2>&1
 
-          if [ -z "$ALIAS" ]; then
-            echo "Could not detect keystore alias."
+          RESULT=$?
+
+          if [ "$RESULT" -ne 0 ]; then
+            echo "RED: KEYSTORE_PASSWORD or KEY_ALIAS does not match the stored keystore."
+            echo "The APK was NOT built."
             exit 1
           fi
 
-          echo "Keystore alias detected."
-          echo "SAKAYNA_KEY_ALIAS=$ALIAS" >> "$GITHUB_ENV"
+          echo "GREEN: Keystore password and alias are correct."
 
       - name: Install Gradle 8.10.2
         run: |
@@ -75,23 +87,24 @@ jobs:
           unzip -q gradle-8.10.2-bin.zip -d "$RUNNER_TEMP/gradle"
           echo "$RUNNER_TEMP/gradle/gradle-8.10.2/bin" >> "$GITHUB_PATH"
 
-      - name: Build new signed release APK
+      - name: Build signed release APK
         env:
           SAKAYNA_KEYSTORE_PATH: ${{ runner.temp }}/sakayna-release.jks
-          SAKAYNA_KEYSTORE_PASSWORD: ${{ secrets.SAKAYNA_KEYSTORE_PASSWORD }}
+          SAKAYNA_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          SAKAYNA_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
           gradle :app:assembleRelease --stacktrace
 
       - name: Verify APK
         run: |
           if [ ! -s "app/build/outputs/apk/release/app-release.apk" ]; then
-            echo "Release APK was not produced."
+            echo "RED: Release APK was not produced."
             exit 1
           fi
 
-          echo "New signed APK created successfully."
+          echo "GREEN: Signed APK created successfully."
 
-      - name: Upload new signed APK
+      - name: Upload signed APK
         uses: actions/upload-artifact@v4
         with:
           name: Sakay-Na-New-Signed-APK
