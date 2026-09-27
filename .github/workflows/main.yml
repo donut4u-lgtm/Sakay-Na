@@ -31,52 +31,35 @@ jobs:
           unzip -q gradle-8.10.2-bin.zip -d "$RUNNER_TEMP/gradle"
           echo "$RUNNER_TEMP/gradle/gradle-8.10.2/bin" >> "$GITHUB_PATH"
 
-      - name: Load signing secrets
+      - name: Load signing password
+        env:
+          PASSWORD_1: ${{ secrets.KEYSTORE_PASSWORD }}
+          PASSWORD_2: ${{ secrets.SAKAYNA_KEYSTORE_PASSWORD }}
+        run: |
+          KEYSTORE_PASSWORD="$PASSWORD_1"
+
+          if [ -z "$KEYSTORE_PASSWORD" ]; then
+            KEYSTORE_PASSWORD="$PASSWORD_2"
+          fi
+
+          if [ -z "$KEYSTORE_PASSWORD" ]; then
+            echo "RED: No keystore password secret was found."
+            exit 1
+          fi
+
+          printf '%s' "$KEYSTORE_PASSWORD" > "$RUNNER_TEMP/keystore-password"
+
+          echo "GREEN: Keystore password loaded."
+
+      - name: Restore original Sakay Na keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.SAKAYNA_KEYSTORE_BASE64 }}
-          KEYSTORE_PASSWORD_1: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEYSTORE_PASSWORD_2: ${{ secrets.SAKAYNA_KEYSTORE_PASSWORD }}
-          KEY_ALIAS_1: ${{ secrets.KEY_ALIAS }}
-          KEY_ALIAS_2: ${{ secrets.SAKAYNA_KEY_ALIAS }}
         run: |
           if [ -z "$KEYSTORE_BASE64" ]; then
             echo "RED: SAKAYNA_KEYSTORE_BASE64 secret is missing."
             exit 1
           fi
 
-          KEYSTORE_PASSWORD="$KEYSTORE_PASSWORD_1"
-
-          if [ -z "$KEYSTORE_PASSWORD" ]; then
-            KEYSTORE_PASSWORD="$KEYSTORE_PASSWORD_2"
-          fi
-
-          if [ -z "$KEYSTORE_PASSWORD" ]; then
-            echo "RED: No keystore password secret was found."
-            echo "Checked KEYSTORE_PASSWORD and SAKAYNA_KEYSTORE_PASSWORD."
-            exit 1
-          fi
-
-          KEY_ALIAS="$KEY_ALIAS_1"
-
-          if [ -z "$KEY_ALIAS" ]; then
-            KEY_ALIAS="$KEY_ALIAS_2"
-          fi
-
-          if [ -z "$KEY_ALIAS" ]; then
-            echo "RED: No keystore alias secret was found."
-            echo "Checked KEY_ALIAS and SAKAYNA_KEY_ALIAS."
-            exit 1
-          fi
-
-          echo "GREEN: Required signing secrets found."
-
-          printf '%s' "$KEYSTORE_PASSWORD" > "$RUNNER_TEMP/keystore-password"
-          printf '%s' "$KEY_ALIAS" > "$RUNNER_TEMP/key-alias"
-
-      - name: Restore original Sakay Na keystore
-        env:
-          KEYSTORE_BASE64: ${{ secrets.SAKAYNA_KEYSTORE_BASE64 }}
-        run: |
           printf '%s' "$KEYSTORE_BASE64" | base64 --decode \
             > "$RUNNER_TEMP/sakayna-release.jks"
 
@@ -87,7 +70,33 @@ jobs:
 
           echo "GREEN: Original Sakay Na keystore restored."
 
-      - name: Verify original keystore
+      - name: Detect alias from original keystore
+        run: |
+          KEYSTORE_PASSWORD="$(cat "$RUNNER_TEMP/keystore-password")"
+
+          if ! keytool -list \
+            -keystore "$RUNNER_TEMP/sakayna-release.jks" \
+            -storepass "$KEYSTORE_PASSWORD" \
+            > "$RUNNER_TEMP/keystore-list.txt" 2>&1
+          then
+            echo "RED: Keystore password does not open the restored JKS."
+            cat "$RUNNER_TEMP/keystore-list.txt"
+            exit 1
+          fi
+
+          ALIAS="$(awk -F': ' '/Alias name:/ {print $2; exit}' "$RUNNER_TEMP/keystore-list.txt")"
+
+          if [ -z "$ALIAS" ]; then
+            echo "RED: No alias was found inside the restored JKS."
+            cat "$RUNNER_TEMP/keystore-list.txt"
+            exit 1
+          fi
+
+          printf '%s' "$ALIAS" > "$RUNNER_TEMP/key-alias"
+
+          echo "GREEN: Alias detected from the original JKS."
+
+      - name: Verify original signing key
         run: |
           KEYSTORE_PASSWORD="$(cat "$RUNNER_TEMP/keystore-password")"
           KEY_ALIAS="$(cat "$RUNNER_TEMP/key-alias")"
@@ -96,22 +105,31 @@ jobs:
             -keystore "$RUNNER_TEMP/sakayna-release.jks" \
             -storepass "$KEYSTORE_PASSWORD" \
             -alias "$KEY_ALIAS" \
-            > "$RUNNER_TEMP/keytool-check.txt" 2>&1
+            > "$RUNNER_TEMP/key-check.txt" 2>&1
           then
-            echo "GREEN: Original keystore password and alias verified."
+            echo "GREEN: Original signing key verified."
           else
-            echo "RED: Keystore password or alias does not match."
-            cat "$RUNNER_TEMP/keytool-check.txt"
+            echo "RED: Detected alias could not be opened."
+            cat "$RUNNER_TEMP/key-check.txt"
             exit 1
           fi
 
       - name: Configure Gradle signing
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          SAKAYNA_KEYSTORE_PASSWORD: ${{ secrets.SAKAYNA_KEYSTORE_PASSWORD }}
         run: |
+          PASSWORD="$KEYSTORE_PASSWORD"
+
+          if [ -z "$PASSWORD" ]; then
+            PASSWORD="$SAKAYNA_KEYSTORE_PASSWORD"
+          fi
+
           echo "SAKAYNA_KEYSTORE_PATH=$RUNNER_TEMP/sakayna-release.jks" >> "$GITHUB_ENV"
-          echo "SAKAYNA_KEYSTORE_PASSWORD=$(cat "$RUNNER_TEMP/keystore-password")" >> "$GITHUB_ENV"
+          echo "SAKAYNA_KEYSTORE_PASSWORD=$PASSWORD" >> "$GITHUB_ENV"
           echo "SAKAYNA_KEY_ALIAS=$(cat "$RUNNER_TEMP/key-alias")" >> "$GITHUB_ENV"
 
-          echo "GREEN: Gradle signing environment configured."
+          echo "GREEN: Gradle signing configured from the original JKS."
 
       - name: Build signed release APK
         run: |
@@ -130,8 +148,13 @@ jobs:
 
       - name: Verify APK certificate
         run: |
-          APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
           APK="app/build/outputs/apk/release/app-release.apk"
+          APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+
+          if [ ! -x "$APKSIGNER" ]; then
+            echo "RED: apksigner was not found."
+            exit 1
+          fi
 
           "$APKSIGNER" verify \
             --verbose \
