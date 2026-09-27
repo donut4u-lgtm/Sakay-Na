@@ -31,48 +31,66 @@ jobs:
           unzip -q gradle-8.10.2-bin.zip -d "$RUNNER_TEMP/gradle"
           echo "$RUNNER_TEMP/gradle/gradle-8.10.2/bin" >> "$GITHUB_PATH"
 
-      - name: Check signing secrets
+      - name: Load signing secrets
         env:
           KEYSTORE_BASE64: ${{ secrets.SAKAYNA_KEYSTORE_BASE64 }}
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEYSTORE_PASSWORD_1: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEYSTORE_PASSWORD_2: ${{ secrets.SAKAYNA_KEYSTORE_PASSWORD }}
+          KEY_ALIAS_1: ${{ secrets.KEY_ALIAS }}
+          KEY_ALIAS_2: ${{ secrets.SAKAYNA_KEY_ALIAS }}
         run: |
           if [ -z "$KEYSTORE_BASE64" ]; then
             echo "RED: SAKAYNA_KEYSTORE_BASE64 secret is missing."
             exit 1
           fi
 
+          KEYSTORE_PASSWORD="$KEYSTORE_PASSWORD_1"
+
           if [ -z "$KEYSTORE_PASSWORD" ]; then
-            echo "RED: KEYSTORE_PASSWORD secret is missing."
+            KEYSTORE_PASSWORD="$KEYSTORE_PASSWORD_2"
+          fi
+
+          if [ -z "$KEYSTORE_PASSWORD" ]; then
+            echo "RED: No keystore password secret was found."
+            echo "Checked KEYSTORE_PASSWORD and SAKAYNA_KEYSTORE_PASSWORD."
             exit 1
+          fi
+
+          KEY_ALIAS="$KEY_ALIAS_1"
+
+          if [ -z "$KEY_ALIAS" ]; then
+            KEY_ALIAS="$KEY_ALIAS_2"
           fi
 
           if [ -z "$KEY_ALIAS" ]; then
-            echo "RED: KEY_ALIAS secret is missing."
+            echo "RED: No keystore alias secret was found."
+            echo "Checked KEY_ALIAS and SAKAYNA_KEY_ALIAS."
             exit 1
           fi
 
-          echo "GREEN: Required signing secrets are present."
+          echo "GREEN: Required signing secrets found."
 
-      - name: Restore original Sakay Na release keystore
+          printf '%s' "$KEYSTORE_PASSWORD" > "$RUNNER_TEMP/keystore-password"
+          printf '%s' "$KEY_ALIAS" > "$RUNNER_TEMP/key-alias"
+
+      - name: Restore original Sakay Na keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.SAKAYNA_KEYSTORE_BASE64 }}
         run: |
-          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/sakayna-release.jks"
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode \
+            > "$RUNNER_TEMP/sakayna-release.jks"
 
           if [ ! -s "$RUNNER_TEMP/sakayna-release.jks" ]; then
-            echo "RED: Existing release keystore could not be restored."
+            echo "RED: Keystore restore failed."
             exit 1
           fi
 
-          echo "GREEN: Original release keystore restored."
+          echo "GREEN: Original Sakay Na keystore restored."
 
       - name: Verify original keystore
-        env:
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
-          echo "Checking original Sakay Na signing key..."
+          KEYSTORE_PASSWORD="$(cat "$RUNNER_TEMP/keystore-password")"
+          KEY_ALIAS="$(cat "$RUNNER_TEMP/key-alias")"
 
           if keytool -list \
             -keystore "$RUNNER_TEMP/sakayna-release.jks" \
@@ -83,27 +101,23 @@ jobs:
             echo "GREEN: Original keystore password and alias verified."
           else
             echo "RED: Keystore password or alias does not match."
-            echo "The APK was NOT built."
             cat "$RUNNER_TEMP/keytool-check.txt"
             exit 1
           fi
 
-      - name: Configure signing environment
-        env:
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+      - name: Configure Gradle signing
         run: |
           echo "SAKAYNA_KEYSTORE_PATH=$RUNNER_TEMP/sakayna-release.jks" >> "$GITHUB_ENV"
-          echo "SAKAYNA_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
-          echo "SAKAYNA_KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
+          echo "SAKAYNA_KEYSTORE_PASSWORD=$(cat "$RUNNER_TEMP/keystore-password")" >> "$GITHUB_ENV"
+          echo "SAKAYNA_KEY_ALIAS=$(cat "$RUNNER_TEMP/key-alias")" >> "$GITHUB_ENV"
 
-          echo "GREEN: Sakay Na signing environment configured."
+          echo "GREEN: Gradle signing environment configured."
 
       - name: Build signed release APK
         run: |
           gradle :app:assembleRelease --stacktrace
 
-      - name: Verify signed APK
+      - name: Verify release APK
         run: |
           APK="app/build/outputs/apk/release/app-release.apk"
 
@@ -112,26 +126,19 @@ jobs:
             exit 1
           fi
 
-          echo "GREEN: Sakay Na release APK created."
+          echo "GREEN: Signed Sakay Na APK created."
 
       - name: Verify APK certificate
         run: |
           APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
           APK="app/build/outputs/apk/release/app-release.apk"
 
-          if [ ! -x "$APKSIGNER" ]; then
-            echo "RED: apksigner was not found."
-            exit 1
-          fi
-
-          echo "Checking final APK certificate..."
-
           "$APKSIGNER" verify \
             --verbose \
             --print-certs \
             "$APK"
 
-          echo "GREEN: APK signature verification completed."
+          echo "GREEN: APK certificate verification completed."
 
       - name: Upload signed APK
         uses: actions/upload-artifact@v4
@@ -140,8 +147,8 @@ jobs:
           path: app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
 
-      - name: GREEN build result
+      - name: GREEN
         run: |
           echo "========================================"
-          echo "GREEN: SAKAY NA SIGNED APK READY"
+          echo "GREEN: SAKAY NA APK READY"
           echo "========================================"
