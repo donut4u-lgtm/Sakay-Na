@@ -1,4 +1,3 @@
-
 plugins {
     id("com.android.application")
     id("com.google.gms.google-services")
@@ -13,7 +12,7 @@ android {
         minSdk = 23
         targetSdk = 35
 
-        versionCode = 2
+        versionCode = 3
         versionName = "1.0.1"
     }
 
