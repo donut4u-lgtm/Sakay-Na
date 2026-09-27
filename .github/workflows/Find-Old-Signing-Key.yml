@@ -1,0 +1,77 @@
+name: Find Old Sakay Na Signing Certificate
+
+on:
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download Android build tools
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "build-tools;35.0.0" >/dev/null 2>&1
+
+      - name: Find APK artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p artifacts
+
+          gh api \
+            --paginate \
+            "/repos/${GITHUB_REPOSITORY}/actions/artifacts?per_page=100" \
+            --jq '.artifacts[] | select(.expired == false) | [.id, .name] | @tsv' \
+            > artifact-list.txt
+
+          echo "Available non-expired artifacts:"
+          cat artifact-list.txt
+
+          while IFS=$'\t' read -r ID NAME
+          do
+            echo "Downloading artifact: $NAME"
+
+            mkdir -p "artifacts/$ID"
+
+            gh api \
+              -H "Accept: application/vnd.github+json" \
+              "/repos/${GITHUB_REPOSITORY}/actions/artifacts/$ID/zip" \
+              > "artifacts/$ID/artifact.zip"
+
+            unzip -oq \
+              "artifacts/$ID/artifact.zip" \
+              -d "artifacts/$ID"
+
+          done < artifact-list.txt
+
+      - name: Inspect APK certificates
+        run: |
+          APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+
+          echo
+          echo "========================================"
+          echo "SAKAY NA APK SIGNING CERTIFICATES"
+          echo "========================================"
+
+          find artifacts -type f -name "*.apk" -print0 |
+          while IFS= read -r -d '' APK
+          do
+            echo
+            echo "APK: $APK"
+            echo "----------------------------------------"
+
+            "$APKSIGNER" verify \
+              --print-certs \
+              "$APK" 2>&1 || true
+
+          done
+
+          echo
+          echo "========================================"
+          echo "END"
+          echo "========================================"
