@@ -1,0 +1,149 @@
+name: Recover Sakay Na Admin
+
+on:
+  workflow_dispatch:
+
+jobs:
+  recover-admin:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Firebase Admin SDK
+        run: npm install firebase-admin
+
+      - name: Recover Admin
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          ADMIN_PHONE: ${{ secrets.SAKAYNA_ADMIN_PHONE }}
+          ADMIN_PASSWORD: ${{ secrets.SAKAYNA_ADMIN_PASSWORD }}
+        run: |
+          cat > recover-admin.js <<'EOF'
+          const admin = require("firebase-admin");
+
+          const serviceAccount =
+            JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+
+          admin.initializeApp({
+            credential: admin.credential.cert(serviceAccount),
+            projectId: "sakay-na-1cafa"
+          });
+
+          const db = admin.firestore();
+          const auth = admin.auth();
+
+          const ADMIN_UID =
+            "Ld3rzaCvAGNlXBDCofB3mWjgXWp2";
+
+          const phone = process.env.ADMIN_PHONE.trim();
+          const password = process.env.ADMIN_PASSWORD;
+
+          function normalizePhone(value) {
+            let p = value.replace(/[^0-9+]/g, "");
+
+            if (p.startsWith("+63")) {
+              return p.substring(1);
+            }
+
+            if (p.startsWith("63")) {
+              return p;
+            }
+
+            if (p.startsWith("09")) {
+              return "63" + p.substring(1);
+            }
+
+            if (p.startsWith("9")) {
+              return "63" + p;
+            }
+
+            return p;
+          }
+
+          const normalizedPhone = normalizePhone(phone);
+          const syntheticEmail =
+            normalizedPhone + "@sakayna.app";
+
+          async function main() {
+
+            let user;
+
+            try {
+              user = await auth.getUser(ADMIN_UID);
+
+              console.log(
+                "Admin Auth account already exists."
+              );
+
+            } catch (error) {
+
+              if (error.code !== "auth/user-not-found") {
+                throw error;
+              }
+
+              console.log(
+                "Admin Auth account missing. Recreating..."
+              );
+
+              user = await auth.createUser({
+                uid: ADMIN_UID,
+                email: syntheticEmail,
+                password: password,
+                displayName: "Sakay Na Admin",
+                disabled: false
+              });
+
+              console.log(
+                "Admin Auth account recreated."
+              );
+            }
+
+            await auth.updateUser(
+              ADMIN_UID,
+              {
+                email: syntheticEmail,
+                password: password,
+                displayName: "Sakay Na Admin",
+                disabled: false
+              }
+            );
+
+            await db
+              .collection("users")
+              .doc(ADMIN_UID)
+              .set(
+                {
+                  uid: ADMIN_UID,
+                  role: "ADMIN",
+                  name: "Sakay Na Admin",
+                  phone: phone,
+                  phoneNumber: phone,
+                  email: syntheticEmail,
+                  admin: true,
+                  createdAt:
+                    admin.firestore.FieldValue.serverTimestamp(),
+                  updatedAt:
+                    admin.firestore.FieldValue.serverTimestamp()
+                },
+                { merge: true }
+              );
+
+            console.log("");
+            console.log("================================");
+            console.log("ADMIN RECOVERY SUCCESSFUL");
+            console.log("UID: " + ADMIN_UID);
+            console.log("================================");
+          }
+
+          main().catch(error => {
+            console.error("ADMIN RECOVERY FAILED:");
+            console.error(error);
+            process.exit(1);
+          });
+          EOF
+
+          node recover-admin.js
