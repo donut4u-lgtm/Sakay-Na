@@ -1,2 +1,106 @@
-# Sakay Na Admin Recovery
 name: Recover Sakay Na Admin
+
+on:
+  workflow_dispatch:
+
+jobs:
+  recover-admin:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Firebase Admin SDK
+        run: |
+          python -m pip install --upgrade pip
+          pip install firebase-admin
+
+      - name: Recover and VERIFY Admin
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          SAKAYNA_ADMIN_PHONE: ${{ secrets.SAKAYNA_ADMIN_PHONE }}
+          SAKAYNA_ADMIN_PASSWORD: ${{ secrets.SAKAYNA_ADMIN_PASSWORD }}
+        run: |
+          set -e
+
+          echo "Starting Sakay Na Admin recovery..."
+
+          test -n "$FIREBASE_SERVICE_ACCOUNT" || {
+            echo "RED: FIREBASE_SERVICE_ACCOUNT secret is missing."
+            exit 1
+          }
+
+          test -n "$SAKAYNA_ADMIN_PHONE" || {
+            echo "RED: SAKAYNA_ADMIN_PHONE secret is missing."
+            exit 1
+          }
+
+          test -n "$SAKAYNA_ADMIN_PASSWORD" || {
+            echo "RED: SAKAYNA_ADMIN_PASSWORD secret is missing."
+            exit 1
+          }
+
+          python <<'PY'
+          import json
+          import os
+          import re
+          import firebase_admin
+          from firebase_admin import credentials, auth, firestore
+
+          PROJECT_ID = "sakay-na-1cafa"
+          ADMIN_UID = "Ld3rzaCvAGNlXBDCofB3mWjgXWp2"
+
+          service_account = json.loads(os.environ["FIREBASE_SERVICE_ACCOUNT"])
+
+          if service_account.get("project_id") != PROJECT_ID:
+              raise RuntimeError(
+                  f"RED: Wrong Firebase project: {service_account.get('project_id')}"
+              )
+
+          def normalize_phone(phone):
+              digits = re.sub(r"\D", "", phone)
+
+              if digits.startswith("63"):
+                  normalized = digits
+              elif digits.startswith("09"):
+                  normalized = "63" + digits[1:]
+              elif digits.startswith("9") and len(digits) == 10:
+                  normalized = "63" + digits
+              else:
+                  raise ValueError("Invalid Philippine mobile number")
+
+              if not re.fullmatch(r"63\d{10}", normalized):
+                  raise ValueError("Invalid Philippine mobile number")
+
+              return normalized
+
+          phone = normalize_phone(os.environ["SAKAYNA_ADMIN_PHONE"])
+          email = phone + "@sakayna.app"
+          password = os.environ["SAKAYNA_ADMIN_PASSWORD"]
+
+          print("Firebase project verified.")
+          print(f"Admin email: {email}")
+          print(f"Required Admin UID: {ADMIN_UID}")
+
+          if not firebase_admin._apps:
+              cred = credentials.Certificate(service_account)
+              firebase_admin.initialize_app(
+                  cred,
+                  {"projectId": PROJECT_ID}
+              )
+
+          db = firestore.client()
+
+          # Find the existing Auth account by email.
+          try:
+              existing = auth.get_user_by_email(email)
+
+              if existing.uid != ADMIN_UID:
+                  raise RuntimeError(
+                      "
