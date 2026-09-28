@@ -30,7 +30,7 @@ jobs:
 
       - name: Install Functions dependencies
         working-directory: functions
-        run: npm ci
+        run: npm install --no-audit --no-fund
 
       - name: Create Firebase service account file
         run: |
