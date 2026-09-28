@@ -209,14 +209,19 @@ jobs:
             app/build/outputs/apk/release/app-release.apk \
             "Sakay-Na-v${VERSION_NAME}-${VERSION_CODE}.apk"
 
+          cp \
+            app/build/outputs/apk/release/app-release.apk \
+            "Sakay-Na-v2.apk"
+
           echo "GREEN: Release APK prepared."
+          echo "GREEN: Public download asset prepared as Sakay-Na-v2.apk."
 
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="v${VERSION_NAME}"
-          APK="Sakay-Na-v${VERSION_NAME}-${VERSION_CODE}.apk"
+          PUBLIC_APK="Sakay-Na-v2.apk"
 
           if gh release view "$TAG" \
             --repo "${{ github.repository }}" \
@@ -225,7 +230,7 @@ jobs:
             echo "Updating existing release $TAG"
 
             gh release upload "$TAG" \
-              "$APK" \
+              "$PUBLIC_APK" \
               --repo "${{ github.repository }}" \
               --clobber
 
@@ -238,7 +243,7 @@ jobs:
             echo "Creating release $TAG"
 
             gh release create "$TAG" \
-              "$APK" \
+              "$PUBLIC_APK" \
               --repo "${{ github.repository }}" \
               --title "Sakay Na ${VERSION_NAME}" \
               --notes "Signed Sakay Na release ${VERSION_NAME}, version code ${VERSION_CODE}." \
@@ -247,6 +252,8 @@ jobs:
           fi
 
           echo "GREEN: GitHub Release published."
+          echo "GREEN: Existing public download URL preserved."
+          echo "GREEN: Public asset: Sakay-Na-v2.apk"
 
       - name: Upload signed APK artifact
         uses: actions/upload-artifact@v4
