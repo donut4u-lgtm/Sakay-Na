@@ -4,8 +4,340 @@ on:
   workflow_dispatch:
 
 jobs:
-  test:
+  recover-admin:
     runs-on: ubuntu-latest
+
     steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Firebase Admin SDK
+        run: npm install firebase-admin
+
+      - name: Recover and VERIFY Admin
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          ADMIN_PHONE: ${{ secrets.SAKAYNA_ADMIN_PHONE }}
+          ADMIN_PASSWORD: ${{ secrets.SAKAYNA_ADMIN_PASSWORD }}
+        run: |
+          cat > recover-admin.js <<'EOF'
+          const admin = require("firebase-admin");
+
+          const EXPECTED_PROJECT = "sakay-na-1cafa";
+          const ADMIN_UID = "Ld3rzaCvAGNlXBDCofB3mWjgXWp2";
+
+          const rawServiceAccount =
+            process.env.FIREBASE_SERVICE_ACCOUNT;
+
+          if (!rawServiceAccount) {
+            throw new Error(
+              "RED: FIREBASE_SERVICE_ACCOUNT secret is missing."
+            );
+          }
+
+          let serviceAccount;
+
+          try {
+            serviceAccount = JSON.parse(rawServiceAccount);
+          } catch (error) {
+            throw new Error(
+              "RED: FIREBASE_SERVICE_ACCOUNT is not valid JSON."
+            );
+          }
+
+          if (serviceAccount.project_id !== EXPECTED_PROJECT) {
+            throw new Error(
+              "RED: Service account project is '" +
+              serviceAccount.project_id +
+              "', expected '" +
+              EXPECTED_PROJECT +
+              "'."
+            );
+          }
+
+          console.log(
+            "GREEN: Service-account project verified: " +
+            EXPECTED_PROJECT
+          );
+
+          admin.initializeApp({
+            credential: admin.credential.cert(serviceAccount),
+            projectId: EXPECTED_PROJECT
+          });
+
+          const auth = admin.auth();
+          const db = admin.firestore();
+
+          const phone =
+            (process.env.ADMIN_PHONE || "").trim();
+
+          const password =
+            process.env.ADMIN_PASSWORD || "";
+
+          if (!phone) {
+            throw new Error(
+              "RED: SAKAYNA_ADMIN_PHONE secret is missing."
+            );
+          }
+
+          if (!password) {
+            throw new Error(
+              "RED: SAKAYNA_ADMIN_PASSWORD secret is missing."
+            );
+          }
+
+          function normalizePhone(value) {
+            let p = value.replace(/[^0-9+]/g, "");
+
+            if (p.startsWith("+63")) {
+              p = "63" + p.substring(3);
+            } else if (p.startsWith("09")) {
+              p = "63" + p.substring(1);
+            } else if (
+              p.startsWith("9") &&
+              p.length === 10
+            ) {
+              p = "63" + p;
+            }
+
+            if (!/^63[0-9]{10}$/.test(p)) {
+              throw new Error(
+                "RED: Invalid Philippine phone format."
+              );
+            }
+
+            return p;
+          }
+
+          async function main() {
+            const normalizedPhone =
+              normalizePhone(phone);
+
+            const syntheticEmail =
+              normalizedPhone + "@sakayna.app";
+
+            console.log("");
+            console.log("========================================");
+            console.log("FIREBASE AUTH DIAGNOSTIC");
+            console.log("========================================");
+            console.log("Project: " + EXPECTED_PROJECT);
+            console.log("Target Admin UID: " + ADMIN_UID);
+            console.log("========================================");
+
+            let targetExists = false;
+
+            try {
+              const existing =
+                await auth.getUser(ADMIN_UID);
+
+              targetExists = true;
+
+              console.log(
+                "GREEN: Target Admin UID EXISTS."
+              );
+              console.log(
+                "Auth UID: " + existing.uid
+              );
+              console.log(
+                "Auth email: " + (existing.email || "(none)")
+              );
+              console.log(
+                "Display name: " +
+                (existing.displayName || "(none)")
+              );
+              console.log(
+                "Disabled: " + existing.disabled
+              );
+            } catch (error) {
+              if (error.code === "auth/user-not-found") {
+                console.log(
+                  "Admin UID does not currently exist."
+                );
+              } else {
+                throw error;
+              }
+            }
+
+            if (!targetExists) {
+              console.log("");
+              console.log(
+                "Creating Admin Auth account..."
+              );
+
+              await auth.createUser({
+                uid: ADMIN_UID,
+                email: syntheticEmail,
+                password: password,
+                displayName: "Sakay Na Admin",
+                disabled: false
+              });
+
+              console.log(
+                "GREEN: Admin Auth account CREATED."
+              );
+            }
+
+            await auth.updateUser(
+              ADMIN_UID,
+              {
+                email: syntheticEmail,
+                password: password,
+                displayName: "Sakay Na Admin",
+                disabled: false
+              }
+            );
+
+            console.log(
+              "GREEN: Admin credentials updated."
+            );
+
+            const verifiedUser =
+              await auth.getUser(ADMIN_UID);
+
+            if (verifiedUser.uid !== ADMIN_UID) {
+              throw new Error(
+                "RED: Wrong UID returned by Firebase."
+              );
+            }
+
+            if (verifiedUser.email !== syntheticEmail) {
+              throw new Error(
+                "RED: Admin email does not match expected synthetic email."
+              );
+            }
+
+            if (verifiedUser.disabled) {
+              throw new Error(
+                "RED: Admin account is disabled."
+              );
+            }
+
+            console.log(
+              "GREEN: Exact Admin Auth account verified."
+            );
+
+            await db
+              .collection("users")
+              .doc(ADMIN_UID)
+              .set(
+                {
+                  uid: ADMIN_UID,
+                  role: "ADMIN",
+                  admin: true,
+                  name: "Sakay Na Admin",
+                  phone: phone,
+                  phoneNumber: phone,
+                  email: syntheticEmail,
+                  updatedAt:
+                    admin.firestore.FieldValue.serverTimestamp()
+                },
+                {
+                  merge: true
+                }
+              );
+
+            console.log(
+              "GREEN: Admin Firestore profile written."
+            );
+
+            const profile =
+              await db
+                .collection("users")
+                .doc(ADMIN_UID)
+                .get();
+
+            if (!profile.exists) {
+              throw new Error(
+                "RED: Admin Firestore profile missing."
+              );
+            }
+
+            if (profile.data().role !== "ADMIN") {
+              throw new Error(
+                "RED: Firestore Admin role is incorrect."
+              );
+            }
+
+            console.log(
+              "GREEN: Admin Firestore profile verified."
+            );
+
+            console.log("");
+            console.log("========================================");
+            console.log("ACTUAL FIREBASE AUTH USERS");
+            console.log("========================================");
+
+            let nextPageToken;
+
+            do {
+              const page =
+                await auth.listUsers(1000, nextPageToken);
+
+              for (const user of page.users) {
+                console.log(
+                  "UID=" + user.uid +
+                  " | EMAIL=" + (user.email || "(none)") +
+                  " | NAME=" + (user.displayName || "(none)") +
+                  " | DISABLED=" + user.disabled
+                );
+              }
+
+              nextPageToken = page.pageToken;
+            } while (nextPageToken);
+
+            console.log("========================================");
+
+            const finalUser =
+              await auth.getUser(ADMIN_UID);
+
+            if (
+              finalUser.uid !== ADMIN_UID ||
+              finalUser.email !== syntheticEmail ||
+              finalUser.disabled
+            ) {
+              throw new Error(
+                "RED: FINAL ADMIN VERIFICATION FAILED."
+              );
+            }
+
+            console.log("");
+            console.log("========================================");
+            console.log("GREEN: ADMIN RECOVERY VERIFIED");
+            console.log("========================================");
+            console.log(
+              "Firebase project: " + EXPECTED_PROJECT
+            );
+            console.log(
+              "Admin UID: " + ADMIN_UID
+            );
+            console.log(
+              "Admin Auth email: " + syntheticEmail
+            );
+            console.log(
+              "Admin Firestore role: ADMIN"
+            );
+            console.log("========================================");
+          }
+
+          main().catch(error => {
+            console.error("");
+            console.error("========================================");
+            console.error("RED: ADMIN RECOVERY FAILED");
+            console.error("========================================");
+            console.error(
+              error.stack || error.message || error
+            );
+            console.error("========================================");
+            process.exit(1);
+          });
+          EOF
+
+          node recover-admin.js
+
       - name: GREEN
-        run: echo "GREEN: RECOVER ADMIN WORKFLOW IS REGISTERED"
+        run: |
+          echo "========================================"
+          echo "GREEN: ADMIN ACCOUNT RESTORED AND VERIFIED"
+          echo "========================================"
