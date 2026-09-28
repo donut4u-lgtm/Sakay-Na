@@ -3,34 +3,100 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+
+<!-- GREEN: Sakay Na public download page -->
+<!-- RED MANTRA: Never send users to the GitHub release description page. -->
+<!-- GREEN: DOWNLOAD button must point directly to the APK file. -->
+
 <title>Sakay Na — Download</title>
+
 <style>
-body{margin:0;font-family:Arial,sans-serif;background:#f5f7fb;color:#172033}
-.wrap{max-width:560px;margin:auto;padding:32px 20px;text-align:center}
-.card{background:white;border-radius:20px;padding:28px;box-shadow:0 8px 30px rgba(0,0,0,.08)}
-h1{font-size:36px;margin:8px 0;color:#1473e6}
-.tag{font-size:18px;margin-bottom:24px}
-a{display:block;text-decoration:none;padding:16px;margin:12px 0;border-radius:12px;font-weight:700;color:white;background:#1473e6}
-.note{font-size:13px;color:#667085;margin-top:22px}
+body{
+    margin:0;
+    font-family:Arial,sans-serif;
+    background:#f5f7fb;
+    color:#172033;
+}
+
+.wrap{
+    max-width:560px;
+    margin:auto;
+    padding:32px 20px;
+    text-align:center;
+}
+
+.card{
+    background:white;
+    border-radius:20px;
+    padding:28px;
+    box-shadow:0 8px 30px rgba(0,0,0,.08);
+}
+
+h1{
+    font-size:36px;
+    margin:8px 0;
+    color:#1473e6;
+}
+
+.tag{
+    font-size:18px;
+    margin-bottom:24px;
+}
+
+.download{
+    display:block;
+    text-decoration:none;
+    padding:16px;
+    margin:12px 0;
+    border-radius:12px;
+    font-weight:700;
+    color:white;
+    background:#1473e6;
+}
+
+.note{
+    font-size:13px;
+    color:#667085;
+    margin-top:22px;
+}
 </style>
 </head>
+
 <body>
+
 <div class="wrap">
 <div class="card">
-<div style="font-size:54px">🛺</div>
-<h1>SAKAY NA</h1>
-<div class="tag">Community tricycle ride app</div>
 
-<a href="https://github.com/donut4u-lgtm/Sakay-Na/releases/latest">
+<div style="font-size:54px">🛺</div>
+
+<h1>SAKAY NA</h1>
+
+<div class="tag">
+Community tricycle ride app
+</div>
+
+<!--
+GREEN:
+This link downloads the APK directly.
+
+RED:
+Do NOT change this to /releases/latest.
+That opens the GitHub release description instead of downloading the APK.
+-->
+
+<a
+class="download"
+href="https://github.com/donut4u-lgtm/Sakay-Na/releases/download/v1.0.1/Sakay-Na-v2.apk">
 DOWNLOAD SAKAY NA
 </a>
 
 <p class="note">
 One app for both Passengers and Drivers.
-Download the latest official release.
+Download the latest official Sakay Na release.
 </p>
 
 </div>
 </div>
+
 </body>
 </html>
