@@ -1,3 +1,4 @@
+
 name: Recover Sakay Na Admin
 
 on:
@@ -16,7 +17,7 @@ jobs:
       - name: Install Firebase Admin SDK
         run: npm install firebase-admin
 
-      - name: Recover Admin
+      - name: Recover Admin Account
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           ADMIN_PHONE: ${{ secrets.SAKAYNA_ADMIN_PHONE }}
@@ -39,57 +40,61 @@ jobs:
           const ADMIN_UID =
             "Ld3rzaCvAGNlXBDCofB3mWjgXWp2";
 
-          const phone = process.env.ADMIN_PHONE.trim();
-          const password = process.env.ADMIN_PASSWORD;
+          const phone = (process.env.ADMIN_PHONE || "").trim();
+          const password = process.env.ADMIN_PASSWORD || "";
 
           function normalizePhone(value) {
             let p = value.replace(/[^0-9+]/g, "");
 
             if (p.startsWith("+63")) {
-              return p.substring(1);
+              p = "63" + p.substring(3);
+            } else if (p.startsWith("09")) {
+              p = "63" + p.substring(1);
+            } else if (p.startsWith("9") && p.length === 10) {
+              p = "63" + p;
             }
 
-            if (p.startsWith("63")) {
-              return p;
-            }
-
-            if (p.startsWith("09")) {
-              return "63" + p.substring(1);
-            }
-
-            if (p.startsWith("9")) {
-              return "63" + p;
+            if (!/^63[0-9]{10}$/.test(p)) {
+              throw new Error(
+                "Invalid Philippine phone format in SAKAYNA_ADMIN_PHONE secret."
+              );
             }
 
             return p;
           }
 
-          const normalizedPhone = normalizePhone(phone);
-          const syntheticEmail =
-            normalizedPhone + "@sakayna.app";
-
           async function main() {
+            if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
+              throw new Error("FIREBASE_SERVICE_ACCOUNT secret is missing.");
+            }
 
-            let user;
+            if (!phone) {
+              throw new Error("SAKAYNA_ADMIN_PHONE secret is missing.");
+            }
+
+            if (!password) {
+              throw new Error("SAKAYNA_ADMIN_PASSWORD secret is missing.");
+            }
+
+            const normalizedPhone = normalizePhone(phone);
+            const syntheticEmail =
+              normalizedPhone + "@sakayna.app";
+
+            console.log("Checking Admin UID...");
+
+            let existingUser = null;
 
             try {
-              user = await auth.getUser(ADMIN_UID);
-
-              console.log(
-                "Admin Auth account already exists."
-              );
-
+              existingUser = await auth.getUser(ADMIN_UID);
+              console.log("Admin UID already exists.");
             } catch (error) {
-
               if (error.code !== "auth/user-not-found") {
                 throw error;
               }
 
-              console.log(
-                "Admin Auth account missing. Recreating..."
-              );
+              console.log("Admin UID does not exist. Creating it...");
 
-              user = await auth.createUser({
+              await auth.createUser({
                 uid: ADMIN_UID,
                 email: syntheticEmail,
                 password: password,
@@ -97,20 +102,17 @@ jobs:
                 disabled: false
               });
 
-              console.log(
-                "Admin Auth account recreated."
-              );
+              console.log("Admin Auth account created.");
             }
 
-            await auth.updateUser(
-              ADMIN_UID,
-              {
-                email: syntheticEmail,
-                password: password,
-                displayName: "Sakay Na Admin",
-                disabled: false
-              }
-            );
+            await auth.updateUser(ADMIN_UID, {
+              email: syntheticEmail,
+              password: password,
+              displayName: "Sakay Na Admin",
+              disabled: false
+            });
+
+            console.log("Admin Auth account updated.");
 
             await db
               .collection("users")
@@ -119,31 +121,40 @@ jobs:
                 {
                   uid: ADMIN_UID,
                   role: "ADMIN",
+                  admin: true,
                   name: "Sakay Na Admin",
                   phone: phone,
                   phoneNumber: phone,
                   email: syntheticEmail,
-                  admin: true,
-                  createdAt:
-                    admin.firestore.FieldValue.serverTimestamp(),
                   updatedAt:
                     admin.firestore.FieldValue.serverTimestamp()
                 },
                 { merge: true }
               );
 
+            console.log("Admin Firestore profile restored.");
+
             console.log("");
-            console.log("================================");
-            console.log("ADMIN RECOVERY SUCCESSFUL");
-            console.log("UID: " + ADMIN_UID);
-            console.log("================================");
+            console.log("========================================");
+            console.log("GREEN: ADMIN RECOVERY SUCCESSFUL");
+            console.log("========================================");
+            console.log("Admin UID restored:");
+            console.log(ADMIN_UID);
+            console.log("========================================");
           }
 
           main().catch(error => {
-            console.error("ADMIN RECOVERY FAILED:");
-            console.error(error);
+            console.error("");
+            console.error("RED: ADMIN RECOVERY FAILED");
+            console.error(error.message || error);
             process.exit(1);
           });
           EOF
 
           node recover-admin.js
+
+      - name: GREEN
+        run: |
+          echo "========================================"
+          echo "GREEN: ADMIN ACCOUNT RESTORED"
+          echo "========================================"
