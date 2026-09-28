@@ -1,8 +1,10 @@
 package com.sakyna.app;
 
+import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageInfo;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Handler;
@@ -51,24 +53,55 @@ public final class UpdateChecker {
                     return;
                 }
 
-                int currentCode =
-                        com.sakyna.app.BuildConfig.VERSION_CODE;
+                long currentCode =
+                        getInstalledVersionCode(context);
 
                 if (release.versionCode <= currentCode) {
                     return;
                 }
 
-                if (!(context instanceof android.app.Activity)) {
+                if (!(context instanceof Activity)) {
                     return;
                 }
 
+                Activity activity =
+                        (Activity) context;
+
                 showUpdateDialog(
-                        (android.app.Activity) context,
+                        activity,
                         release.versionName,
                         release.versionCode
                 );
             });
         });
+    }
+
+    private static long getInstalledVersionCode(
+            Context context
+    ) {
+
+        try {
+
+            PackageInfo packageInfo =
+                    context.getPackageManager()
+                            .getPackageInfo(
+                                    context.getPackageName(),
+                                    0
+                            );
+
+            if (Build.VERSION.SDK_INT >= 28) {
+
+                return packageInfo.getLongVersionCode();
+
+            } else {
+
+                return packageInfo.versionCode;
+            }
+
+        } catch (Exception ignored) {
+
+            return 0;
+        }
     }
 
     private static ReleaseInfo fetchLatestRelease() {
@@ -146,7 +179,7 @@ public final class UpdateChecker {
                             ""
                     );
 
-            int versionCode =
+            long versionCode =
                     extractVersionCode(body);
 
             if (versionCode <= 0) {
@@ -175,7 +208,7 @@ public final class UpdateChecker {
         }
     }
 
-    private static int extractVersionCode(
+    private static long extractVersionCode(
             String body
     ) {
 
@@ -197,7 +230,7 @@ public final class UpdateChecker {
 
         try {
 
-            return Integer.parseInt(
+            return Long.parseLong(
                     matcher.group(1)
             );
 
@@ -208,9 +241,9 @@ public final class UpdateChecker {
     }
 
     private static void showUpdateDialog(
-            android.app.Activity activity,
+            Activity activity,
             String versionName,
-            int versionCode
+            long versionCode
     ) {
 
         if (activity.isFinishing()) {
@@ -277,11 +310,11 @@ public final class UpdateChecker {
 
         final String versionName;
 
-        final int versionCode;
+        final long versionCode;
 
         ReleaseInfo(
                 String versionName,
-                int versionCode
+                long versionCode
         ) {
 
             this.versionName =
