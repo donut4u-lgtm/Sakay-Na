@@ -25,17 +25,19 @@ jobs:
       - name: Check signing secrets
         env:
           KEYSTORE_BASE64: ${{ secrets.SAKAYNA_KEYSTORE_BASE64 }}
-          KEYSTORE_PASSWORD: ${{ secrets.SAKAYNA_KEYSTORE_PASSWORD }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         run: |
           if [ -z "$KEYSTORE_BASE64" ]; then
-            echo "Missing SAKAYNA_KEYSTORE_BASE64"
+            echo "RED: Missing SAKAYNA_KEYSTORE_BASE64"
             exit 1
           fi
 
           if [ -z "$KEYSTORE_PASSWORD" ]; then
-            echo "Missing SAKAYNA_KEYSTORE_PASSWORD"
+            echo "RED: Missing KEYSTORE_PASSWORD"
             exit 1
           fi
+
+          echo "GREEN: Signing secrets are present."
 
       - name: Restore release keystore
         env:
@@ -45,56 +47,96 @@ jobs:
             > "$RUNNER_TEMP/sakayna-release.jks"
 
           if [ ! -s "$RUNNER_TEMP/sakayna-release.jks" ]; then
-            echo "Keystore restore failed."
+            echo "RED: Keystore restore failed."
             exit 1
           fi
 
-          echo "Keystore restored."
+          echo "GREEN: Keystore restored."
 
-      - name: Detect actual keystore alias
+      - name: Verify correct signing certificate
         env:
-          KEYSTORE_PASSWORD: ${{ secrets.SAKAYNA_KEYSTORE_PASSWORD }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         run: |
-          ALIAS=$(keytool -list \
+          keytool -list \
             -v \
             -keystore "$RUNNER_TEMP/sakayna-release.jks" \
             -storepass "$KEYSTORE_PASSWORD" \
-            2>/dev/null |
-            awk -F': ' '/Alias name:/ {print $2; exit}')
+            > "$RUNNER_TEMP/keystore-info.txt" 2>&1
 
-          if [ -z "$ALIAS" ]; then
-            echo "Could not detect keystore alias."
+          if [ $? -ne 0 ]; then
+            echo "RED: KEYSTORE_PASSWORD cannot open the keystore."
             exit 1
           fi
 
-          echo "Detected release alias."
+          ALIAS=$(awk -F': ' '/Alias name:/ {
+            print $2
+            exit
+          }' "$RUNNER_TEMP/keystore-info.txt")
+
+          CERT=$(awk -F': ' '/SHA256:/ {
+            gsub(/[ :]/, "", $2)
+            print tolower($2)
+            exit
+          }' "$RUNNER_TEMP/keystore-info.txt")
+
+          EXPECTED="f1fbb77d0fa7d5464db0cc3f887d951a61b9f4933862d8e5c9c4a40cbe5347cf"
+
+          if [ -z "$ALIAS" ]; then
+            echo "RED: No signing alias found."
+            exit 1
+          fi
+
+          echo "Signing alias detected."
+
+          if [ -z "$CERT" ]; then
+            echo "RED: No SHA-256 certificate found."
+            exit 1
+          fi
+
+          if [ "$CERT" != "$EXPECTED" ]; then
+            echo "RED: WRONG SIGNING KEY"
+            echo "Expected installed-app certificate:"
+            echo "$EXPECTED"
+            echo "Keystore certificate:"
+            echo "$CERT"
+            exit 1
+          fi
+
+          echo "GREEN: Correct Sakay Na signing certificate confirmed."
+
           echo "SAKAYNA_KEY_ALIAS=$ALIAS" >> "$GITHUB_ENV"
 
       - name: Read app version
         run: |
-          VERSION_NAME=$(grep -m1 'versionName' app/build.gradle.kts |
-            sed -E 's/.*versionName[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/')
+          VERSION_NAME=$(grep -m1 'versionName' app/build.gradle.kts \
+            | sed -E 's/.*versionName[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/')
 
-          VERSION_CODE=$(grep -m1 'versionCode' app/build.gradle.kts |
-            sed -E 's/.*versionCode[[:space:]]*=[[:space:]]*([0-9]+).*/\1/')
+          VERSION_CODE=$(grep -m1 'versionCode' app/build.gradle.kts \
+            | sed -E 's/.*versionCode[[:space:]]*=[[:space:]]*([0-9]+).*/\1/')
 
-          if [ -z "$VERSION_NAME" ] || [ -z "$VERSION_CODE" ]; then
-            echo "Could not read app version."
+          if [ -z "$VERSION_NAME" ]; then
+            echo "RED: versionName not found."
+            exit 1
+          fi
+
+          if [ -z "$VERSION_CODE" ]; then
+            echo "RED: versionCode not found."
             exit 1
           fi
 
           echo "VERSION_NAME=$VERSION_NAME" >> "$GITHUB_ENV"
           echo "VERSION_CODE=$VERSION_CODE" >> "$GITHUB_ENV"
 
-          echo "Release version: $VERSION_NAME"
-          echo "Version code: $VERSION_CODE"
+          echo "GREEN: Version $VERSION_NAME"
+          echo "GREEN: Version code $VERSION_CODE"
 
       - name: Build signed release
         env:
           SAKAYNA_KEYSTORE_PATH: ${{ runner.temp }}/sakayna-release.jks
-          SAKAYNA_KEYSTORE_PASSWORD: ${{ secrets.SAKAYNA_KEYSTORE_PASSWORD }}
+          SAKAYNA_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         run: |
-          wget -q https://services.gradle.org/distributions/gradle-8.10.2-bin.zip
+          wget -q \
+            https://services.gradle.org/distributions/gradle-8.10.2-bin.zip
 
           unzip -q gradle-8.10.2-bin.zip \
             -d "$RUNNER_TEMP/gradle"
@@ -108,13 +150,13 @@ jobs:
           APK="app/build/outputs/apk/release/app-release.apk"
 
           if [ ! -s "$APK" ]; then
-            echo "Release APK was not produced."
+            echo "RED: Release APK was not produced."
             exit 1
           fi
 
-          echo "Release APK created successfully."
+          echo "GREEN: Release APK created."
 
-      - name: Verify APK signing certificate
+      - name: Verify final APK certificate
         run: |
           APK="app/build/outputs/apk/release/app-release.apk"
 
@@ -124,17 +166,50 @@ jobs:
             | tail -n 1)
 
           if [ -z "$APKSIGNER" ]; then
-            echo "apksigner not found."
+            echo "RED: apksigner not found."
             exit 1
           fi
 
-          "$APKSIGNER" verify --verbose --print-certs "$APK"
+          echo "Checking final APK certificate..."
+
+          "$APKSIGNER" verify \
+            --verbose \
+            --print-certs \
+            "$APK"
+
+          CERT=$(
+            "$APKSIGNER" verify \
+              --print-certs \
+              "$APK" 2>&1 \
+              | awk -F': ' '/Signer #1 certificate SHA-256 digest:/ {
+                  gsub(/[ :]/, "", $2)
+                  print tolower($2)
+                  exit
+                }'
+          )
+
+          EXPECTED="f1fbb77d0fa7d5464db0cc3f887d951a61b9f4933862d8e5c9c4a40cbe5347cf"
+
+          echo "Expected certificate:"
+          echo "$EXPECTED"
+
+          echo "Actual APK certificate:"
+          echo "$CERT"
+
+          if [ "$CERT" != "$EXPECTED" ]; then
+            echo "RED: FINAL APK SIGNING CERTIFICATE DOES NOT MATCH."
+            exit 1
+          fi
+
+          echo "GREEN: FINAL APK CERTIFICATE MATCHES INSTALLED SAKAY NA."
 
       - name: Prepare release APK
         run: |
           cp \
             app/build/outputs/apk/release/app-release.apk \
             "Sakay-Na-v${VERSION_NAME}-${VERSION_CODE}.apk"
+
+          echo "GREEN: Release APK prepared."
 
       - name: Publish GitHub Release
         env:
@@ -144,9 +219,10 @@ jobs:
           APK="Sakay-Na-v${VERSION_NAME}-${VERSION_CODE}.apk"
 
           if gh release view "$TAG" \
-            --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            --repo "${{ github.repository }}" \
+            >/dev/null 2>&1; then
 
-            echo "Release $TAG already exists."
+            echo "Updating existing release $TAG"
 
             gh release upload "$TAG" \
               "$APK" \
@@ -159,6 +235,8 @@ jobs:
 
           else
 
+            echo "Creating release $TAG"
+
             gh release create "$TAG" \
               "$APK" \
               --repo "${{ github.repository }}" \
@@ -168,7 +246,9 @@ jobs:
 
           fi
 
-      - name: Upload APK artifact
+          echo "GREEN: GitHub Release published."
+
+      - name: Upload signed APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: Sakay-Na-release-apk
