@@ -79,7 +79,7 @@ jobs:
             exit
           }' "$RUNNER_TEMP/keystore-info.txt")
 
-          EXPECTED="f1fbb77d0fa7d5464db0cc3f887d951a61b9f4933862d8e5c9c4a40cbe5347cf"
+          EXPECTED="14904b17ad9917b5daf05f0655e56176e7b13bbbdec0d2cccecd09de017916d4"
 
           if [ -z "$ALIAS" ]; then
             echo "RED: No signing alias found."
@@ -188,7 +188,7 @@ jobs:
                 }'
           )
 
-          EXPECTED="f1fbb77d0fa7d5464db0cc3f887d951a61b9f4933862d8e5c9c4a40cbe5347cf"
+          EXPECTED="14904b17ad9917b5daf05f0655e56176e7b13bbbdec0d2cccecd09de017916d4"
 
           echo "Expected certificate:"
           echo "$EXPECTED"
