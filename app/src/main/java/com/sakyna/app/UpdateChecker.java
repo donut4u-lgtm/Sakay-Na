@@ -52,7 +52,7 @@ public final class UpdateChecker {
                 }
 
                 int currentCode =
-                        BuildConfig.VERSION_CODE;
+                        com.sakyna.app.BuildConfig.VERSION_CODE;
 
                 if (release.versionCode <= currentCode) {
                     return;
