@@ -587,7 +587,7 @@ public class MainActivity extends Activity {
 
         String authEmail =
                 normalizedPhone
-                        + "@sakyna.app";
+                        + "@sakayna.app";
 
         loginButton.setEnabled(false);
 
@@ -1089,17 +1089,25 @@ public class MainActivity extends Activity {
         }
 
         String value =
-                input.trim()
-                        .replace(" ", "")
-                        .replace("-", "")
-                        .replace("(", "")
-                        .replace(")", "");
+                input.trim();
+
+        // Remove spaces, dashes, parentheses,
+        // and any other non-phone characters.
+        value =
+                value.replaceAll(
+                        "[^0-9+]",
+                        ""
+                );
 
         if (value.startsWith("+63")) {
 
             value =
                     "63"
                             + value.substring(3);
+
+        } else if (value.startsWith("63")) {
+
+            // Already normalized.
 
         } else if (value.startsWith("09")) {
 
@@ -1113,6 +1121,7 @@ public class MainActivity extends Activity {
             value =
                     "63"
                             + value;
+
         }
 
         if (!value.matches(
