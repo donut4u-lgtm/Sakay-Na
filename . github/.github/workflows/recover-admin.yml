@@ -25,6 +25,9 @@ jobs:
           cat > recover-admin.js <<'EOF'
           const admin = require("firebase-admin");
 
+          const EXPECTED_PROJECT = "sakay-na-1cafa";
+          const ADMIN_UID = "Ld3rzaCvAGNlXBDCofB3mWjgXWp2";
+
           const rawServiceAccount =
             process.env.FIREBASE_SERVICE_ACCOUNT;
 
@@ -44,21 +47,18 @@ jobs:
             );
           }
 
-          const EXPECTED_PROJECT =
-            "sakay-na-1cafa";
-
           if (serviceAccount.project_id !== EXPECTED_PROJECT) {
             throw new Error(
-              "RED: Firebase service account belongs to project '" +
+              "RED: Service account project is '" +
               serviceAccount.project_id +
-              "', not '" +
+              "', expected '" +
               EXPECTED_PROJECT +
               "'."
             );
           }
 
           console.log(
-            "GREEN: Firebase project verified: " +
+            "GREEN: Service-account project verified: " +
             EXPECTED_PROJECT
           );
 
@@ -69,9 +69,6 @@ jobs:
 
           const auth = admin.auth();
           const db = admin.firestore();
-
-          const ADMIN_UID =
-            "Ld3rzaCvAGNlXBDCofB3mWjgXWp2";
 
           const phone =
             (process.env.ADMIN_PHONE || "").trim();
@@ -121,33 +118,52 @@ jobs:
             const syntheticEmail =
               normalizedPhone + "@sakayna.app";
 
-            console.log(
-              "Checking Admin UID..."
-            );
+            console.log("");
+            console.log("========================================");
+            console.log("FIREBASE AUTH DIAGNOSTIC");
+            console.log("========================================");
+            console.log("Project: " + EXPECTED_PROJECT);
+            console.log("Target Admin UID: " + ADMIN_UID);
+            console.log("========================================");
 
-            let userExists = false;
+            // STEP 1: Check target UID.
+            let targetExists = false;
 
             try {
-              await auth.getUser(ADMIN_UID);
-              userExists = true;
+              const existing =
+                await auth.getUser(ADMIN_UID);
+
+              targetExists = true;
 
               console.log(
-                "Admin UID already exists."
+                "GREEN: Target Admin UID EXISTS."
+              );
+              console.log(
+                "Auth UID: " + existing.uid
+              );
+              console.log(
+                "Auth email: " + (existing.email || "(none)")
+              );
+              console.log(
+                "Display name: " +
+                (existing.displayName || "(none)")
+              );
+              console.log(
+                "Disabled: " + existing.disabled
               );
             } catch (error) {
-              if (
-                error.code !==
-                "auth/user-not-found"
-              ) {
+              if (error.code === "auth/user-not-found") {
+                console.log(
+                  "Admin UID does not currently exist."
+                );
+              } else {
                 throw error;
               }
-
-              console.log(
-                "Admin UID does not exist."
-              );
             }
 
-            if (!userExists) {
+            // STEP 2: Create target Admin if missing.
+            if (!targetExists) {
+              console.log("");
               console.log(
                 "Creating Admin Auth account..."
               );
@@ -161,14 +177,11 @@ jobs:
               });
 
               console.log(
-                "Admin Auth account creation completed."
+                "GREEN: Admin Auth account CREATED."
               );
             }
 
-            console.log(
-              "Updating Admin Auth account..."
-            );
-
+            // STEP 3: Force the exact credentials.
             await auth.updateUser(
               ADMIN_UID,
               {
@@ -180,41 +193,36 @@ jobs:
             );
 
             console.log(
-              "Admin Auth account update completed."
+              "GREEN: Admin credentials updated."
             );
 
-            console.log(
-              "Verifying Admin Auth account..."
-            );
-
+            // STEP 4: Verify the exact UID again.
             const verifiedUser =
               await auth.getUser(ADMIN_UID);
 
             if (verifiedUser.uid !== ADMIN_UID) {
               throw new Error(
-                "RED: Firebase returned the wrong Admin UID."
+                "RED: Wrong UID returned by Firebase."
+              );
+            }
+
+            if (verifiedUser.email !== syntheticEmail) {
+              throw new Error(
+                "RED: Admin email does not match expected synthetic email."
               );
             }
 
             if (verifiedUser.disabled) {
               throw new Error(
-                "RED: Admin Auth account is disabled."
-              );
-            }
-
-            if (
-              verifiedUser.email !==
-              syntheticEmail
-            ) {
-              throw new Error(
-                "RED: Admin email verification failed."
+                "RED: Admin account is disabled."
               );
             }
 
             console.log(
-              "GREEN: Admin Auth UID verified."
+              "GREEN: Exact Admin Auth account verified."
             );
 
+            // STEP 5: Restore Firestore profile.
             await db
               .collection("users")
               .doc(ADMIN_UID)
@@ -236,71 +244,99 @@ jobs:
               );
 
             console.log(
-              "GREEN: Admin Firestore profile restored."
+              "GREEN: Admin Firestore profile written."
             );
 
-            const verifyDoc =
+            const profile =
               await db
                 .collection("users")
                 .doc(ADMIN_UID)
                 .get();
 
-            if (!verifyDoc.exists) {
+            if (!profile.exists) {
               throw new Error(
-                "RED: Admin Firestore document was not created."
+                "RED: Admin Firestore profile missing."
               );
             }
 
-            const data = verifyDoc.data();
-
-            if (data.role !== "ADMIN") {
+            if (profile.data().role !== "ADMIN") {
               throw new Error(
-                "RED: Admin Firestore role verification failed."
+                "RED: Firestore Admin role is incorrect."
               );
             }
 
             console.log(
-              "GREEN: Admin Firestore document verified."
+              "GREEN: Admin Firestore profile verified."
             );
+
+            // STEP 6: LIST ACTUAL AUTH USERS.
+            console.log("");
+            console.log("========================================");
+            console.log("ACTUAL FIREBASE AUTH USERS");
+            console.log("========================================");
+
+            let nextPageToken;
+
+            do {
+              const page =
+                await auth.listUsers(1000, nextPageToken);
+
+              for (const user of page.users) {
+                console.log(
+                  "UID=" + user.uid +
+                  " | EMAIL=" + (user.email || "(none)") +
+                  " | NAME=" + (user.displayName || "(none)") +
+                  " | DISABLED=" + user.disabled
+                );
+              }
+
+              nextPageToken = page.pageToken;
+            } while (nextPageToken);
+
+            console.log("========================================");
+
+            // STEP 7: FINAL hard verification.
+            const finalUser =
+              await auth.getUser(ADMIN_UID);
+
+            if (
+              finalUser.uid !== ADMIN_UID ||
+              finalUser.email !== syntheticEmail ||
+              finalUser.disabled
+            ) {
+              throw new Error(
+                "RED: FINAL ADMIN VERIFICATION FAILED."
+              );
+            }
 
             console.log("");
+            console.log("========================================");
+            console.log("GREEN: ADMIN RECOVERY VERIFIED");
+            console.log("========================================");
             console.log(
-              "========================================"
+              "Firebase project: " + EXPECTED_PROJECT
             );
             console.log(
-              "GREEN: ADMIN RECOVERY VERIFIED"
+              "Admin UID: " + ADMIN_UID
             );
             console.log(
-              "========================================"
+              "Admin Auth email: " + syntheticEmail
             );
             console.log(
-              "Firebase project: sakay-na-1cafa"
+              "Admin Firestore role: ADMIN"
             );
-            console.log(
-              "Admin UID verified successfully."
-            );
-            console.log(
-              "========================================"
-            );
+            console.log("========================================");
           }
 
           main().catch(error => {
             console.error("");
+            console.error("========================================");
+            console.error("RED: ADMIN RECOVERY FAILED");
+            console.error("========================================");
             console.error(
-              "========================================"
+              error.stack || error.message || error
             );
-            console.error(
-              "RED: ADMIN RECOVERY FAILED"
-            );
-            console.error(
-              "========================================"
-            );
-            console.error(
-              error.message || error
-            );
-            console.error(
-              "========================================"
-            );
+            console.error("========================================");
             process.exit(1);
           });
           EOF
