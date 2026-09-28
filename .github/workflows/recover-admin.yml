@@ -29,22 +29,9 @@ jobs:
         run: |
           set -e
 
-          echo "Starting Sakay Na Admin recovery..."
-
-          test -n "$FIREBASE_SERVICE_ACCOUNT" || {
-            echo "RED: FIREBASE_SERVICE_ACCOUNT secret is missing."
-            exit 1
-          }
-
-          test -n "$SAKAYNA_ADMIN_PHONE" || {
-            echo "RED: SAKAYNA_ADMIN_PHONE secret is missing."
-            exit 1
-          }
-
-          test -n "$SAKAYNA_ADMIN_PASSWORD" || {
-            echo "RED: SAKAYNA_ADMIN_PASSWORD secret is missing."
-            exit 1
-          }
+          test -n "$FIREBASE_SERVICE_ACCOUNT"
+          test -n "$SAKAYNA_ADMIN_PHONE"
+          test -n "$SAKAYNA_ADMIN_PASSWORD"
 
           python <<'PY'
           import json
@@ -56,12 +43,12 @@ jobs:
           PROJECT_ID = "sakay-na-1cafa"
           ADMIN_UID = "Ld3rzaCvAGNlXBDCofB3mWjgXWp2"
 
-          service_account = json.loads(os.environ["FIREBASE_SERVICE_ACCOUNT"])
+          service_account = json.loads(
+              os.environ["FIREBASE_SERVICE_ACCOUNT"]
+          )
 
           if service_account.get("project_id") != PROJECT_ID:
-              raise RuntimeError(
-                  f"RED: Wrong Firebase project: {service_account.get('project_id')}"
-              )
+              raise RuntimeError("RED: Wrong Firebase project.")
 
           def normalize_phone(phone):
               digits = re.sub(r"\D", "", phone)
@@ -73,34 +60,95 @@ jobs:
               elif digits.startswith("9") and len(digits) == 10:
                   normalized = "63" + digits
               else:
-                  raise ValueError("Invalid Philippine mobile number")
+                  raise ValueError("Invalid Philippine phone number")
 
               if not re.fullmatch(r"63\d{10}", normalized):
-                  raise ValueError("Invalid Philippine mobile number")
+                  raise ValueError("Invalid Philippine phone number")
 
               return normalized
 
-          phone = normalize_phone(os.environ["SAKAYNA_ADMIN_PHONE"])
+          phone = normalize_phone(
+              os.environ["SAKAYNA_ADMIN_PHONE"]
+          )
+
           email = phone + "@sakayna.app"
           password = os.environ["SAKAYNA_ADMIN_PASSWORD"]
 
-          print("Firebase project verified.")
-          print(f"Admin email: {email}")
-          print(f"Required Admin UID: {ADMIN_UID}")
-
-          if not firebase_admin._apps:
-              cred = credentials.Certificate(service_account)
-              firebase_admin.initialize_app(
-                  cred,
-                  {"projectId": PROJECT_ID}
-              )
+          firebase_admin.initialize_app(
+              credentials.Certificate(service_account),
+              {"projectId": PROJECT_ID}
+          )
 
           db = firestore.client()
 
-          # Find the existing Auth account by email.
           try:
               existing = auth.get_user_by_email(email)
 
               if existing.uid != ADMIN_UID:
                   raise RuntimeError(
-                      "
+                      "RED: Admin email belongs to another UID."
+                  )
+
+              auth.update_user(
+                  ADMIN_UID,
+                  email=email,
+                  password=password,
+                  display_name="Sakay Na Admin",
+                  disabled=False
+              )
+
+          except auth.UserNotFoundError:
+              auth.create_user(
+                  uid=ADMIN_UID,
+                  email=email,
+                  password=password,
+                  display_name="Sakay Na Admin",
+                  disabled=False
+              )
+
+          user = auth.get_user(ADMIN_UID)
+
+          if user.uid != ADMIN_UID:
+              raise RuntimeError("RED: UID verification failed.")
+
+          if user.email != email:
+              raise RuntimeError("RED: Email verification failed.")
+
+          if user.disabled:
+              raise RuntimeError("RED: Admin is disabled.")
+
+          db.collection("users").document(ADMIN_UID).set(
+              {
+                  "uid": ADMIN_UID,
+                  "role": "ADMIN",
+                  "admin": True,
+                  "name": "Sakay Na Admin",
+                  "phone": phone,
+                  "phoneNumber": phone,
+                  "email": email
+              },
+              merge=True
+          )
+
+          doc = (
+              db.collection("users")
+              .document(ADMIN_UID)
+              .get()
+          )
+
+          if not doc.exists:
+              raise RuntimeError(
+                  "RED: Admin Firestore document missing."
+              )
+
+          data = doc.to_dict()
+
+          if data.get("role") != "ADMIN":
+              raise RuntimeError("RED: Admin role verification failed.")
+
+          if data.get("admin") is not True:
+              raise RuntimeError("RED: Admin flag verification failed.")
+
+          print("GREEN: ADMIN RECOVERY VERIFIED")
+          print("GREEN: ADMIN ACCOUNT RESTORED AND VERIFIED")
+          PY
