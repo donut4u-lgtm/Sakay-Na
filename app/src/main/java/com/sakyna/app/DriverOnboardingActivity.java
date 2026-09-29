@@ -731,15 +731,32 @@ public class DriverOnboardingActivity extends Activity {
 
                     registrationInProgress = false;
 
+                    /*
+                     * NORMAL SAKAY NA FLOW:
+                     *
+                     * Register
+                     *      ↓
+                     * Login screen
+                     *      ↓
+                     * Phone + Password
+                     *      ↓
+                     * Driver Dashboard
+                     *
+                     * Firebase automatically signs the newly
+                     * created account in. We intentionally sign
+                     * out here so the driver must log in normally.
+                     */
+                    auth.signOut();
+
                     Toast.makeText(
                             this,
-                            "✅ Driver account created. Waiting for Admin approval.",
+                            "✅ Driver account created. Please log in. Waiting for Admin approval.",
                             Toast.LENGTH_LONG
                     ).show();
 
                     Intent intent = new Intent(
                             DriverOnboardingActivity.this,
-                            DriverActivity.class
+                            MainActivity.class
                     );
 
                     intent.addFlags(
