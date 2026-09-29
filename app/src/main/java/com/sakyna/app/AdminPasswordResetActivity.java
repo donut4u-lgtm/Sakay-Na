@@ -1,11 +1,10 @@
 package com.sakyna.app;
 
 import android.app.Activity;
-import android.os.Bundle;
 import android.graphics.Color;
+import android.os.Bundle;
 import android.text.InputType;
 import android.view.Gravity;
-import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -22,15 +21,18 @@ import java.util.Map;
 
 public class AdminPasswordResetActivity extends Activity {
 
+    private static final String ADMIN_UID =
+            "Ld3rzaCvAGNlXBDCofB3mWjgXWp2";
+
     private FirebaseAuth auth;
     private FirebaseFunctions functions;
 
-    private EditText uidField;
+    private EditText phoneField;
     private EditText passwordField;
+    private TextView accountResult;
     private Button resetButton;
 
-    private static final String ADMIN_UID =
-            "Ld3rzaCvAGNlXBDCofB3mWjgXWp2";
+    private String targetUid = "";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -46,182 +48,299 @@ public class AdminPasswordResetActivity extends Activity {
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(35, 35, 35, 35);
+        root.setPadding(28, 28, 28, 28);
         root.setBackgroundColor(Color.WHITE);
 
         TextView title = new TextView(this);
-        title.setText("SAKAY NA ADMIN\nPASSWORD RESET");
-        title.setTextSize(24);
-        title.setTextColor(Color.BLACK);
+        title.setText("🔐 SAKAY NA ADMIN\nPASSWORD RESET");
+        title.setTextSize(25);
+        title.setTextColor(Color.rgb(0, 125, 80));
         title.setGravity(Gravity.CENTER);
-        title.setPadding(10, 10, 10, 30);
-
+        title.setPadding(10, 10, 10, 25);
         root.addView(title);
 
-        TextView warning = new TextView(this);
-        warning.setText(
+        TextView instructions = new TextView(this);
+        instructions.setText(
                 "Admin only.\n\n" +
-                "This changes the Firebase Authentication password " +
-                "without deleting the user's account or changing the UID."
+                "1. Enter the registered phone number.\n" +
+                "2. Tap SEARCH ACCOUNT.\n" +
+                "3. Verify the account owner and role.\n" +
+                "4. Set a temporary password.\n" +
+                "5. Give the temporary password to the owner privately.\n\n" +
+                "Never ask the owner to send an existing password."
         );
-        warning.setTextSize(16);
-        warning.setTextColor(Color.DKGRAY);
-        warning.setPadding(10, 10, 10, 25);
+        instructions.setTextSize(16);
+        instructions.setTextColor(Color.DKGRAY);
+        instructions.setPadding(5, 5, 5, 20);
+        root.addView(instructions);
 
-        root.addView(warning);
+        TextView phoneLabel = new TextView(this);
+        phoneLabel.setText("Registered Phone Number");
+        phoneLabel.setTextSize(16);
+        phoneLabel.setTextColor(Color.BLACK);
+        root.addView(phoneLabel);
 
-        TextView uidLabel = new TextView(this);
-        uidLabel.setText("User UID");
-        uidLabel.setTextSize(16);
-        uidLabel.setTextColor(Color.BLACK);
+        phoneField = new EditText(this);
+        phoneField.setHint("097... or 095...");
+        phoneField.setTextSize(17);
+        phoneField.setSingleLine(true);
+        phoneField.setInputType(InputType.TYPE_CLASS_PHONE);
+        root.addView(phoneField);
 
-        root.addView(uidLabel);
+        Button searchButton = new Button(this);
+        searchButton.setText("🔎 SEARCH ACCOUNT");
+        searchButton.setTextSize(17);
+        root.addView(searchButton);
 
-        uidField = new EditText(this);
-        uidField.setHint("Enter Passenger / Driver UID");
-        uidField.setText(
-                "K67cgAVvsyYEJxPFvAgGfOIPCE63"
-        );
-        uidField.setTextSize(16);
-        uidField.setSingleLine(true);
-
-        root.addView(uidField,
-                new LinearLayout.LayoutParams(
-                        -1,
-                        LinearLayout.LayoutParams.WRAP_CONTENT
-                )
-        );
+        accountResult = new TextView(this);
+        accountResult.setText("No account searched yet.");
+        accountResult.setTextSize(17);
+        accountResult.setTextColor(Color.DKGRAY);
+        accountResult.setPadding(8, 18, 8, 18);
+        root.addView(accountResult);
 
         TextView passwordLabel = new TextView(this);
-        passwordLabel.setText("New Password");
+        passwordLabel.setText("Temporary Password");
         passwordLabel.setTextSize(16);
         passwordLabel.setTextColor(Color.BLACK);
-        passwordLabel.setPadding(0, 25, 0, 0);
-
         root.addView(passwordLabel);
 
         passwordField = new EditText(this);
-        passwordField.setHint("Enter new password");
-        passwordField.setTextSize(16);
+        passwordField.setHint("At least 6 characters");
+        passwordField.setTextSize(17);
         passwordField.setSingleLine(true);
         passwordField.setInputType(
                 InputType.TYPE_CLASS_TEXT |
                 InputType.TYPE_TEXT_VARIATION_PASSWORD
         );
-
-        root.addView(passwordField,
-                new LinearLayout.LayoutParams(
-                        -1,
-                        LinearLayout.LayoutParams.WRAP_CONTENT
-                )
-        );
+        root.addView(passwordField);
 
         resetButton = new Button(this);
-        resetButton.setText("RESET PASSWORD");
+        resetButton.setText("🔑 SET TEMPORARY PASSWORD");
         resetButton.setTextSize(17);
-        resetButton.setAllCaps(false);
+        resetButton.setEnabled(false);
+        root.addView(resetButton);
 
-        LinearLayout.LayoutParams buttonParams =
-                new LinearLayout.LayoutParams(
-                        -1,
-                        LinearLayout.LayoutParams.WRAP_CONTENT
-                );
+        Button backButton = new Button(this);
+        backButton.setText("BACK TO ADMIN");
+        backButton.setTextSize(16);
+        root.addView(backButton);
 
-        buttonParams.setMargins(0, 35, 0, 15);
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(root);
+        setContentView(scroll);
 
-        root.addView(resetButton, buttonParams);
-
-        Button closeButton = new Button(this);
-        closeButton.setText("BACK TO ADMIN");
-        closeButton.setTextSize(16);
-
-        root.addView(closeButton);
-
-        ScrollView scrollView = new ScrollView(this);
-        scrollView.addView(root);
-
-        setContentView(scrollView);
-
+        searchButton.setOnClickListener(v -> searchAccount());
         resetButton.setOnClickListener(v -> resetPassword());
-
-        closeButton.setOnClickListener(v -> finish());
+        backButton.setOnClickListener(v -> finish());
     }
 
-    private void resetPassword() {
+    private boolean isAdmin() {
 
-        if (auth.getCurrentUser() == null) {
-            Toast.makeText(
-                    this,
-                    "Admin is not logged in.",
-                    Toast.LENGTH_LONG
-            ).show();
-            return;
-        }
+        return auth.getCurrentUser() != null
+                && ADMIN_UID.equals(
+                auth.getCurrentUser().getUid()
+        );
+    }
 
-        String currentUid =
-                auth.getCurrentUser().getUid();
+    private void searchAccount() {
 
-        if (!ADMIN_UID.equals(currentUid)) {
+        if (!isAdmin()) {
+
             Toast.makeText(
                     this,
                     "ACCESS DENIED: Admin only.",
                     Toast.LENGTH_LONG
             ).show();
+
             return;
         }
 
-        String targetUid =
-                uidField.getText().toString().trim();
+        String phone = phoneField.getText()
+                .toString()
+                .trim();
 
-        String newPassword =
-                passwordField.getText().toString();
+        if (phone.isEmpty()) {
 
-        if (targetUid.isEmpty()) {
-            uidField.setError("Enter the user UID");
-            return;
-        }
-
-        if (targetUid.equals(ADMIN_UID)) {
-            Toast.makeText(
-                    this,
-                    "You cannot reset the Admin account here.",
-                    Toast.LENGTH_LONG
-            ).show();
-            return;
-        }
-
-        if (newPassword.length() < 6) {
-            passwordField.setError(
-                    "Password must be at least 6 characters"
+            phoneField.setError(
+                    "Enter the registered phone number."
             );
+
             return;
         }
 
+        targetUid = "";
         resetButton.setEnabled(false);
-        resetButton.setText("RESETTING...");
+        accountResult.setText(
+                "Searching account..."
+        );
 
         Map<String, Object> data =
                 new HashMap<>();
 
-        data.put("targetUid", targetUid);
-        data.put("newPassword", newPassword);
+        data.put("phone", phone);
 
         functions
-                .getHttpsCallable("adminResetUserPassword")
+                .getHttpsCallable(
+                        "adminFindUserByPhone"
+                )
                 .call(data)
                 .addOnSuccessListener(
                         (HttpsCallableResult result) -> {
 
-                            resetButton.setEnabled(true);
+                            Object raw =
+                                    result.getData();
+
+                            if (!(raw instanceof Map)) {
+
+                                accountResult.setText(
+                                        "No account found."
+                                );
+
+                                return;
+                            }
+
+                            Map<?, ?> map =
+                                    (Map<?, ?>) raw;
+
+                            Object uidValue =
+                                    map.get("uid");
+
+                            if (uidValue == null) {
+
+                                accountResult.setText(
+                                        "No Passenger / Driver account found."
+                                );
+
+                                return;
+                            }
+
+                            targetUid =
+                                    String.valueOf(
+                                            uidValue
+                                    );
+
+                            String name =
+                                    value(map.get("name"));
+
+                            String role =
+                                    value(map.get("role"));
+
+                            String registeredPhone =
+                                    value(
+                                            map.get("phone")
+                                    );
+
+                            accountResult.setText(
+                                    "✅ ACCOUNT FOUND\n\n" +
+                                    "Name: " + name + "\n" +
+                                    "Role: " + role + "\n" +
+                                    "Phone: " +
+                                    registeredPhone + "\n\n" +
+                                    "UID: " + targetUid
+                            );
+
+                            resetButton.setEnabled(
+                                    !"ADMIN".equalsIgnoreCase(
+                                            role
+                                    )
+                            );
+                        }
+                )
+                .addOnFailureListener(error -> {
+
+                    targetUid = "";
+                    resetButton.setEnabled(false);
+
+                    String message =
+                            error.getMessage();
+
+                    if (message == null ||
+                            message.trim().isEmpty()) {
+
+                        message =
+                                "Account search failed.";
+                    }
+
+                    accountResult.setText(
+                            "❌ " + message
+                    );
+                });
+    }
+
+    private void resetPassword() {
+
+        if (!isAdmin()) {
+
+            Toast.makeText(
+                    this,
+                    "ACCESS DENIED: Admin only.",
+                    Toast.LENGTH_LONG
+            ).show();
+
+            return;
+        }
+
+        if (targetUid.isEmpty()) {
+
+            Toast.makeText(
+                    this,
+                    "Search the account first.",
+                    Toast.LENGTH_LONG
+            ).show();
+
+            return;
+        }
+
+        String newPassword =
+                passwordField.getText().toString();
+
+        if (newPassword.length() < 6) {
+
+            passwordField.setError(
+                    "Temporary password must be at least 6 characters."
+            );
+
+            return;
+        }
+
+        resetButton.setEnabled(false);
+        resetButton.setText(
+                "SETTING PASSWORD..."
+        );
+
+        Map<String, Object> data =
+                new HashMap<>();
+
+        data.put(
+                "targetUid",
+                targetUid
+        );
+
+        data.put(
+                "newPassword",
+                newPassword
+        );
+
+        functions
+                .getHttpsCallable(
+                        "adminResetUserPassword"
+                )
+                .call(data)
+                .addOnSuccessListener(
+                        result -> {
+
+                            resetButton.setEnabled(false);
+
                             resetButton.setText(
-                                    "RESET PASSWORD"
+                                    "🔑 PASSWORD SET"
                             );
 
                             passwordField.setText("");
 
                             Toast.makeText(
                                     this,
-                                    "PASSWORD UPDATED SUCCESSFULLY",
+                                    "TEMPORARY PASSWORD SET. Send it privately to the account owner.",
                                     Toast.LENGTH_LONG
                             ).show();
                         }
@@ -229,8 +348,9 @@ public class AdminPasswordResetActivity extends Activity {
                 .addOnFailureListener(error -> {
 
                     resetButton.setEnabled(true);
+
                     resetButton.setText(
-                            "RESET PASSWORD"
+                            "🔑 SET TEMPORARY PASSWORD"
                     );
 
                     String message =
@@ -238,6 +358,7 @@ public class AdminPasswordResetActivity extends Activity {
 
                     if (message == null ||
                             message.trim().isEmpty()) {
+
                         message =
                                 "Password reset failed.";
                     }
@@ -248,5 +369,19 @@ public class AdminPasswordResetActivity extends Activity {
                             Toast.LENGTH_LONG
                     ).show();
                 });
+    }
+
+    private String value(Object value) {
+
+        if (value == null) {
+            return "Not provided";
+        }
+
+        String text =
+                String.valueOf(value).trim();
+
+        return text.isEmpty()
+                ? "Not provided"
+                : text;
     }
 }
