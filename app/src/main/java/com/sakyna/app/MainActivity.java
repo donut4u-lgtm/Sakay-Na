@@ -65,7 +65,6 @@ public class MainActivity extends Activity {
 
         showLoginScreen();
 
-        // Check for a newer public Sakay Na APK.
         UpdateChecker.check(this);
     }
 
@@ -596,6 +595,15 @@ public class MainActivity extends Activity {
                 "Logging in..."
         );
 
+        /*
+         * Firebase account creation automatically signs the
+         * newly-created user in.
+         *
+         * Always clear any existing Firebase session before
+         * starting a fresh phone + password login.
+         */
+        auth.signOut();
+
         auth.signInWithEmailAndPassword(
                         authEmail,
                         password
@@ -670,7 +678,11 @@ public class MainActivity extends Activity {
                                             + "\n"
                                             + errorCode
                                             + "\n"
-                                            + errorMessage;
+                                            + errorMessage
+                                            + "\n\n"
+                                            + "LOGIN ID:"
+                                            + "\n"
+                                            + authEmail;
 
                             statusText.setText(
                                     diagnostic
