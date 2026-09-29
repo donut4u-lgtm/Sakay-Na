@@ -35,9 +35,6 @@ public class PassengerRegistrationActivity extends Activity {
 
     private Button createButton;
 
-    /*
-     * Prevents repeated taps while registration is running.
-     */
     private boolean registrationInProgress = false;
 
     @Override
@@ -190,11 +187,6 @@ public class PassengerRegistrationActivity extends Activity {
 
     private void createPassengerAccount() {
 
-        /*
-         * Anti-spam protection:
-         * Do not allow multiple registration requests
-         * from repeated button taps.
-         */
         if (registrationInProgress) {
 
             Toast.makeText(
@@ -280,10 +272,6 @@ public class PassengerRegistrationActivity extends Activity {
             return;
         }
 
-        /*
-         * Lock the registration button before
-         * contacting Firebase Authentication.
-         */
         registrationInProgress = true;
 
         createButton.setEnabled(false);
@@ -291,18 +279,6 @@ public class PassengerRegistrationActivity extends Activity {
                 "⏳ CREATING ACCOUNT..."
         );
 
-        /*
-         * IMPORTANT:
-         *
-         * Do NOT query Firestore users here.
-         *
-         * A brand-new user is not authenticated yet,
-         * so Firestore security rules may reject that
-         * pre-registration lookup.
-         *
-         * Firebase Authentication itself checks whether
-         * this phone-based account already exists.
-         */
         createFirebasePassengerAccount(
                 name,
                 phone,
@@ -321,7 +297,7 @@ public class PassengerRegistrationActivity extends Activity {
     ) {
 
         String email =
-                phone + "@sakyna.app";
+                phone + "@sakayna.app";
 
         createButton.setText(
                 "⏳ CREATING ACCOUNT..."
@@ -332,13 +308,60 @@ public class PassengerRegistrationActivity extends Activity {
                         password
                 )
                 .addOnSuccessListener(
-                        result -> saveProfile(
-                                result.getUser(),
-                                name,
-                                phone,
-                                province,
-                                town
-                        )
+                        result -> {
+
+                            FirebaseUser user =
+                                    result.getUser();
+
+                            if (user == null) {
+
+                                resetRegistrationButton();
+
+                                Toast.makeText(
+                                        this,
+                                        "Account was created but Firebase returned no user.",
+                                        Toast.LENGTH_LONG
+                                ).show();
+
+                                return;
+                            }
+
+                            /*
+                             * Firebase automatically signs in
+                             * the newly created account.
+                             *
+                             * Re-apply the exact password chosen
+                             * by the passenger while that account
+                             * is freshly authenticated.
+                             *
+                             * No password is generated or changed
+                             * to a different value.
+                             */
+                            user.updatePassword(password)
+                                    .addOnSuccessListener(
+                                            unused ->
+                                                    saveProfile(
+                                                            user,
+                                                            name,
+                                                            phone,
+                                                            province,
+                                                            town
+                                                    )
+                                    )
+                                    .addOnFailureListener(
+                                            error -> {
+
+                                                resetRegistrationButton();
+
+                                                Toast.makeText(
+                                                        this,
+                                                        "Account was created, but password setup could not be verified: "
+                                                                + error.getMessage(),
+                                                        Toast.LENGTH_LONG
+                                                ).show();
+                                            }
+                                    );
+                        }
                 )
                 .addOnFailureListener(
                         error -> {
@@ -438,20 +461,10 @@ public class PassengerRegistrationActivity extends Activity {
                             registrationInProgress = false;
 
                             /*
-                             * NORMAL SAKAY NA FLOW:
+                             * Registration complete.
                              *
-                             * Register
-                             *      ↓
-                             * Login screen
-                             *      ↓
-                             * Phone + Password
-                             *      ↓
-                             * Passenger Dashboard
-                             *
-                             * Firebase automatically signs the
-                             * newly created account in. We
-                             * intentionally sign out here so the
-                             * user must return to the Login screen.
+                             * Sign out so the passenger must
+                             * use the normal Login screen.
                              */
                             auth.signOut();
 
