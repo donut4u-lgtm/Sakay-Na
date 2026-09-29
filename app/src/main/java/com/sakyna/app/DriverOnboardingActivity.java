@@ -51,7 +51,8 @@ public class DriverOnboardingActivity extends Activity {
         auth = FirebaseAuth.getInstance();
         db = FirebaseFirestore.getInstance();
 
-        registrationMode = getIntent().getBooleanExtra("registration", false);
+        registrationMode =
+                getIntent().getBooleanExtra("registration", false);
 
         buildUi();
 
@@ -183,6 +184,7 @@ public class DriverOnboardingActivity extends Activity {
                         LinearLayout.LayoutParams.MATCH_PARENT,
                         LinearLayout.LayoutParams.WRAP_CONTENT
                 );
+
         saveParams.setMargins(0, 15, 0, 15);
 
         root.addView(saveButton, saveParams);
@@ -200,7 +202,9 @@ public class DriverOnboardingActivity extends Activity {
 
             root.addView(dashboardButton);
 
-            dashboardButton.setOnClickListener(v -> openDriverDashboard());
+            dashboardButton.setOnClickListener(
+                    v -> openDriverDashboard()
+            );
         }
 
         Button backButton = new Button(this);
@@ -292,18 +296,40 @@ public class DriverOnboardingActivity extends Activity {
             return;
         }
 
-        nameInput.setText(doc.getString("name"));
+        String name = doc.getString("name");
+        if (name != null) {
+            nameInput.setText(name);
+        }
 
         String phone = doc.getString("phone");
         if (phone != null) {
             phoneInput.setText(phone);
         }
 
-        provinceInput.setText(doc.getString("province"));
-        townCityInput.setText(doc.getString("townCity"));
-        plateInput.setText(doc.getString("plateNumber"));
-        franchiseInput.setText(doc.getString("franchiseNumber"));
-        vehicleInput.setText(doc.getString("vehicleDescription"));
+        String province = doc.getString("province");
+        if (province != null) {
+            provinceInput.setText(province);
+        }
+
+        String town = doc.getString("townCity");
+        if (town != null) {
+            townCityInput.setText(town);
+        }
+
+        String plate = doc.getString("plateNumber");
+        if (plate != null) {
+            plateInput.setText(plate);
+        }
+
+        String franchise = doc.getString("franchiseNumber");
+        if (franchise != null) {
+            franchiseInput.setText(franchise);
+        }
+
+        String vehicle = doc.getString("vehicleDescription");
+        if (vehicle != null) {
+            vehicleInput.setText(vehicle);
+        }
 
         updateApprovalStatus(doc);
     }
@@ -312,20 +338,25 @@ public class DriverOnboardingActivity extends Activity {
 
         Boolean approved = doc.getBoolean("approved");
 
-        String driverStatus = doc.getString("driverStatus");
+        String driverStatus =
+                doc.getString("driverStatus");
 
         if (Boolean.TRUE.equals(approved)) {
 
             approvalStatus.setText(
                     "✅ APPROVED DRIVER — You can accept rides."
             );
-            approvalStatus.setTextColor(Color.rgb(0, 130, 70));
+
+            approvalStatus.setTextColor(
+                    Color.rgb(0, 130, 70)
+            );
 
         } else if ("REJECTED".equalsIgnoreCase(driverStatus)) {
 
             approvalStatus.setText(
                     "❌ DRIVER APPLICATION REJECTED"
             );
+
             approvalStatus.setTextColor(Color.RED);
 
         } else {
@@ -333,18 +364,32 @@ public class DriverOnboardingActivity extends Activity {
             approvalStatus.setText(
                     "⏳ PENDING ADMIN APPROVAL"
             );
-            approvalStatus.setTextColor(Color.rgb(190, 110, 0));
+
+            approvalStatus.setTextColor(
+                    Color.rgb(190, 110, 0)
+            );
         }
     }
 
     private boolean isProfileComplete() {
 
-        String name = nameInput.getText().toString().trim();
-        String phone = phoneInput.getText().toString().trim();
-        String province = provinceInput.getText().toString().trim();
-        String town = townCityInput.getText().toString().trim();
-        String plate = plateInput.getText().toString().trim();
-        String franchise = franchiseInput.getText().toString().trim();
+        String name =
+                nameInput.getText().toString().trim();
+
+        String phone =
+                phoneInput.getText().toString().trim();
+
+        String province =
+                provinceInput.getText().toString().trim();
+
+        String town =
+                townCityInput.getText().toString().trim();
+
+        String plate =
+                plateInput.getText().toString().trim();
+
+        String franchise =
+                franchiseInput.getText().toString().trim();
 
         return !name.isEmpty()
                 && !phone.isEmpty()
@@ -366,17 +411,28 @@ public class DriverOnboardingActivity extends Activity {
             return;
         }
 
-        String name = nameInput.getText().toString().trim();
+        String name =
+                nameInput.getText().toString().trim();
 
-        String phone = normalizePhone(
-                phoneInput.getText().toString().trim()
-        );
+        String phone =
+                normalizePhone(
+                        phoneInput.getText().toString().trim()
+                );
 
-        String province = provinceInput.getText().toString().trim();
-        String town = townCityInput.getText().toString().trim();
-        String plate = plateInput.getText().toString().trim();
-        String franchise = franchiseInput.getText().toString().trim();
-        String vehicle = vehicleInput.getText().toString().trim();
+        String province =
+                provinceInput.getText().toString().trim();
+
+        String town =
+                townCityInput.getText().toString().trim();
+
+        String plate =
+                plateInput.getText().toString().trim();
+
+        String franchise =
+                franchiseInput.getText().toString().trim();
+
+        String vehicle =
+                vehicleInput.getText().toString().trim();
 
         if (name.isEmpty()) {
 
@@ -445,7 +501,8 @@ public class DriverOnboardingActivity extends Activity {
             String confirmPassword =
                     confirmPasswordInput.getText().toString();
 
-            if (password.isEmpty() || confirmPassword.isEmpty()) {
+            if (password.isEmpty()
+                    || confirmPassword.isEmpty()) {
 
                 Toast.makeText(
                         this,
@@ -491,7 +548,8 @@ public class DriverOnboardingActivity extends Activity {
 
         } else {
 
-            FirebaseUser user = auth.getCurrentUser();
+            FirebaseUser user =
+                    auth.getCurrentUser();
 
             if (user == null) {
 
@@ -535,23 +593,23 @@ public class DriverOnboardingActivity extends Activity {
         registrationInProgress = true;
 
         saveButton.setEnabled(false);
+
         saveButton.setText(
                 "⏳ CREATING DRIVER ACCOUNT..."
         );
 
         /*
-         * IMPORTANT:
+         * Firebase Authentication is the source of truth
+         * for account creation.
          *
-         * Do NOT query Firestore users here.
+         * Canonical Sakay Na login ID:
          *
-         * A new user is not authenticated before Firebase
-         * Authentication creates the account. The old
-         * Firestore lookup therefore failed under the
-         * current Firestore security rules.
+         * 63XXXXXXXXXX@sakayna.app
          *
-         * Firebase Authentication itself determines whether
-         * this phone-based account already exists.
+         * The password entered by the driver is preserved.
+         * It is NOT changed after account creation.
          */
+
         createFirebaseDriverAccount(
                 name,
                 phone,
@@ -575,11 +633,8 @@ public class DriverOnboardingActivity extends Activity {
             String vehicle
     ) {
 
-        String email = phone + "@sakyna.app";
-
-        saveButton.setText(
-                "⏳ CREATING DRIVER ACCOUNT..."
-        );
+        String email =
+                phone + "@sakayna.app";
 
         auth.createUserWithEmailAndPassword(
                         email,
@@ -587,7 +642,8 @@ public class DriverOnboardingActivity extends Activity {
                 )
                 .addOnSuccessListener(result -> {
 
-                    FirebaseUser user = auth.getCurrentUser();
+                    FirebaseUser user =
+                            result.getUser();
 
                     if (user == null) {
 
@@ -595,7 +651,7 @@ public class DriverOnboardingActivity extends Activity {
 
                         Toast.makeText(
                                 this,
-                                "Account was created but user session was not found.",
+                                "Account was created but Firebase user session was not found.",
                                 Toast.LENGTH_LONG
                         ).show();
 
@@ -637,7 +693,8 @@ public class DriverOnboardingActivity extends Activity {
             String vehicle
     ) {
 
-        Map<String, Object> profile = new HashMap<>();
+        Map<String, Object> profile =
+                new HashMap<>();
 
         profile.put(
                 "role",
@@ -732,20 +789,13 @@ public class DriverOnboardingActivity extends Activity {
                     registrationInProgress = false;
 
                     /*
-                     * NORMAL SAKAY NA FLOW:
+                     * Firebase created the password credential
+                     * above. Do not call updatePassword().
                      *
-                     * Register
-                     *      ↓
-                     * Login screen
-                     *      ↓
-                     * Phone + Password
-                     *      ↓
-                     * Driver Dashboard
-                     *
-                     * Firebase automatically signs the newly
-                     * created account in. We intentionally sign
-                     * out here so the driver must log in normally.
+                     * Sign out so the driver follows the
+                     * normal Sakay Na login flow.
                      */
+
                     auth.signOut();
 
                     Toast.makeText(
@@ -754,10 +804,11 @@ public class DriverOnboardingActivity extends Activity {
                             Toast.LENGTH_LONG
                     ).show();
 
-                    Intent intent = new Intent(
-                            DriverOnboardingActivity.this,
-                            MainActivity.class
-                    );
+                    Intent intent =
+                            new Intent(
+                                    DriverOnboardingActivity.this,
+                                    MainActivity.class
+                            );
 
                     intent.addFlags(
                             Intent.FLAG_ACTIVITY_NEW_TASK |
@@ -795,7 +846,8 @@ public class DriverOnboardingActivity extends Activity {
         saveButton.setEnabled(false);
         saveButton.setText("⏳ SAVING...");
 
-        Map<String, Object> updates = new HashMap<>();
+        Map<String, Object> updates =
+                new HashMap<>();
 
         updates.put(
                 "name",
@@ -858,6 +910,7 @@ public class DriverOnboardingActivity extends Activity {
                 .addOnSuccessListener(unused -> {
 
                     saveButton.setEnabled(true);
+
                     saveButton.setText(
                             "💾 SAVE DRIVER PROFILE"
                     );
@@ -873,6 +926,7 @@ public class DriverOnboardingActivity extends Activity {
                 .addOnFailureListener(e -> {
 
                     saveButton.setEnabled(true);
+
                     saveButton.setText(
                             "💾 SAVE DRIVER PROFILE"
                     );
@@ -902,10 +956,11 @@ public class DriverOnboardingActivity extends Activity {
 
     private void openDriverDashboard() {
 
-        Intent intent = new Intent(
-                DriverOnboardingActivity.this,
-                DriverActivity.class
-        );
+        Intent intent =
+                new Intent(
+                        DriverOnboardingActivity.this,
+                        DriverActivity.class
+                );
 
         startActivity(intent);
     }
@@ -924,17 +979,20 @@ public class DriverOnboardingActivity extends Activity {
 
         if (phone.startsWith("+63")) {
 
-            phone = "63" + phone.substring(3);
+            phone =
+                    "63" + phone.substring(3);
 
         } else if (phone.startsWith("09")) {
 
-            phone = "63" + phone.substring(1);
+            phone =
+                    "63" + phone.substring(1);
 
         } else if (
                 phone.matches("9[0-9]{9}")
         ) {
 
-            phone = "63" + phone;
+            phone =
+                    "63" + phone;
         }
 
         if (!phone.matches("63[0-9]{10}")) {
