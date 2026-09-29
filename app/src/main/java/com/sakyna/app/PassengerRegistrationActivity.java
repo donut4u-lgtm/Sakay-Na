@@ -437,16 +437,34 @@ public class PassengerRegistrationActivity extends Activity {
 
                             registrationInProgress = false;
 
+                            /*
+                             * NORMAL SAKAY NA FLOW:
+                             *
+                             * Register
+                             *      ↓
+                             * Login screen
+                             *      ↓
+                             * Phone + Password
+                             *      ↓
+                             * Passenger Dashboard
+                             *
+                             * Firebase automatically signs the
+                             * newly created account in. We
+                             * intentionally sign out here so the
+                             * user must return to the Login screen.
+                             */
+                            auth.signOut();
+
                             Toast.makeText(
                                     this,
-                                    "✅ Passenger account created.",
+                                    "✅ Passenger account created. Please log in.",
                                     Toast.LENGTH_LONG
                             ).show();
 
                             Intent intent =
                                     new Intent(
                                             this,
-                                            PassengerActivity.class
+                                            MainActivity.class
                                     );
 
                             intent.addFlags(
