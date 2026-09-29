@@ -20,6 +20,7 @@ import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
 
 import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseAuthException;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FieldValue;
@@ -645,13 +646,41 @@ public class MainActivity extends Activity {
                                     true
                             );
 
+                            String errorCode = "";
+
+                            if (e instanceof FirebaseAuthException) {
+
+                                errorCode =
+                                        ((FirebaseAuthException) e)
+                                                .getErrorCode();
+                            }
+
+                            String errorMessage =
+                                    e.getMessage();
+
+                            if (errorMessage == null
+                                    || errorMessage.trim().isEmpty()) {
+
+                                errorMessage =
+                                        "No Firebase error message returned.";
+                            }
+
+                            String diagnostic =
+                                    "Firebase login error:"
+                                            + "\n"
+                                            + errorCode
+                                            + "\n"
+                                            + errorMessage;
+
                             statusText.setText(
-                                    "Login failed"
+                                    diagnostic
                             );
 
-                            showLoginError(
-                                    "Invalid phone number or password."
-                            );
+                            Toast.makeText(
+                                    MainActivity.this,
+                                    diagnostic,
+                                    Toast.LENGTH_LONG
+                            ).show();
                         }
                 );
     }
@@ -957,9 +986,6 @@ public class MainActivity extends Activity {
         );
     }
 
-    /*
-     * FIXED REGISTRATION ROUTING
-     */
     private void openRegistration() {
 
         String role =
@@ -1020,12 +1046,6 @@ public class MainActivity extends Activity {
             Class<?> target
     ) {
 
-        /*
-         * Start the FREE chat notification monitor
-         * only for Passenger and Driver accounts.
-         *
-         * Admin does not need ride chat monitoring.
-         */
         if (target == PassengerActivity.class
                 || target == DriverActivity.class) {
 
@@ -1072,11 +1092,7 @@ public class MainActivity extends Activity {
             }
 
         } catch (Exception e) {
-
-            /*
-             * Do not block normal login if the device
-             * refuses the background service.
-             */
+            // Do not block normal login.
         }
     }
 
@@ -1091,8 +1107,6 @@ public class MainActivity extends Activity {
         String value =
                 input.trim();
 
-        // Remove spaces, dashes, parentheses,
-        // and any other non-phone characters.
         value =
                 value.replaceAll(
                         "[^0-9+]",
