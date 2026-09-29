@@ -705,6 +705,19 @@ public class MainActivity extends Activity {
                 );
     }
 
+    /*
+     * Passenger/Driver login compatibility.
+     *
+     * Current accounts normally use:
+     * 639XXXXXXXXX@sakayna.app
+     *
+     * Older Sakay Na accounts may have used:
+     * +639XXXXXXXXX@sakayna.app
+     * 09XXXXXXXXX@sakayna.app
+     * 9XXXXXXXXX@sakayna.app
+     *
+     * The user still enters only the phone number.
+     */
     private void signInPassengerDriver(
             String normalizedPhone,
             String password,
@@ -712,8 +725,37 @@ public class MainActivity extends Activity {
             int attempt
     ) {
 
+        String[] loginIds = new String[]{
+                normalizedPhone + "@sakayna.app",
+                "+" + normalizedPhone + "@sakayna.app",
+                "0" + normalizedPhone.substring(2) + "@sakayna.app",
+                normalizedPhone.substring(2) + "@sakayna.app"
+        };
+
+        if (attempt >= loginIds.length) {
+
+            loginButton.setEnabled(true);
+
+            showFirebaseAuthenticationError(
+                    new FirebaseAuthException(
+                            "ERROR_INVALID_CREDENTIAL",
+                            "All supported Sakay Na login ID formats failed."
+                    ),
+                    email
+            );
+
+            return;
+        }
+
+        String loginId =
+                loginIds[attempt];
+
+        statusText.setText(
+                "Checking Sakay Na account..."
+        );
+
         auth.signInWithEmailAndPassword(
-                        email,
+                        loginId,
                         password
                 )
                 .addOnSuccessListener(
@@ -746,31 +788,15 @@ public class MainActivity extends Activity {
                 .addOnFailureListener(
                         error -> {
 
-                            if (attempt == 0) {
-
-                                String legacyEmail =
-                                        "+63"
-                                                + normalizedPhone
-                                                .substring(2)
-                                                + "@sakayna.app";
-
-                                signInPassengerDriver(
-                                        normalizedPhone,
-                                        password,
-                                        legacyEmail,
-                                        1
-                                );
-
-                                return;
-                            }
-
-                            loginButton.setEnabled(
-                                    true
-                            );
-
-                            showFirebaseAuthenticationError(
-                                    error,
-                                    email
+                            /*
+                             * Try the next historical login-ID
+                             * format automatically.
+                             */
+                            signInPassengerDriver(
+                                    normalizedPhone,
+                                    password,
+                                    loginId,
+                                    attempt + 1
                             );
                         }
                 );
