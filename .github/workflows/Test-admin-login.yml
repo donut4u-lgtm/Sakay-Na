@@ -13,26 +13,43 @@ jobs:
     steps:
       - name: Test Firebase Authentication
         env:
-          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          ADMIN_PASSWORD: ${{ secrets.SAKAYNA_ADMIN_PASSWORD }}
         run: |
+          set -e
+
           python3 <<'PY'
           import os
           import json
           import urllib.request
           import urllib.error
 
-          api_key = "AIzaSyCnoDs8C3SaP0ApQZRuHtT5fMceHp1VDz0"
+          PROJECT_ID = "sakay-na-1cafa"
+          ADMIN_UID = "Ld3rzaCvAGNlXBDCofB3mWjgXWp2"
+          ADMIN_EMAIL = "639306455676@sakayna.app"
 
-          email = "639306455676@sakyna.app"
-          password = os.environ["ADMIN_PASSWORD"]
+          API_KEY = "AIzaSyCnoDs8C3SaP0ApQZRuHtT5fMceHp1VDz0"
+
+          password = os.environ.get("ADMIN_PASSWORD", "")
+
+          print("======================================")
+          print("SAKAY NA ADMIN AUTH DIAGNOSTIC")
+          print("======================================")
+          print("Firebase project:", PROJECT_ID)
+          print("Admin email:", ADMIN_EMAIL)
+          print("Expected Admin UID:", ADMIN_UID)
+
+          if not password:
+              print("")
+              print("🔴 RED: SAKAYNA_ADMIN_PASSWORD secret is EMPTY.")
+              raise SystemExit(1)
 
           url = (
               "https://identitytoolkit.googleapis.com/v1/"
-              "accounts:signInWithPassword?key=" + api_key
+              "accounts:signInWithPassword?key=" + API_KEY
           )
 
           data = json.dumps({
-              "email": email,
+              "email": ADMIN_EMAIL,
               "password": password,
               "returnSecureToken": True
           }).encode("utf-8")
@@ -40,21 +57,75 @@ jobs:
           request = urllib.request.Request(
               url,
               data=data,
-              headers={"Content-Type": "application/json"},
+              headers={
+                  "Content-Type": "application/json"
+              },
               method="POST"
           )
 
           try:
               with urllib.request.urlopen(request) as response:
-                  result = json.loads(response.read().decode("utf-8"))
 
-                  print("LOGIN TEST: SUCCESS")
-                  print("Firebase UID:", result.get("localId"))
-                  print("Firebase email:", result.get("email"))
+                  result = json.loads(
+                      response.read().decode("utf-8")
+                  )
+
+                  actual_uid = result.get("localId")
+                  actual_email = result.get("email")
+
+                  print("")
+                  print("🟢 LOGIN TEST: SUCCESS")
+                  print("Firebase UID:", actual_uid)
+                  print("Firebase email:", actual_email)
+
+                  if actual_uid != ADMIN_UID:
+                      print("")
+                      print("🔴 RED: Firebase UID DOES NOT MATCH.")
+                      print("Expected UID:", ADMIN_UID)
+                      print("Actual UID:", actual_uid)
+                      raise SystemExit(1)
+
+                  if actual_email != ADMIN_EMAIL:
+                      print("")
+                      print("🔴 RED: Firebase email DOES NOT MATCH.")
+                      print("Expected email:", ADMIN_EMAIL)
+                      print("Actual email:", actual_email)
+                      raise SystemExit(1)
+
+                  print("")
+                  print("🟢 GREEN: ADMIN UID VERIFIED")
+                  print("🟢 GREEN: ADMIN EMAIL VERIFIED")
+                  print("🟢 GREEN: ADMIN PASSWORD VERIFIED")
+                  print("🟢 GREEN: FIREBASE ADMIN LOGIN VERIFIED")
 
           except urllib.error.HTTPError as e:
+
               body = e.read().decode("utf-8")
-              print("LOGIN TEST: FAILED")
+
+              print("")
+              print("======================================")
+              print("🔴 RED: FIREBASE LOGIN FAILED")
+              print("======================================")
+              print("Firebase project:", PROJECT_ID)
+              print("Admin email:", ADMIN_EMAIL)
+              print("Expected UID:", ADMIN_UID)
+              print("")
+              print("Firebase HTTP status:", e.code)
+              print("")
+              print("Firebase response:")
               print(body)
+              print("")
+              print("🔴 RED: Password/email authentication failed.")
+              print("")
+
+              raise SystemExit(1)
+
+          except Exception as e:
+
+              print("")
+              print("======================================")
+              print("🔴 RED: UNEXPECTED TEST ERROR")
+              print("======================================")
+              print(str(e))
               raise SystemExit(1)
           PY
