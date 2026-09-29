@@ -3,6 +3,10 @@ const crypto = require("crypto");
 const { initializeApp } = require("firebase-admin/app");
 
 const {
+  getAuth
+} = require("firebase-admin/auth");
+
+const {
   getFirestore,
   FieldValue
 } = require("firebase-admin/firestore");
@@ -39,6 +43,14 @@ setGlobalOptions({
 
 
 /* ---------------------------------------------------------
+ * ADMIN
+ * --------------------------------------------------------- */
+
+const ADMIN_UID =
+  "Ld3rzaCvAGNlXBDCofB3mWjgXWp2";
+
+
+/* ---------------------------------------------------------
  * HELPERS
  * --------------------------------------------------------- */
 
@@ -56,6 +68,23 @@ function requireAuthenticated(request) {
 }
 
 
+function requireAdmin(request) {
+
+  const uid =
+    requireAuthenticated(request);
+
+  if (uid !== ADMIN_UID) {
+
+    throw new HttpsError(
+      "permission-denied",
+      "Admin access required."
+    );
+  }
+
+  return uid;
+}
+
+
 function normalizePhone(phone) {
 
   if (typeof phone !== "string") {
@@ -65,6 +94,48 @@ function normalizePhone(phone) {
   return phone
     .replace(/[^\d+]/g, "")
     .trim();
+}
+
+
+function phoneVariants(phone) {
+
+  const digits =
+    String(phone || "")
+      .replace(/\D/g, "");
+
+  let local = digits;
+
+  if (digits.startsWith("63")) {
+
+    local =
+      "0" + digits.substring(2);
+
+  } else if (
+    digits.startsWith("9") &&
+    digits.length === 10
+  ) {
+
+    local =
+      "0" + digits;
+  }
+
+  if (
+    !local.startsWith("0") ||
+    local.length !== 11
+  ) {
+
+    return [];
+  }
+
+  const nine =
+    local.substring(1);
+
+  return [
+    "0" + nine,
+    "63" + nine,
+    "+63" + nine,
+    nine
+  ];
 }
 
 
@@ -79,9 +150,12 @@ function hashValue(value) {
 
 function getWindowStart(windowMs) {
 
-  const now = Date.now();
+  const now =
+    Date.now();
 
-  return Math.floor(now / windowMs) * windowMs;
+  return Math.floor(
+    now / windowMs
+  ) * windowMs;
 }
 
 
@@ -92,9 +166,10 @@ function getWindowStart(windowMs) {
 exports.checkRegistrationAllowed = onCall(
   async (request) => {
 
-    const phone = normalizePhone(
-      request.data?.phone
-    );
+    const phone =
+      normalizePhone(
+        request.data?.phone
+      );
 
     if (!phone) {
 
@@ -104,7 +179,8 @@ exports.checkRegistrationAllowed = onCall(
       );
     }
 
-    const phoneHash = hashValue(phone);
+    const phoneHash =
+      hashValue(phone);
 
     const dayWindow =
       getWindowStart(
@@ -118,12 +194,14 @@ exports.checkRegistrationAllowed = onCall(
       `registration_global_${dayWindow}`;
 
     const phoneRef =
-      db.collection("securityRateLimits")
-        .doc(phoneKey);
+      db.collection(
+        "securityRateLimits"
+      ).doc(phoneKey);
 
     const globalRef =
-      db.collection("securityRateLimits")
-        .doc(globalKey);
+      db.collection(
+        "securityRateLimits"
+      ).doc(globalKey);
 
     let allowed = true;
     let reason = "";
@@ -132,22 +210,28 @@ exports.checkRegistrationAllowed = onCall(
       async (transaction) => {
 
         const phoneSnapshot =
-          await transaction.get(phoneRef);
+          await transaction.get(
+            phoneRef
+          );
 
         const globalSnapshot =
-          await transaction.get(globalRef);
+          await transaction.get(
+            globalRef
+          );
 
         const phoneCount =
           phoneSnapshot.exists
             ? Number(
-                phoneSnapshot.data().count || 0
+                phoneSnapshot.data()
+                  .count || 0
               )
             : 0;
 
         const globalCount =
           globalSnapshot.exists
             ? Number(
-                globalSnapshot.data().count || 0
+                globalSnapshot.data()
+                  .count || 0
               )
             : 0;
 
@@ -170,10 +254,15 @@ exports.checkRegistrationAllowed = onCall(
         transaction.set(
           phoneRef,
           {
-            count: phoneCount + 1,
-            windowStart: dayWindow,
+            count:
+              phoneCount + 1,
+
+            windowStart:
+              dayWindow,
+
             lastAttemptAt:
               FieldValue.serverTimestamp(),
+
             type:
               "REGISTRATION_PHONE"
           },
@@ -185,10 +274,15 @@ exports.checkRegistrationAllowed = onCall(
         transaction.set(
           globalRef,
           {
-            count: globalCount + 1,
-            windowStart: dayWindow,
+            count:
+              globalCount + 1,
+
+            windowStart:
+              dayWindow,
+
             lastAttemptAt:
               FieldValue.serverTimestamp(),
+
             type:
               "REGISTRATION_GLOBAL"
           },
@@ -242,8 +336,9 @@ exports.checkRideRequestAllowed = onCall(
       `ride_request_${uid}_${hourWindow}`;
 
     const ref =
-      db.collection("securityRateLimits")
-        .doc(key);
+      db.collection(
+        "securityRateLimits"
+      ).doc(key);
 
     let allowed = true;
 
@@ -256,7 +351,8 @@ exports.checkRideRequestAllowed = onCall(
         const count =
           snapshot.exists
             ? Number(
-                snapshot.data().count || 0
+                snapshot.data()
+                  .count || 0
               )
             : 0;
 
@@ -268,10 +364,16 @@ exports.checkRideRequestAllowed = onCall(
           ref,
           {
             uid,
-            count: count + 1,
-            windowStart: hourWindow,
+
+            count:
+              count + 1,
+
+            windowStart:
+              hourWindow,
+
             lastAttemptAt:
               FieldValue.serverTimestamp(),
+
             type:
               "RIDE_REQUEST"
           },
@@ -293,6 +395,7 @@ exports.checkRideRequestAllowed = onCall(
 
       return {
         allowed: false,
+
         reason:
           "Too many ride requests. Please try again later."
       };
@@ -325,8 +428,9 @@ exports.checkCancellationAllowed = onCall(
       `cancellation_${uid}_${hourWindow}`;
 
     const ref =
-      db.collection("securityRateLimits")
-        .doc(key);
+      db.collection(
+        "securityRateLimits"
+      ).doc(key);
 
     let allowed = true;
 
@@ -339,7 +443,8 @@ exports.checkCancellationAllowed = onCall(
         const count =
           snapshot.exists
             ? Number(
-                snapshot.data().count || 0
+                snapshot.data()
+                  .count || 0
               )
             : 0;
 
@@ -351,10 +456,16 @@ exports.checkCancellationAllowed = onCall(
           ref,
           {
             uid,
-            count: count + 1,
-            windowStart: hourWindow,
+
+            count:
+              count + 1,
+
+            windowStart:
+              hourWindow,
+
             lastAttemptAt:
               FieldValue.serverTimestamp(),
+
             type:
               "CANCELLATION"
           },
@@ -376,6 +487,7 @@ exports.checkCancellationAllowed = onCall(
 
       return {
         allowed: false,
+
         reason:
           "Too many cancellations. Please wait before cancelling another ride."
       };
@@ -416,12 +528,255 @@ exports.getMySecurityStatus = onCall(
       snapshot.data() || {};
 
     const status =
-      data.securityStatus || "ACTIVE";
+      data.securityStatus ||
+      "ACTIVE";
 
     return {
       exists: true,
       status
     };
+  }
+);
+
+
+/* ---------------------------------------------------------
+ * ADMIN FIND USER BY PHONE
+ * --------------------------------------------------------- */
+
+exports.adminFindUserByPhone = onCall(
+  async (request) => {
+
+    requireAdmin(request);
+
+    const variants =
+      phoneVariants(
+        request.data?.phone
+      );
+
+    if (!variants.length) {
+
+      throw new HttpsError(
+        "invalid-argument",
+        "Enter a valid Philippine mobile number."
+      );
+    }
+
+    let found = null;
+
+    for (
+      const variant of variants
+    ) {
+
+      const snapshot =
+        await db.collection("users")
+          .where(
+            "phone",
+            "==",
+            variant
+          )
+          .limit(1)
+          .get();
+
+      if (!snapshot.empty) {
+
+        found =
+          snapshot.docs[0];
+
+        break;
+      }
+    }
+
+    if (!found) {
+
+      return {
+        found: false
+      };
+    }
+
+    const data =
+      found.data() || {};
+
+    const role =
+      String(
+        data.role || ""
+      ).toUpperCase();
+
+    if (
+      role !== "PASSENGER" &&
+      role !== "DRIVER"
+    ) {
+
+      return {
+        found: false
+      };
+    }
+
+    return {
+
+      found: true,
+
+      uid:
+        found.id,
+
+      name:
+        String(
+          data.name ||
+          data.fullName ||
+          data.driverName ||
+          "Not provided"
+        ),
+
+      role,
+
+      phone:
+        String(
+          data.phone || ""
+        )
+    };
+  }
+);
+
+
+/* ---------------------------------------------------------
+ * ADMIN RESET USER PASSWORD
+ * --------------------------------------------------------- */
+
+exports.adminResetUserPassword = onCall(
+  async (request) => {
+
+    requireAdmin(request);
+
+    const targetUid =
+      String(
+        request.data?.targetUid ||
+        ""
+      ).trim();
+
+    const newPassword =
+      String(
+        request.data?.newPassword ||
+        ""
+      );
+
+    if (!targetUid) {
+
+      throw new HttpsError(
+        "invalid-argument",
+        "Target account is required."
+      );
+    }
+
+    if (
+      newPassword.length < 6
+    ) {
+
+      throw new HttpsError(
+        "invalid-argument",
+        "Password must be at least 6 characters."
+      );
+    }
+
+    if (
+      targetUid === ADMIN_UID
+    ) {
+
+      throw new HttpsError(
+        "permission-denied",
+        "The Admin account cannot be reset here."
+      );
+    }
+
+    let userRecord;
+
+    try {
+
+      userRecord =
+        await getAuth()
+          .getUser(targetUid);
+
+    } catch (error) {
+
+      logger.error(
+        "Admin password reset: target user lookup failed.",
+        {
+          targetUid,
+          error:
+            error.message
+        }
+      );
+
+      throw new HttpsError(
+        "not-found",
+        "Account was not found."
+      );
+    }
+
+    const email =
+      String(
+        userRecord.email || ""
+      ).toLowerCase();
+
+    if (
+      !email.endsWith(
+        "@sakayna.app"
+      )
+    ) {
+
+      throw new HttpsError(
+        "failed-precondition",
+        "This is not a Sakay Na account."
+      );
+    }
+
+    try {
+
+      await getAuth()
+        .updateUser(
+          targetUid,
+          {
+            password:
+              newPassword
+          }
+        );
+
+      logger.info(
+        "Admin reset a Sakay Na account password.",
+        {
+          adminUid:
+            ADMIN_UID,
+
+          targetUid
+        }
+      );
+
+      return {
+
+        success: true,
+
+        uid:
+          targetUid
+      };
+
+    } catch (error) {
+
+      logger.error(
+        "Admin password reset failed.",
+        {
+          adminUid:
+            ADMIN_UID,
+
+          targetUid,
+
+          error:
+            error.message
+        }
+      );
+
+      throw new HttpsError(
+        "internal",
+        "Unable to reset the account password."
+      );
+    }
   }
 );
 
@@ -436,15 +791,14 @@ exports.getMySecurityStatus = onCall(
  * Existing driver registration data is not changed.
  * --------------------------------------------------------- */
 
-const ADMIN_UID =
-  "Ld3rzaCvAGNlXBDCofB3mWjgXWp2";
-
-
 exports.notifyAdminNewDriverApplication =
   onDocumentCreated(
     {
-      document: "users/{userId}",
-      region: "asia-southeast1"
+      document:
+        "users/{userId}",
+
+      region:
+        "asia-southeast1"
     },
 
     async (event) => {
@@ -466,6 +820,7 @@ exports.notifyAdminNewDriverApplication =
           driver.role || ""
         ).toUpperCase() !== "DRIVER"
       ) {
+
         return;
       }
 
@@ -488,7 +843,8 @@ exports.notifyAdminNewDriverApplication =
         !approved &&
         (
           driverStatus === "PENDING" ||
-          approvalStatus === "PENDING_APPROVAL" ||
+          approvalStatus ===
+            "PENDING_APPROVAL" ||
           (
             !driverStatus &&
             !approvalStatus
@@ -511,7 +867,8 @@ exports.notifyAdminNewDriverApplication =
         logger.warn(
           "Admin profile not found.",
           {
-            adminUid: ADMIN_UID
+            adminUid:
+              ADMIN_UID
           }
         );
 
@@ -532,7 +889,8 @@ exports.notifyAdminNewDriverApplication =
         logger.warn(
           "Admin has no FCM token. Admin must open/login to Sakay Na at least once.",
           {
-            adminUid: ADMIN_UID
+            adminUid:
+              ADMIN_UID
           }
         );
 
@@ -561,7 +919,8 @@ exports.notifyAdminNewDriverApplication =
 
         await getMessaging().send({
 
-          token: adminToken,
+          token:
+            adminToken,
 
           notification: {
 
