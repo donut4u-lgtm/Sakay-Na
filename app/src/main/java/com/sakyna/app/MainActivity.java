@@ -58,9 +58,13 @@ public class MainActivity extends Activity {
     /*
      * Exact Firebase Authentication email
      * for the official Sakay Na Admin account.
+     *
+     * IMPORTANT:
+     * This matches the Firebase account verified
+     * by Test Sakay Na Admin Login.
      */
     private static final String ADMIN_AUTH_EMAIL =
-            "+639306455676@sakayna.app";
+            "639306455676@sakayna.app";
 
     /*
      * Runtime Firebase project diagnostic.
@@ -630,8 +634,8 @@ public class MainActivity extends Activity {
 
             /*
              * ADMIN:
-             * Always use the exact verified Firebase
-             * Authentication email.
+             * Use the exact Firebase Authentication
+             * email verified by the Green test workflow.
              */
             authEmail =
                     ADMIN_AUTH_EMAIL;
