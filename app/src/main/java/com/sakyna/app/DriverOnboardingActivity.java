@@ -19,7 +19,6 @@ import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
-import com.google.firebase.firestore.Source;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -317,12 +316,16 @@ public class DriverOnboardingActivity extends Activity {
 
         if (Boolean.TRUE.equals(approved)) {
 
-            approvalStatus.setText("✅ APPROVED DRIVER — You can accept rides.");
+            approvalStatus.setText(
+                    "✅ APPROVED DRIVER — You can accept rides."
+            );
             approvalStatus.setTextColor(Color.rgb(0, 130, 70));
 
         } else if ("REJECTED".equalsIgnoreCase(driverStatus)) {
 
-            approvalStatus.setText("❌ DRIVER APPLICATION REJECTED");
+            approvalStatus.setText(
+                    "❌ DRIVER APPLICATION REJECTED"
+            );
             approvalStatus.setTextColor(Color.RED);
 
         } else {
@@ -364,6 +367,7 @@ public class DriverOnboardingActivity extends Activity {
         }
 
         String name = nameInput.getText().toString().trim();
+
         String phone = normalizePhone(
                 phoneInput.getText().toString().trim()
         );
@@ -375,22 +379,28 @@ public class DriverOnboardingActivity extends Activity {
         String vehicle = vehicleInput.getText().toString().trim();
 
         if (name.isEmpty()) {
-            phoneInput.requestFocus();
+
+            nameInput.requestFocus();
+
             Toast.makeText(
                     this,
                     "Please enter driver name.",
                     Toast.LENGTH_SHORT
             ).show();
+
             return;
         }
 
         if (phone.isEmpty()) {
+
             phoneInput.requestFocus();
+
             Toast.makeText(
                     this,
                     "Please enter a valid Philippine phone number.",
                     Toast.LENGTH_SHORT
             ).show();
+
             return;
         }
 
@@ -525,48 +535,33 @@ public class DriverOnboardingActivity extends Activity {
         registrationInProgress = true;
 
         saveButton.setEnabled(false);
-        saveButton.setText("⏳ CHECKING PHONE...");
+        saveButton.setText(
+                "⏳ CREATING DRIVER ACCOUNT..."
+        );
 
-        db.collection("users")
-                .whereEqualTo("phone", phone)
-                .limit(1)
-                .get(Source.SERVER)
-                .addOnSuccessListener(snapshot -> {
-
-                    if (!snapshot.isEmpty()) {
-
-                        resetDriverRegistrationButton();
-
-                        Toast.makeText(
-                                this,
-                                "This phone number already has a Sakay Na account.",
-                                Toast.LENGTH_LONG
-                        ).show();
-
-                        return;
-                    }
-
-                    createFirebaseDriverAccount(
-                            name,
-                            phone,
-                            password,
-                            province,
-                            town,
-                            plate,
-                            franchise,
-                            vehicle
-                    );
-                })
-                .addOnFailureListener(e -> {
-
-                    resetDriverRegistrationButton();
-
-                    Toast.makeText(
-                            this,
-                            "Unable to check phone number. Please try again.",
-                            Toast.LENGTH_LONG
-                    ).show();
-                });
+        /*
+         * IMPORTANT:
+         *
+         * Do NOT query Firestore users here.
+         *
+         * A new user is not authenticated before Firebase
+         * Authentication creates the account. The old
+         * Firestore lookup therefore failed under the
+         * current Firestore security rules.
+         *
+         * Firebase Authentication itself determines whether
+         * this phone-based account already exists.
+         */
+        createFirebaseDriverAccount(
+                name,
+                phone,
+                password,
+                province,
+                town,
+                plate,
+                franchise,
+                vehicle
+        );
     }
 
     private void createFirebaseDriverAccount(
@@ -582,9 +577,14 @@ public class DriverOnboardingActivity extends Activity {
 
         String email = phone + "@sakyna.app";
 
-        saveButton.setText("⏳ CREATING DRIVER ACCOUNT...");
+        saveButton.setText(
+                "⏳ CREATING DRIVER ACCOUNT..."
+        );
 
-        auth.createUserWithEmailAndPassword(email, password)
+        auth.createUserWithEmailAndPassword(
+                        email,
+                        password
+                )
                 .addOnSuccessListener(result -> {
 
                     FirebaseUser user = auth.getCurrentUser();
@@ -639,27 +639,80 @@ public class DriverOnboardingActivity extends Activity {
 
         Map<String, Object> profile = new HashMap<>();
 
-        profile.put("role", "DRIVER");
-        profile.put("accountType", "DRIVER");
+        profile.put(
+                "role",
+                "DRIVER"
+        );
 
-        profile.put("name", name);
-        profile.put("driverName", name);
+        profile.put(
+                "accountType",
+                "DRIVER"
+        );
 
-        profile.put("phone", phone);
+        profile.put(
+                "name",
+                name
+        );
 
-        profile.put("province", province);
-        profile.put("townCity", town);
-        profile.put("city", town);
+        profile.put(
+                "driverName",
+                name
+        );
 
-        profile.put("plateNumber", plate);
-        profile.put("franchiseNumber", franchise);
-        profile.put("vehicleDescription", vehicle);
+        profile.put(
+                "phone",
+                phone
+        );
 
-        profile.put("driverProfileComplete", true);
+        profile.put(
+                "province",
+                province
+        );
 
-        profile.put("approved", false);
-        profile.put("driverStatus", "PENDING");
-        profile.put("canAcceptRides", false);
+        profile.put(
+                "townCity",
+                town
+        );
+
+        profile.put(
+                "city",
+                town
+        );
+
+        profile.put(
+                "plateNumber",
+                plate
+        );
+
+        profile.put(
+                "franchiseNumber",
+                franchise
+        );
+
+        profile.put(
+                "vehicleDescription",
+                vehicle
+        );
+
+        profile.put(
+                "driverProfileComplete",
+                true
+        );
+
+        profile.put(
+                "approved",
+                false
+        );
+
+        profile.put(
+                "driverStatus",
+                "PENDING"
+        );
+
+        profile.put(
+                "canAcceptRides",
+                false
+        );
 
         profile.put(
                 "createdAt",
@@ -695,6 +748,7 @@ public class DriverOnboardingActivity extends Activity {
                     );
 
                     startActivity(intent);
+
                     finish();
                 })
                 .addOnFailureListener(e -> {
@@ -726,17 +780,50 @@ public class DriverOnboardingActivity extends Activity {
 
         Map<String, Object> updates = new HashMap<>();
 
-        updates.put("name", name);
-        updates.put("driverName", name);
-        updates.put("phone", phone);
+        updates.put(
+                "name",
+                name
+        );
 
-        updates.put("province", province);
-        updates.put("townCity", town);
-        updates.put("city", town);
+        updates.put(
+                "driverName",
+                name
+        );
 
-        updates.put("plateNumber", plate);
-        updates.put("franchiseNumber", franchise);
-        updates.put("vehicleDescription", vehicle);
+        updates.put(
+                "phone",
+                phone
+        );
+
+        updates.put(
+                "province",
+                province
+        );
+
+        updates.put(
+                "townCity",
+                town
+        );
+
+        updates.put(
+                "city",
+                town
+        );
+
+        updates.put(
+                "plateNumber",
+                plate
+        );
+
+        updates.put(
+                "franchiseNumber",
+                franchise
+        );
+
+        updates.put(
+                "vehicleDescription",
+                vehicle
+        );
 
         updates.put(
                 "driverProfileComplete",
@@ -754,7 +841,9 @@ public class DriverOnboardingActivity extends Activity {
                 .addOnSuccessListener(unused -> {
 
                     saveButton.setEnabled(true);
-                    saveButton.setText("💾 SAVE DRIVER PROFILE");
+                    saveButton.setText(
+                            "💾 SAVE DRIVER PROFILE"
+                    );
 
                     Toast.makeText(
                             this,
@@ -767,7 +856,9 @@ public class DriverOnboardingActivity extends Activity {
                 .addOnFailureListener(e -> {
 
                     saveButton.setEnabled(true);
-                    saveButton.setText("💾 SAVE DRIVER PROFILE");
+                    saveButton.setText(
+                            "💾 SAVE DRIVER PROFILE"
+                    );
 
                     Toast.makeText(
                             this,
@@ -783,8 +874,12 @@ public class DriverOnboardingActivity extends Activity {
         registrationInProgress = false;
 
         if (saveButton != null) {
+
             saveButton.setEnabled(true);
-            saveButton.setText("✅ CREATE DRIVER ACCOUNT");
+
+            saveButton.setText(
+                    "✅ CREATE DRIVER ACCOUNT"
+            );
         }
     }
 
@@ -799,6 +894,10 @@ public class DriverOnboardingActivity extends Activity {
     }
 
     private String normalizePhone(String phone) {
+
+        if (phone == null) {
+            return "";
+        }
 
         phone = phone
                 .replace(" ", "")
