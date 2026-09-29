@@ -598,18 +598,6 @@ public class DriverOnboardingActivity extends Activity {
                 "⏳ CREATING DRIVER ACCOUNT..."
         );
 
-        /*
-         * Firebase Authentication is the source of truth
-         * for account creation.
-         *
-         * Canonical Sakay Na login ID:
-         *
-         * 63XXXXXXXXXX@sakayna.app
-         *
-         * The password entered by the driver is preserved.
-         * It is NOT changed after account creation.
-         */
-
         createFirebaseDriverAccount(
                 name,
                 phone,
@@ -658,16 +646,71 @@ public class DriverOnboardingActivity extends Activity {
                         return;
                     }
 
-                    saveDriverAccountProfile(
-                            user,
-                            name,
-                            phone,
-                            province,
-                            town,
-                            plate,
-                            franchise,
-                            vehicle
-                    );
+                    /*
+                     * IMPORTANT:
+                     *
+                     * createUserWithEmailAndPassword() already creates
+                     * the password credential and signs the new user in.
+                     *
+                     * Do NOT call updatePassword().
+                     *
+                     * We now sign out and perform a real login using
+                     * the exact phone/password selected by the driver.
+                     * This verifies the credential before the account
+                     * is reported as successfully registered.
+                     */
+                    auth.signOut();
+
+                    auth.signInWithEmailAndPassword(
+                                    email,
+                                    password
+                            )
+                            .addOnSuccessListener(
+                                    verifyResult -> {
+
+                                        FirebaseUser verifiedUser =
+                                                verifyResult.getUser();
+
+                                        if (verifiedUser == null) {
+
+                                            resetDriverRegistrationButton();
+                                            auth.signOut();
+
+                                            Toast.makeText(
+                                                    this,
+                                                    "Account was created but Firebase could not verify the login session.",
+                                                    Toast.LENGTH_LONG
+                                            ).show();
+
+                                            return;
+                                        }
+
+                                        saveDriverAccountProfile(
+                                                verifiedUser,
+                                                name,
+                                                phone,
+                                                province,
+                                                town,
+                                                plate,
+                                                franchise,
+                                                vehicle
+                                        );
+                                    }
+                            )
+                            .addOnFailureListener(
+                                    error -> {
+
+                                        resetDriverRegistrationButton();
+                                        auth.signOut();
+
+                                        Toast.makeText(
+                                                this,
+                                                "Account was created, but the chosen phone/password could not be verified: "
+                                                        + error.getMessage(),
+                                                Toast.LENGTH_LONG
+                                        ).show();
+                                    }
+                            );
                 })
                 .addOnFailureListener(e -> {
 
@@ -696,90 +739,23 @@ public class DriverOnboardingActivity extends Activity {
         Map<String, Object> profile =
                 new HashMap<>();
 
-        profile.put(
-                "role",
-                "DRIVER"
-        );
-
-        profile.put(
-                "accountType",
-                "DRIVER"
-        );
-
-        profile.put(
-                "name",
-                name
-        );
-
-        profile.put(
-                "driverName",
-                name
-        );
-
-        profile.put(
-                "phone",
-                phone
-        );
-
-        profile.put(
-                "province",
-                province
-        );
-
-        profile.put(
-                "townCity",
-                town
-        );
-
-        profile.put(
-                "city",
-                town
-        );
-
-        profile.put(
-                "plateNumber",
-                plate
-        );
-
-        profile.put(
-                "franchiseNumber",
-                franchise
-        );
-
-        profile.put(
-                "vehicleDescription",
-                vehicle
-        );
-
-        profile.put(
-                "driverProfileComplete",
-                true
-        );
-
-        profile.put(
-                "approved",
-                false
-        );
-
-        profile.put(
-                "driverStatus",
-                "PENDING"
-        );
-
-        profile.put(
-                "canAcceptRides",
-                false
-        );
-
-        profile.put(
-                "createdAt",
-                FieldValue.serverTimestamp()
-        );
-
-        profile.put(
-                "updatedAt",
-                FieldValue.serverTimestamp()
-        );
+        profile.put("role", "DRIVER");
+        profile.put("accountType", "DRIVER");
+        profile.put("name", name);
+        profile.put("driverName", name);
+        profile.put("phone", phone);
+        profile.put("province", province);
+        profile.put("townCity", town);
+        profile.put("city", town);
+        profile.put("plateNumber", plate);
+        profile.put("franchiseNumber", franchise);
+        profile.put("vehicleDescription", vehicle);
+        profile.put("driverProfileComplete", true);
+        profile.put("approved", false);
+        profile.put("driverStatus", "PENDING");
+        profile.put("canAcceptRides", false);
+        profile.put("createdAt", FieldValue.serverTimestamp());
+        profile.put("updatedAt", FieldValue.serverTimestamp());
 
         db.collection("users")
                 .document(user.getUid())
@@ -787,14 +763,6 @@ public class DriverOnboardingActivity extends Activity {
                 .addOnSuccessListener(unused -> {
 
                     registrationInProgress = false;
-
-                    /*
-                     * Firebase created the password credential
-                     * above. Do not call updatePassword().
-                     *
-                     * Sign out so the driver follows the
-                     * normal Sakay Na login flow.
-                     */
 
                     auth.signOut();
 
@@ -849,60 +817,17 @@ public class DriverOnboardingActivity extends Activity {
         Map<String, Object> updates =
                 new HashMap<>();
 
-        updates.put(
-                "name",
-                name
-        );
-
-        updates.put(
-                "driverName",
-                name
-        );
-
-        updates.put(
-                "phone",
-                phone
-        );
-
-        updates.put(
-                "province",
-                province
-        );
-
-        updates.put(
-                "townCity",
-                town
-        );
-
-        updates.put(
-                "city",
-                town
-        );
-
-        updates.put(
-                "plateNumber",
-                plate
-        );
-
-        updates.put(
-                "franchiseNumber",
-                franchise
-        );
-
-        updates.put(
-                "vehicleDescription",
-                vehicle
-        );
-
-        updates.put(
-                "driverProfileComplete",
-                isProfileComplete()
-        );
-
-        updates.put(
-                "updatedAt",
-                FieldValue.serverTimestamp()
-        );
+        updates.put("name", name);
+        updates.put("driverName", name);
+        updates.put("phone", phone);
+        updates.put("province", province);
+        updates.put("townCity", town);
+        updates.put("city", town);
+        updates.put("plateNumber", plate);
+        updates.put("franchiseNumber", franchise);
+        updates.put("vehicleDescription", vehicle);
+        updates.put("driverProfileComplete", isProfileComplete());
+        updates.put("updatedAt", FieldValue.serverTimestamp());
 
         db.collection("users")
                 .document(uid)
