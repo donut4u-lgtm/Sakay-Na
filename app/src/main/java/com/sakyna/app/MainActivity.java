@@ -19,6 +19,7 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
 
+import com.google.firebase.FirebaseApp;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseAuthException;
 import com.google.firebase.auth.FirebaseUser;
@@ -55,11 +56,17 @@ public class MainActivity extends Activity {
             "Ld3rzaCvAGNlXBDCofB3mWjgXWp2";
 
     /*
-     * This is the exact Admin Firebase Authentication email
-     * verified by the Firebase diagnostic workflow.
+     * Exact Firebase Authentication email
+     * for the official Sakay Na Admin account.
      */
     private static final String ADMIN_AUTH_EMAIL =
             "+639306455676@sakayna.app";
+
+    /*
+     * Runtime Firebase project diagnostic.
+     */
+    private String runtimeFirebaseProject =
+            "UNKNOWN";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -67,6 +74,31 @@ public class MainActivity extends Activity {
 
         auth = FirebaseAuth.getInstance();
         db = FirebaseFirestore.getInstance();
+
+        /*
+         * RED DIAGNOSTIC:
+         * Read the Firebase project actually used
+         * by this installed APK at runtime.
+         */
+        try {
+
+            runtimeFirebaseProject =
+                    FirebaseApp.getInstance()
+                            .getOptions()
+                            .getProjectId();
+
+            if (runtimeFirebaseProject == null
+                    || runtimeFirebaseProject.trim().isEmpty()) {
+
+                runtimeFirebaseProject =
+                        "UNKNOWN";
+            }
+
+        } catch (Exception e) {
+
+            runtimeFirebaseProject =
+                    "ERROR_READING_PROJECT";
+        }
 
         requestNotificationPermission();
 
@@ -592,23 +624,24 @@ public class MainActivity extends Activity {
             return;
         }
 
-        /*
-         * PASSENGER / DRIVER:
-         * 63XXXXXXXXXX@sakayna.app
-         *
-         * ADMIN:
-         * Uses the exact Firebase Authentication
-         * email verified for the official Admin UID.
-         */
         final String authEmail;
 
         if ("ADMIN".equals(selectedRole)) {
 
+            /*
+             * ADMIN:
+             * Always use the exact verified Firebase
+             * Authentication email.
+             */
             authEmail =
                     ADMIN_AUTH_EMAIL;
 
         } else {
 
+            /*
+             * PASSENGER / DRIVER:
+             * 63XXXXXXXXXX@sakayna.app
+             */
             authEmail =
                     normalizedPhone
                             + "@sakayna.app";
@@ -776,15 +809,31 @@ public class MainActivity extends Activity {
                     "Firebase login failed.";
         }
 
+        /*
+         * RED MANTRA:
+         * Do not hide the actual diagnostic.
+         * Show the Firebase project used by this APK.
+         */
         String diagnostic =
-                simpleMessage
+                "🔴 RED DIAGNOSTIC"
                         + "\n\n"
-                        + "Firebase code: "
+                        + simpleMessage
+                        + "\n\n"
+                        + "Firebase code:"
+                        + "\n"
                         + errorCode
+                        + "\n\n"
+                        + "Firebase project:"
+                        + "\n"
+                        + runtimeFirebaseProject
                         + "\n\n"
                         + "LOGIN ID:"
                         + "\n"
-                        + authEmail;
+                        + authEmail
+                        + "\n\n"
+                        + "Firebase message:"
+                        + "\n"
+                        + errorMessage;
 
         statusText.setText(
                 diagnostic
