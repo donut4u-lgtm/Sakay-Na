@@ -1,0 +1,212 @@
+name: Diagnose Sakay Na Passenger Driver Auth
+
+on:
+  workflow_dispatch:
+
+jobs:
+  diagnose-auth:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Firebase Admin SDK
+        run: |
+          python -m pip install --upgrade pip
+          pip install firebase-admin
+
+      - name: Diagnose Firebase Auth
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          set -e
+
+          test -n "$FIREBASE_SERVICE_ACCOUNT"
+
+          python <<'PY'
+          import json
+          import os
+          import re
+
+          import firebase_admin
+          from firebase_admin import credentials
+          from firebase_admin import auth
+          from firebase_admin import firestore
+
+          PROJECT_ID = "sakay-na-1cafa"
+
+          service_account = json.loads(
+              os.environ["FIREBASE_SERVICE_ACCOUNT"]
+          )
+
+          if service_account.get("project_id") != PROJECT_ID:
+              raise RuntimeError(
+                  "RED: Wrong Firebase project."
+              )
+
+          firebase_admin.initialize_app(
+              credentials.Certificate(service_account),
+              {"projectId": PROJECT_ID}
+          )
+
+          db = firestore.client()
+
+          def normalize_phone(value):
+              digits = re.sub(
+                  r"\D",
+                  "",
+                  str(value or "")
+              )
+
+              if digits.startswith("63"):
+                  normalized = digits
+              elif digits.startswith("09"):
+                  normalized = "63" + digits[1:]
+              elif digits.startswith("9") and len(digits) == 10:
+                  normalized = "63" + digits
+              else:
+                  return ""
+
+              if re.fullmatch(r"63\d{10}", normalized):
+                  return normalized
+
+              return ""
+
+          print("========================================")
+          print("SAKAY NA AUTH DIAGNOSTIC")
+          print("Firebase project:", PROJECT_ID)
+          print("========================================")
+
+          auth_by_uid = {}
+
+          print("")
+          print("AUTHENTICATION USERS")
+          print("----------------------------------------")
+
+          page = auth.list_users()
+
+          while page:
+              for user in page.users:
+                  auth_by_uid[user.uid] = user
+
+                  providers = []
+
+                  for provider in user.provider_data:
+                      providers.append(provider.provider_id)
+
+                  print(
+                      "UID:", user.uid,
+                      "| EMAIL:", user.email or "<none>",
+                      "| DISABLED:", user.disabled,
+                      "| PROVIDERS:", ",".join(providers) or "<none>"
+                  )
+
+              page = page.get_next_page()
+
+          print("")
+          print("PASSENGER / DRIVER FIRESTORE CHECK")
+          print("----------------------------------------")
+
+          found = 0
+          green = 0
+          red = 0
+
+          for doc in db.collection("users").stream():
+
+              data = doc.to_dict() or {}
+
+              role = str(
+                  data.get("role")
+                  or data.get("accountType")
+                  or ""
+              ).upper()
+
+              if role not in ("PASSENGER", "DRIVER"):
+                  continue
+
+              found += 1
+
+              phone = normalize_phone(
+                  data.get("phone")
+                  or data.get("phoneNumber")
+              )
+
+              expected_email = (
+                  phone + "@sakayna.app"
+                  if phone
+                  else "<invalid phone>"
+              )
+
+              user = auth_by_uid.get(doc.id)
+
+              print("")
+              print("ROLE:", role)
+              print("FIRESTORE UID:", doc.id)
+              print("PHONE:", phone or "<invalid>")
+              print("EXPECTED LOGIN ID:", expected_email)
+
+              if not user:
+                  print("RESULT: RED - AUTH USER MISSING")
+                  red += 1
+                  continue
+
+              actual_email = user.email or "<none>"
+
+              providers = [
+                  p.provider_id
+                  for p in user.provider_data
+              ]
+
+              print("AUTH EMAIL:", actual_email)
+              print("AUTH DISABLED:", user.disabled)
+              print(
+                  "PASSWORD PROVIDER:",
+                  "YES" if "password" in providers else "NO"
+              )
+
+              problems = []
+
+              if actual_email != expected_email:
+                  problems.append("EMAIL_MISMATCH")
+
+              if user.disabled:
+                  problems.append("AUTH_DISABLED")
+
+              if "password" not in providers:
+                  problems.append("PASSWORD_PROVIDER_MISSING")
+
+              if problems:
+                  print(
+                      "RESULT: RED -",
+                      ",".join(problems)
+                  )
+                  red += 1
+              else:
+                  print(
+                      "RESULT: GREEN - AUTH RECORD LOOKS CORRECT"
+                  )
+                  green += 1
+
+          print("")
+          print("========================================")
+          print("DIAGNOSTIC SUMMARY")
+          print("========================================")
+          print("Passenger/Driver profiles:", found)
+          print("GREEN:", green)
+          print("RED:", red)
+          print("========================================")
+
+          if red > 0:
+              print(
+                  "RED: Passenger/Driver authentication "
+                  "records require attention."
+              )
+          else:
+              print(
+                  "GREEN: Passenger/Driver authentication "
+                  "records look correct."
+              )
+          PY
