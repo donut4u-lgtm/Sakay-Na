@@ -17,7 +17,6 @@ import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
-import com.google.firebase.firestore.Source;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -283,73 +282,34 @@ public class PassengerRegistrationActivity extends Activity {
 
         /*
          * Lock the registration button before
-         * contacting Firebase.
+         * contacting Firebase Authentication.
          */
         registrationInProgress = true;
 
         createButton.setEnabled(false);
         createButton.setText(
-                "⏳ CHECKING PHONE..."
+                "⏳ CREATING ACCOUNT..."
         );
 
-        Toast.makeText(
-                this,
-                "Checking phone number...",
-                Toast.LENGTH_SHORT
-        ).show();
-
         /*
-         * Server-side Firestore read.
+         * IMPORTANT:
          *
-         * This prevents a phone already registered
-         * in the users collection from starting
-         * another registration.
+         * Do NOT query Firestore users here.
+         *
+         * A brand-new user is not authenticated yet,
+         * so Firestore security rules may reject that
+         * pre-registration lookup.
+         *
+         * Firebase Authentication itself checks whether
+         * this phone-based account already exists.
          */
-        db.collection("users")
-                .whereEqualTo(
-                        "phone",
-                        phone
-                )
-                .limit(1)
-                .get(Source.SERVER)
-                .addOnSuccessListener(
-                        snapshot -> {
-
-                            if (!snapshot.isEmpty()) {
-
-                                resetRegistrationButton();
-
-                                Toast.makeText(
-                                        this,
-                                        "This phone number already has a Sakay Na account.",
-                                        Toast.LENGTH_LONG
-                                ).show();
-
-                                return;
-                            }
-
-                            createFirebasePassengerAccount(
-                                    name,
-                                    phone,
-                                    password,
-                                    province,
-                                    town
-                            );
-                        }
-                )
-                .addOnFailureListener(
-                        error -> {
-
-                            resetRegistrationButton();
-
-                            Toast.makeText(
-                                    this,
-                                    "Unable to check account status: "
-                                            + error.getMessage(),
-                                    Toast.LENGTH_LONG
-                            ).show();
-                        }
-                );
+        createFirebasePassengerAccount(
+                name,
+                phone,
+                password,
+                province,
+                town
+        );
     }
 
     private void createFirebasePassengerAccount(
