@@ -25,15 +25,22 @@ jobs:
       - name: Check signing secrets
         env:
           KEYSTORE_BASE64: ${{ secrets.SAKAYNA_KEYSTORE_BASE64 }}
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          PASSWORD_1: ${{ secrets.KEYSTORE_PASSWORD }}
+          PASSWORD_2: ${{ secrets.SAKAYNA_KEYSTORE_PASSWORD }}
         run: |
           if [ -z "$KEYSTORE_BASE64" ]; then
             echo "RED: Missing SAKAYNA_KEYSTORE_BASE64"
             exit 1
           fi
 
+          KEYSTORE_PASSWORD="$PASSWORD_1"
+
           if [ -z "$KEYSTORE_PASSWORD" ]; then
-            echo "RED: Missing KEYSTORE_PASSWORD"
+            KEYSTORE_PASSWORD="$PASSWORD_2"
+          fi
+
+          if [ -z "$KEYSTORE_PASSWORD" ]; then
+            echo "RED: Missing both KEYSTORE_PASSWORD and SAKAYNA_KEYSTORE_PASSWORD"
             exit 1
           fi
 
@@ -55,8 +62,15 @@ jobs:
 
       - name: Verify correct signing certificate
         env:
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          PASSWORD_1: ${{ secrets.KEYSTORE_PASSWORD }}
+          PASSWORD_2: ${{ secrets.SAKAYNA_KEYSTORE_PASSWORD }}
         run: |
+          KEYSTORE_PASSWORD="$PASSWORD_1"
+
+          if [ -z "$KEYSTORE_PASSWORD" ]; then
+            KEYSTORE_PASSWORD="$PASSWORD_2"
+          fi
+
           keytool -list \
             -v \
             -keystore "$RUNNER_TEMP/sakayna-release.jks" \
@@ -64,7 +78,7 @@ jobs:
             > "$RUNNER_TEMP/keystore-info.txt" 2>&1
 
           if [ $? -ne 0 ]; then
-            echo "RED: KEYSTORE_PASSWORD cannot open the keystore."
+            echo "RED: Cannot open original Sakay Na keystore."
             exit 1
           fi
 
@@ -86,7 +100,11 @@ jobs:
             exit 1
           fi
 
-          echo "Signing alias detected."
+          if [ "$ALIAS" != "sakayna" ]; then
+            echo "RED: Wrong signing alias."
+            echo "Found: $ALIAS"
+            exit 1
+          fi
 
           if [ -z "$CERT" ]; then
             echo "RED: No SHA-256 certificate found."
@@ -95,16 +113,14 @@ jobs:
 
           if [ "$CERT" != "$EXPECTED" ]; then
             echo "RED: WRONG SIGNING KEY"
-            echo "Expected installed-app certificate:"
-            echo "$EXPECTED"
-            echo "Keystore certificate:"
-            echo "$CERT"
+            echo "Expected: $EXPECTED"
+            echo "Found: $CERT"
             exit 1
           fi
 
-          echo "GREEN: Correct Sakay Na signing certificate confirmed."
+          echo "GREEN: Original Sakay Na signing certificate confirmed."
 
-          echo "SAKAYNA_KEY_ALIAS=$ALIAS" >> "$GITHUB_ENV"
+          echo "SAKAYNA_KEY_ALIAS=sakayna" >> "$GITHUB_ENV"
 
       - name: Read app version
         run: |
@@ -132,9 +148,19 @@ jobs:
 
       - name: Build signed release
         env:
+          PASSWORD_1: ${{ secrets.KEYSTORE_PASSWORD }}
+          PASSWORD_2: ${{ secrets.SAKAYNA_KEYSTORE_PASSWORD }}
           SAKAYNA_KEYSTORE_PATH: ${{ runner.temp }}/sakayna-release.jks
-          SAKAYNA_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         run: |
+          KEYSTORE_PASSWORD="$PASSWORD_1"
+
+          if [ -z "$KEYSTORE_PASSWORD" ]; then
+            KEYSTORE_PASSWORD="$PASSWORD_2"
+          fi
+
+          export SAKAYNA_KEYSTORE_PASSWORD="$KEYSTORE_PASSWORD"
+          export SAKAYNA_KEY_ALIAS="sakayna"
+
           wget -q \
             https://services.gradle.org/distributions/gradle-8.10.2-bin.zip
 
@@ -170,8 +196,6 @@ jobs:
             exit 1
           fi
 
-          echo "Checking final APK certificate..."
-
           "$APKSIGNER" verify \
             --verbose \
             --print-certs \
@@ -189,12 +213,6 @@ jobs:
           )
 
           EXPECTED="14904b17ad9917b5daf05f0655e56176e7b13bbbdec0d2cccecd09de017916d4"
-
-          echo "Expected certificate:"
-          echo "$EXPECTED"
-
-          echo "Actual APK certificate:"
-          echo "$CERT"
 
           if [ "$CERT" != "$EXPECTED" ]; then
             echo "RED: FINAL APK SIGNING CERTIFICATE DOES NOT MATCH."
@@ -214,7 +232,6 @@ jobs:
             "Sakay-Na-v2.apk"
 
           echo "GREEN: Release APK prepared."
-          echo "GREEN: Public download asset prepared as Sakay-Na-v2.apk."
 
       - name: Publish GitHub Release
         env:
@@ -248,7 +265,6 @@ jobs:
               --title "Sakay Na ${VERSION_NAME}" \
               --notes "Signed Sakay Na release ${VERSION_NAME}, version code ${VERSION_CODE}." \
               --latest
-
           fi
 
           echo "GREEN: GitHub Release published."
@@ -261,3 +277,9 @@ jobs:
           name: Sakay-Na-release-apk
           path: Sakay-Na-v${{ env.VERSION_NAME }}-${{ env.VERSION_CODE }}.apk
           if-no-files-found: error
+
+      - name: GREEN
+        run: |
+          echo "========================================"
+          echo "GREEN: SAKAY NA APK READY"
+          echo "========================================"
