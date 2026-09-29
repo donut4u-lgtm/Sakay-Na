@@ -585,25 +585,27 @@ public class MainActivity extends Activity {
             return;
         }
 
-        String authEmail =
+        final String authEmail =
                 normalizedPhone
-                        + "@sakayna.app";
+                        + "@sakyna.app";
 
         loginButton.setEnabled(false);
 
         statusText.setText(
-                "Logging in..."
+                "Checking login..."
         );
 
         /*
-         * Firebase account creation automatically signs the
-         * newly-created user in.
+         * IMPORTANT:
          *
-         * Always clear any existing Firebase session before
-         * starting a fresh phone + password login.
+         * Do NOT call auth.signOut() here.
+         *
+         * Firebase signInWithEmailAndPassword()
+         * handles the new authentication session.
+         *
+         * Calling signOut() before every login is unnecessary
+         * and can interfere with normal Firebase session flow.
          */
-        auth.signOut();
-
         auth.signInWithEmailAndPassword(
                         authEmail,
                         password
@@ -621,7 +623,7 @@ public class MainActivity extends Activity {
                                 );
 
                                 showLoginError(
-                                        "Login failed."
+                                        "Firebase login succeeded but no user was returned."
                                 );
 
                                 return;
@@ -654,47 +656,107 @@ public class MainActivity extends Activity {
                                     true
                             );
 
-                            String errorCode = "";
-
-                            if (e instanceof FirebaseAuthException) {
-
-                                errorCode =
-                                        ((FirebaseAuthException) e)
-                                                .getErrorCode();
-                            }
-
-                            String errorMessage =
-                                    e.getMessage();
-
-                            if (errorMessage == null
-                                    || errorMessage.trim().isEmpty()) {
-
-                                errorMessage =
-                                        "No Firebase error message returned.";
-                            }
-
-                            String diagnostic =
-                                    "Firebase login error:"
-                                            + "\n"
-                                            + errorCode
-                                            + "\n"
-                                            + errorMessage
-                                            + "\n\n"
-                                            + "LOGIN ID:"
-                                            + "\n"
-                                            + authEmail;
-
-                            statusText.setText(
-                                    diagnostic
+                            showFirebaseAuthenticationError(
+                                    e,
+                                    authEmail
                             );
-
-                            Toast.makeText(
-                                    MainActivity.this,
-                                    diagnostic,
-                                    Toast.LENGTH_LONG
-                            ).show();
                         }
                 );
+    }
+
+    private void showFirebaseAuthenticationError(
+            Exception e,
+            String authEmail
+    ) {
+
+        String errorCode = "";
+
+        if (e instanceof FirebaseAuthException) {
+
+            errorCode =
+                    ((FirebaseAuthException) e)
+                            .getErrorCode();
+        }
+
+        String errorMessage =
+                e.getMessage();
+
+        if (errorMessage == null
+                || errorMessage.trim().isEmpty()) {
+
+            errorMessage =
+                    "No Firebase error message returned.";
+        }
+
+        String simpleMessage;
+
+        if ("ERROR_INVALID_CREDENTIAL".equals(
+                errorCode
+        )) {
+
+            simpleMessage =
+                    "Invalid phone number or password.";
+
+        } else if ("ERROR_INVALID_EMAIL".equals(
+                errorCode
+        )) {
+
+            simpleMessage =
+                    "The generated login ID is invalid.";
+
+        } else if ("ERROR_USER_NOT_FOUND".equals(
+                errorCode
+        )) {
+
+            simpleMessage =
+                    "No Sakay Na account exists for this phone number.";
+
+        } else if ("ERROR_WRONG_PASSWORD".equals(
+                errorCode
+        )) {
+
+            simpleMessage =
+                    "Incorrect password.";
+
+        } else if ("ERROR_USER_DISABLED".equals(
+                errorCode
+        )) {
+
+            simpleMessage =
+                    "This Firebase account is disabled.";
+
+        } else if ("ERROR_TOO_MANY_REQUESTS".equals(
+                errorCode
+        )) {
+
+            simpleMessage =
+                    "Too many login attempts. Please wait and try again.";
+
+        } else {
+
+            simpleMessage =
+                    "Firebase login failed.";
+        }
+
+        String diagnostic =
+                simpleMessage
+                        + "\n\n"
+                        + "Firebase code: "
+                        + errorCode
+                        + "\n\n"
+                        + "LOGIN ID:"
+                        + "\n"
+                        + authEmail;
+
+        statusText.setText(
+                diagnostic
+        );
+
+        Toast.makeText(
+                MainActivity.this,
+                diagnostic,
+                Toast.LENGTH_LONG
+        ).show();
     }
 
     private void loadUserProfile(
