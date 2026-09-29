@@ -1,0 +1,224 @@
+name: Sakay Na Auth Check
+
+on:
+  workflow_dispatch:
+
+jobs:
+  auth-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Firebase Admin SDK
+        run: |
+          pip install firebase-admin
+
+      - name: Check Passenger and Driver Auth
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          python <<'PY'
+          import json
+          import os
+          import re
+
+          import firebase_admin
+          from firebase_admin import credentials
+          from firebase_admin import auth
+          from firebase_admin import firestore
+
+          PROJECT_ID = "sakay-na-1cafa"
+
+          service_account = json.loads(
+              os.environ["FIREBASE_SERVICE_ACCOUNT"]
+          )
+
+          if service_account.get("project_id") != PROJECT_ID:
+              raise SystemExit(
+                  "🔴 WRONG FIREBASE PROJECT: "
+                  + str(service_account.get("project_id"))
+              )
+
+          firebase_admin.initialize_app(
+              credentials.Certificate(service_account),
+              {
+                  "projectId": PROJECT_ID
+              }
+          )
+
+          db = firestore.client()
+
+          auth_users = {}
+
+          for user in auth.list_users().users:
+              auth_users[user.uid] = user
+
+          def normalize_phone(value):
+
+              if value is None:
+                  return ""
+
+              value = str(value).strip()
+
+              value = (
+                  value
+                  .replace(" ", "")
+                  .replace("-", "")
+                  .replace("(", "")
+                  .replace(")", "")
+              )
+
+              if value.startswith("+63"):
+                  value = "63" + value[3:]
+
+              elif value.startswith("09"):
+                  value = "63" + value[1:]
+
+              elif value.startswith("9") and len(value) == 10:
+                  value = "63" + value
+
+              if not re.fullmatch(
+                  r"63[0-9]{10}",
+                  value
+              ):
+                  return ""
+
+              return value
+
+          summary = []
+
+          summary.append("# 🛠️ Sakay Na Passenger / Driver Auth Check")
+          summary.append("")
+          summary.append(
+              "**Firebase project:** `sakay-na-1cafa`"
+          )
+          summary.append("")
+
+          red_count = 0
+          green_count = 0
+
+          snapshot = db.collection("users").stream()
+
+          for document in snapshot:
+
+              data = document.to_dict() or {}
+
+              role = str(
+                  data.get("role")
+                  or data.get("accountType")
+                  or ""
+              ).upper()
+
+              if role not in (
+                  "PASSENGER",
+                  "DRIVER"
+              ):
+                  continue
+
+              phone = normalize_phone(
+                  data.get("phone")
+                  or data.get("phoneNumber")
+              )
+
+              expected_email = (
+                  phone + "@sakayna.app"
+                  if phone
+                  else ""
+              )
+
+              uid = document.id
+
+              firebase_user = auth_users.get(uid)
+
+              if firebase_user is None:
+
+                  summary.append(
+                      f"- 🔴 **{role}** `{phone}` — "
+                      f"AUTH USER MISSING"
+                  )
+
+                  red_count += 1
+                  continue
+
+              actual_email = (
+                  firebase_user.email
+                  or ""
+              )
+
+              providers = [
+                  provider.provider_id
+                  for provider
+                  in firebase_user.provider_data
+              ]
+
+              problems = []
+
+              if actual_email != expected_email:
+                  problems.append(
+                      f"EMAIL MISMATCH "
+                      f"(Auth=`{actual_email}`, "
+                      f"Expected=`{expected_email}`)"
+                  )
+
+              if firebase_user.disabled:
+                  problems.append("ACCOUNT DISABLED")
+
+              if "password" not in providers:
+                  problems.append(
+                      "PASSWORD PROVIDER MISSING"
+                  )
+
+              if problems:
+
+                  summary.append(
+                      f"- 🔴 **{role}** `{phone}` — "
+                      + "; ".join(problems)
+                  )
+
+                  red_count += 1
+
+              else:
+
+                  summary.append(
+                      f"- 🟢 **{role}** `{phone}` — "
+                      f"AUTH RECORD OK"
+                  )
+
+                  green_count += 1
+
+          summary.append("")
+          summary.append("## DIAGNOSTIC SUMMARY")
+          summary.append("")
+          summary.append(
+              f"- 🟢 Auth records OK: **{green_count}**"
+          )
+          summary.append(
+              f"- 🔴 Auth records needing attention: "
+              f"**{red_count}**"
+          )
+          summary.append("")
+
+          if red_count == 0:
+              summary.append(
+                  "🟢 **PASSENGER / DRIVER AUTH RECORDS ARE CORRECT.**"
+              )
+          else:
+              summary.append(
+                  "🔴 **PASSENGER / DRIVER AUTH RECORDS NEED REPAIR.**"
+              )
+
+          with open(
+              os.environ["GITHUB_STEP_SUMMARY"],
+              "w"
+          ) as output:
+
+              output.write(
+                  "\n".join(summary)
+              )
+
+          print("\n".join(summary))
+          PY
