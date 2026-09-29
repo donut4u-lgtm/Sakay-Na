@@ -585,9 +585,31 @@ public class MainActivity extends Activity {
             return;
         }
 
-        final String authEmail =
-                normalizedPhone
-                        + "@sakyna.app";
+        /*
+         * PASSENGER / DRIVER:
+         *     63XXXXXXXXXX@sakayna.app
+         *
+         * ADMIN:
+         *     +63XXXXXXXXXX@sakayna.app
+         *
+         * The Admin Firebase Authentication record
+         * was verified to use the +63 format.
+         */
+        final String authEmail;
+
+        if ("ADMIN".equals(selectedRole)) {
+
+            authEmail =
+                    "+"
+                            + normalizedPhone
+                            + "@sakayna.app";
+
+        } else {
+
+            authEmail =
+                    normalizedPhone
+                            + "@sakayna.app";
+        }
 
         loginButton.setEnabled(false);
 
@@ -595,17 +617,6 @@ public class MainActivity extends Activity {
                 "Checking login..."
         );
 
-        /*
-         * IMPORTANT:
-         *
-         * Do NOT call auth.signOut() here.
-         *
-         * Firebase signInWithEmailAndPassword()
-         * handles the new authentication session.
-         *
-         * Calling signOut() before every login is unnecessary
-         * and can interfere with normal Firebase session flow.
-         */
         auth.signInWithEmailAndPassword(
                         authEmail,
                         password
@@ -629,6 +640,11 @@ public class MainActivity extends Activity {
                                 return;
                             }
 
+                            /*
+                             * Admin is verified by Firebase UID.
+                             * This prevents another Firebase account
+                             * from entering the Admin dashboard.
+                             */
                             if ("ADMIN".equals(
                                     selectedRole
                             )
@@ -638,6 +654,28 @@ public class MainActivity extends Activity {
 
                                 openScreen(
                                         AdminActivity.class
+                                );
+
+                                return;
+                            }
+
+                            /*
+                             * If ADMIN was selected but the signed-in
+                             * Firebase UID is not the official Admin UID,
+                             * do not allow Admin access.
+                             */
+                            if ("ADMIN".equals(
+                                    selectedRole
+                            )) {
+
+                                auth.signOut();
+
+                                loginButton.setEnabled(
+                                        true
+                                );
+
+                                showLoginError(
+                                        "This account is not the authorized Admin account."
                                 );
 
                                 return;
@@ -1024,6 +1062,25 @@ public class MainActivity extends Activity {
                         );
 
         if ("ADMIN".equals(role)) {
+
+            if (!ADMIN_UID.equals(
+                    auth.getCurrentUser() != null
+                            ? auth.getCurrentUser().getUid()
+                            : ""
+            )) {
+
+                auth.signOut();
+
+                loginButton.setEnabled(
+                        true
+                );
+
+                showLoginError(
+                        "Unauthorized Admin account."
+                );
+
+                return;
+            }
 
             openScreen(
                     AdminActivity.class
