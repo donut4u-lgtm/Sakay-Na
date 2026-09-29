@@ -54,6 +54,13 @@ public class MainActivity extends Activity {
     private static final String ADMIN_UID =
             "Ld3rzaCvAGNlXBDCofB3mWjgXWp2";
 
+    /*
+     * This is the exact Admin Firebase Authentication email
+     * verified by the Firebase diagnostic workflow.
+     */
+    private static final String ADMIN_AUTH_EMAIL =
+            "+639306455676@sakayna.app";
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -587,22 +594,18 @@ public class MainActivity extends Activity {
 
         /*
          * PASSENGER / DRIVER:
-         *     63XXXXXXXXXX@sakayna.app
+         * 63XXXXXXXXXX@sakayna.app
          *
          * ADMIN:
-         *     +63XXXXXXXXXX@sakayna.app
-         *
-         * The Admin Firebase Authentication record
-         * was verified to use the +63 format.
+         * Uses the exact Firebase Authentication
+         * email verified for the official Admin UID.
          */
         final String authEmail;
 
         if ("ADMIN".equals(selectedRole)) {
 
             authEmail =
-                    "+"
-                            + normalizedPhone
-                            + "@sakayna.app";
+                    ADMIN_AUTH_EMAIL;
 
         } else {
 
@@ -642,8 +645,6 @@ public class MainActivity extends Activity {
 
                             /*
                              * Admin is verified by Firebase UID.
-                             * This prevents another Firebase account
-                             * from entering the Admin dashboard.
                              */
                             if ("ADMIN".equals(
                                     selectedRole
@@ -660,9 +661,8 @@ public class MainActivity extends Activity {
                             }
 
                             /*
-                             * If ADMIN was selected but the signed-in
-                             * Firebase UID is not the official Admin UID,
-                             * do not allow Admin access.
+                             * Never allow another Firebase
+                             * account into Admin.
                              */
                             if ("ADMIN".equals(
                                     selectedRole
