@@ -82,10 +82,6 @@ public class MainActivity extends Activity {
             runtimeFirebaseProject = "ERROR_READING_PROJECT";
         }
 
-        /*
-         * Start every visit to the login screen clean.
-         * This does NOT modify Firebase accounts or passwords.
-         */
         auth.signOut();
 
         requestNotificationPermission();
@@ -98,14 +94,12 @@ public class MainActivity extends Activity {
     private void showLoginScreen() {
 
         LinearLayout root = new LinearLayout(this);
-
         root.setOrientation(LinearLayout.VERTICAL);
         root.setGravity(Gravity.CENTER_HORIZONTAL);
         root.setPadding(40, 40, 40, 35);
         root.setBackgroundColor(Color.rgb(238, 248, 243));
 
         TextView title = new TextView(this);
-
         title.setText("🛺 SAKAY NA");
         title.setTextSize(32);
         title.setTextColor(Color.WHITE);
@@ -114,13 +108,9 @@ public class MainActivity extends Activity {
         title.setPadding(10, 22, 10, 22);
         title.setBackgroundColor(Color.rgb(0, 125, 75));
 
-        root.addView(
-                title,
-                new LinearLayout.LayoutParams(-1, -2)
-        );
+        root.addView(title, new LinearLayout.LayoutParams(-1, -2));
 
         TextView subtitle = new TextView(this);
-
         subtitle.setText("Tricycle Ride Booking");
         subtitle.setTextSize(19);
         subtitle.setTextColor(Color.rgb(0, 110, 65));
@@ -131,19 +121,15 @@ public class MainActivity extends Activity {
         root.addView(subtitle);
 
         phoneField = new EditText(this);
-
         phoneField.setHint("📱 Phone Number");
         phoneField.setTextSize(17);
         phoneField.setSingleLine(true);
         phoneField.setInputType(InputType.TYPE_CLASS_PHONE);
 
-        root.addView(
-                phoneField,
-                new LinearLayout.LayoutParams(-1, -2)
-        );
+        root.addView(phoneField,
+                new LinearLayout.LayoutParams(-1, -2));
 
         passwordField = new EditText(this);
-
         passwordField.setHint("🔒 Password");
         passwordField.setTextSize(17);
         passwordField.setSingleLine(true);
@@ -160,7 +146,6 @@ public class MainActivity extends Activity {
         root.addView(passwordField, passwordParams);
 
         TextView roleLabel = new TextView(this);
-
         roleLabel.setText("Select Account Type");
         roleLabel.setTextSize(17);
         roleLabel.setTextColor(Color.rgb(0, 110, 65));
@@ -175,7 +160,6 @@ public class MainActivity extends Activity {
         root.addView(roleLabel, roleLabelParams);
 
         LinearLayout roleRow = new LinearLayout(this);
-
         roleRow.setOrientation(LinearLayout.HORIZONTAL);
         roleRow.setGravity(Gravity.CENTER);
 
@@ -183,25 +167,13 @@ public class MainActivity extends Activity {
         driverButton = createRoleButton("DRIVER");
         adminButton = createRoleButton("ADMIN");
 
-        roleRow.addView(
-                passengerButton,
-                roleButtonParams()
-        );
-
-        roleRow.addView(
-                driverButton,
-                roleButtonParams()
-        );
-
-        roleRow.addView(
-                adminButton,
-                roleButtonParams()
-        );
+        roleRow.addView(passengerButton, roleButtonParams());
+        roleRow.addView(driverButton, roleButtonParams());
+        roleRow.addView(adminButton, roleButtonParams());
 
         root.addView(roleRow);
 
         loginButton = new Button(this);
-
         loginButton.setText("🚀 LOGIN");
         loginButton.setTextSize(17);
         loginButton.setTextColor(Color.WHITE);
@@ -217,7 +189,6 @@ public class MainActivity extends Activity {
         root.addView(loginButton, loginParams);
 
         registerButton = new Button(this);
-
         registerButton.setText("✨ CREATE ACCOUNT");
         registerButton.setTextSize(16);
         registerButton.setTextColor(Color.WHITE);
@@ -225,17 +196,11 @@ public class MainActivity extends Activity {
         registerButton.setAllCaps(false);
         registerButton.setBackgroundColor(Color.rgb(40, 115, 190));
 
-        root.addView(
-                registerButton,
-                new LinearLayout.LayoutParams(-1, -2)
-        );
+        root.addView(registerButton,
+                new LinearLayout.LayoutParams(-1, -2));
 
         statusText = new TextView(this);
-
-        statusText.setText(
-                "📱 Phone number + password only"
-        );
-
+        statusText.setText("📱 Phone number + password only");
         statusText.setTextSize(14);
         statusText.setTextColor(Color.rgb(0, 110, 65));
         statusText.setTypeface(null, Typeface.BOLD);
@@ -247,7 +212,6 @@ public class MainActivity extends Activity {
         setContentView(root);
 
         selectedRole = "PASSENGER";
-
         updateRoleButtons();
 
         passengerButton.setOnClickListener(v -> {
@@ -274,24 +238,18 @@ public class MainActivity extends Activity {
     }
 
     private Button createRoleButton(String text) {
-
         Button button = new Button(this);
-
         button.setText(text);
         button.setTextSize(12);
         button.setAllCaps(false);
         button.setTypeface(null, Typeface.BOLD);
-
         return button;
     }
 
     private LinearLayout.LayoutParams roleButtonParams() {
-
         LinearLayout.LayoutParams params =
                 new LinearLayout.LayoutParams(0, -2, 1);
-
         params.setMargins(3, 5, 3, 5);
-
         return params;
     }
 
@@ -307,48 +265,26 @@ public class MainActivity extends Activity {
         driverButton.setTextColor(Color.WHITE);
         adminButton.setTextColor(Color.WHITE);
 
-        passengerButton.setBackgroundColor(
-                Color.rgb(0, 125, 75)
-        );
-
-        driverButton.setBackgroundColor(
-                Color.rgb(40, 115, 190)
-        );
-
-        adminButton.setBackgroundColor(
-                Color.rgb(145, 75, 160)
-        );
+        passengerButton.setBackgroundColor(Color.rgb(0, 125, 75));
+        driverButton.setBackgroundColor(Color.rgb(40, 115, 190));
+        adminButton.setBackgroundColor(Color.rgb(145, 75, 160));
 
         if ("PASSENGER".equals(selectedRole)) {
-
-            passengerButton.setBackgroundColor(
-                    Color.rgb(0, 175, 90)
-            );
-
+            passengerButton.setBackgroundColor(Color.rgb(0, 175, 90));
         } else if ("DRIVER".equals(selectedRole)) {
-
-            driverButton.setBackgroundColor(
-                    Color.rgb(25, 135, 220)
-            );
-
+            driverButton.setBackgroundColor(Color.rgb(25, 135, 220));
         } else if ("ADMIN".equals(selectedRole)) {
-
-            adminButton.setBackgroundColor(
-                    Color.rgb(180, 75, 190)
-            );
+            adminButton.setBackgroundColor(Color.rgb(180, 75, 190));
         }
     }
 
     private void login() {
 
         String phone =
-                phoneField.getText()
-                        .toString()
-                        .trim();
+                phoneField.getText().toString().trim();
 
         String password =
-                passwordField.getText()
-                        .toString();
+                passwordField.getText().toString();
 
         if (phone.isEmpty()) {
             phoneField.setError("Enter phone number");
@@ -360,38 +296,20 @@ public class MainActivity extends Activity {
             return;
         }
 
-        String normalizedPhone =
-                normalizePhone(phone);
+        String normalizedPhone = normalizePhone(phone);
 
         if (normalizedPhone.isEmpty()) {
-
             phoneField.setError(
                     "Enter a valid Philippine phone number"
             );
-
             return;
         }
 
         loginButton.setEnabled(false);
-
-        statusText.setText(
-                "Checking login..."
-        );
-
-        /*
-         * IMPORTANT:
-         *
-         * Do NOT sign out immediately before every login attempt.
-         * Firebase can authenticate directly with the supplied
-         * credentials.
-         *
-         * Existing passwords are untouched.
-         */
+        statusText.setText("Checking login...");
 
         if ("ADMIN".equals(selectedRole)) {
-
             signInAdmin(password);
-
             return;
         }
 
@@ -403,47 +321,30 @@ public class MainActivity extends Activity {
 
     private void signInAdmin(String password) {
 
-        final String loginId =
-                ADMIN_AUTH_EMAIL;
+        final String loginId = ADMIN_AUTH_EMAIL;
 
-        statusText.setText(
-                "Checking Admin account..."
-        );
+        statusText.setText("Checking Admin account...");
 
-        auth.signInWithEmailAndPassword(
-                        loginId,
-                        password
-                )
+        auth.signInWithEmailAndPassword(loginId, password)
                 .addOnSuccessListener(result -> {
 
-                    FirebaseUser user =
-                            result.getUser();
+                    FirebaseUser user = result.getUser();
 
                     if (user == null) {
-
                         auth.signOut();
-
                         loginButton.setEnabled(true);
-
                         showLoginError(
                                 "Firebase login succeeded but no Admin user was returned."
                         );
-
                         return;
                     }
 
-                    if (!ADMIN_UID.equals(
-                            user.getUid()
-                    )) {
-
+                    if (!ADMIN_UID.equals(user.getUid())) {
                         auth.signOut();
-
                         loginButton.setEnabled(true);
-
                         showLoginError(
                                 "Unauthorized Admin account."
                         );
-
                         return;
                     }
 
@@ -452,7 +353,6 @@ public class MainActivity extends Activity {
                 .addOnFailureListener(error -> {
 
                     auth.signOut();
-
                     loginButton.setEnabled(true);
 
                     showFirebaseAuthenticationError(
@@ -462,27 +362,6 @@ public class MainActivity extends Activity {
                 });
     }
 
-    /*
-     * CANONICAL SAKAY NA LOGIN
-     *
-     * Registration creates:
-     *
-     * 63XXXXXXXXXX@sakayna.app
-     *
-     * Therefore login creates exactly the same Firebase
-     * Authentication identifier.
-     *
-     * Examples:
-     *
-     * 09763087980
-     * -> 639763087980@sakayna.app
-     *
-     * +639763087980
-     * -> 639763087980@sakayna.app
-     *
-     * 639763087980
-     * -> 639763087980@sakayna.app
-     */
     private void signInPassengerDriver(
             String normalizedPhone,
             String password
@@ -495,12 +374,6 @@ public class MainActivity extends Activity {
                 "Checking Sakay Na account..."
         );
 
-        /*
-         * One authentication attempt only.
-         * No recursive login.
-         * No password modification.
-         * No account recreation.
-         */
         auth.signInWithEmailAndPassword(
                         loginId,
                         password
@@ -513,7 +386,6 @@ public class MainActivity extends Activity {
                     if (user == null) {
 
                         auth.signOut();
-
                         loginButton.setEnabled(true);
 
                         showLoginError(
@@ -531,7 +403,6 @@ public class MainActivity extends Activity {
                 .addOnFailureListener(error -> {
 
                     auth.signOut();
-
                     loginButton.setEnabled(true);
 
                     showFirebaseAuthenticationError(
@@ -546,8 +417,7 @@ public class MainActivity extends Activity {
             String normalizedPhone
     ) {
 
-        String uid =
-                user.getUid();
+        String uid = user.getUid();
 
         db.collection("users")
                 .document(uid)
@@ -571,7 +441,6 @@ public class MainActivity extends Activity {
                 .addOnFailureListener(e -> {
 
                     auth.signOut();
-
                     loginButton.setEnabled(true);
 
                     showLoginError(
@@ -592,17 +461,13 @@ public class MainActivity extends Activity {
                         .toUpperCase(Locale.US);
 
         db.collection("users")
-                .whereEqualTo(
-                        "phone",
-                        normalizedPhone
-                )
+                .whereEqualTo("phone", normalizedPhone)
                 .get()
                 .addOnSuccessListener(querySnapshot -> {
 
                     if (querySnapshot.isEmpty()) {
 
                         auth.signOut();
-
                         loginButton.setEnabled(true);
 
                         showLoginError(
@@ -612,11 +477,10 @@ public class MainActivity extends Activity {
                         return;
                     }
 
-                    DocumentSnapshot selectedDocument =
-                            null;
+                    DocumentSnapshot selectedDocument = null;
 
-                    for (DocumentSnapshot doc
-                            : querySnapshot.getDocuments()) {
+                    for (DocumentSnapshot doc :
+                            querySnapshot.getDocuments()) {
 
                         String role =
                                 doc.getString("role");
@@ -635,7 +499,6 @@ public class MainActivity extends Activity {
                     if (selectedDocument == null) {
 
                         auth.signOut();
-
                         loginButton.setEnabled(true);
 
                         showLoginError(
@@ -655,7 +518,6 @@ public class MainActivity extends Activity {
                 .addOnFailureListener(e -> {
 
                     auth.signOut();
-
                     loginButton.setEnabled(true);
 
                     showLoginError(
@@ -669,11 +531,9 @@ public class MainActivity extends Activity {
             String normalizedPhone
     ) {
 
-        if (document == null
-                || !document.exists()) {
+        if (document == null || !document.exists()) {
 
             auth.signOut();
-
             loginButton.setEnabled(true);
 
             showLoginError(
@@ -683,8 +543,7 @@ public class MainActivity extends Activity {
             return;
         }
 
-        String role =
-                document.getString("role");
+        String role = document.getString("role");
 
         String accountType =
                 document.getString("accountType");
@@ -696,8 +555,7 @@ public class MainActivity extends Activity {
                         .trim()
                         .toUpperCase(Locale.US);
 
-        if (role == null
-                || role.trim().isEmpty()) {
+        if (role == null || role.trim().isEmpty()) {
 
             if ("DRIVER".equals(wantedRole)
                     || "PASSENGER".equals(wantedRole)) {
@@ -714,11 +572,9 @@ public class MainActivity extends Activity {
             }
         }
 
-        if (role == null
-                || role.trim().isEmpty()) {
+        if (role == null || role.trim().isEmpty()) {
 
             auth.signOut();
-
             loginButton.setEnabled(true);
 
             showLoginError(
@@ -736,7 +592,6 @@ public class MainActivity extends Activity {
                 && !"PASSENGER".equals(role)) {
 
             auth.signOut();
-
             loginButton.setEnabled(true);
 
             showLoginError(
@@ -750,7 +605,6 @@ public class MainActivity extends Activity {
                 && !"DRIVER".equals(role)) {
 
             auth.signOut();
-
             loginButton.setEnabled(true);
 
             showLoginError(
@@ -761,22 +615,16 @@ public class MainActivity extends Activity {
         }
 
         String securityStatus =
-                document.getString(
-                        "securityStatus"
-                );
+                document.getString("securityStatus");
 
         if ("BANNED".equalsIgnoreCase(
                 securityStatus
         )) {
 
             auth.signOut();
-
             showLoginScreen();
 
-            toast(
-                    "This account has been banned."
-            );
-
+            toast("This account has been banned.");
             return;
         }
 
@@ -785,13 +633,9 @@ public class MainActivity extends Activity {
         )) {
 
             auth.signOut();
-
             showLoginScreen();
 
-            toast(
-                    "This account is suspended."
-            );
-
+            toast("This account is suspended.");
             return;
         }
 
@@ -801,14 +645,8 @@ public class MainActivity extends Activity {
         String storedPhone =
                 document.getString("phone");
 
-        if (!normalizedPhone.equals(
-                storedPhone
-        )) {
-
-            repair.put(
-                    "phone",
-                    normalizedPhone
-            );
+        if (!normalizedPhone.equals(storedPhone)) {
+            repair.put("phone", normalizedPhone);
         }
 
         String storedRole =
@@ -817,24 +655,16 @@ public class MainActivity extends Activity {
         if (storedRole == null
                 || storedRole.trim().isEmpty()) {
 
-            repair.put(
-                    "role",
-                    role
-            );
+            repair.put("role", role);
         }
 
         String storedAccountType =
-                document.getString(
-                        "accountType"
-                );
+                document.getString("accountType");
 
         if (storedAccountType == null
                 || storedAccountType.trim().isEmpty()) {
 
-            repair.put(
-                    "accountType",
-                    role
-            );
+            repair.put("accountType", role);
         }
 
         if (!repair.isEmpty()) {
@@ -863,7 +693,6 @@ public class MainActivity extends Activity {
             )) {
 
                 auth.signOut();
-
                 loginButton.setEnabled(true);
 
                 showLoginError(
@@ -874,26 +703,20 @@ public class MainActivity extends Activity {
             }
 
             openScreen(AdminActivity.class);
-
             return;
         }
 
         if ("DRIVER".equals(role)) {
-
             openScreen(DriverActivity.class);
-
             return;
         }
 
         if ("PASSENGER".equals(role)) {
-
             openScreen(PassengerActivity.class);
-
             return;
         }
 
         auth.signOut();
-
         loginButton.setEnabled(true);
 
         showLoginError(
@@ -901,22 +724,38 @@ public class MainActivity extends Activity {
         );
     }
 
+    /*
+     * AUTHENTICATION DIAGNOSTIC
+     *
+     * This does NOT change the account.
+     * This does NOT change the password.
+     * This does NOT reset Firebase.
+     *
+     * It exposes the exact Firebase Android error so we can
+     * compare the APK result with the already-tested Firebase
+     * REST password authentication.
+     */
     private void showFirebaseAuthenticationError(
             Exception e,
             String authEmail
     ) {
 
-        String errorCode = "";
+        String errorCode = "UNKNOWN";
 
         if (e instanceof FirebaseAuthException) {
 
-            errorCode =
+            String firebaseCode =
                     ((FirebaseAuthException) e)
                             .getErrorCode();
+
+            if (firebaseCode != null
+                    && !firebaseCode.trim().isEmpty()) {
+
+                errorCode = firebaseCode;
+            }
         }
 
-        String errorMessage =
-                e.getMessage();
+        String errorMessage = e.getMessage();
 
         if (errorMessage == null
                 || errorMessage.trim().isEmpty()) {
@@ -924,6 +763,9 @@ public class MainActivity extends Activity {
             errorMessage =
                     "No Firebase error message returned.";
         }
+
+        String exceptionType =
+                e.getClass().getName();
 
         String simpleMessage;
 
@@ -984,6 +826,10 @@ public class MainActivity extends Activity {
                         + "\n"
                         + errorCode
                         + "\n\n"
+                        + "Exception:"
+                        + "\n"
+                        + exceptionType
+                        + "\n\n"
                         + "Firebase project:"
                         + "\n"
                         + runtimeFirebaseProject
@@ -1000,7 +846,9 @@ public class MainActivity extends Activity {
 
         Toast.makeText(
                 MainActivity.this,
-                diagnostic,
+                simpleMessage
+                        + "\nCode: "
+                        + errorCode,
                 Toast.LENGTH_LONG
         ).show();
     }
@@ -1059,9 +907,7 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void openScreen(
-            Class<?> target
-    ) {
+    private void openScreen(Class<?> target) {
 
         if (target == PassengerActivity.class
                 || target == DriverActivity.class) {
@@ -1096,11 +942,8 @@ public class MainActivity extends Activity {
         try {
 
             if (Build.VERSION.SDK_INT >= 26) {
-
                 startForegroundService(intent);
-
             } else {
-
                 startService(intent);
             }
 
@@ -1155,18 +998,13 @@ public class MainActivity extends Activity {
         return value;
     }
 
-    private void showLoginError(
-            String message
-    ) {
+    private void showLoginError(String message) {
 
         statusText.setText(message);
-
         toast(message);
     }
 
-    private void toast(
-            String message
-    ) {
+    private void toast(String message) {
 
         Toast.makeText(
                 this,
