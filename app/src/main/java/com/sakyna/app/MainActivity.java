@@ -82,11 +82,6 @@ public class MainActivity extends Activity {
             runtimeFirebaseProject = "ERROR_READING_PROJECT";
         }
 
-        /*
-         * IMPORTANT:
-         * Do not automatically enter another account when
-         * MainActivity starts.
-         */
         auth.signOut();
 
         requestNotificationPermission();
@@ -387,9 +382,6 @@ public class MainActivity extends Activity {
                 "Checking login..."
         );
 
-        /*
-         * ALWAYS start from a clean Firebase Auth state.
-         */
         auth.signOut();
 
         if ("ADMIN".equals(selectedRole)) {
@@ -466,19 +458,6 @@ public class MainActivity extends Activity {
      * =========================================================
      * PASSENGER / DRIVER LOGIN
      * =========================================================
-     *
-     * Registration uses:
-     *
-     * 639XXXXXXXXX@sakayna.app
-     *
-     * User may type:
-     *
-     * 097XXXXXXXX
-     * 095XXXXXXXX
-     * +639XXXXXXXXX
-     * 639XXXXXXXXX
-     *
-     * The app converts them internally.
      */
 
     private void signInPassengerDriver(
@@ -511,9 +490,7 @@ public class MainActivity extends Activity {
         );
 
         /*
-         * IMPORTANT:
-         * Clear any Firebase session before every
-         * authentication attempt.
+         * Clean Firebase Auth state before every attempt.
          */
         auth.signOut();
 
@@ -547,8 +524,32 @@ public class MainActivity extends Activity {
                 .addOnFailureListener(error -> {
 
                     /*
-                     * Try the next supported historical
-                     * login ID only if this attempt failed.
+                     * IMPORTANT:
+                     *
+                     * The first three login IDs are historical
+                     * compatibility attempts.
+                     *
+                     * On the FOURTH and FINAL attempt, do NOT
+                     * hide the Firebase error.
+                     *
+                     * Show the actual Firebase diagnostic.
+                     */
+                    if (attempt == loginIds.length - 1) {
+
+                        auth.signOut();
+
+                        loginButton.setEnabled(true);
+
+                        showFirebaseAuthenticationError(
+                                error,
+                                loginId
+                        );
+
+                        return;
+                    }
+
+                    /*
+                     * Try the next supported login ID.
                      */
                     signInPassengerDriver(
                             normalizedPhone,
@@ -968,7 +969,7 @@ public class MainActivity extends Activity {
 
     /*
      * =========================================================
-     * FIREBASE ERROR
+     * 🔴 FIREBASE ERROR DIAGNOSTIC
      * =========================================================
      */
 
@@ -1196,18 +1197,6 @@ public class MainActivity extends Activity {
      * =========================================================
      * PHONE NORMALIZATION
      * =========================================================
-     *
-     * Accepted:
-     *
-     * 09763087980
-     * 09512345678
-     * +639763087980
-     * 639763087980
-     * 9763087980
-     *
-     * Internal result:
-     *
-     * 639763087980
      */
 
     private String normalizePhone(String input) {
