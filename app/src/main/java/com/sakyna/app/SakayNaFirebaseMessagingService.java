@@ -9,84 +9,193 @@ import androidx.annotation.NonNull;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.SetOptions;
 import com.google.firebase.messaging.FirebaseMessagingService;
 import com.google.firebase.messaging.RemoteMessage;
 
 import java.util.HashMap;
 import java.util.Map;
 
-public class SakayNaFirebaseMessagingService extends FirebaseMessagingService {
+public class SakayNaFirebaseMessagingService
+        extends FirebaseMessagingService {
 
     @Override
     public void onNewToken(@NonNull String token) {
         super.onNewToken(token);
+        saveToken(token);
+    }
 
-        FirebaseAuth auth = FirebaseAuth.getInstance();
+    private void saveToken(String token) {
+
+        FirebaseAuth auth =
+                FirebaseAuth.getInstance();
 
         if (auth.getCurrentUser() == null) {
             return;
         }
 
-        String uid = auth.getCurrentUser().getUid();
+        String uid =
+                auth.getCurrentUser().getUid();
 
-        Map<String, Object> data = new HashMap<>();
-        data.put("fcmToken", token);
-        data.put("fcmTokenUpdatedAt", FieldValue.serverTimestamp());
+        Map<String, Object> data =
+                new HashMap<>();
+
+        data.put(
+                "fcmToken",
+                token
+        );
+
+        data.put(
+                "fcmTokenUpdatedAt",
+                FieldValue.serverTimestamp()
+        );
 
         FirebaseFirestore.getInstance()
                 .collection("users")
                 .document(uid)
-                .set(data, com.google.firebase.firestore.SetOptions.merge());
+                .set(
+                        data,
+                        SetOptions.merge()
+                );
     }
 
     @Override
-    public void onMessageReceived(@NonNull RemoteMessage remoteMessage) {
-        super.onMessageReceived(remoteMessage);
+    public void onMessageReceived(
+            @NonNull RemoteMessage remoteMessage
+    ) {
+        super.onMessageReceived(
+                remoteMessage
+        );
 
-        String title = "Sakay Na";
-        String message = "You have a ride update.";
-        String type = "";
-        String rideId = "";
+        String title =
+                "Sakay Na";
+
+        String message =
+                "You have a Sakay Na update.";
+
+        String type =
+                "";
+
+        String rideId =
+                "";
 
         if (remoteMessage.getNotification() != null) {
-            if (remoteMessage.getNotification().getTitle() != null) {
-                title = remoteMessage.getNotification().getTitle();
+
+            if (remoteMessage
+                    .getNotification()
+                    .getTitle() != null) {
+
+                title =
+                        remoteMessage
+                                .getNotification()
+                                .getTitle();
             }
 
-            if (remoteMessage.getNotification().getBody() != null) {
-                message = remoteMessage.getNotification().getBody();
+            if (remoteMessage
+                    .getNotification()
+                    .getBody() != null) {
+
+                message =
+                        remoteMessage
+                                .getNotification()
+                                .getBody();
             }
         }
 
-        if (remoteMessage.getData() != null) {
-            if (remoteMessage.getData().containsKey("title")) {
-                title = remoteMessage.getData().get("title");
+        Map<String, String> data =
+                remoteMessage.getData();
+
+        if (data != null) {
+
+            if (data.containsKey("title")) {
+                title =
+                        data.get("title");
             }
 
-            if (remoteMessage.getData().containsKey("message")) {
-                message = remoteMessage.getData().get("message");
+            if (data.containsKey("message")) {
+                message =
+                        data.get("message");
             }
 
-            if (remoteMessage.getData().containsKey("type")) {
-                type = remoteMessage.getData().get("type");
+            if (data.containsKey("type")) {
+                type =
+                        data.get("type");
             }
 
-            if (remoteMessage.getData().containsKey("rideId")) {
-                rideId = remoteMessage.getData().get("rideId");
+            if (data.containsKey("rideId")) {
+                rideId =
+                        data.get("rideId");
             }
         }
 
         Intent intent;
 
-        if (type.contains("DRIVER")) {
-            intent = new Intent(this, DriverActivity.class);
+        /*
+         * ADMIN NOTIFICATIONS
+         *
+         * These must open AdminActivity.
+         */
+
+        if ("ADMIN_DRIVER_APPLICATION"
+                .equalsIgnoreCase(type)) {
+
+            intent =
+                    new Intent(
+                            this,
+                            AdminActivity.class
+                    );
+
+        } else if (type.contains("DRIVER")) {
+
+            intent =
+                    new Intent(
+                            this,
+                            DriverActivity.class
+                    );
+
         } else {
-            intent = new Intent(this, PassengerActivity.class);
+
+            intent =
+                    new Intent(
+                            this,
+                            PassengerActivity.class
+                    );
         }
 
-        if (!rideId.isEmpty()) {
-            intent.putExtra("ride_id", rideId);
-            intent.putExtra("rideId", rideId);
+        if (rideId != null
+                && !rideId.isEmpty()) {
+
+            intent.putExtra(
+                    "ride_id",
+                    rideId
+            );
+
+            intent.putExtra(
+                    "rideId",
+                    rideId
+            );
+        }
+
+        /*
+         * Tell AdminActivity why it was opened.
+         */
+
+        if ("ADMIN_DRIVER_APPLICATION"
+                .equalsIgnoreCase(type)) {
+
+            intent.putExtra(
+                    "notification_type",
+                    "ADMIN_DRIVER_APPLICATION"
+            );
+
+            if (data != null
+                    && data.containsKey("driverId")) {
+
+                intent.putExtra(
+                        "driverId",
+                        data.get("driverId")
+                );
+            }
         }
 
         intent.addFlags(
@@ -95,31 +204,51 @@ public class SakayNaFirebaseMessagingService extends FirebaseMessagingService {
                         | Intent.FLAG_ACTIVITY_SINGLE_TOP
         );
 
-        int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+        int flags =
+                PendingIntent.FLAG_UPDATE_CURRENT;
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            flags |= PendingIntent.FLAG_IMMUTABLE;
+        if (Build.VERSION.SDK_INT
+                >= Build.VERSION_CODES.M) {
+
+            flags |=
+                    PendingIntent.FLAG_IMMUTABLE;
         }
 
         PendingIntent pendingIntent =
                 PendingIntent.getActivity(
                         this,
-                        createNotificationId(rideId, type),
+                        createNotificationId(
+                                rideId,
+                                type
+                        ),
                         intent,
                         flags
                 );
 
         SakayNaNotificationHelper.show(
                 this,
-                createNotificationId(rideId, type),
+                createNotificationId(
+                        rideId,
+                        type
+                ),
                 title,
                 message,
                 pendingIntent
         );
     }
 
-    private int createNotificationId(String rideId, String type) {
-        String value = rideId + ":" + type;
-        return Math.abs(value.hashCode());
+    private int createNotificationId(
+            String rideId,
+            String type
+    ) {
+
+        String value =
+                String.valueOf(rideId)
+                        + ":"
+                        + String.valueOf(type);
+
+        return Math.abs(
+                value.hashCode()
+        );
     }
 }
