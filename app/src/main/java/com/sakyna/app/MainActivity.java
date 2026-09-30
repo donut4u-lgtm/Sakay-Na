@@ -724,17 +724,6 @@ public class MainActivity extends Activity {
         );
     }
 
-    /*
-     * AUTHENTICATION DIAGNOSTIC
-     *
-     * This does NOT change the account.
-     * This does NOT change the password.
-     * This does NOT reset Firebase.
-     *
-     * It exposes the exact Firebase Android error so we can
-     * compare the APK result with the already-tested Firebase
-     * REST password authentication.
-     */
     private void showFirebaseAuthenticationError(
             Exception e,
             String authEmail
@@ -766,6 +755,19 @@ public class MainActivity extends Activity {
 
         String exceptionType =
                 e.getClass().getName();
+
+        /*
+         * IMPORTANT DIAGNOSTIC:
+         *
+         * FirebaseAuth.VERSION is not used because the public
+         * Firebase Auth Android API does not expose a stable
+         * SDK-version constant for this purpose.
+         *
+         * Instead, the installed APK reports the dependency
+         * version through BuildConfig only if we explicitly
+         * add it. We therefore keep this diagnostic focused
+         * on the actual Firebase exception and runtime project.
+         */
 
         String simpleMessage;
 
