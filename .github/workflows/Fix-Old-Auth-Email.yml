@@ -27,17 +27,26 @@ jobs:
             process.env.FIREBASE_SERVICE_ACCOUNT
           );
 
-          admin.initializeApp({
-            credential: admin.credential.cert(serviceAccount)
-          });
-
+          const EXPECTED_PROJECT = "sakay-na-1cafa";
           const UID = "K67cgAVvsyYEJxPFvAgGfOIPCE63";
           const OLD_EMAIL = "639763087980@sakyna.app";
           const NEW_EMAIL = "639763087980@sakayna.app";
 
+          if (serviceAccount.project_id !== EXPECTED_PROJECT) {
+            throw new Error(
+              `Wrong Firebase project: ${serviceAccount.project_id}. Expected ${EXPECTED_PROJECT}`
+            );
+          }
+
+          admin.initializeApp({
+            credential: admin.credential.cert(serviceAccount),
+            projectId: EXPECTED_PROJECT
+          });
+
           async function main() {
             const user = await admin.auth().getUser(UID);
 
+            console.log("Firebase project:", serviceAccount.project_id);
             console.log("Firebase UID:", user.uid);
             console.log("Current email:", user.email);
 
@@ -51,6 +60,16 @@ jobs:
               );
             }
 
+            const existing = await admin.auth()
+              .getUserByEmail(NEW_EMAIL)
+              .catch(() => null);
+
+            if (existing && existing.uid !== UID) {
+              throw new Error(
+                `Target email already belongs to another UID: ${existing.uid}`
+              );
+            }
+
             await admin.auth().updateUser(UID, {
               email: NEW_EMAIL,
               emailVerified: true
@@ -60,7 +79,22 @@ jobs:
 
             console.log("Updated email:", updated.email);
             console.log("UID preserved:", updated.uid === UID);
-            console.log("GREEN: Firebase Auth email fixed.");
+
+            if (updated.email !== NEW_EMAIL) {
+              throw new Error(
+                "POST-UPDATE EMAIL VERIFICATION FAILED."
+              );
+            }
+
+            if (updated.uid !== UID) {
+              throw new Error(
+                "POST-UPDATE UID VERIFICATION FAILED."
+              );
+            }
+
+            console.log(
+              "GREEN: Firebase Auth email fixed and verified."
+            );
           }
 
           main().catch(error => {
