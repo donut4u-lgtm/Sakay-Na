@@ -82,6 +82,10 @@ public class MainActivity extends Activity {
             runtimeFirebaseProject = "ERROR_READING_PROJECT";
         }
 
+        /*
+         * Start every visit to the login screen clean.
+         * This does NOT modify Firebase accounts or passwords.
+         */
         auth.signOut();
 
         requestNotificationPermission();
@@ -374,7 +378,15 @@ public class MainActivity extends Activity {
                 "Checking login..."
         );
 
-        auth.signOut();
+        /*
+         * IMPORTANT:
+         *
+         * Do NOT sign out immediately before every login attempt.
+         * Firebase can authenticate directly with the supplied
+         * credentials.
+         *
+         * Existing passwords are untouched.
+         */
 
         if ("ADMIN".equals(selectedRole)) {
 
@@ -391,10 +403,15 @@ public class MainActivity extends Activity {
 
     private void signInAdmin(String password) {
 
-        auth.signOut();
+        final String loginId =
+                ADMIN_AUTH_EMAIL;
+
+        statusText.setText(
+                "Checking Admin account..."
+        );
 
         auth.signInWithEmailAndPassword(
-                        ADMIN_AUTH_EMAIL,
+                        loginId,
                         password
                 )
                 .addOnSuccessListener(result -> {
@@ -403,6 +420,8 @@ public class MainActivity extends Activity {
                             result.getUser();
 
                     if (user == null) {
+
+                        auth.signOut();
 
                         loginButton.setEnabled(true);
 
@@ -413,7 +432,9 @@ public class MainActivity extends Activity {
                         return;
                     }
 
-                    if (!ADMIN_UID.equals(user.getUid())) {
+                    if (!ADMIN_UID.equals(
+                            user.getUid()
+                    )) {
 
                         auth.signOut();
 
@@ -430,28 +451,37 @@ public class MainActivity extends Activity {
                 })
                 .addOnFailureListener(error -> {
 
+                    auth.signOut();
+
                     loginButton.setEnabled(true);
 
                     showFirebaseAuthenticationError(
                             error,
-                            ADMIN_AUTH_EMAIL
+                            loginId
                     );
                 });
     }
 
     /*
-     * FIX:
+     * CANONICAL SAKAY NA LOGIN
      *
-     * Passenger and Driver registration use:
+     * Registration creates:
      *
      * 63XXXXXXXXXX@sakayna.app
      *
-     * Login now uses exactly the same canonical ID.
+     * Therefore login creates exactly the same Firebase
+     * Authentication identifier.
      *
-     * No +63 attempt.
-     * No 09 attempt.
-     * No 9xxxxxxxxx attempt.
-     * No recursive fallback attempts.
+     * Examples:
+     *
+     * 09763087980
+     * -> 639763087980@sakayna.app
+     *
+     * +639763087980
+     * -> 639763087980@sakayna.app
+     *
+     * 639763087980
+     * -> 639763087980@sakayna.app
      */
     private void signInPassengerDriver(
             String normalizedPhone,
@@ -465,8 +495,12 @@ public class MainActivity extends Activity {
                 "Checking Sakay Na account..."
         );
 
-        auth.signOut();
-
+        /*
+         * One authentication attempt only.
+         * No recursive login.
+         * No password modification.
+         * No account recreation.
+         */
         auth.signInWithEmailAndPassword(
                         loginId,
                         password
