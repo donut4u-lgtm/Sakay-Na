@@ -210,3 +210,97 @@ jobs:
                   "records look correct."
               )
           PY
+
+      - name: Test real Firebase password
+        env:
+          FIREBASE_WEB_API_KEY: ${{ secrets.FIREBASE_WEB_API_KEY }}
+          AUTH_TEST_PASSWORD: ${{ secrets.AUTH_TEST_PASSWORD }}
+        run: |
+          set -e
+
+          test -n "$FIREBASE_WEB_API_KEY"
+          test -n "$AUTH_TEST_PASSWORD"
+
+          python <<'PY'
+          import json
+          import os
+          import urllib.error
+          import urllib.request
+
+          email = "639763087980@sakayna.app"
+
+          payload = json.dumps({
+              "email": email,
+              "password": os.environ["AUTH_TEST_PASSWORD"],
+              "returnSecureToken": True
+          }).encode("utf-8")
+
+          url = (
+              "https://identitytoolkit.googleapis.com/v1/"
+              "accounts:signInWithPassword?key="
+              + os.environ["FIREBASE_WEB_API_KEY"]
+          )
+
+          request = urllib.request.Request(
+              url,
+              data=payload,
+              headers={
+                  "Content-Type": "application/json"
+              },
+              method="POST"
+          )
+
+          try:
+              with urllib.request.urlopen(
+                  request,
+                  timeout=30
+              ) as response:
+
+                  result = json.loads(
+                      response.read().decode("utf-8")
+                  )
+
+                  print("")
+                  print("========================================")
+                  print("REAL FIREBASE PASSWORD TEST")
+                  print("========================================")
+                  print(
+                      "RESULT: GREEN - PASSWORD ACCEPTED"
+                  )
+                  print(
+                      "EMAIL:",
+                      result.get("email", email)
+                  )
+                  print(
+                      "Firebase accepted the supplied credential."
+                  )
+                  print("========================================")
+
+          except urllib.error.HTTPError as error:
+
+              body = error.read().decode("utf-8")
+
+              try:
+                  result = json.loads(body)
+
+                  firebase_error = (
+                      result
+                      .get("error", {})
+                      .get("message", "UNKNOWN_ERROR")
+                  )
+
+              except Exception:
+                  firebase_error = "UNKNOWN_ERROR"
+
+              print("")
+              print("========================================")
+              print("REAL FIREBASE PASSWORD TEST")
+              print("========================================")
+              print(
+                  "RESULT: RED -",
+                  firebase_error
+              )
+              print("========================================")
+
+              raise SystemExit(1)
+          PY
