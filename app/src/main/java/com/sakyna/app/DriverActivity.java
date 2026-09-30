@@ -126,7 +126,20 @@ public class DriverActivity extends Activity {
         buildScreen();
         loadDriverStatus();
         startLocationUpdates();
-        listenForCurrentRide();
+
+        /*
+         * GREEN RIDE RECOVERY:
+         *
+         * Look for an active ride already assigned
+         * to this driver before starting the normal
+         * current-ride listener.
+         *
+         * This allows the driver to close/reopen the
+         * app or recreate the activity without losing
+         * the active ride from the dashboard.
+         */
+        restoreCurrentRide();
+
         startRequestExpiryChecker();
 
         SakayNaNotificationHelper
@@ -140,6 +153,123 @@ public class DriverActivity extends Activity {
         if (db != null && user != null) {
             loadDriverStatus();
         }
+    }
+
+    /*
+     * =========================================================
+     * GREEN RIDE RECOVERY
+     *
+     * Recover an active ride assigned to the current
+     * driver after an Activity/process restart.
+     *
+     * Terminal rides are ignored:
+     * COMPLETED
+     * CANCELLED
+     * DECLINED
+     * EXPIRED
+     * FINISHED
+     *
+     * If more than one active ride somehow exists,
+     * the newest active ride is recovered.
+     * =========================================================
+     */
+    private void restoreCurrentRide() {
+
+        if (user == null) {
+            currentRideId = "";
+            listenForCurrentRide();
+            return;
+        }
+
+        db.collection("rides")
+                .whereEqualTo(
+                        "driverId",
+                        user.getUid()
+                )
+                .get()
+                .addOnSuccessListener(rides -> {
+
+                    String recoveredRideId = "";
+
+                    long newestTime = 0L;
+
+                    for (
+                            DocumentSnapshot ride :
+                            rides.getDocuments()
+                    ) {
+
+                        String status =
+                                string(
+                                        ride,
+                                        "status"
+                                );
+
+                        if (!isActive(status)) {
+                            continue;
+                        }
+
+                        long time =
+                                longValue(
+                                        ride,
+                                        "statusUpdatedAt"
+                                );
+
+                        if (time <= 0L) {
+
+                            time =
+                                    longValue(
+                                            ride,
+                                            "acceptedAt"
+                                    );
+                        }
+
+                        if (time <= 0L) {
+
+                            time =
+                                    longValue(
+                                            ride,
+                                            "createdAt"
+                                    );
+                        }
+
+                        if (
+                                recoveredRideId.isEmpty()
+                                        || time >= newestTime
+                        ) {
+
+                            recoveredRideId =
+                                    ride.getId();
+
+                            newestTime =
+                                    time;
+                        }
+                    }
+
+                    if (!recoveredRideId.isEmpty()) {
+
+                        currentRideId =
+                                recoveredRideId;
+
+                    } else {
+
+                        currentRideId = "";
+                    }
+
+                    listenForCurrentRide();
+                })
+                .addOnFailureListener(e -> {
+
+                    /*
+                     * Do not invent a ride if recovery
+                     * cannot be verified.
+                     *
+                     * The normal listener will remain
+                     * available for future rides.
+                     */
+                    currentRideId = "";
+
+                    listenForCurrentRide();
+                });
     }
 
     private void buildScreen() {
@@ -520,24 +650,6 @@ public class DriverActivity extends Activity {
                     checkUnpaidDues(
                             profile,
                             () -> {
-
-                                /*
-                                 * Driver approval compatibility:
-                                 *
-                                 * New/current field:
-                                 * driverApproved == true
-                                 *
-                                 * Older approved accounts may use:
-                                 * approved == true
-                                 * approvalStatus == APPROVED
-                                 * driverStatus == APPROVED
-                                 * canAcceptRides == true
-                                 *
-                                 * Any of these established APPROVED
-                                 * records can identify an approved
-                                 * driver. Suspension is still checked
-                                 * separately below.
-                                 */
 
                                 boolean approvedField =
                                         Boolean.TRUE.equals(
@@ -1890,12 +2002,6 @@ public class DriverActivity extends Activity {
                                     return;
                                 }
 
-                                /*
-                                 * Re-check approval immediately before
-                                 * accepting. This supports both current
-                                 * and older approval records.
-                                 */
-
                                 boolean approvedField =
                                         Boolean.TRUE.equals(
                                                 profile.getBoolean(
@@ -2367,11 +2473,6 @@ public class DriverActivity extends Activity {
                 status
         );
 
-        /*
-         * The current ride snapshot is passed to the
-         * status controls so FINISHED can use the
-         * booked destination coordinates.
-         */
         showRideStatusButtons(
                 ride,
                 status
@@ -2473,31 +2574,6 @@ public class DriverActivity extends Activity {
         return "1";
     }
 
-    /*
-     * =========================================================
-     * NEW DRIVER RIDE STATUS FLOW
-     *
-     * ACCEPTED
-     *     ↓
-     * START
-     *     ↓
-     * DRIVE IN PROGRESS — AUTOMATIC
-     *     ↓
-     * ARRIVED
-     *     ↓
-     * PASSENGER RIDE IN PROGRESS
-     *     ↓
-     * DESTINATION
-     *     ↓
-     * FINISHED
-     *
-     * There is intentionally NO:
-     * - DRIVER ON THE WAY button
-     * - START RIDE button after ARRIVED
-     * - DRIVE IN PROGRESS button
-     * =========================================================
-     */
-
     private void showRideStatusButtons(
             DocumentSnapshot ride,
             String status
@@ -2538,12 +2614,6 @@ public class DriverActivity extends Activity {
                         ? ""
                         : status.trim().toUpperCase();
 
-        /*
-         * ACCEPTED
-         *
-         * First and only button at this stage:
-         * START
-         */
         if ("ACCEPTED".equals(
                 normalizedStatus
         )) {
@@ -2578,14 +2648,6 @@ public class DriverActivity extends Activity {
             return;
         }
 
-        /*
-         * DRIVER_ON_THE_WAY
-         *
-         * This is the automatic DRIVE IN PROGRESS
-         * state after START.
-         *
-         * There is NO button for DRIVE IN PROGRESS.
-         */
         if ("DRIVER_ON_THE_WAY".equals(
                 normalizedStatus
         )
@@ -2619,9 +2681,6 @@ public class DriverActivity extends Activity {
                     progress
             );
 
-            /*
-             * ARRIVED is the next action.
-             */
             Button arrived =
                     new Button(this);
 
@@ -2652,15 +2711,6 @@ public class DriverActivity extends Activity {
             return;
         }
 
-        /*
-         * ARRIVED
-         *
-         * After the driver reaches the passenger,
-         * there is no START button.
-         *
-         * The driver drives the passenger to the
-         * booked destination.
-         */
         if ("DRIVER_ARRIVED".equals(
                 normalizedStatus
         )
@@ -2718,12 +2768,6 @@ public class DriverActivity extends Activity {
                     Color.rgb(150, 0, 150)
             );
 
-            /*
-             * FINISHED is enabled only when the
-             * driver's current GPS position is
-             * within 120 meters of the booked
-             * destination.
-             */
             boolean destinationReached =
                     isAtDestination(
                             ride
@@ -2770,10 +2814,6 @@ public class DriverActivity extends Activity {
             finish.setOnClickListener(
                     v -> {
 
-                        /*
-                         * Check again immediately before
-                         * completing the ride.
-                         */
                         if (!isAtDestination(
                                 ride
                         )) {
@@ -2809,10 +2849,6 @@ public class DriverActivity extends Activity {
             return false;
         }
 
-        /*
-         * These are the same destination coordinate
-         * field names already supported by placeName().
-         */
         Double destinationLatitude =
                 doubleValue(
                         ride,
@@ -2842,10 +2878,6 @@ public class DriverActivity extends Activity {
                 distance
         );
 
-        /*
-         * FINISHED unlocks when the driver is
-         * within 120 meters of the booked destination.
-         */
         return distance[0] <= 120.0f;
     }
 
@@ -2946,11 +2978,6 @@ public class DriverActivity extends Activity {
                 newStatus
         )) {
 
-            /*
-             * Safety check:
-             * the driver cannot complete the ride
-             * unless GPS is at the destination.
-             */
             if (currentRideSnapshot != null
                     && !isAtDestination(
                     currentRideSnapshot
@@ -3501,11 +3528,6 @@ public class DriverActivity extends Activity {
             Location location
     ) {
 
-        /*
-         * Keep the latest GPS position locally.
-         * This does not change the existing Firebase
-         * driver-location structure.
-         */
         currentDriverLocation =
                 location;
 
@@ -3539,11 +3561,6 @@ public class DriverActivity extends Activity {
                         SetOptions.merge()
                 );
 
-        /*
-         * Refresh the FINISHED button as the driver
-         * moves. Once GPS enters the destination
-         * radius, FINISHED becomes enabled.
-         */
         if (currentRideSnapshot != null) {
 
             String status =
