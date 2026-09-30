@@ -115,12 +115,12 @@ public class PassengerActivity extends Activity {
         SakayNaNotificationHelper.requestPermission(this);
 
         /*
-         * Never resurrect an old booking when PassengerActivity
-         * starts again.
+         * GREEN RIDE RECOVERY:
+         *
+         * Do NOT remove activeRideId when the activity starts.
+         * Recover the passenger's active ride from Firestore instead.
          */
-        prefs.edit()
-                .remove("activeRideId")
-                .apply();
+        restoreSavedActiveRide();
     }
 
     @Override
@@ -133,7 +133,310 @@ public class PassengerActivity extends Activity {
             return;
         }
 
+        /*
+         * If the activity was recreated and no ride is currently loaded,
+         * try the saved ride again.
+         */
+        if (
+                isEmpty(activeRideId)
+                        &&
+                        !bookingInProgress
+        ) {
+            restoreSavedActiveRide();
+        }
+
         updateButtons();
+    }
+
+    /*
+     * ============================================================
+     * GREEN RIDE RECOVERY
+     * ============================================================
+     *
+     * Restores the passenger's active ride after:
+     *
+     * - Activity restart
+     * - App process restart
+     * - Returning to the app
+     * - Android removing/recreating the activity
+     *
+     * Only the currently authenticated passenger's own ride
+     * can be restored.
+     */
+
+    private void restoreSavedActiveRide() {
+
+        FirebaseUser user =
+                auth.getCurrentUser();
+
+        if (user == null) {
+            return;
+        }
+
+        String savedRideId =
+                prefs.getString(
+                        "activeRideId",
+                        ""
+                );
+
+        if (
+                savedRideId == null
+                        ||
+                        savedRideId.trim().isEmpty()
+        ) {
+            return;
+        }
+
+        final String rideId =
+                savedRideId.trim();
+
+        final long generation =
+                ++rideGeneration;
+
+        db.collection("rides")
+                .document(rideId)
+                .get(Source.SERVER)
+                .addOnSuccessListener(ride -> {
+
+                    if (
+                            generation
+                                    !=
+                                    rideGeneration
+                    ) {
+                        return;
+                    }
+
+                    if (
+                            ride == null
+                                    ||
+                                    !ride.exists()
+                    ) {
+
+                        finishCurrentBooking(
+                                "🟢 READY TO BOOK"
+                        );
+
+                        return;
+                    }
+
+                    String passengerId =
+                            firstNonEmpty(
+                                    ride.getString(
+                                            "passengerId"
+                                    )
+                            );
+
+                    /*
+                     * SECURITY CHECK:
+                     *
+                     * Never restore a ride belonging
+                     * to another passenger.
+                     */
+                    if (
+                            !user.getUid().equals(
+                                    passengerId
+                            )
+                    ) {
+
+                        finishCurrentBooking(
+                                "🟢 READY TO BOOK"
+                        );
+
+                        return;
+                    }
+
+                    String status =
+                            safeStatus(
+                                    ride.getString(
+                                            "status"
+                                    )
+                            );
+
+                    /*
+                     * Terminal rides must never
+                     * be resurrected.
+                     */
+                    if (
+                            hasTerminalMarker(ride)
+                                    ||
+                                    !isActive(status)
+                    ) {
+
+                        finishCurrentBooking(
+                                terminalMessage(status)
+                        );
+
+                        return;
+                    }
+
+                    activeRideId =
+                            rideId;
+
+                    activeRideStatus =
+                            status;
+
+                    bookingInProgress =
+                            false;
+
+                    prefs.edit()
+                            .putString(
+                                    "activeRideId",
+                                    rideId
+                            )
+                            .apply();
+
+                    /*
+                     * Restore ride locations.
+                     */
+                    pickupLat =
+                            number(
+                                    ride.get(
+                                            "pickupLatitude"
+                                    ),
+                                    pickupLat
+                            );
+
+                    pickupLng =
+                            number(
+                                    ride.get(
+                                            "pickupLongitude"
+                                    ),
+                                    pickupLng
+                            );
+
+                    destinationLat =
+                            number(
+                                    ride.get(
+                                            "destinationLatitude"
+                                    ),
+                                    destinationLat
+                            );
+
+                    destinationLng =
+                            number(
+                                    ride.get(
+                                            "destinationLongitude"
+                                    ),
+                                    destinationLng
+                            );
+
+                    /*
+                     * Restore visible pickup/destination names.
+                     */
+                    String pickup =
+                            firstNonEmpty(
+                                    ride.getString(
+                                            "pickupName"
+                                    ),
+                                    ride.getString(
+                                            "pickup"
+                                    )
+                            );
+
+                    String destination =
+                            firstNonEmpty(
+                                    ride.getString(
+                                            "destinationName"
+                                    ),
+                                    ride.getString(
+                                            "destination"
+                                    )
+                            );
+
+                    if (
+                            pickupInput != null
+                                    &&
+                                    !isEmpty(pickup)
+                    ) {
+                        pickupInput.setText(pickup);
+                    }
+
+                    if (
+                            destinationInput != null
+                                    &&
+                                    !isEmpty(destination)
+                    ) {
+                        destinationInput.setText(
+                                destination
+                        );
+                    }
+
+                    /*
+                     * Restore passenger count.
+                     */
+                    Object count =
+                            ride.get(
+                                    "passengerCount"
+                            );
+
+                    if (
+                            count instanceof Number
+                    ) {
+
+                        passengerCount =
+                                Math.max(
+                                        1,
+                                        Math.min(
+                                                4,
+                                                ((Number) count)
+                                                        .intValue()
+                                        )
+                                );
+
+                        updatePassengerSelectionUI();
+                    }
+
+                    calculateFare();
+
+                    updateStatusText(status);
+
+                    showDriverInformation(
+                            ride,
+                            generation,
+                            rideId
+                    );
+
+                    /*
+                     * Reconnect the real-time ride listener.
+                     */
+                    listenToRide(rideId);
+
+                    updateButtons();
+
+                    Toast.makeText(
+                            this,
+                            "🟢 Active ride restored.",
+                            Toast.LENGTH_SHORT
+                    ).show();
+                })
+                .addOnFailureListener(e -> {
+
+                    if (
+                            generation
+                                    !=
+                                    rideGeneration
+                    ) {
+                        return;
+                    }
+
+                    if (statusText != null) {
+
+                        statusText.setText(
+                                "🔴 Unable to recover active ride.\n"
+                                        + "Please check your connection."
+                        );
+
+                        statusText.setTextColor(
+                                Color.rgb(
+                                        180,
+                                        0,
+                                        0
+                                )
+                        );
+                    }
+
+                    updateButtons();
+                });
     }
 
     private void buildScreen() {
@@ -1288,14 +1591,6 @@ public class PassengerActivity extends Activity {
                                         return;
                                     }
 
-                                    /*
-                                     * IMPORTANT GREEN FIX:
-                                     *
-                                     * Do NOT clear an accepted ride
-                                     * just because driverId is temporarily
-                                     * absent while DriverActivity is
-                                     * writing the acceptance fields.
-                                     */
                                     activeRideStatus = status;
 
                                     updateStatusText(status);
@@ -1521,9 +1816,6 @@ public class PassengerActivity extends Activity {
             return;
         }
 
-        /*
-         * FIRST use information stored directly in the ride.
-         */
         String rideDriverName =
                 ride.getString("driverName");
 
