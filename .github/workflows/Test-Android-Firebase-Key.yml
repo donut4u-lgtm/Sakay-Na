@@ -1,0 +1,54 @@
+name: Test Sakay Na Android Firebase Key
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Test Android Firebase key
+        env:
+          AUTH_TEST_PASSWORD: ${{ secrets.AUTH_TEST_PASSWORD }}
+        run: |
+          set -e
+
+          python - <<'PY'
+          import json
+          import os
+          import urllib.error
+          import urllib.request
+
+          key = "AIzaSyCnoDs8C3SaP0ApQZRuHtT5fMceHp1VDz0"
+
+          payload = json.dumps({
+              "email": "639763087980@sakayna.app",
+              "password": os.environ["AUTH_TEST_PASSWORD"],
+              "returnSecureToken": True
+          }).encode()
+
+          url = (
+              "https://identitytoolkit.googleapis.com/v1/"
+              "accounts:signInWithPassword?key=" + key
+          )
+
+          request = urllib.request.Request(
+              url,
+              data=payload,
+              headers={"Content-Type": "application/json"},
+              method="POST"
+          )
+
+          try:
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  result = json.loads(response.read().decode())
+
+                  print("GREEN: Android google-services API key accepted.")
+                  print("Firebase UID:", result.get("localId"))
+
+          except urllib.error.HTTPError as error:
+              print("RED: Android google-services API key rejected.")
+              print(error.read().decode())
+              raise
+          PY
