@@ -1,0 +1,153 @@
+name: Repair Sakay Na Passenger Driver Auth
+
+on:
+  workflow_dispatch:
+
+jobs:
+  repair-auth:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Firebase Admin
+        run: |
+          python -m pip install --upgrade pip
+          pip install firebase-admin
+
+      - name: Repair all Passenger and Driver Auth records
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          python - <<'PY'
+          import os
+          import json
+          import firebase_admin
+          from firebase_admin import credentials, auth, firestore
+
+          data = json.loads(os.environ["FIREBASE_SERVICE_ACCOUNT"])
+
+          if data.get("project_id") != "sakay-na-1cafa":
+              raise SystemExit(
+                  "RED: Wrong Firebase project: "
+                  + str(data.get("project_id"))
+              )
+
+          cred = credentials.Certificate(data)
+          firebase_admin.initialize_app(cred)
+
+          db = firestore.client()
+
+          users = db.collection("users").stream()
+
+          total = 0
+          green = 0
+          red = 0
+
+          for doc in users:
+              profile = doc.to_dict()
+
+              role = str(
+                  profile.get("role", "")
+              ).strip().upper()
+
+              if role not in ("PASSENGER", "DRIVER"):
+                  continue
+
+              total += 1
+
+              phone = str(
+                  profile.get("phone", "")
+              ).strip()
+
+              if phone.startswith("+63"):
+                  phone = "63" + phone[3:]
+              elif phone.startswith("09"):
+                  phone = "63" + phone[1:]
+              elif phone.startswith("63"):
+                  pass
+              elif phone.startswith("9") and len(phone) == 10:
+                  phone = "63" + phone
+
+              expected_email = phone + "@sakayna.app"
+
+              print("")
+              print("ACCOUNT")
+              print("Firestore UID:", doc.id)
+              print("Role:", role)
+              print("Phone:", phone)
+              print("Expected Auth ID:", expected_email)
+
+              try:
+                  user = auth.get_user(doc.id)
+
+                  if user.email != expected_email:
+                      print(
+                          "RED: Auth email mismatch:",
+                          user.email
+                      )
+                      red += 1
+                      continue
+
+                  if user.disabled:
+                      auth.update_user(
+                          user.uid,
+                          disabled=False
+                      )
+                      print("GREEN: Re-enabled disabled Auth account.")
+
+                  print("GREEN: Auth record matches.")
+                  green += 1
+
+              except Exception as e:
+
+                  try:
+                      user = auth.get_user_by_email(
+                          expected_email
+                      )
+
+                      if user.uid != doc.id:
+                          print(
+                              "RED: Auth UID mismatch."
+                          )
+                          print(
+                              "Expected UID:",
+                              doc.id
+                          )
+                          print(
+                              "Actual UID:",
+                              user.uid
+                          )
+                          red += 1
+                          continue
+
+                      print(
+                          "GREEN: Auth email matches Firestore UID."
+                      )
+                      green += 1
+
+                  except Exception:
+                      print(
+                          "RED: Firebase Auth account missing."
+                      )
+                      red += 1
+
+          print("")
+          print("================================")
+          print("SAKAY NA AUTH REPAIR SUMMARY")
+          print("================================")
+          print("Project: sakay-na-1cafa")
+          print("Passenger/Driver profiles:", total)
+          print("GREEN:", green)
+          print("RED:", red)
+
+          if red > 0:
+              raise SystemExit(
+                  "RED: Some accounts still need repair."
+              )
+
+          print("GREEN: All Passenger/Driver Auth records are consistent.")
+          PY
