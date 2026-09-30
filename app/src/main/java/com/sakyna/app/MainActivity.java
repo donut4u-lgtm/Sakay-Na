@@ -335,12 +335,6 @@ public class MainActivity extends Activity {
         }
     }
 
-    /*
-     * =========================================================
-     * LOGIN
-     * =========================================================
-     */
-
     private void login() {
 
         String phone =
@@ -353,13 +347,11 @@ public class MainActivity extends Activity {
                         .toString();
 
         if (phone.isEmpty()) {
-
             phoneField.setError("Enter phone number");
             return;
         }
 
         if (password.isEmpty()) {
-
             passwordField.setError("Enter password");
             return;
         }
@@ -393,16 +385,9 @@ public class MainActivity extends Activity {
 
         signInPassengerDriver(
                 normalizedPhone,
-                password,
-                0
+                password
         );
     }
-
-    /*
-     * =========================================================
-     * ADMIN LOGIN
-     * =========================================================
-     */
 
     private void signInAdmin(String password) {
 
@@ -455,43 +440,31 @@ public class MainActivity extends Activity {
     }
 
     /*
-     * =========================================================
-     * PASSENGER / DRIVER LOGIN
-     * =========================================================
+     * FIX:
+     *
+     * Passenger and Driver registration use:
+     *
+     * 63XXXXXXXXXX@sakayna.app
+     *
+     * Login now uses exactly the same canonical ID.
+     *
+     * No +63 attempt.
+     * No 09 attempt.
+     * No 9xxxxxxxxx attempt.
+     * No recursive fallback attempts.
      */
-
     private void signInPassengerDriver(
             String normalizedPhone,
-            String password,
-            int attempt
+            String password
     ) {
 
-        String[] loginIds =
-                buildLoginIds(normalizedPhone);
-
-        if (attempt >= loginIds.length) {
-
-            auth.signOut();
-
-            loginButton.setEnabled(true);
-
-            showLoginError(
-                    "Invalid phone number or password."
-            );
-
-            return;
-        }
-
         final String loginId =
-                loginIds[attempt];
+                normalizedPhone + "@sakayna.app";
 
         statusText.setText(
                 "Checking Sakay Na account..."
         );
 
-        /*
-         * Clean Firebase Auth state before every attempt.
-         */
         auth.signOut();
 
         auth.signInWithEmailAndPassword(
@@ -523,65 +496,16 @@ public class MainActivity extends Activity {
                 })
                 .addOnFailureListener(error -> {
 
-                    /*
-                     * IMPORTANT:
-                     *
-                     * The first three login IDs are historical
-                     * compatibility attempts.
-                     *
-                     * On the FOURTH and FINAL attempt, do NOT
-                     * hide the Firebase error.
-                     *
-                     * Show the actual Firebase diagnostic.
-                     */
-                    if (attempt == loginIds.length - 1) {
+                    auth.signOut();
 
-                        auth.signOut();
+                    loginButton.setEnabled(true);
 
-                        loginButton.setEnabled(true);
-
-                        showFirebaseAuthenticationError(
-                                error,
-                                loginId
-                        );
-
-                        return;
-                    }
-
-                    /*
-                     * Try the next supported login ID.
-                     */
-                    signInPassengerDriver(
-                            normalizedPhone,
-                            password,
-                            attempt + 1
+                    showFirebaseAuthenticationError(
+                            error,
+                            loginId
                     );
                 });
     }
-
-    private String[] buildLoginIds(
-            String normalizedPhone
-    ) {
-
-        String localPhone =
-                "0" + normalizedPhone.substring(2);
-
-        String nineDigitPhone =
-                normalizedPhone.substring(2);
-
-        return new String[]{
-                normalizedPhone + "@sakayna.app",
-                "+" + normalizedPhone + "@sakayna.app",
-                localPhone + "@sakayna.app",
-                nineDigitPhone + "@sakayna.app"
-        };
-    }
-
-    /*
-     * =========================================================
-     * FIREBASE PROFILE
-     * =========================================================
-     */
 
     private void loadUserProfile(
             FirebaseUser user,
@@ -774,10 +698,6 @@ public class MainActivity extends Activity {
                 role.trim()
                         .toUpperCase(Locale.US);
 
-        /*
-         * Role protection.
-         */
-
         if ("PASSENGER".equals(wantedRole)
                 && !"PASSENGER".equals(role)) {
 
@@ -805,10 +725,6 @@ public class MainActivity extends Activity {
 
             return;
         }
-
-        /*
-         * Account security status.
-         */
 
         String securityStatus =
                 document.getString(
@@ -844,10 +760,6 @@ public class MainActivity extends Activity {
 
             return;
         }
-
-        /*
-         * Repair old profiles without changing UID.
-         */
 
         Map<String, Object> repair =
                 new HashMap<>();
@@ -906,10 +818,6 @@ public class MainActivity extends Activity {
                     );
         }
 
-        /*
-         * Admin protection.
-         */
-
         if ("ADMIN".equals(role)) {
 
             FirebaseUser currentUser =
@@ -936,20 +844,12 @@ public class MainActivity extends Activity {
             return;
         }
 
-        /*
-         * DRIVER
-         */
-
         if ("DRIVER".equals(role)) {
 
             openScreen(DriverActivity.class);
 
             return;
         }
-
-        /*
-         * PASSENGER
-         */
 
         if ("PASSENGER".equals(role)) {
 
@@ -966,12 +866,6 @@ public class MainActivity extends Activity {
                 "Unknown account role: " + role
         );
     }
-
-    /*
-     * =========================================================
-     * 🔴 FIREBASE ERROR DIAGNOSTIC
-     * =========================================================
-     */
 
     private void showFirebaseAuthenticationError(
             Exception e,
@@ -1077,12 +971,6 @@ public class MainActivity extends Activity {
         ).show();
     }
 
-    /*
-     * =========================================================
-     * REGISTRATION
-     * =========================================================
-     */
-
     private void openRegistration() {
 
         String role =
@@ -1137,12 +1025,6 @@ public class MainActivity extends Activity {
         }
     }
 
-    /*
-     * =========================================================
-     * OPEN APP
-     * =========================================================
-     */
-
     private void openScreen(
             Class<?> target
     ) {
@@ -1192,12 +1074,6 @@ public class MainActivity extends Activity {
             // Notification service must never block login.
         }
     }
-
-    /*
-     * =========================================================
-     * PHONE NORMALIZATION
-     * =========================================================
-     */
 
     private String normalizePhone(String input) {
 
@@ -1264,12 +1140,6 @@ public class MainActivity extends Activity {
                 Toast.LENGTH_LONG
         ).show();
     }
-
-    /*
-     * =========================================================
-     * NOTIFICATIONS
-     * =========================================================
-     */
 
     private void requestNotificationPermission() {
 
