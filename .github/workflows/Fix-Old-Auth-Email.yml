@@ -1,0 +1,70 @@
+name: Fix Old Auth Email
+
+on:
+  workflow_dispatch:
+
+jobs:
+  fix-email:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Firebase Admin SDK
+        run: npm install firebase-admin
+
+      - name: Fix Firebase Auth email
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          node <<'NODE'
+          const admin = require("firebase-admin");
+
+          const serviceAccount = JSON.parse(
+            process.env.FIREBASE_SERVICE_ACCOUNT
+          );
+
+          admin.initializeApp({
+            credential: admin.credential.cert(serviceAccount)
+          });
+
+          const UID = "K67cgAVvsyYEJxPFvAgGfOIPCE63";
+          const OLD_EMAIL = "639763087980@sakyna.app";
+          const NEW_EMAIL = "639763087980@sakayna.app";
+
+          async function main() {
+            const user = await admin.auth().getUser(UID);
+
+            console.log("Firebase UID:", user.uid);
+            console.log("Current email:", user.email);
+
+            if (user.uid !== UID) {
+              throw new Error("UID verification failed.");
+            }
+
+            if (user.email !== OLD_EMAIL) {
+              throw new Error(
+                `Expected ${OLD_EMAIL}, but found ${user.email}`
+              );
+            }
+
+            await admin.auth().updateUser(UID, {
+              email: NEW_EMAIL,
+              emailVerified: true
+            });
+
+            const updated = await admin.auth().getUser(UID);
+
+            console.log("Updated email:", updated.email);
+            console.log("UID preserved:", updated.uid === UID);
+            console.log("GREEN: Firebase Auth email fixed.");
+          }
+
+          main().catch(error => {
+            console.error(error);
+            process.exit(1);
+          });
+          NODE
