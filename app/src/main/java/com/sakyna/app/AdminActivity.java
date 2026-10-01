@@ -42,7 +42,6 @@ public class AdminActivity extends Activity {
     private LinearLayout driversSection;
     private LinearLayout onlineDriversSection;
     private LinearLayout approvalSection;
-    private LinearLayout activeRidesSection;
     private LinearLayout historySection;
     private LinearLayout paymentSection;
     private LinearLayout suspendedDriversSection;
@@ -77,7 +76,13 @@ public class AdminActivity extends Activity {
     private static final int GRAY =
             Color.rgb(110, 110, 110);
 
-    private int historyDays = 30;
+    /*
+     * RIDE HISTORY IS FIXED TO 7 DAYS.
+     *
+     * There is deliberately no 30-day history option.
+     */
+    private static final int HISTORY_DAYS = 7;
+
     private int paymentDays = 30;
 
     @Override
@@ -312,13 +317,15 @@ public class AdminActivity extends Activity {
         );
 
         /*
-         * ORDER OF ADMIN LISTS
+         * ADMIN LIST ORDER
          *
-         * 1. Passengers — TODAY
+         * 1. Passenger Management
          * 2. Driver Approval Applications
-         * 3. Approved Drivers — Province → Town/City
-         * 4. Online Drivers — LIVE
+         * 3. Approved Drivers
+         * 4. Online Drivers
          * 5. Suspended Drivers
+         * 6. Ride History
+         * 7. Payments
          */
         buildPassengers();
         buildPendingDrivers();
@@ -329,24 +336,20 @@ public class AdminActivity extends Activity {
 
     /*
      * ============================================================
-     * PASSENGERS — TODAY ONLY
+     * PASSENGER MANAGEMENT
      * ============================================================
      *
-     * The main passenger list is intentionally limited to
-     * accounts registered today so the Admin dashboard does
-     * not become crowded with old passenger accounts.
+     * ONLY NEW PASSENGER ACCOUNTS REGISTERED TODAY ARE SHOWN.
      *
-     * Accepted timestamp fields:
-     * - createdAt
-     * - registeredAt
+     * ACTIVE PASSENGER BOOKINGS ARE ALSO SHOWN INSIDE THIS
+     * SAME PASSENGER MANAGEMENT SECTION.
      *
-     * Both Firestore Timestamp and numeric millisecond values
-     * are supported.
+     * DRIVER ACCOUNTS ARE NEVER ADDED HERE.
      */
     private void buildPassengers() {
 
         passengersSection = createSection(
-                "👤 PASSENGERS — TODAY"
+                "👤 PASSENGER MANAGEMENT — NEW TODAY"
         );
 
         List<DocumentSnapshot> passengers =
@@ -416,20 +419,129 @@ public class AdminActivity extends Activity {
 
             addInfoCard(
                     passengersSection,
-                    "👤 PASSENGERS — TODAY",
+                    "👤 NEW PASSENGER ACCOUNTS",
                     "No passenger accounts registered today.",
                     LIGHT_YELLOW
+            );
+
+        } else {
+
+            for (DocumentSnapshot passenger :
+                    passengers) {
+
+                addPassengerCard(
+                        passengersSection,
+                        passenger
+                );
+            }
+        }
+
+        /*
+         * Active bookings are added AFTER rides are loaded.
+         * See addPassengerBookings().
+         */
+    }
+
+    /*
+     * ============================================================
+     * PASSENGER BOOKINGS
+     * ============================================================
+     *
+     * CURRENT / ACTIVE passenger bookings appear ONLY inside
+     * Passenger Management.
+     *
+     * There is NO separate Active Rides section anymore.
+     */
+    private void addPassengerBookings() {
+
+        if (passengersSection == null) {
+            return;
+        }
+
+        TextView bookingTitle =
+                new TextView(this);
+
+        bookingTitle.setText(
+                "🛺 CURRENT PASSENGER BOOKINGS"
+        );
+
+        bookingTitle.setTextSize(20);
+        bookingTitle.setTypeface(
+                null,
+                android.graphics.Typeface.BOLD
+        );
+        bookingTitle.setTextColor(GREEN);
+        bookingTitle.setPadding(
+                0,
+                18,
+                0,
+                12
+        );
+
+        passengersSection.addView(
+                bookingTitle
+        );
+
+        List<DocumentSnapshot> activeBookings =
+                new ArrayList<>();
+
+        for (DocumentSnapshot ride :
+                rideDocuments) {
+
+            String status =
+                    ride.getString("status");
+
+            if (!isActiveStatus(status)) {
+                continue;
+            }
+
+            String passengerId =
+                    ride.getString("passengerId");
+
+            DocumentSnapshot passenger =
+                    usersById.get(passengerId);
+
+            /*
+             * Only PASSENGER bookings are shown here.
+             * A DRIVER profile can never be treated as a
+             * passenger booking.
+             */
+            if (
+                    passenger == null
+                    ||
+                    !"PASSENGER".equalsIgnoreCase(
+                            passenger.getString("role")
+                    )
+            ) {
+                continue;
+            }
+
+            activeBookings.add(ride);
+        }
+
+        Collections.sort(
+                activeBookings,
+                newestFirstComparator()
+        );
+
+        if (activeBookings.isEmpty()) {
+
+            addInfoCard(
+                    passengersSection,
+                    "🛺 CURRENT BOOKINGS",
+                    "No active passenger bookings.",
+                    LIGHT_GREEN
             );
 
             return;
         }
 
-        for (DocumentSnapshot passenger :
-                passengers) {
+        for (DocumentSnapshot ride :
+                activeBookings) {
 
-            addPassengerCard(
+            addRideCard(
                     passengersSection,
-                    passenger
+                    ride
             );
         }
     }
@@ -438,18 +550,6 @@ public class AdminActivity extends Activity {
      * ============================================================
      * DRIVER APPROVAL APPLICATIONS
      * ============================================================
-     *
-     * Only PENDING_APPROVAL drivers appear here.
-     *
-     * When Admin approves a driver:
-     *
-     * DRIVER APPROVAL APPLICATIONS
-     *             ↓
-     *        APPROVED
-     *             ↓
-     * APPROVED DRIVERS
-     *
-     * The Firebase Auth account is NOT deleted.
      */
     private void buildPendingDrivers() {
 
@@ -513,18 +613,6 @@ public class AdminActivity extends Activity {
      * ============================================================
      * APPROVED DRIVERS
      * ============================================================
-     *
-     * Separate permanent directory.
-     *
-     * Group:
-     *
-     * Province
-     *    ↓
-     * Town / City
-     *    ↓
-     * Driver
-     *
-     * Offline drivers remain here.
      */
     private void buildGroupedDrivers() {
 
@@ -664,20 +752,8 @@ public class AdminActivity extends Activity {
 
     /*
      * ============================================================
-     * ONLINE DRIVERS — LIVE
+     * ONLINE DRIVERS
      * ============================================================
-     *
-     * ONLY:
-     *
-     * role = DRIVER
-     * approval = APPROVED
-     * online = true
-     *
-     * This is deliberately separate from the permanent
-     * Approved Drivers directory.
-     *
-     * Refreshing the Admin dashboard reloads the users
-     * collection and therefore refreshes this list.
      */
     private void buildOnlineDrivers() {
 
@@ -873,27 +949,11 @@ public class AdminActivity extends Activity {
                 DARK
         );
 
-        if (hasText(town)) {
-
-            addCardText(
-                    card,
-                    "🏘️ Town / City: "
-                            + town,
-                    16,
-                    DARK
-            );
-        }
-
-        if (hasText(province)) {
-
-            addCardText(
-                    card,
-                    "🗺️ Province: "
-                            + province,
-                    16,
-                    DARK
-            );
-        }
+        addLocationColumns(
+                card,
+                province,
+                town
+        );
 
         if (hasText(plate)) {
 
@@ -1110,6 +1170,12 @@ public class AdminActivity extends Activity {
 
                     buildRideSections();
 
+                    /*
+                     * Active passenger bookings are placed
+                     * inside Passenger Management.
+                     */
+                    addPassengerBookings();
+
                     statusText.setText(
                             "Dashboard loaded."
                     );
@@ -1124,49 +1190,33 @@ public class AdminActivity extends Activity {
                 });
     }
 
+    /*
+     * ============================================================
+     * RIDE SECTIONS
+     * ============================================================
+     *
+     * There is intentionally NO ACTIVE RIDES section.
+     *
+     * Active bookings are shown under Passenger Management.
+     */
     private void buildRideSections() {
 
-        activeRidesSection = createSection(
-                "🚦 ACTIVE RIDES"
-        );
-
-        int activeCount = 0;
-
-        for (DocumentSnapshot ride :
-                rideDocuments) {
-
-            if (isActiveStatus(
-                    ride.getString("status"))) {
-
-                addRideCard(
-                        activeRidesSection,
-                        ride
-                );
-
-                activeCount++;
-            }
-        }
-
-        if (activeCount == 0) {
-
-            addInfoCard(
-                    activeRidesSection,
-                    "🚦 ACTIVE RIDES",
-                    "No active rides.",
-                    LIGHT_GREEN
-            );
-        }
-
+        /*
+         * Completely separate Ride History section.
+         */
         historySection = createSection(
-                "📋 RIDE / BOOKING HISTORY"
+                "📋 RIDE HISTORY — LAST 7 DAYS"
         );
 
-        addHistoryFilters(
+        addHistoryNotice(
                 historySection
         );
 
         renderHistory();
 
+        /*
+         * Payment section remains separate.
+         */
         paymentSection = createSection(
                 "💰 FARE & PAYMENT"
         );
@@ -1178,87 +1228,79 @@ public class AdminActivity extends Activity {
         renderPayments();
     }
 
-    private void addHistoryFilters(
+    private void addHistoryNotice(
             LinearLayout parent
     ) {
 
-        TextView label = new TextView(this);
-        label.setText(
-                "Show completed ride history:"
-        );
-        label.setTextSize(16);
-        label.setTextColor(DARK);
-        parent.addView(label);
+        TextView notice =
+                new TextView(this);
 
-        LinearLayout row =
-                new LinearLayout(this);
-
-        row.setOrientation(
-                LinearLayout.HORIZONTAL
+        notice.setText(
+                "Completed, cancelled, declined and expired rides "
+                        + "from the last 7 days only. "
+                        + "Older ride history is automatically hidden."
         );
 
-        Button today = new Button(this);
-        today.setText("TODAY");
-        today.setOnClickListener(v -> {
-            historyDays = 1;
-            renderHistory();
-        });
+        notice.setTextSize(15);
+        notice.setTextColor(DARK);
+        notice.setPadding(
+                0,
+                0,
+                0,
+                12
+        );
 
-        Button week = new Button(this);
-        week.setText("7 DAYS");
-        week.setOnClickListener(v -> {
-            historyDays = 7;
-            renderHistory();
-        });
-
-        Button month = new Button(this);
-        month.setText("30 DAYS");
-        month.setOnClickListener(v -> {
-            historyDays = 30;
-            renderHistory();
-        });
-
-        row.addView(today, weighted());
-        row.addView(week, weighted());
-        row.addView(month, weighted());
-
-        parent.addView(row);
+        parent.addView(notice);
     }
 
+    /*
+     * ============================================================
+     * 7-DAY RIDE HISTORY
+     * ============================================================
+     */
     private void renderHistory() {
 
         if (historySection == null) {
             return;
         }
 
+        /*
+         * First child = notice.
+         * Everything after it is dynamic history.
+         */
         int childCount =
                 historySection.getChildCount();
 
-        if (childCount > 2) {
+        if (childCount > 1) {
 
             historySection.removeViews(
-                    2,
-                    childCount - 2
+                    1,
+                    childCount - 1
             );
         }
 
         long cutoff =
                 System.currentTimeMillis()
                         -
-                        historyDays
+                        HISTORY_DAYS
                                 * 24L
                                 * 60L
                                 * 60L
                                 * 1000L;
 
-        List<DocumentSnapshot> completed =
+        List<DocumentSnapshot> history =
                 new ArrayList<>();
 
         for (DocumentSnapshot ride :
                 rideDocuments) {
 
-            if (!"COMPLETED".equalsIgnoreCase(
-                    ride.getString("status"))) {
+            String status =
+                    ride.getString("status");
+
+            /*
+             * History is separate from active/current bookings.
+             */
+            if (!isHistoryStatus(status)) {
                 continue;
             }
 
@@ -1273,22 +1315,21 @@ public class AdminActivity extends Activity {
                 continue;
             }
 
-            completed.add(ride);
+            history.add(ride);
         }
 
         Collections.sort(
-                completed,
+                history,
                 newestFirstComparator()
         );
 
-        if (completed.isEmpty()) {
+        if (history.isEmpty()) {
 
             addInfoCard(
                     historySection,
                     "📋 RIDE HISTORY",
-                    "No completed rides found for the last "
-                            + historyDays
-                            + " day(s).",
+                    "No completed/cancelled ride history "
+                            + "found in the last 7 days.",
                     LIGHT_YELLOW
             );
 
@@ -1296,13 +1337,36 @@ public class AdminActivity extends Activity {
         }
 
         for (DocumentSnapshot ride :
-                completed) {
+                history) {
 
             addRideCard(
                     historySection,
                     ride
             );
         }
+    }
+
+    /*
+     * Ride statuses that belong in history.
+     *
+     * ACTIVE statuses are deliberately excluded.
+     */
+    private boolean isHistoryStatus(
+            String status
+    ) {
+
+        if (!hasText(status)) {
+            return false;
+        }
+
+        return
+                "COMPLETED".equalsIgnoreCase(status)
+                        ||
+                "CANCELLED".equalsIgnoreCase(status)
+                        ||
+                "DECLINED".equalsIgnoreCase(status)
+                        ||
+                "EXPIRED".equalsIgnoreCase(status);
     }
 
     private void addPaymentFilters(
@@ -1813,6 +1877,11 @@ public class AdminActivity extends Activity {
         }
     }
 
+    /*
+     * ============================================================
+     * RIDE CARD
+     * ============================================================
+     */
     private void addRideCard(
             LinearLayout parent,
             DocumentSnapshot ride
@@ -2046,6 +2115,14 @@ public class AdminActivity extends Activity {
         }
     }
 
+    /*
+     * ============================================================
+     * PASSENGER CARD
+     * ============================================================
+     *
+     * Province and Town/Municipality are deliberately displayed
+     * in separate columns.
+     */
     private void addPassengerCard(
             LinearLayout parent,
             DocumentSnapshot passenger
@@ -2096,27 +2173,11 @@ public class AdminActivity extends Activity {
                 DARK
         );
 
-        if (hasText(town)) {
-
-            addCardText(
-                    card,
-                    "🏘️ Town / City: "
-                            + town,
-                    16,
-                    DARK
-            );
-        }
-
-        if (hasText(province)) {
-
-            addCardText(
-                    card,
-                    "🗺️ Province: "
-                            + province,
-                    16,
-                    DARK
-            );
-        }
+        addLocationColumns(
+                card,
+                province,
+                town
+        );
 
         addCardText(
                 card,
@@ -2149,6 +2210,136 @@ public class AdminActivity extends Activity {
                     GRAY
             );
         }
+    }
+
+    /*
+     * ============================================================
+     * PROVINCE / TOWN COLUMNS
+     * ============================================================
+     */
+    private void addLocationColumns(
+            LinearLayout parent,
+            String province,
+            String town
+    ) {
+
+        LinearLayout row =
+                new LinearLayout(this);
+
+        row.setOrientation(
+                LinearLayout.HORIZONTAL
+        );
+
+        row.setPadding(
+                0,
+                6,
+                0,
+                6
+        );
+
+        LinearLayout provinceColumn =
+                new LinearLayout(this);
+
+        provinceColumn.setOrientation(
+                LinearLayout.VERTICAL
+        );
+
+        LinearLayout townColumn =
+                new LinearLayout(this);
+
+        townColumn.setOrientation(
+                LinearLayout.VERTICAL
+        );
+
+        TextView provinceLabel =
+                new TextView(this);
+
+        provinceLabel.setText(
+                "🗺️ PROVINCE"
+        );
+
+        provinceLabel.setTextSize(13);
+        provinceLabel.setTypeface(
+                null,
+                android.graphics.Typeface.BOLD
+        );
+        provinceLabel.setTextColor(GRAY);
+
+        TextView provinceValue =
+                new TextView(this);
+
+        provinceValue.setText(
+                valueOrDefault(
+                        province,
+                        "Not provided"
+                )
+        );
+
+        provinceValue.setTextSize(16);
+        provinceValue.setTextColor(DARK);
+
+        provinceColumn.addView(
+                provinceLabel
+        );
+
+        provinceColumn.addView(
+                provinceValue
+        );
+
+        TextView townLabel =
+                new TextView(this);
+
+        townLabel.setText(
+                "🏘️ TOWN / MUNICIPALITY"
+        );
+
+        townLabel.setTextSize(13);
+        townLabel.setTypeface(
+                null,
+                android.graphics.Typeface.BOLD
+        );
+        townLabel.setTextColor(GRAY);
+
+        TextView townValue =
+                new TextView(this);
+
+        townValue.setText(
+                valueOrDefault(
+                        town,
+                        "Not provided"
+                )
+        );
+
+        townValue.setTextSize(16);
+        townValue.setTextColor(DARK);
+
+        townColumn.addView(
+                townLabel
+        );
+
+        townColumn.addView(
+                townValue
+        );
+
+        row.addView(
+                provinceColumn,
+                new LinearLayout.LayoutParams(
+                        0,
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        1f
+                )
+        );
+
+        row.addView(
+                townColumn,
+                new LinearLayout.LayoutParams(
+                        0,
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        1f
+                )
+        );
+
+        parent.addView(row);
     }
 
     private void addDriverCard(
@@ -2221,27 +2412,11 @@ public class AdminActivity extends Activity {
                 DARK
         );
 
-        if (hasText(town)) {
-
-            addCardText(
-                    card,
-                    "🏘️ Town / City: "
-                            + town,
-                    16,
-                    DARK
-            );
-        }
-
-        if (hasText(province)) {
-
-            addCardText(
-                    card,
-                    "🗺️ Province: "
-                            + province,
-                    16,
-                    DARK
-            );
-        }
+        addLocationColumns(
+                card,
+                province,
+                town
+        );
 
         if (hasText(plate)) {
 
@@ -2373,15 +2548,6 @@ public class AdminActivity extends Activity {
             String driverId
     ) {
 
-        /*
-         * REJECT DRIVER
-         *
-         * Deletes the Firestore driver profile and
-         * driver location.
-         *
-         * It does NOT delete Firebase Authentication.
-         */
-
         db.collection("users")
                 .document(driverId)
                 .delete()
@@ -2454,7 +2620,7 @@ public class AdminActivity extends Activity {
 
         return valueOrDefault(
                 name,
-                "Unnamed Driver"
+                "Unnamed User"
         );
     }
 
@@ -2583,6 +2749,9 @@ public class AdminActivity extends Activity {
 
         String[] fields = {
                 "completedAt",
+                "cancelledAt",
+                "declinedAt",
+                "expiredAt",
                 "createdAt",
                 "requestedAt",
                 "acceptedAt",
