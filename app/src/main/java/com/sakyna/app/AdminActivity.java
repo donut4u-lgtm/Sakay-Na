@@ -19,6 +19,7 @@ import com.google.firebase.firestore.FirebaseFirestore;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
@@ -39,6 +40,7 @@ public class AdminActivity extends Activity {
     private LinearLayout overviewSection;
     private LinearLayout passengersSection;
     private LinearLayout driversSection;
+    private LinearLayout onlineDriversSection;
     private LinearLayout approvalSection;
     private LinearLayout activeRidesSection;
     private LinearLayout historySection;
@@ -255,8 +257,15 @@ public class AdminActivity extends Activity {
                     pendingCount++;
                 }
 
-                if (Boolean.TRUE.equals(
-                        user.getBoolean("online"))) {
+                if (
+                        "APPROVED".equalsIgnoreCase(
+                                approval
+                        )
+                        &&
+                        Boolean.TRUE.equals(
+                                user.getBoolean("online")
+                        )
+                ) {
 
                     onlineDrivers++;
                 }
@@ -302,19 +311,43 @@ public class AdminActivity extends Activity {
                 LIGHT_GREEN
         );
 
+        /*
+         * ORDER OF ADMIN LISTS
+         *
+         * 1. Passengers — TODAY
+         * 2. Driver Approval Applications
+         * 3. Approved Drivers — Province → Town/City
+         * 4. Online Drivers — LIVE
+         * 5. Suspended Drivers
+         */
         buildPassengers();
-        buildGroupedDrivers();
         buildPendingDrivers();
+        buildGroupedDrivers();
+        buildOnlineDrivers();
         buildSuspendedDrivers();
     }
 
+    /*
+     * ============================================================
+     * PASSENGERS — TODAY ONLY
+     * ============================================================
+     *
+     * The main passenger list is intentionally limited to
+     * accounts registered today so the Admin dashboard does
+     * not become crowded with old passenger accounts.
+     *
+     * Accepted timestamp fields:
+     * - createdAt
+     * - registeredAt
+     *
+     * Both Firestore Timestamp and numeric millisecond values
+     * are supported.
+     */
     private void buildPassengers() {
 
         passengersSection = createSection(
-                "👤 PASSENGER MANAGEMENT"
+                "👤 PASSENGERS — TODAY"
         );
-
-        int shown = 0;
 
         List<DocumentSnapshot> passengers =
                 new ArrayList<>();
@@ -322,20 +355,74 @@ public class AdminActivity extends Activity {
         for (DocumentSnapshot user :
                 usersById.values()) {
 
-            if ("PASSENGER".equalsIgnoreCase(
+            if (!"PASSENGER".equalsIgnoreCase(
                     user.getString("role"))) {
-
-                passengers.add(user);
+                continue;
             }
+
+            if (!isRegisteredToday(user)) {
+                continue;
+            }
+
+            passengers.add(user);
         }
 
         Collections.sort(
                 passengers,
-                (a, b) -> getDisplayName(a)
-                        .compareToIgnoreCase(
-                                getDisplayName(b)
-                        )
+                (a, b) -> {
+
+                    Long timeA =
+                            getUserTimestamp(
+                                    a,
+                                    "createdAt",
+                                    "registeredAt"
+                            );
+
+                    Long timeB =
+                            getUserTimestamp(
+                                    b,
+                                    "createdAt",
+                                    "registeredAt"
+                            );
+
+                    if (
+                            timeA == null
+                            &&
+                            timeB == null
+                    ) {
+
+                        return getDisplayName(a)
+                                .compareToIgnoreCase(
+                                        getDisplayName(b)
+                                );
+                    }
+
+                    if (timeA == null) {
+                        return 1;
+                    }
+
+                    if (timeB == null) {
+                        return -1;
+                    }
+
+                    return Long.compare(
+                            timeB,
+                            timeA
+                    );
+                }
         );
+
+        if (passengers.isEmpty()) {
+
+            addInfoCard(
+                    passengersSection,
+                    "👤 PASSENGERS — TODAY",
+                    "No passenger accounts registered today.",
+                    LIGHT_YELLOW
+            );
+
+            return;
+        }
 
         for (DocumentSnapshot passenger :
                 passengers) {
@@ -344,21 +431,101 @@ public class AdminActivity extends Activity {
                     passengersSection,
                     passenger
             );
+        }
+    }
 
-            shown++;
+    /*
+     * ============================================================
+     * DRIVER APPROVAL APPLICATIONS
+     * ============================================================
+     *
+     * Only PENDING_APPROVAL drivers appear here.
+     *
+     * When Admin approves a driver:
+     *
+     * DRIVER APPROVAL APPLICATIONS
+     *             ↓
+     *        APPROVED
+     *             ↓
+     * APPROVED DRIVERS
+     *
+     * The Firebase Auth account is NOT deleted.
+     */
+    private void buildPendingDrivers() {
+
+        approvalSection = createSection(
+                "🔔 DRIVER APPROVAL APPLICATIONS"
+        );
+
+        List<DocumentSnapshot> pending =
+                new ArrayList<>();
+
+        for (DocumentSnapshot user :
+                usersById.values()) {
+
+            if (
+                    "DRIVER".equalsIgnoreCase(
+                            user.getString("role")
+                    )
+                    &&
+                    "PENDING_APPROVAL".equalsIgnoreCase(
+                            getApprovalStatus(user)
+                    )
+            ) {
+
+                pending.add(user);
+            }
         }
 
-        if (shown == 0) {
+        Collections.sort(
+                pending,
+                (a, b) ->
+                        getDisplayName(a)
+                                .compareToIgnoreCase(
+                                        getDisplayName(b)
+                                )
+        );
+
+        if (pending.isEmpty()) {
 
             addInfoCard(
-                    passengersSection,
-                    "👤 PASSENGERS",
-                    "No passenger accounts found.",
-                    LIGHT_YELLOW
+                    approvalSection,
+                    "🔔 DRIVER APPROVAL APPLICATIONS",
+                    "No drivers waiting for approval.",
+                    LIGHT_GREEN
+            );
+
+            return;
+        }
+
+        for (DocumentSnapshot driver :
+                pending) {
+
+            addDriverCard(
+                    approvalSection,
+                    driver,
+                    true
             );
         }
     }
 
+    /*
+     * ============================================================
+     * APPROVED DRIVERS
+     * ============================================================
+     *
+     * Separate permanent directory.
+     *
+     * Group:
+     *
+     * Province
+     *    ↓
+     * Town / City
+     *    ↓
+     * Driver
+     *
+     * Offline drivers remain here.
+     */
     private void buildGroupedDrivers() {
 
         driversSection = createSection(
@@ -495,34 +662,55 @@ public class AdminActivity extends Activity {
         }
     }
 
-    private void buildPendingDrivers() {
+    /*
+     * ============================================================
+     * ONLINE DRIVERS — LIVE
+     * ============================================================
+     *
+     * ONLY:
+     *
+     * role = DRIVER
+     * approval = APPROVED
+     * online = true
+     *
+     * This is deliberately separate from the permanent
+     * Approved Drivers directory.
+     *
+     * Refreshing the Admin dashboard reloads the users
+     * collection and therefore refreshes this list.
+     */
+    private void buildOnlineDrivers() {
 
-        approvalSection = createSection(
-                "🔔 DRIVER APPROVAL"
+        onlineDriversSection = createSection(
+                "🟢 ONLINE DRIVERS — LIVE"
         );
 
-        List<DocumentSnapshot> pending =
+        List<DocumentSnapshot> online =
                 new ArrayList<>();
 
-        for (DocumentSnapshot user :
+        for (DocumentSnapshot driver :
                 usersById.values()) {
 
-            if (
-                    "DRIVER".equalsIgnoreCase(
-                            user.getString("role")
-                    )
-                    &&
-                    "PENDING_APPROVAL".equalsIgnoreCase(
-                            getApprovalStatus(user)
-                    )
-            ) {
-
-                pending.add(user);
+            if (!"DRIVER".equalsIgnoreCase(
+                    driver.getString("role"))) {
+                continue;
             }
+
+            if (!"APPROVED".equalsIgnoreCase(
+                    getApprovalStatus(driver))) {
+                continue;
+            }
+
+            if (!Boolean.TRUE.equals(
+                    driver.getBoolean("online"))) {
+                continue;
+            }
+
+            online.add(driver);
         }
 
         Collections.sort(
-                pending,
+                online,
                 (a, b) ->
                         getDisplayName(a)
                                 .compareToIgnoreCase(
@@ -530,25 +718,25 @@ public class AdminActivity extends Activity {
                                 )
         );
 
-        if (pending.isEmpty()) {
+        if (online.isEmpty()) {
 
             addInfoCard(
-                    approvalSection,
-                    "🔔 PENDING APPROVAL",
-                    "No drivers waiting for approval.",
-                    LIGHT_GREEN
+                    onlineDriversSection,
+                    "🟢 ONLINE DRIVERS",
+                    "No approved drivers are currently online.",
+                    LIGHT_YELLOW
             );
 
             return;
         }
 
         for (DocumentSnapshot driver :
-                pending) {
+                online) {
 
             addDriverCard(
-                    approvalSection,
+                    onlineDriversSection,
                     driver,
-                    true
+                    false
             );
         }
     }
@@ -557,28 +745,6 @@ public class AdminActivity extends Activity {
      * ============================================================
      * SUSPENDED DRIVERS
      * ============================================================
-     *
-     * Drivers automatically suspended by DriverActivity because
-     * unpaid platform dues reached the 7-day suspension threshold
-     * are shown here.
-     *
-     * Admin can see:
-     * - Driver name
-     * - Phone
-     * - Province
-     * - Town / City
-     * - Plate number
-     * - Franchise number
-     * - Vehicle
-     * - Suspension reason
-     * - Unpaid platform fee
-     * - Suspension date
-     * - Suspension deadline
-     *
-     * This section does NOT unsuspend the driver.
-     *
-     * Automatic restoration happens after the driver's DUE
-     * settlement is fully paid and verified.
      */
     private void buildSuspendedDrivers() {
 
@@ -839,28 +1005,74 @@ public class AdminActivity extends Activity {
         card.addView(note);
     }
 
+    /*
+     * ============================================================
+     * USER TIMESTAMP HELPERS
+     * ============================================================
+     */
+
     private Long getUserTimestamp(
             DocumentSnapshot user,
-            String field
+            String... fields
     ) {
 
-        Object value =
-                user.get(field);
+        for (String field : fields) {
 
-        if (value instanceof Number) {
+            Object value =
+                    user.get(field);
 
-            return ((Number) value)
-                    .longValue();
-        }
+            if (value instanceof Number) {
 
-        if (value instanceof Timestamp) {
+                return ((Number) value)
+                        .longValue();
+            }
 
-            return ((Timestamp) value)
-                    .toDate()
-                    .getTime();
+            if (value instanceof Timestamp) {
+
+                return ((Timestamp) value)
+                        .toDate()
+                        .getTime();
+            }
         }
 
         return null;
+    }
+
+    private boolean isRegisteredToday(
+            DocumentSnapshot user
+    ) {
+
+        Long timestamp =
+                getUserTimestamp(
+                        user,
+                        "createdAt",
+                        "registeredAt"
+                );
+
+        if (timestamp == null) {
+            return false;
+        }
+
+        Calendar today =
+                Calendar.getInstance();
+
+        Calendar registration =
+                Calendar.getInstance();
+
+        registration.setTimeInMillis(
+                timestamp
+        );
+
+        return
+                today.get(Calendar.YEAR)
+                        ==
+                registration.get(Calendar.YEAR)
+                        &&
+                today.get(Calendar.DAY_OF_YEAR)
+                        ==
+                registration.get(
+                        Calendar.DAY_OF_YEAR
+                );
     }
 
     private String formatDate(
@@ -877,6 +1089,12 @@ public class AdminActivity extends Activity {
                 new Date(timestamp)
         );
     }
+
+    /*
+     * ============================================================
+     * RIDES
+     * ============================================================
+     */
 
     private void loadRides() {
 
@@ -1173,18 +1391,6 @@ public class AdminActivity extends Activity {
         List<DocumentSnapshot> paymentRides =
                 new ArrayList<>();
 
-        /*
-         * ADMIN TRANSACTION RULE
-         *
-         * A transaction is recorded when the
-         * driver accepts the booking.
-         *
-         * It does NOT require the ride to be
-         * COMPLETED.
-         *
-         * Passenger cancellation while REQUESTED
-         * does not create an Admin transaction.
-         */
         for (DocumentSnapshot ride :
                 rideDocuments) {
 
@@ -1410,9 +1616,6 @@ public class AdminActivity extends Activity {
                     .getTime();
         }
 
-        /*
-         * Backward compatibility for older rides.
-         */
         return getRideTimestamp(ride);
     }
 
@@ -1928,6 +2131,24 @@ public class AdminActivity extends Activity {
                 15,
                 DARK
         );
+
+        Long registered =
+                getUserTimestamp(
+                        passenger,
+                        "createdAt",
+                        "registeredAt"
+                );
+
+        if (registered != null) {
+
+            addCardText(
+                    card,
+                    "🕒 Registered: "
+                            + formatDate(registered),
+                    14,
+                    GRAY
+            );
+        }
     }
 
     private void addDriverCard(
@@ -2132,7 +2353,7 @@ public class AdminActivity extends Activity {
 
                     Toast.makeText(
                             this,
-                            "Driver approved.",
+                            "Driver approved. Driver moved to Approved Drivers.",
                             Toast.LENGTH_LONG
                     ).show();
 
@@ -2154,15 +2375,11 @@ public class AdminActivity extends Activity {
 
         /*
          * REJECT DRIVER
-         *       ↓
-         * DELETE Firestore driver profile
-         *       ↓
-         * REMOVE DRIVER FROM ADMIN LIST
          *
-         * This deletes users/{driverId}.
-         * It does not delete the Firebase Authentication
-         * account because Auth deletion requires a trusted
-         * backend/Admin SDK.
+         * Deletes the Firestore driver profile and
+         * driver location.
+         *
+         * It does NOT delete Firebase Authentication.
          */
 
         db.collection("users")
