@@ -79,6 +79,21 @@ public class SakayNaFirebaseMessagingService
         String rideId =
                 "";
 
+        String messageId =
+                "";
+
+        String senderId =
+                "";
+
+        String senderRole =
+                "";
+
+        /*
+         * -------------------------------------------------
+         * READ NOTIFICATION PAYLOAD
+         * -------------------------------------------------
+         */
+
         if (remoteMessage.getNotification() != null) {
 
             if (remoteMessage
@@ -108,35 +123,127 @@ public class SakayNaFirebaseMessagingService
         if (data != null) {
 
             if (data.containsKey("title")) {
+
                 title =
                         data.get("title");
             }
 
             if (data.containsKey("message")) {
+
                 message =
                         data.get("message");
             }
 
             if (data.containsKey("type")) {
+
                 type =
                         data.get("type");
             }
 
             if (data.containsKey("rideId")) {
+
                 rideId =
                         data.get("rideId");
             }
+
+            if (data.containsKey("messageId")) {
+
+                messageId =
+                        data.get("messageId");
+            }
+
+            if (data.containsKey("senderId")) {
+
+                senderId =
+                        data.get("senderId");
+            }
+
+            if (data.containsKey("senderRole")) {
+
+                senderRole =
+                        data.get("senderRole");
+            }
         }
+
+        /*
+         * -------------------------------------------------
+         * CHOOSE DESTINATION
+         * -------------------------------------------------
+         */
 
         Intent intent;
 
         /*
-         * ADMIN NOTIFICATIONS
+         * RIDE CHAT
          *
-         * These must open AdminActivity.
+         * Passenger -> Driver
+         * Driver -> Passenger
+         *
+         * Open the exact ride chat.
          */
 
-        if ("ADMIN_DRIVER_APPLICATION"
+        if ("RIDE_CHAT_MESSAGE"
+                .equalsIgnoreCase(type)) {
+
+            intent =
+                    new Intent(
+                            this,
+                            RideChatActivity.class
+                    );
+
+            if (rideId != null
+                    && !rideId.isEmpty()) {
+
+                intent.putExtra(
+                        "ride_id",
+                        rideId
+                );
+
+                intent.putExtra(
+                        "rideId",
+                        rideId
+                );
+            }
+
+            if (messageId != null
+                    && !messageId.isEmpty()) {
+
+                intent.putExtra(
+                        "messageId",
+                        messageId
+                );
+            }
+
+            if (senderId != null
+                    && !senderId.isEmpty()) {
+
+                intent.putExtra(
+                        "senderId",
+                        senderId
+                );
+            }
+
+            if (senderRole != null
+                    && !senderRole.isEmpty()) {
+
+                intent.putExtra(
+                        "senderRole",
+                        senderRole
+                );
+            }
+
+            intent.putExtra(
+                    "notification_type",
+                    "RIDE_CHAT_MESSAGE"
+            );
+
+        }
+
+        /*
+         * ADMIN DRIVER APPLICATION
+         */
+
+        else if ("ADMIN_DRIVER_APPLICATION"
                 .equalsIgnoreCase(type)) {
 
             intent =
@@ -144,44 +251,6 @@ public class SakayNaFirebaseMessagingService
                             this,
                             AdminActivity.class
                     );
-
-        } else if (type.contains("DRIVER")) {
-
-            intent =
-                    new Intent(
-                            this,
-                            DriverActivity.class
-                    );
-
-        } else {
-
-            intent =
-                    new Intent(
-                            this,
-                            PassengerActivity.class
-                    );
-        }
-
-        if (rideId != null
-                && !rideId.isEmpty()) {
-
-            intent.putExtra(
-                    "ride_id",
-                    rideId
-            );
-
-            intent.putExtra(
-                    "rideId",
-                    rideId
-            );
-        }
-
-        /*
-         * Tell AdminActivity why it was opened.
-         */
-
-        if ("ADMIN_DRIVER_APPLICATION"
-                .equalsIgnoreCase(type)) {
 
             intent.putExtra(
                     "notification_type",
@@ -198,11 +267,97 @@ public class SakayNaFirebaseMessagingService
             }
         }
 
+        /*
+         * DRIVER NOTIFICATIONS
+         */
+
+        else if (
+                type != null
+                        &&
+                type.toUpperCase()
+                        .contains("DRIVER")
+        ) {
+
+            intent =
+                    new Intent(
+                            this,
+                            DriverActivity.class
+                    );
+
+        }
+
+        /*
+         * PASSENGER NOTIFICATIONS
+         */
+
+        else {
+
+            intent =
+                    new Intent(
+                            this,
+                            PassengerActivity.class
+                    );
+        }
+
+        /*
+         * -------------------------------------------------
+         * COMMON RIDE INFORMATION
+         * -------------------------------------------------
+         */
+
+        if (rideId != null
+                && !rideId.isEmpty()) {
+
+            intent.putExtra(
+                    "ride_id",
+                    rideId
+            );
+
+            intent.putExtra(
+                    "rideId",
+                    rideId
+            );
+        }
+
+        /*
+         * -------------------------------------------------
+         * ACTIVITY FLAGS
+         * -------------------------------------------------
+         *
+         * CLEAR_TOP:
+         * Reuses an existing activity where appropriate.
+         *
+         * SINGLE_TOP:
+         * Prevents unnecessary duplicate activity
+         * instances.
+         *
+         * NEW_TASK:
+         * Required because this service is not an Activity.
+         */
+
         intent.addFlags(
                 Intent.FLAG_ACTIVITY_NEW_TASK
-                        | Intent.FLAG_ACTIVITY_CLEAR_TOP
-                        | Intent.FLAG_ACTIVITY_SINGLE_TOP
+                        |
+                Intent.FLAG_ACTIVITY_CLEAR_TOP
+                        |
+                Intent.FLAG_ACTIVITY_SINGLE_TOP
         );
+
+        /*
+         * -------------------------------------------------
+         * UNIQUE NOTIFICATION ID
+         * -------------------------------------------------
+         *
+         * Include messageId so separate chat messages
+         * don't intentionally replace each other.
+         */
+
+        int notificationId =
+                createNotificationId(
+                        rideId,
+                        type,
+                        messageId
+                );
 
         int flags =
                 PendingIntent.FLAG_UPDATE_CURRENT;
@@ -217,20 +372,20 @@ public class SakayNaFirebaseMessagingService
         PendingIntent pendingIntent =
                 PendingIntent.getActivity(
                         this,
-                        createNotificationId(
-                                rideId,
-                                type
-                        ),
+                        notificationId,
                         intent,
                         flags
                 );
 
+        /*
+         * -------------------------------------------------
+         * SHOW NOTIFICATION
+         * -------------------------------------------------
+         */
+
         SakayNaNotificationHelper.show(
                 this,
-                createNotificationId(
-                        rideId,
-                        type
-                ),
+                notificationId,
                 title,
                 message,
                 pendingIntent
@@ -239,16 +394,29 @@ public class SakayNaFirebaseMessagingService
 
     private int createNotificationId(
             String rideId,
-            String type
+            String type,
+            String messageId
     ) {
 
         String value =
                 String.valueOf(rideId)
                         + ":"
-                        + String.valueOf(type);
+                        + String.valueOf(type)
+                        + ":"
+                        + String.valueOf(messageId);
 
-        return Math.abs(
-                value.hashCode()
-        );
+        int hash =
+                value.hashCode();
+
+        /*
+         * Math.abs(Integer.MIN_VALUE) remains negative.
+         * Handle that one edge case safely.
+         */
+
+        if (hash == Integer.MIN_VALUE) {
+            return 1;
+        }
+
+        return Math.abs(hash);
     }
 }
