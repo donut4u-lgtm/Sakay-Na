@@ -988,3 +988,341 @@ exports.notifyAdminNewDriverApplication =
       }
     }
   );
+
+
+/* ---------------------------------------------------------
+ * RIDE CHAT MESSAGE NOTIFICATION
+ *
+ * Firestore:
+ *
+ * rides/{rideId}/messages/{messageId}
+ *
+ * Passenger -> Driver
+ * Driver -> Passenger
+ *
+ * Firestore remains the source of truth.
+ * FCM delivers the visible notification.
+ *
+ * High priority is used for chat so FCM can attempt
+ * delivery while the Android device is sleeping/idle.
+ * --------------------------------------------------------- */
+
+exports.notifyRideChatMessage =
+  onDocumentCreated(
+    {
+      document:
+        "rides/{rideId}/messages/{messageId}",
+
+      region:
+        "asia-southeast1"
+    },
+
+    async (event) => {
+
+      const snapshot =
+        event.data;
+
+      if (!snapshot) {
+        return;
+      }
+
+      const messageData =
+        snapshot.data() || {};
+
+      const rideId =
+        String(
+          event.params.rideId || ""
+        ).trim();
+
+      const messageId =
+        String(
+          event.params.messageId ||
+          snapshot.id ||
+          ""
+        ).trim();
+
+      if (!rideId || !messageId) {
+        return;
+      }
+
+      const senderId =
+        String(
+          messageData.senderId || ""
+        ).trim();
+
+      const message =
+        String(
+          messageData.message ||
+          messageData.text ||
+          ""
+        ).trim();
+
+      if (!senderId || !message) {
+
+        logger.warn(
+          "Chat notification skipped: senderId or message is missing.",
+          {
+            rideId,
+            messageId
+          }
+        );
+
+        return;
+      }
+
+      /* ---------------------------------------------------
+       * GET RIDE
+       * --------------------------------------------------- */
+
+      const rideSnapshot =
+        await db.collection("rides")
+          .doc(rideId)
+          .get();
+
+      if (!rideSnapshot.exists) {
+
+        logger.warn(
+          "Chat notification skipped: ride not found.",
+          {
+            rideId,
+            messageId
+          }
+        );
+
+        return;
+      }
+
+      const ride =
+        rideSnapshot.data() || {};
+
+      const passengerId =
+        String(
+          ride.passengerId || ""
+        ).trim();
+
+      const driverId =
+        String(
+          ride.driverId || ""
+        ).trim();
+
+      if (!passengerId || !driverId) {
+
+        logger.info(
+          "Chat notification skipped: ride has no passenger or driver.",
+          {
+            rideId,
+            passengerId,
+            driverId
+          }
+        );
+
+        return;
+      }
+
+      /* ---------------------------------------------------
+       * DETERMINE RECIPIENT
+       * --------------------------------------------------- */
+
+      let recipientId = "";
+
+      if (
+        senderId === passengerId
+      ) {
+
+        recipientId =
+          driverId;
+
+      } else if (
+        senderId === driverId
+      ) {
+
+        recipientId =
+          passengerId;
+
+      } else {
+
+        logger.warn(
+          "Chat notification skipped: sender is not part of ride.",
+          {
+            rideId,
+            messageId,
+            senderId,
+            passengerId,
+            driverId
+          }
+        );
+
+        return;
+      }
+
+      /* ---------------------------------------------------
+       * GET RECIPIENT FCM TOKEN
+       * --------------------------------------------------- */
+
+      const recipientSnapshot =
+        await db.collection("users")
+          .doc(recipientId)
+          .get();
+
+      if (!recipientSnapshot.exists) {
+
+        logger.warn(
+          "Chat notification skipped: recipient profile not found.",
+          {
+            rideId,
+            recipientId
+          }
+        );
+
+        return;
+      }
+
+      const recipient =
+        recipientSnapshot.data() || {};
+
+      const fcmToken =
+        String(
+          recipient.fcmToken || ""
+        ).trim();
+
+      if (!fcmToken) {
+
+        logger.warn(
+          "Chat notification skipped: recipient has no FCM token.",
+          {
+            rideId,
+            recipientId
+          }
+        );
+
+        return;
+      }
+
+      /* ---------------------------------------------------
+       * SENDER ROLE
+       * --------------------------------------------------- */
+
+      let senderRole =
+        String(
+          messageData.senderRole ||
+          messageData.role ||
+          ""
+        ).toUpperCase();
+
+      if (
+        senderRole !== "PASSENGER" &&
+        senderRole !== "DRIVER"
+      ) {
+
+        senderRole =
+          senderId === driverId
+            ? "DRIVER"
+            : "PASSENGER";
+      }
+
+      const title =
+        senderRole === "DRIVER"
+          ? "🛺 Sakay Na — Driver"
+          : "👤 Sakay Na — Passenger";
+
+      const body =
+        message.length > 120
+          ? message.substring(0, 117) + "..."
+          : message;
+
+      /* ---------------------------------------------------
+       * SEND FCM
+       *
+       * IMPORTANT:
+       * No fixed Android notification "tag" is used.
+       *
+       * This prevents consecutive chat messages for the
+       * same ride from intentionally replacing one another.
+       * --------------------------------------------------- */
+
+      try {
+
+        await getMessaging().send({
+
+          token:
+            fcmToken,
+
+          notification: {
+
+            title:
+              title,
+
+            body:
+              body
+          },
+
+          data: {
+
+            type:
+              "RIDE_CHAT_MESSAGE",
+
+            rideId:
+              rideId,
+
+            messageId:
+              messageId,
+
+            senderId:
+              senderId,
+
+            senderRole:
+              senderRole,
+
+            title:
+              title,
+
+            message:
+              body
+          },
+
+          android: {
+
+            priority:
+              "high",
+
+            ttl:
+              24 * 60 * 60 * 1000,
+
+            notification: {
+
+              channelId:
+                "sakayna_ride_updates",
+
+              sound:
+                "default"
+            }
+          }
+        });
+
+        logger.info(
+          "Ride chat notification sent.",
+          {
+            rideId,
+            messageId,
+            senderId,
+            recipientId,
+            senderRole
+          }
+        );
+
+      } catch (error) {
+
+        logger.error(
+          "Ride chat notification failed.",
+          {
+            rideId,
+            messageId,
+            senderId,
+            recipientId,
+            error:
+              error.message
+          }
+        );
+      }
+    }
+  );
