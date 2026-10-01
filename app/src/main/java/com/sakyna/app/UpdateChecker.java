@@ -26,8 +26,14 @@ public final class UpdateChecker {
     private static final String RELEASE_API =
             "https://api.github.com/repos/donut4u-lgtm/Sakay-Na/releases/latest";
 
+    /*
+     * ALL Sakay Na public updates use this single APK.
+     *
+     * The APK itself is built from the current Sakay Na source,
+     * which uses @sakayna.app for passenger and driver authentication.
+     */
     private static final String DOWNLOAD_URL =
-            "https://github.com/donut4u-lgtm/Sakay-Na/releases/download/v1.0.1/Sakay-Na-v2.apk";
+            "https://github.com/donut4u-lgtm/Sakay-Na/releases/latest/download/SakayNa.apk";
 
     private UpdateChecker() {
     }
@@ -270,7 +276,7 @@ public final class UpdateChecker {
                                 + versionCode
                                 + ")"
                                 + "\n\n"
-                                + "Update using the existing Sakay Na download page."
+                                + "Update using the official Sakay Na APK."
                 )
 
                 .setPositiveButton(
