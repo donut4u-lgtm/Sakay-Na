@@ -207,13 +207,13 @@ jobs:
               "$APK" 2>&1 \
               | awk -F': ' '
                 /V2 Signer: certificate SHA-256 digest:/ {
-                  gsub(/[ :]/, "", $2)
-                  print tolower($2)
+                  gsub(/[ :]/, "", $3)
+                  print tolower($3)
                   exit
                 }
                 /Signer #1 certificate SHA-256 digest:/ {
-                  gsub(/[ :]/, "", $2)
-                  print tolower($2)
+                  gsub(/[ :]/, "", $3)
+                  print tolower($3)
                   exit
                 }
               '
