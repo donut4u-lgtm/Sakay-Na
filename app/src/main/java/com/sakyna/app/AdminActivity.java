@@ -45,6 +45,7 @@ public class AdminActivity extends Activity {
     private LinearLayout historySection;
     private LinearLayout paymentSection;
     private LinearLayout suspendedDriversSection;
+    private LinearLayout driverEarningsDuesSection;
 
     private final Map<String, DocumentSnapshot> usersById =
             new HashMap<>();
@@ -76,14 +77,18 @@ public class AdminActivity extends Activity {
     private static final int GRAY =
             Color.rgb(110, 110, 110);
 
-    /*
-     * RIDE HISTORY IS FIXED TO 7 DAYS.
-     *
-     * There is deliberately no 30-day history option.
-     */
     private static final int HISTORY_DAYS = 7;
 
     private int paymentDays = 30;
+
+    private static final double PLATFORM_FEE_RATE = 0.10;
+
+    private static final long SEVEN_DAYS_MILLIS =
+            7L
+                    * 24L
+                    * 60L
+                    * 60L
+                    * 1000L;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -324,27 +329,35 @@ public class AdminActivity extends Activity {
          * 3. Approved Drivers
          * 4. Online Drivers
          * 5. Suspended Drivers
-         * 6. Ride History
-         * 7. Payments
+         * 6. Driver Earnings & Dues
+         * 7. Ride History
+         * 8. Payments
          */
         buildPassengers();
         buildPendingDrivers();
         buildGroupedDrivers();
         buildOnlineDrivers();
         buildSuspendedDrivers();
+
+        /*
+         * This section is populated after rides are loaded.
+         */
+        driverEarningsDuesSection = createSection(
+                "💰 DRIVER EARNINGS & DUES"
+        );
+
+        addInfoCard(
+                driverEarningsDuesSection,
+                "💰 DRIVER EARNINGS & DUES",
+                "Loading driver earnings and settlement status...",
+                LIGHT_BLUE
+        );
     }
 
     /*
      * ============================================================
      * PASSENGER MANAGEMENT
      * ============================================================
-     *
-     * ONLY NEW PASSENGER ACCOUNTS REGISTERED TODAY ARE SHOWN.
-     *
-     * ACTIVE PASSENGER BOOKINGS ARE ALSO SHOWN INSIDE THIS
-     * SAME PASSENGER MANAGEMENT SECTION.
-     *
-     * DRIVER ACCOUNTS ARE NEVER ADDED HERE.
      */
     private void buildPassengers() {
 
@@ -435,22 +448,12 @@ public class AdminActivity extends Activity {
                 );
             }
         }
-
-        /*
-         * Active bookings are added AFTER rides are loaded.
-         * See addPassengerBookings().
-         */
     }
 
     /*
      * ============================================================
      * PASSENGER BOOKINGS
      * ============================================================
-     *
-     * CURRENT / ACTIVE passenger bookings appear ONLY inside
-     * Passenger Management.
-     *
-     * There is NO separate Active Rides section anymore.
      */
     private void addPassengerBookings() {
 
@@ -501,11 +504,6 @@ public class AdminActivity extends Activity {
             DocumentSnapshot passenger =
                     usersById.get(passengerId);
 
-            /*
-             * Only PASSENGER bookings are shown here.
-             * A DRIVER profile can never be treated as a
-             * passenger booking.
-             */
             if (
                     passenger == null
                     ||
@@ -878,6 +876,678 @@ public class AdminActivity extends Activity {
         }
     }
 
+    /*
+     * ============================================================
+     * DRIVER EARNINGS & DUES MONITOR
+     * ============================================================
+     *
+     * This section lets Admin see which drivers have earned,
+     * how much the 10% platform fee is, how much is paid,
+     * what remains outstanding, and how long the oldest DUE
+     * has remained unpaid.
+     */
+    private void buildDriverEarningsDues() {
+
+        if (driverEarningsDuesSection == null) {
+            return;
+        }
+
+        driverEarningsDuesSection.removeAllViews();
+
+        double totalEarnings = 0;
+        double totalPlatformFees = 0;
+        double totalOutstanding = 0;
+        double totalPaid = 0;
+
+        int settledCount = 0;
+        int dueCount = 0;
+        int overdueCount = 0;
+
+        List<DriverDuesRecord> records =
+                new ArrayList<>();
+
+        for (DocumentSnapshot driver :
+                usersById.values()) {
+
+            if (!"DRIVER".equalsIgnoreCase(
+                    driver.getString("role"))) {
+                continue;
+            }
+
+            DriverDuesRecord record =
+                    calculateDriverDues(driver);
+
+            records.add(record);
+
+            totalEarnings += record.earnings;
+            totalPlatformFees += record.platformFee;
+            totalOutstanding += record.outstanding;
+            totalPaid += record.paid;
+
+            if ("SETTLED".equals(record.status)) {
+                settledCount++;
+            } else if ("OVERDUE".equals(record.status)) {
+                overdueCount++;
+            } else {
+                dueCount++;
+            }
+        }
+
+        addInfoCard(
+                driverEarningsDuesSection,
+                "💵 TOTAL DRIVER EARNINGS",
+                formatPeso(totalEarnings),
+                LIGHT_GREEN
+        );
+
+        addInfoCard(
+                driverEarningsDuesSection,
+                "🏦 TOTAL SAKAY NA FEE — 10%",
+                formatPeso(totalPlatformFees),
+                LIGHT_BLUE
+        );
+
+        addInfoCard(
+                driverEarningsDuesSection,
+                "✅ TOTAL SETTLED / PAID",
+                formatPeso(totalPaid),
+                LIGHT_GREEN
+        );
+
+        addInfoCard(
+                driverEarningsDuesSection,
+                "🔴 TOTAL OUTSTANDING",
+                formatPeso(totalOutstanding),
+                totalOutstanding > 0
+                        ? LIGHT_RED
+                        : LIGHT_GREEN
+        );
+
+        addInfoCard(
+                driverEarningsDuesSection,
+                "🟢 SETTLED DRIVERS",
+                String.valueOf(settledCount),
+                LIGHT_GREEN
+        );
+
+        addInfoCard(
+                driverEarningsDuesSection,
+                "🟡 DRIVERS WITH DUES",
+                String.valueOf(dueCount),
+                LIGHT_YELLOW
+        );
+
+        addInfoCard(
+                driverEarningsDuesSection,
+                "🔴 OVERDUE > 7 DAYS",
+                String.valueOf(overdueCount),
+                overdueCount > 0
+                        ? LIGHT_RED
+                        : LIGHT_GREEN
+        );
+
+        TextView explanation =
+                new TextView(this);
+
+        explanation.setText(
+                "ℹ️ Earnings are calculated from completed rides. "
+                        + "The Sakay Na platform fee is 10%. "
+                        + "Outstanding balance comes from the driver's "
+                        + "driverSettlementBalance. "
+                        + "A DUE becomes OVERDUE when the oldest unpaid "
+                        + "DUE ride is more than 7 days old."
+        );
+
+        explanation.setTextSize(14);
+        explanation.setTextColor(DARK);
+        explanation.setPadding(
+                12,
+                12,
+                12,
+                18
+        );
+
+        driverEarningsDuesSection.addView(
+                explanation
+        );
+
+        Collections.sort(
+                records,
+                (a, b) -> {
+
+                    if (
+                            a.statusRank
+                            !=
+                            b.statusRank
+                    ) {
+                        return Integer.compare(
+                                a.statusRank,
+                                b.statusRank
+                        );
+                    }
+
+                    return Double.compare(
+                            b.outstanding,
+                            a.outstanding
+                    );
+                }
+        );
+
+        TextView allTitle =
+                new TextView(this);
+
+        allTitle.setText(
+                "👥 ALL DRIVER SETTLEMENT STATUS"
+        );
+
+        allTitle.setTextSize(20);
+        allTitle.setTypeface(
+                null,
+                android.graphics.Typeface.BOLD
+        );
+        allTitle.setTextColor(GREEN);
+        allTitle.setPadding(
+                0,
+                10,
+                0,
+                12
+        );
+
+        driverEarningsDuesSection.addView(
+                allTitle
+        );
+
+        for (DriverDuesRecord record :
+                records) {
+
+            addDriverDuesCard(
+                    driverEarningsDuesSection,
+                    record
+            );
+        }
+
+        if (records.isEmpty()) {
+
+            addInfoCard(
+                    driverEarningsDuesSection,
+                    "💰 DRIVER DUES",
+                    "No driver accounts found.",
+                    LIGHT_YELLOW
+            );
+        }
+    }
+
+    private DriverDuesRecord calculateDriverDues(
+            DocumentSnapshot driver
+    ) {
+
+        DriverDuesRecord record =
+                new DriverDuesRecord();
+
+        record.driverId =
+                driver.getId();
+
+        record.name =
+                firstNonEmpty(
+                        driver.getString("driverName"),
+                        driver.getString("name")
+                );
+
+        record.phone =
+                driver.getString("phone");
+
+        record.province =
+                driver.getString("province");
+
+        record.town =
+                driver.getString("town");
+
+        record.approvalStatus =
+                getApprovalStatus(driver);
+
+        record.accountStatus =
+                valueOrDefault(
+                        driver.getString(
+                                "driverAccountStatus"
+                        ),
+                        ""
+                );
+
+        /*
+         * Existing driverSettlementBalance is the authoritative
+         * outstanding balance already maintained by the app.
+         */
+        record.outstanding =
+                Math.max(
+                        0,
+                        readNumber(
+                                driver,
+                                "driverSettlementBalance"
+                        )
+                );
+
+        /*
+         * Driver earnings are calculated from COMPLETED rides.
+         */
+        for (DocumentSnapshot ride :
+                rideDocuments) {
+
+            String rideDriverId =
+                    ride.getString("driverId");
+
+            if (
+                    rideDriverId == null
+                    ||
+                    !record.driverId.equals(
+                            rideDriverId
+                    )
+            ) {
+                continue;
+            }
+
+            String status =
+                    ride.getString("status");
+
+            if (!"COMPLETED".equalsIgnoreCase(
+                    status)) {
+                continue;
+            }
+
+            double fare =
+                    readNumber(
+                            ride,
+                            "fare"
+                    );
+
+            if (fare > 0) {
+                record.earnings += fare;
+            }
+        }
+
+        record.platformFee =
+                record.earnings
+                        * PLATFORM_FEE_RATE;
+
+        /*
+         * The driver's current outstanding balance tells us how
+         * much of the platform fee remains unpaid.
+         *
+         * Paid = assessed platform fee - current outstanding.
+         */
+        record.paid =
+                Math.max(
+                        0,
+                        record.platformFee
+                                - record.outstanding
+                );
+
+        /*
+         * Find the oldest ride still marked DUE for this driver.
+         */
+        record.oldestDueTimestamp =
+                findOldestDueTimestamp(
+                        record.driverId
+                );
+
+        if (record.outstanding <= 0.009) {
+
+            record.status =
+                    "SETTLED";
+
+            record.statusRank = 3;
+
+            record.daysUnpaid = 0;
+
+        } else if (
+                record.oldestDueTimestamp != null
+        ) {
+
+            long age =
+                    System.currentTimeMillis()
+                            -
+                            record.oldestDueTimestamp;
+
+            if (age > SEVEN_DAYS_MILLIS) {
+
+                record.status =
+                        "OVERDUE";
+
+                record.statusRank = 0;
+
+            } else {
+
+                record.status =
+                        "DUE";
+
+                record.statusRank = 1;
+            }
+
+            record.daysUnpaid =
+                    Math.max(
+                            0,
+                            age / (
+                                    24L
+                                            * 60L
+                                            * 60L
+                                            * 1000L
+                            )
+                    );
+
+        } else {
+
+            /*
+             * If a balance exists but no DUE ride timestamp is
+             * available, keep the driver visible as DUE rather
+             * than incorrectly calling the driver OVERDUE.
+             */
+            record.status =
+                    "DUE";
+
+            record.statusRank = 1;
+            record.daysUnpaid = 0;
+        }
+
+        return record;
+    }
+
+    private Long findOldestDueTimestamp(
+            String driverId
+    ) {
+
+        Long oldest = null;
+
+        for (DocumentSnapshot ride :
+                rideDocuments) {
+
+            String rideDriverId =
+                    ride.getString("driverId");
+
+            if (
+                    rideDriverId == null
+                    ||
+                    !driverId.equals(
+                            rideDriverId
+                    )
+            ) {
+                continue;
+            }
+
+            String duesStatus =
+                    ride.getString(
+                            "driverDuesStatus"
+                    );
+
+            if (!"DUE".equalsIgnoreCase(
+                    duesStatus)) {
+                continue;
+            }
+
+            Long timestamp =
+                    getDueTimestamp(ride);
+
+            if (timestamp == null) {
+                continue;
+            }
+
+            if (
+                    oldest == null
+                    ||
+                    timestamp < oldest
+            ) {
+                oldest = timestamp;
+            }
+        }
+
+        return oldest;
+    }
+
+    private Long getDueTimestamp(
+            DocumentSnapshot ride
+    ) {
+
+        String[] fields = {
+                "driverDueAt",
+                "driverDuesCreatedAt",
+                "dueAt",
+                "acceptedAt",
+                "completedAt",
+                "createdAt",
+                "requestedAt",
+                "updatedAt"
+        };
+
+        for (String field :
+                fields) {
+
+            Object value =
+                    ride.get(field);
+
+            if (value instanceof Number) {
+
+                return ((Number) value)
+                        .longValue();
+            }
+
+            if (value instanceof Timestamp) {
+
+                return ((Timestamp) value)
+                        .toDate()
+                        .getTime();
+            }
+        }
+
+        return null;
+    }
+
+    private void addDriverDuesCard(
+            LinearLayout parent,
+            DriverDuesRecord record
+    ) {
+
+        int background;
+
+        int statusColor;
+
+        if ("OVERDUE".equals(
+                record.status
+        )) {
+
+            background = LIGHT_RED;
+            statusColor =
+                    Color.rgb(190, 0, 0);
+
+        } else if ("DUE".equals(
+                record.status
+        )) {
+
+            background = LIGHT_YELLOW;
+            statusColor =
+                    Color.rgb(180, 120, 0);
+
+        } else {
+
+            background = LIGHT_GREEN;
+            statusColor = GREEN;
+        }
+
+        LinearLayout card =
+                createChildCard(
+                        parent,
+                        background
+                );
+
+        addCardText(
+                card,
+                statusIcon(record.status)
+                        + " "
+                        + valueOrDefault(
+                        record.name,
+                        "Driver name not provided"
+                ),
+                20,
+                statusColor
+        );
+
+        addCardText(
+                card,
+                "📱 Phone: "
+                        + valueOrDefault(
+                        record.phone,
+                        "Phone not provided"
+                ),
+                15,
+                DARK
+        );
+
+        addLocationColumns(
+                card,
+                record.province,
+                record.town
+        );
+
+        addCardText(
+                card,
+                "💵 Completed Ride Earnings: "
+                        + formatPeso(
+                        record.earnings
+                ),
+                16,
+                DARK
+        );
+
+        addCardText(
+                card,
+                "🏦 Sakay Na Fee — 10%: "
+                        + formatPeso(
+                        record.platformFee
+                ),
+                16,
+                DARK
+        );
+
+        addCardText(
+                card,
+                "✅ Paid / Settled: "
+                        + formatPeso(
+                        record.paid
+                ),
+                16,
+                GREEN
+        );
+
+        addCardText(
+                card,
+                "💰 OUTSTANDING DUE: "
+                        + formatPeso(
+                        record.outstanding
+                ),
+                19,
+                record.outstanding > 0
+                        ? Color.rgb(190, 0, 0)
+                        : GREEN
+        );
+
+        if (
+                record.oldestDueTimestamp
+                != null
+        ) {
+
+            addCardText(
+                    card,
+                    "📅 Oldest DUE: "
+                            + formatDate(
+                            record.oldestDueTimestamp
+                    ),
+                    14,
+                    GRAY
+            );
+
+            if (record.outstanding > 0) {
+
+                addCardText(
+                        card,
+                        "⏳ Days Unpaid: "
+                                + record.daysUnpaid
+                                + " day(s)",
+                        17,
+                        statusColor
+                );
+            }
+        }
+
+        addCardText(
+                card,
+                "📌 SETTLEMENT STATUS: "
+                        + record.status,
+                18,
+                statusColor
+        );
+
+        if ("OVERDUE".equals(
+                record.status
+        )) {
+
+            addCardText(
+                    card,
+                    "🔴 OVERDUE MORE THAN 7 DAYS",
+                    17,
+                    Color.rgb(190, 0, 0)
+            );
+
+        } else if ("DUE".equals(
+                record.status
+        )) {
+
+            addCardText(
+                    card,
+                    "🟡 PAYMENT DUE",
+                    16,
+                    Color.rgb(180, 120, 0)
+            );
+
+        } else {
+
+            addCardText(
+                    card,
+                    "🟢 FULLY SETTLED",
+                    16,
+                    GREEN
+            );
+        }
+
+        if ("SUSPENDED".equalsIgnoreCase(
+                record.accountStatus
+        )) {
+
+            addCardText(
+                    card,
+                    "🚫 DRIVER ACCOUNT: SUSPENDED",
+                    17,
+                    Color.rgb(190, 0, 0)
+            );
+        }
+    }
+
+    private String statusIcon(
+            String status
+    ) {
+
+        if ("OVERDUE".equals(status)) {
+            return "🔴";
+        }
+
+        if ("DUE".equals(status)) {
+            return "🟡";
+        }
+
+        return "🟢";
+    }
+
+    /*
+     * ============================================================
+     * SUSPENDED DRIVER CARD
+     * ============================================================
+     */
     private void addSuspendedDriverCard(
             LinearLayout parent,
             DocumentSnapshot driver
@@ -1170,11 +1840,14 @@ public class AdminActivity extends Activity {
 
                     buildRideSections();
 
-                    /*
-                     * Active passenger bookings are placed
-                     * inside Passenger Management.
-                     */
                     addPassengerBookings();
+
+                    /*
+                     * Driver Earnings & Dues uses both users
+                     * and rides, so it is rendered only after
+                     * rides have finished loading.
+                     */
+                    buildDriverEarningsDues();
 
                     statusText.setText(
                             "Dashboard loaded."
@@ -1183,6 +1856,10 @@ public class AdminActivity extends Activity {
                 .addOnFailureListener(e -> {
 
                     buildRideSections();
+
+                    addPassengerBookings();
+
+                    buildDriverEarningsDues();
 
                     statusText.setText(
                             "Users loaded. Ride history unavailable."
@@ -1194,16 +1871,10 @@ public class AdminActivity extends Activity {
      * ============================================================
      * RIDE SECTIONS
      * ============================================================
-     *
-     * There is intentionally NO ACTIVE RIDES section.
-     *
-     * Active bookings are shown under Passenger Management.
      */
+
     private void buildRideSections() {
 
-        /*
-         * Completely separate Ride History section.
-         */
         historySection = createSection(
                 "📋 RIDE HISTORY — LAST 7 DAYS"
         );
@@ -1214,9 +1885,6 @@ public class AdminActivity extends Activity {
 
         renderHistory();
 
-        /*
-         * Payment section remains separate.
-         */
         paymentSection = createSection(
                 "💰 FARE & PAYMENT"
         );
@@ -1258,16 +1926,13 @@ public class AdminActivity extends Activity {
      * 7-DAY RIDE HISTORY
      * ============================================================
      */
+
     private void renderHistory() {
 
         if (historySection == null) {
             return;
         }
 
-        /*
-         * First child = notice.
-         * Everything after it is dynamic history.
-         */
         int childCount =
                 historySection.getChildCount();
 
@@ -1297,9 +1962,6 @@ public class AdminActivity extends Activity {
             String status =
                     ride.getString("status");
 
-            /*
-             * History is separate from active/current bookings.
-             */
             if (!isHistoryStatus(status)) {
                 continue;
             }
@@ -1346,11 +2008,6 @@ public class AdminActivity extends Activity {
         }
     }
 
-    /*
-     * Ride statuses that belong in history.
-     *
-     * ACTIVE statuses are deliberately excluded.
-     */
     private boolean isHistoryStatus(
             String status
     ) {
@@ -1368,6 +2025,12 @@ public class AdminActivity extends Activity {
                         ||
                 "EXPIRED".equalsIgnoreCase(status);
     }
+
+    /*
+     * ============================================================
+     * PAYMENTS
+     * ============================================================
+     */
 
     private void addPaymentFilters(
             LinearLayout parent
@@ -1882,6 +2545,7 @@ public class AdminActivity extends Activity {
      * RIDE CARD
      * ============================================================
      */
+
     private void addRideCard(
             LinearLayout parent,
             DocumentSnapshot ride
@@ -2119,10 +2783,8 @@ public class AdminActivity extends Activity {
      * ============================================================
      * PASSENGER CARD
      * ============================================================
-     *
-     * Province and Town/Municipality are deliberately displayed
-     * in separate columns.
      */
+
     private void addPassengerCard(
             LinearLayout parent,
             DocumentSnapshot passenger
@@ -2217,6 +2879,7 @@ public class AdminActivity extends Activity {
      * PROVINCE / TOWN COLUMNS
      * ============================================================
      */
+
     private void addLocationColumns(
             LinearLayout parent,
             String province,
@@ -3087,5 +3750,40 @@ public class AdminActivity extends Activity {
         startActivity(intent);
 
         finish();
+    }
+
+    /*
+     * ============================================================
+     * DRIVER DUES DATA OBJECT
+     * ============================================================
+     */
+    private static class DriverDuesRecord {
+
+        String driverId = "";
+        String name = "";
+        String phone = "";
+        String province = "";
+        String town = "";
+
+        String approvalStatus = "";
+        String accountStatus = "";
+
+        double earnings = 0;
+        double platformFee = 0;
+        double paid = 0;
+        double outstanding = 0;
+
+        Long oldestDueTimestamp = null;
+
+        long daysUnpaid = 0;
+
+        String status = "SETTLED";
+
+        /*
+         * 0 = OVERDUE
+         * 1 = DUE
+         * 3 = SETTLED
+         */
+        int statusRank = 3;
     }
 }
