@@ -205,17 +205,26 @@ jobs:
             "$APKSIGNER" verify \
               --print-certs \
               "$APK" 2>&1 \
-              | awk -F': ' '/Signer #1 certificate SHA-256 digest:/ {
+              | awk -F': ' '
+                /V2 Signer: certificate SHA-256 digest:/ {
                   gsub(/[ :]/, "", $2)
                   print tolower($2)
                   exit
-                }'
+                }
+                /Signer #1 certificate SHA-256 digest:/ {
+                  gsub(/[ :]/, "", $2)
+                  print tolower($2)
+                  exit
+                }
+              '
           )
 
           EXPECTED="14904b17ad9917b5daf05f0655e56176e7b13bbbdec0d2cccecd09de017916d4"
 
           if [ "$CERT" != "$EXPECTED" ]; then
             echo "RED: FINAL APK SIGNING CERTIFICATE DOES NOT MATCH."
+            echo "Expected: $EXPECTED"
+            echo "Found: $CERT"
             exit 1
           fi
 
@@ -286,5 +295,7 @@ jobs:
           echo "========================================"
           echo "Public APK: SakayNa.apk"
           echo "Package: com.sakyna.app"
+          echo "Version: ${VERSION_NAME}"
+          echo "Version code: ${VERSION_CODE}"
           echo "Signing alias: sakayna"
           echo "========================================"
