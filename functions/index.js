@@ -3,34 +3,34 @@ const crypto = require("crypto");
 const { initializeApp } = require("firebase-admin/app");
 
 const {
-  getAuth
+getAuth
 } = require("firebase-admin/auth");
 
 const {
-  getFirestore,
-  FieldValue
+getFirestore,
+FieldValue
 } = require("firebase-admin/firestore");
 
 const {
-  getMessaging
+getMessaging
 } = require("firebase-admin/messaging");
 
 const {
-  onCall,
-  HttpsError
+onCall,
+HttpsError
 } = require("firebase-functions/v2/https");
 
 const {
-  onDocumentCreated,
-  onDocumentUpdated
+onDocumentCreated,
+onDocumentUpdated
 } = require("firebase-functions/v2/firestore");
 
 const {
-  setGlobalOptions
+setGlobalOptions
 } = require("firebase-functions/v2");
 
 const {
-  logger
+logger
 } = require("firebase-functions");
 
 initializeApp();
@@ -38,1451 +38,1444 @@ initializeApp();
 const db = getFirestore();
 
 setGlobalOptions({
-  region: "asia-southeast1",
-  maxInstances: 5
+region: "asia-southeast1",
+maxInstances: 5
 });
 
-
 /* ---------------------------------------------------------
- * ADMIN
- * --------------------------------------------------------- */
+
+* ADMIN
+* --------------------------------------------------------- */
 
 const ADMIN_UID =
-  "Ld3rzaCvAGNlXBDCofB3mWjgXWp2";
-
+"Ld3rzaCvAGNlXBDCofB3mWjgXWp2";
 
 /* ---------------------------------------------------------
- * HELPERS
- * --------------------------------------------------------- */
+
+* HELPERS
+* --------------------------------------------------------- */
 
 function requireAuthenticated(request) {
 
-  if (!request.auth || !request.auth.uid) {
+if (!request.auth || !request.auth.uid) {
 
-    throw new HttpsError(
-      "unauthenticated",
-      "You must be logged in."
-    );
-  }
+throw new HttpsError(
+  "unauthenticated",
+  "You must be logged in."
+);
 
-  return request.auth.uid;
 }
 
+return request.auth.uid;
+}
 
 function requireAdmin(request) {
 
-  const uid =
-    requireAuthenticated(request);
+const uid =
+requireAuthenticated(request);
 
-  if (uid !== ADMIN_UID) {
+if (uid !== ADMIN_UID) {
 
-    throw new HttpsError(
-      "permission-denied",
-      "Admin access required."
-    );
-  }
+throw new HttpsError(
+  "permission-denied",
+  "Admin access required."
+);
 
-  return uid;
 }
 
+return uid;
+}
 
 function normalizePhone(phone) {
 
-  if (typeof phone !== "string") {
-    return "";
-  }
-
-  return phone
-    .replace(/[^\d+]/g, "")
-    .trim();
+if (typeof phone !== "string") {
+return "";
 }
 
+return phone
+.replace(/[^\d+]/g, "")
+.trim();
+}
 
 function phoneVariants(phone) {
 
-  const digits =
-    String(phone || "")
-      .replace(/\D/g, "");
+const digits =
+String(phone || "")
+.replace(/\D/g, "");
 
-  let local = digits;
+let local = digits;
 
-  if (digits.startsWith("63")) {
+if (digits.startsWith("63")) {
 
-    local =
-      "0" + digits.substring(2);
+local =
+  "0" + digits.substring(2);
 
-  } else if (
-    digits.startsWith("9") &&
-    digits.length === 10
-  ) {
+} else if (
+digits.startsWith("9") &&
+digits.length === 10
+) {
 
-    local =
-      "0" + digits;
-  }
+local =
+  "0" + digits;
 
-  if (
-    !local.startsWith("0") ||
-    local.length !== 11
-  ) {
-
-    return [];
-  }
-
-  const nine =
-    local.substring(1);
-
-  return [
-    "0" + nine,
-    "63" + nine,
-    "+63" + nine,
-    nine
-  ];
 }
 
+if (
+!local.startsWith("0") ||
+local.length !== 11
+) {
+
+return [];
+
+}
+
+const nine =
+local.substring(1);
+
+return [
+"0" + nine,
+"63" + nine,
+"+63" + nine,
+nine
+];
+}
 
 function hashValue(value) {
 
-  return crypto
-    .createHash("sha256")
-    .update(value)
-    .digest("hex");
+return crypto
+.createHash("sha256")
+.update(value)
+.digest("hex");
 }
-
 
 function getWindowStart(windowMs) {
 
-  const now =
-    Date.now();
+const now =
+Date.now();
 
-  return Math.floor(
-    now / windowMs
-  ) * windowMs;
+return Math.floor(
+now / windowMs
+) * windowMs;
 }
 
-
 /* ---------------------------------------------------------
- * REGISTRATION SECURITY
- * --------------------------------------------------------- */
+
+* REGISTRATION SECURITY
+* --------------------------------------------------------- */
 
 exports.checkRegistrationAllowed = onCall(
-  async (request) => {
+async (request) => {
 
-    const phone =
-      normalizePhone(
-        request.data?.phone
+const phone =
+  normalizePhone(
+    request.data?.phone
+  );
+
+if (!phone) {
+
+  throw new HttpsError(
+    "invalid-argument",
+    "Phone number is required."
+  );
+}
+
+const phoneHash =
+  hashValue(phone);
+
+const dayWindow =
+  getWindowStart(
+    24 * 60 * 60 * 1000
+  );
+
+const phoneKey =
+  `registration_phone_${phoneHash}_${dayWindow}`;
+
+const globalKey =
+  `registration_global_${dayWindow}`;
+
+const phoneRef =
+  db.collection(
+    "securityRateLimits"
+  ).doc(phoneKey);
+
+const globalRef =
+  db.collection(
+    "securityRateLimits"
+  ).doc(globalKey);
+
+let allowed = true;
+let reason = "";
+
+await db.runTransaction(
+  async (transaction) => {
+
+    const phoneSnapshot =
+      await transaction.get(
+        phoneRef
       );
 
-    if (!phone) {
-
-      throw new HttpsError(
-        "invalid-argument",
-        "Phone number is required."
+    const globalSnapshot =
+      await transaction.get(
+        globalRef
       );
+
+    const phoneCount =
+      phoneSnapshot.exists
+        ? Number(
+            phoneSnapshot.data()
+              .count || 0
+          )
+        : 0;
+
+    const globalCount =
+      globalSnapshot.exists
+        ? Number(
+            globalSnapshot.data()
+              .count || 0
+          )
+        : 0;
+
+    if (phoneCount >= 3) {
+
+      allowed = false;
+
+      reason =
+        "Too many registration attempts for this phone number today.";
     }
 
-    const phoneHash =
-      hashValue(phone);
+    if (globalCount >= 100) {
 
-    const dayWindow =
-      getWindowStart(
-        24 * 60 * 60 * 1000
-      );
+      allowed = false;
 
-    const phoneKey =
-      `registration_phone_${phoneHash}_${dayWindow}`;
+      reason =
+        "Registration service is temporarily rate limited.";
+    }
 
-    const globalKey =
-      `registration_global_${dayWindow}`;
+    transaction.set(
+      phoneRef,
+      {
+        count:
+          phoneCount + 1,
 
-    const phoneRef =
-      db.collection(
-        "securityRateLimits"
-      ).doc(phoneKey);
+        windowStart:
+          dayWindow,
 
-    const globalRef =
-      db.collection(
-        "securityRateLimits"
-      ).doc(globalKey);
+        lastAttemptAt:
+          FieldValue.serverTimestamp(),
 
-    let allowed = true;
-    let reason = "";
-
-    await db.runTransaction(
-      async (transaction) => {
-
-        const phoneSnapshot =
-          await transaction.get(
-            phoneRef
-          );
-
-        const globalSnapshot =
-          await transaction.get(
-            globalRef
-          );
-
-        const phoneCount =
-          phoneSnapshot.exists
-            ? Number(
-                phoneSnapshot.data()
-                  .count || 0
-              )
-            : 0;
-
-        const globalCount =
-          globalSnapshot.exists
-            ? Number(
-                globalSnapshot.data()
-                  .count || 0
-              )
-            : 0;
-
-        if (phoneCount >= 3) {
-
-          allowed = false;
-
-          reason =
-            "Too many registration attempts for this phone number today.";
-        }
-
-        if (globalCount >= 100) {
-
-          allowed = false;
-
-          reason =
-            "Registration service is temporarily rate limited.";
-        }
-
-        transaction.set(
-          phoneRef,
-          {
-            count:
-              phoneCount + 1,
-
-            windowStart:
-              dayWindow,
-
-            lastAttemptAt:
-              FieldValue.serverTimestamp(),
-
-            type:
-              "REGISTRATION_PHONE"
-          },
-          {
-            merge: true
-          }
-        );
-
-        transaction.set(
-          globalRef,
-          {
-            count:
-              globalCount + 1,
-
-            windowStart:
-              dayWindow,
-
-            lastAttemptAt:
-              FieldValue.serverTimestamp(),
-
-            type:
-              "REGISTRATION_GLOBAL"
-          },
-          {
-            merge: true
-          }
-        );
+        type:
+          "REGISTRATION_PHONE"
+      },
+      {
+        merge: true
       }
     );
 
-    if (!allowed) {
+    transaction.set(
+      globalRef,
+      {
+        count:
+          globalCount + 1,
 
-      logger.warn(
-        "Registration blocked",
-        {
-          phoneHash,
-          reason
-        }
-      );
+        windowStart:
+          dayWindow,
 
-      return {
-        allowed: false,
-        reason
-      };
-    }
+        lastAttemptAt:
+          FieldValue.serverTimestamp(),
 
-    return {
-      allowed: true,
-      reason: ""
-    };
+        type:
+          "REGISTRATION_GLOBAL"
+      },
+      {
+        merge: true
+      }
+    );
   }
 );
 
+if (!allowed) {
+
+  logger.warn(
+    "Registration blocked",
+    {
+      phoneHash,
+      reason
+    }
+  );
+
+  return {
+    allowed: false,
+    reason
+  };
+}
+
+return {
+  allowed: true,
+  reason: ""
+};
+
+}
+);
 
 /* ---------------------------------------------------------
- * RIDE REQUEST SECURITY
- * --------------------------------------------------------- */
+
+* RIDE REQUEST SECURITY
+* --------------------------------------------------------- */
 
 exports.checkRideRequestAllowed = onCall(
-  async (request) => {
+async (request) => {
 
-    const uid =
-      requireAuthenticated(request);
+const uid =
+  requireAuthenticated(request);
 
-    const hourWindow =
-      getWindowStart(
-        60 * 60 * 1000
-      );
+const hourWindow =
+  getWindowStart(
+    60 * 60 * 1000
+  );
 
-    const key =
-      `ride_request_${uid}_${hourWindow}`;
+const key =
+  `ride_request_${uid}_${hourWindow}`;
 
-    const ref =
-      db.collection(
-        "securityRateLimits"
-      ).doc(key);
+const ref =
+  db.collection(
+    "securityRateLimits"
+  ).doc(key);
 
-    let allowed = true;
+let allowed = true;
 
-    await db.runTransaction(
-      async (transaction) => {
-
-        const snapshot =
-          await transaction.get(ref);
-
-        const count =
-          snapshot.exists
-            ? Number(
-                snapshot.data()
-                  .count || 0
-              )
-            : 0;
-
-        if (count >= 10) {
-          allowed = false;
-        }
-
-        transaction.set(
-          ref,
-          {
-            uid,
-
-            count:
-              count + 1,
-
-            windowStart:
-              hourWindow,
-
-            lastAttemptAt:
-              FieldValue.serverTimestamp(),
-
-            type:
-              "RIDE_REQUEST"
-          },
-          {
-            merge: true
-          }
-        );
-      }
-    );
-
-    if (!allowed) {
-
-      logger.warn(
-        "Ride request blocked",
-        {
-          uid
-        }
-      );
-
-      return {
-        allowed: false,
-
-        reason:
-          "Too many ride requests. Please try again later."
-      };
-    }
-
-    return {
-      allowed: true,
-      reason: ""
-    };
-  }
-);
-
-
-/* ---------------------------------------------------------
- * CANCELLATION SECURITY
- * --------------------------------------------------------- */
-
-exports.checkCancellationAllowed = onCall(
-  async (request) => {
-
-    const uid =
-      requireAuthenticated(request);
-
-    const hourWindow =
-      getWindowStart(
-        60 * 60 * 1000
-      );
-
-    const key =
-      `cancellation_${uid}_${hourWindow}`;
-
-    const ref =
-      db.collection(
-        "securityRateLimits"
-      ).doc(key);
-
-    let allowed = true;
-
-    await db.runTransaction(
-      async (transaction) => {
-
-        const snapshot =
-          await transaction.get(ref);
-
-        const count =
-          snapshot.exists
-            ? Number(
-                snapshot.data()
-                  .count || 0
-              )
-            : 0;
-
-        if (count >= 5) {
-          allowed = false;
-        }
-
-        transaction.set(
-          ref,
-          {
-            uid,
-
-            count:
-              count + 1,
-
-            windowStart:
-              hourWindow,
-
-            lastAttemptAt:
-              FieldValue.serverTimestamp(),
-
-            type:
-              "CANCELLATION"
-          },
-          {
-            merge: true
-          }
-        );
-      }
-    );
-
-    if (!allowed) {
-
-      logger.warn(
-        "Cancellation blocked",
-        {
-          uid
-        }
-      );
-
-      return {
-        allowed: false,
-
-        reason:
-          "Too many cancellations. Please wait before cancelling another ride."
-      };
-    }
-
-    return {
-      allowed: true,
-      reason: ""
-    };
-  }
-);
-
-
-/* ---------------------------------------------------------
- * SECURITY STATUS
- * --------------------------------------------------------- */
-
-exports.getMySecurityStatus = onCall(
-  async (request) => {
-
-    const uid =
-      requireAuthenticated(request);
+await db.runTransaction(
+  async (transaction) => {
 
     const snapshot =
-      await db.collection("users")
-        .doc(uid)
-        .get();
+      await transaction.get(ref);
 
-    if (!snapshot.exists) {
+    const count =
+      snapshot.exists
+        ? Number(
+            snapshot.data()
+              .count || 0
+          )
+        : 0;
 
-      return {
-        exists: false,
-        status: "UNKNOWN"
-      };
+    if (count >= 10) {
+      allowed = false;
     }
 
-    const data =
-      snapshot.data() || {};
+    transaction.set(
+      ref,
+      {
+        uid,
 
-    const status =
-      data.securityStatus ||
-      "ACTIVE";
+        count:
+          count + 1,
 
-    return {
-      exists: true,
-      status
-    };
+        windowStart:
+          hourWindow,
+
+        lastAttemptAt:
+          FieldValue.serverTimestamp(),
+
+        type:
+          "RIDE_REQUEST"
+      },
+      {
+        merge: true
+      }
+    );
   }
 );
 
+if (!allowed) {
+
+  logger.warn(
+    "Ride request blocked",
+    {
+      uid
+    }
+  );
+
+  return {
+    allowed: false,
+
+    reason:
+      "Too many ride requests. Please try again later."
+  };
+}
+
+return {
+  allowed: true,
+  reason: ""
+};
+
+}
+);
 
 /* ---------------------------------------------------------
- * ADMIN FIND USER BY PHONE
- * --------------------------------------------------------- */
+
+* CANCELLATION SECURITY
+* --------------------------------------------------------- */
+
+exports.checkCancellationAllowed = onCall(
+async (request) => {
+
+const uid =
+  requireAuthenticated(request);
+
+const hourWindow =
+  getWindowStart(
+    60 * 60 * 1000
+  );
+
+const key =
+  `cancellation_${uid}_${hourWindow}`;
+
+const ref =
+  db.collection(
+    "securityRateLimits"
+  ).doc(key);
+
+let allowed = true;
+
+await db.runTransaction(
+  async (transaction) => {
+
+    const snapshot =
+      await transaction.get(ref);
+
+    const count =
+      snapshot.exists
+        ? Number(
+            snapshot.data()
+              .count || 0
+          )
+        : 0;
+
+    if (count >= 5) {
+      allowed = false;
+    }
+
+    transaction.set(
+      ref,
+      {
+        uid,
+
+        count:
+          count + 1,
+
+        windowStart:
+          hourWindow,
+
+        lastAttemptAt:
+          FieldValue.serverTimestamp(),
+
+        type:
+          "CANCELLATION"
+      },
+      {
+        merge: true
+      }
+    );
+  }
+);
+
+if (!allowed) {
+
+  logger.warn(
+    "Cancellation blocked",
+    {
+      uid
+    }
+  );
+
+  return {
+    allowed: false,
+
+    reason:
+      "Too many cancellations. Please wait before cancelling another ride."
+  };
+}
+
+return {
+  allowed: true,
+  reason: ""
+};
+
+}
+);
+
+/* ---------------------------------------------------------
+
+* SECURITY STATUS
+* --------------------------------------------------------- */
+
+exports.getMySecurityStatus = onCall(
+async (request) => {
+
+const uid =
+  requireAuthenticated(request);
+
+const snapshot =
+  await db.collection("users")
+    .doc(uid)
+    .get();
+
+if (!snapshot.exists) {
+
+  return {
+    exists: false,
+    status: "UNKNOWN"
+  };
+}
+
+const data =
+  snapshot.data() || {};
+
+const status =
+  data.securityStatus ||
+  "ACTIVE";
+
+return {
+  exists: true,
+  status
+};
+
+}
+);
+
+/* ---------------------------------------------------------
+
+* ADMIN FIND USER BY PHONE
+* --------------------------------------------------------- */
 
 exports.adminFindUserByPhone = onCall(
-  async (request) => {
+async (request) => {
 
-    requireAdmin(request);
+requireAdmin(request);
 
-    const variants =
-      phoneVariants(
-        request.data?.phone
-      );
+const variants =
+  phoneVariants(
+    request.data?.phone
+  );
 
-    if (!variants.length) {
+if (!variants.length) {
 
-      throw new HttpsError(
-        "invalid-argument",
-        "Enter a valid Philippine mobile number."
-      );
-    }
+  throw new HttpsError(
+    "invalid-argument",
+    "Enter a valid Philippine mobile number."
+  );
+}
 
-    let found = null;
+let found = null;
 
-    for (
-      const variant of variants
-    ) {
+for (
+  const variant of variants
+) {
 
-      const snapshot =
-        await db.collection("users")
-          .where(
-            "phone",
-            "==",
-            variant
-          )
-          .limit(1)
-          .get();
+  const snapshot =
+    await db.collection("users")
+      .where(
+        "phone",
+        "==",
+        variant
+      )
+      .limit(1)
+      .get();
 
-      if (!snapshot.empty) {
+  if (!snapshot.empty) {
 
-        found =
-          snapshot.docs[0];
+    found =
+      snapshot.docs[0];
 
-        break;
-      }
-    }
-
-    if (!found) {
-
-      return {
-        found: false
-      };
-    }
-
-    const data =
-      found.data() || {};
-
-    const role =
-      String(
-        data.role || ""
-      ).toUpperCase();
-
-    if (
-      role !== "PASSENGER" &&
-      role !== "DRIVER"
-    ) {
-
-      return {
-        found: false
-      };
-    }
-
-    return {
-
-      found: true,
-
-      uid:
-        found.id,
-
-      name:
-        String(
-          data.name ||
-          data.fullName ||
-          data.driverName ||
-          "Not provided"
-        ),
-
-      role,
-
-      phone:
-        String(
-          data.phone || ""
-        )
-    };
+    break;
   }
+}
+
+if (!found) {
+
+  return {
+    found: false
+  };
+}
+
+const data =
+  found.data() || {};
+
+const role =
+  String(
+    data.role || ""
+  ).toUpperCase();
+
+if (
+  role !== "PASSENGER" &&
+  role !== "DRIVER"
+) {
+
+  return {
+    found: false
+  };
+}
+
+return {
+
+  found: true,
+
+  uid:
+    found.id,
+
+  name:
+    String(
+      data.name ||
+      data.fullName ||
+      data.driverName ||
+      "Not provided"
+    ),
+
+  role,
+
+  phone:
+    String(
+      data.phone || ""
+    )
+};
+
+}
 );
 
-
 /* ---------------------------------------------------------
- * ADMIN RESET USER PASSWORD
- * --------------------------------------------------------- */
+
+* ADMIN RESET USER PASSWORD
+* --------------------------------------------------------- */
 
 exports.adminResetUserPassword = onCall(
-  async (request) => {
+async (request) => {
 
-    requireAdmin(request);
+requireAdmin(request);
 
-    const targetUid =
-      String(
-        request.data?.targetUid ||
-        ""
-      ).trim();
+const targetUid =
+  String(
+    request.data?.targetUid ||
+    ""
+  ).trim();
 
-    const newPassword =
-      String(
-        request.data?.newPassword ||
-        ""
-      );
+const newPassword =
+  String(
+    request.data?.newPassword ||
+    ""
+  );
 
-    if (!targetUid) {
+if (!targetUid) {
 
-      throw new HttpsError(
-        "invalid-argument",
-        "Target account is required."
-      );
+  throw new HttpsError(
+    "invalid-argument",
+    "Target account is required."
+  );
+}
+
+if (
+  newPassword.length < 6
+) {
+
+  throw new HttpsError(
+    "invalid-argument",
+    "Password must be at least 6 characters."
+  );
+}
+
+if (
+  targetUid === ADMIN_UID
+) {
+
+  throw new HttpsError(
+    "permission-denied",
+    "The Admin account cannot be reset here."
+  );
+}
+
+let userRecord;
+
+try {
+
+  userRecord =
+    await getAuth()
+      .getUser(targetUid);
+
+} catch (error) {
+
+  logger.error(
+    "Admin password reset: target user lookup failed.",
+    {
+      targetUid,
+      error:
+        error.message
     }
+  );
 
-    if (
-      newPassword.length < 6
-    ) {
+  throw new HttpsError(
+    "not-found",
+    "Account was not found."
+  );
+}
 
-      throw new HttpsError(
-        "invalid-argument",
-        "Password must be at least 6 characters."
-      );
+const email =
+  String(
+    userRecord.email || ""
+  ).toLowerCase();
+
+if (
+  !email.endsWith(
+    "@sakayna.app"
+  )
+) {
+
+  throw new HttpsError(
+    "failed-precondition",
+    "This is not a Sakay Na account."
+  );
+}
+
+try {
+
+  await getAuth()
+    .updateUser(
+      targetUid,
+      {
+        password:
+          newPassword
+      }
+    );
+
+  logger.info(
+    "Admin reset a Sakay Na account password.",
+    {
+      adminUid:
+        ADMIN_UID,
+
+      targetUid
     }
+  );
 
-    if (
-      targetUid === ADMIN_UID
-    ) {
+  return {
 
-      throw new HttpsError(
-        "permission-denied",
-        "The Admin account cannot be reset here."
-      );
+    success: true,
+
+    uid:
+      targetUid
+  };
+
+} catch (error) {
+
+  logger.error(
+    "Admin password reset failed.",
+    {
+      adminUid:
+        ADMIN_UID,
+
+      targetUid,
+
+      error:
+        error.message
     }
+  );
 
-    let userRecord;
+  throw new HttpsError(
+    "internal",
+    "Unable to reset the account password."
+  );
+}
 
-    try {
-
-      userRecord =
-        await getAuth()
-          .getUser(targetUid);
-
-    } catch (error) {
-
-      logger.error(
-        "Admin password reset: target user lookup failed.",
-        {
-          targetUid,
-          error:
-            error.message
-        }
-      );
-
-      throw new HttpsError(
-        "not-found",
-        "Account was not found."
-      );
-    }
-
-    const email =
-      String(
-        userRecord.email || ""
-      ).toLowerCase();
-
-    if (
-      !email.endsWith(
-        "@sakayna.app"
-      )
-    ) {
-
-      throw new HttpsError(
-        "failed-precondition",
-        "This is not a Sakay Na account."
-      );
-    }
-
-    try {
-
-      await getAuth()
-        .updateUser(
-          targetUid,
-          {
-            password:
-              newPassword
-          }
-        );
-
-      logger.info(
-        "Admin reset a Sakay Na account password.",
-        {
-          adminUid:
-            ADMIN_UID,
-
-          targetUid
-        }
-      );
-
-      return {
-
-        success: true,
-
-        uid:
-          targetUid
-      };
-
-    } catch (error) {
-
-      logger.error(
-        "Admin password reset failed.",
-        {
-          adminUid:
-            ADMIN_UID,
-
-          targetUid,
-
-          error:
-            error.message
-        }
-      );
-
-      throw new HttpsError(
-        "internal",
-        "Unable to reset the account password."
-      );
-    }
-  }
+}
 );
 
-
 /* ---------------------------------------------------------
- * ADMIN DRIVER APPLICATION NOTIFICATION
- * --------------------------------------------------------- */
+
+* ADMIN DRIVER APPLICATION NOTIFICATION
+* --------------------------------------------------------- */
 
 exports.notifyAdminNewDriverApplication =
-  onDocumentCreated(
-    {
-      document:
-        "users/{userId}",
+onDocumentCreated(
+{
+document:
+"users/{userId}",
 
-      region:
-        "asia-southeast1"
-    },
+  region:
+    "asia-southeast1"
+},
 
-    async (event) => {
+async (event) => {
 
-      const snapshot =
-        event.data;
+  const snapshot =
+    event.data;
 
-      if (!snapshot) {
-        return;
+  if (!snapshot) {
+    return;
+  }
+
+  const driver =
+    snapshot.data() || {};
+
+  if (
+    String(
+      driver.role || ""
+    ).toUpperCase() !== "DRIVER"
+  ) {
+
+    return;
+  }
+
+  const approved =
+    driver.approved === true;
+
+  const driverStatus =
+    String(
+      driver.driverStatus || ""
+    ).toUpperCase();
+
+  const approvalStatus =
+    String(
+      driver.approvalStatus || ""
+    ).toUpperCase();
+
+  const isPending =
+    !approved &&
+    (
+      driverStatus === "PENDING" ||
+      approvalStatus ===
+        "PENDING_APPROVAL" ||
+      (
+        !driverStatus &&
+        !approvalStatus
+      )
+    );
+
+  if (!isPending) {
+    return;
+  }
+
+  const adminSnapshot =
+    await db.collection("users")
+      .doc(ADMIN_UID)
+      .get();
+
+  if (!adminSnapshot.exists) {
+
+    logger.warn(
+      "Admin profile not found.",
+      {
+        adminUid:
+          ADMIN_UID
       }
+    );
 
-      const driver =
-        snapshot.data() || {};
+    return;
+  }
 
-      if (
-        String(
-          driver.role || ""
-        ).toUpperCase() !== "DRIVER"
-      ) {
+  const adminData =
+    adminSnapshot.data() || {};
 
-        return;
+  const adminToken =
+    adminData.fcmToken;
+
+  if (
+    typeof adminToken !== "string" ||
+    !adminToken.trim()
+  ) {
+
+    logger.warn(
+      "Admin has no FCM token. Admin must open/login to Sakay Na at least once.",
+      {
+        adminUid:
+          ADMIN_UID
       }
+    );
 
-      const approved =
-        driver.approved === true;
+    return;
+  }
 
-      const driverStatus =
-        String(
-          driver.driverStatus || ""
-        ).toUpperCase();
+  const driverName =
+    String(
+      driver.name ||
+      driver.driverName ||
+      "New driver"
+    );
 
-      const approvalStatus =
-        String(
-          driver.approvalStatus || ""
-        ).toUpperCase();
+  const phone =
+    String(
+      driver.phone ||
+      ""
+    );
 
-      const isPending =
-        !approved &&
-        (
-          driverStatus === "PENDING" ||
-          approvalStatus ===
-            "PENDING_APPROVAL" ||
-          (
-            !driverStatus &&
-            !approvalStatus
-          )
-        );
+  const message =
+    phone
+      ? `${driverName} (${phone}) is waiting for approval.`
+      : `${driverName} is waiting for approval.`;
 
-      if (!isPending) {
-        return;
+  try {
+
+    await getMessaging().send({
+
+      token:
+        adminToken,
+
+      notification: {
+
+        title:
+          "🛺 New Driver Application",
+
+        body:
+          message
+      },
+
+      data: {
+
+        type:
+          "ADMIN_DRIVER_APPLICATION",
+
+        driverId:
+          snapshot.id,
+
+        title:
+          "🛺 New Driver Application",
+
+        message:
+          message
+      },
+
+      android: {
+
+        priority:
+          "high",
+
+        notification: {
+
+          channelId:
+            "sakayna_ride_updates",
+
+          sound:
+            "default"
+        }
       }
+    });
 
-      const adminSnapshot =
-        await db.collection("users")
-          .doc(ADMIN_UID)
-          .get();
+    logger.info(
+      "Admin driver application notification sent.",
+      {
+        driverId:
+          snapshot.id,
 
-      if (!adminSnapshot.exists) {
-
-        logger.warn(
-          "Admin profile not found.",
-          {
-            adminUid:
-              ADMIN_UID
-          }
-        );
-
-        return;
+        driverName:
+          driverName
       }
+    );
 
-      const adminData =
-        adminSnapshot.data() || {};
+  } catch (error) {
 
-      const adminToken =
-        adminData.fcmToken;
+    logger.error(
+      "Failed to send Admin driver application notification.",
+      {
+        error:
+          error.message,
 
-      if (
-        typeof adminToken !== "string" ||
-        !adminToken.trim()
-      ) {
-
-        logger.warn(
-          "Admin has no FCM token. Admin must open/login to Sakay Na at least once.",
-          {
-            adminUid:
-              ADMIN_UID
-          }
-        );
-
-        return;
+        driverId:
+          snapshot.id
       }
+    );
+  }
+}
 
-      const driverName =
-        String(
-          driver.name ||
-          driver.driverName ||
-          "New driver"
-        );
-
-      const phone =
-        String(
-          driver.phone ||
-          ""
-        );
-
-      const message =
-        phone
-          ? `${driverName} (${phone}) is waiting for approval.`
-          : `${driverName} is waiting for approval.`;
-
-      try {
-
-        await getMessaging().send({
-
-          token:
-            adminToken,
-
-          notification: {
-
-            title:
-              "🛺 New Driver Application",
-
-            body:
-              message
-          },
-
-          data: {
-
-            type:
-              "ADMIN_DRIVER_APPLICATION",
-
-            driverId:
-              snapshot.id,
-
-            title:
-              "🛺 New Driver Application",
-
-            message:
-              message
-          },
-
-          android: {
-
-            priority:
-              "high",
-
-            notification: {
-
-              channelId:
-                "sakayna_ride_updates",
-
-              sound:
-                "default"
-            }
-          }
-        });
-
-        logger.info(
-          "Admin driver application notification sent.",
-          {
-            driverId:
-              snapshot.id,
-
-            driverName:
-              driverName
-          }
-        );
-
-      } catch (error) {
-
-        logger.error(
-          "Failed to send Admin driver application notification.",
-          {
-            error:
-              error.message,
-
-            driverId:
-              snapshot.id
-          }
-        );
-      }
-    }
-  );
-
+);
 
 /* ---------------------------------------------------------
- * RIDE CHAT MESSAGE NOTIFICATION
- *
- * Passenger -> Driver
- * Driver -> Passenger
- *
- * IMPORTANT:
- * This is DATA-ONLY FCM.
- *
- * When Android is in the background, notification+data
- * messages are handled by the Android system tray and
- * do not call onMessageReceived().
- *
- * Data-only high-priority messages allow
- * SakayNaFirebaseMessagingService to receive the data
- * and create the notification itself.
- * --------------------------------------------------------- */
+
+* RIDE CHAT MESSAGE NOTIFICATION
+* 
+* IMPORTANT:
+* This is DATA-ONLY.
+* 
+* Do NOT add a top-level "notification" object here.
+* 
+* That allows Android to deliver the message to
+* SakayNaFirebaseMessagingService.onMessageReceived()
+* even when Sakay Na is in the background.
+* --------------------------------------------------------- */
 
 exports.notifyRideChatMessage =
-  onDocumentCreated(
-    {
-      document:
-        "rides/{rideId}/messages/{messageId}",
+onDocumentCreated(
+{
+document:
+"rides/{rideId}/messages/{messageId}",
 
-      region:
-        "asia-southeast1"
-    },
+  region:
+    "asia-southeast1"
+},
 
-    async (event) => {
+async (event) => {
 
-      const snapshot =
-        event.data;
+  const snapshot =
+    event.data;
 
-      if (!snapshot) {
-        return;
+  if (!snapshot) {
+    return;
+  }
+
+  const messageData =
+    snapshot.data() || {};
+
+  const rideId =
+    String(
+      event.params.rideId || ""
+    ).trim();
+
+  const messageId =
+    String(
+      event.params.messageId ||
+      snapshot.id ||
+      ""
+    ).trim();
+
+  if (!rideId || !messageId) {
+    return;
+  }
+
+  const senderId =
+    String(
+      messageData.senderId || ""
+    ).trim();
+
+  const message =
+    String(
+      messageData.message ||
+      messageData.text ||
+      ""
+    ).trim();
+
+  if (!senderId || !message) {
+
+    logger.warn(
+      "Chat notification skipped: senderId or message is missing.",
+      {
+        rideId,
+        messageId
       }
+    );
 
-      const messageData =
-        snapshot.data() || {};
+    return;
+  }
 
-      const rideId =
-        String(
-          event.params.rideId || ""
-        ).trim();
+  const rideSnapshot =
+    await db.collection("rides")
+      .doc(rideId)
+      .get();
 
-      const messageId =
-        String(
-          event.params.messageId ||
-          snapshot.id ||
-          ""
-        ).trim();
+  if (!rideSnapshot.exists) {
 
-      if (!rideId || !messageId) {
-        return;
+    logger.warn(
+      "Chat notification skipped: ride not found.",
+      {
+        rideId,
+        messageId
       }
+    );
 
-      const senderId =
-        String(
-          messageData.senderId || ""
-        ).trim();
+    return;
+  }
 
-      const message =
-        String(
-          messageData.message ||
-          messageData.text ||
-          ""
-        ).trim();
+  const ride =
+    rideSnapshot.data() || {};
 
-      if (!senderId || !message) {
+  const passengerId =
+    String(
+      ride.passengerId || ""
+    ).trim();
 
-        logger.warn(
-          "Chat notification skipped: senderId or message is missing.",
-          {
-            rideId,
-            messageId
-          }
-        );
+  const driverId =
+    String(
+      ride.driverId || ""
+    ).trim();
 
-        return;
+  if (!passengerId || !driverId) {
+
+    logger.info(
+      "Chat notification skipped: ride has no passenger or driver.",
+      {
+        rideId,
+        passengerId,
+        driverId
       }
+    );
 
-      /* ---------------------------------------------------
-       * GET RIDE
-       * --------------------------------------------------- */
+    return;
+  }
 
-      const rideSnapshot =
-        await db.collection("rides")
-          .doc(rideId)
-          .get();
+  let recipientId = "";
 
-      if (!rideSnapshot.exists) {
+  if (
+    senderId === passengerId
+  ) {
 
-        logger.warn(
-          "Chat notification skipped: ride not found.",
-          {
-            rideId,
-            messageId
-          }
-        );
+    recipientId =
+      driverId;
 
-        return;
+  } else if (
+    senderId === driverId
+  ) {
+
+    recipientId =
+      passengerId;
+
+  } else {
+
+    logger.warn(
+      "Chat notification skipped: sender is not part of ride.",
+      {
+        rideId,
+        messageId,
+        senderId,
+        passengerId,
+        driverId
       }
+    );
 
-      const ride =
-        rideSnapshot.data() || {};
+    return;
+  }
 
-      const passengerId =
-        String(
-          ride.passengerId || ""
-        ).trim();
+  const recipientSnapshot =
+    await db.collection("users")
+      .doc(recipientId)
+      .get();
 
-      const driverId =
-        String(
-          ride.driverId || ""
-        ).trim();
+  if (!recipientSnapshot.exists) {
 
-      if (!passengerId || !driverId) {
-
-        logger.info(
-          "Chat notification skipped: ride has no passenger or driver.",
-          {
-            rideId,
-            passengerId,
-            driverId
-          }
-        );
-
-        return;
+    logger.warn(
+      "Chat notification skipped: recipient profile not found.",
+      {
+        rideId,
+        recipientId
       }
+    );
 
-      /* ---------------------------------------------------
-       * DETERMINE RECIPIENT
-       * --------------------------------------------------- */
+    return;
+  }
 
-      let recipientId = "";
+  const recipient =
+    recipientSnapshot.data() || {};
 
-      if (
-        senderId === passengerId
-      ) {
+  const fcmToken =
+    String(
+      recipient.fcmToken || ""
+    ).trim();
 
-        recipientId =
-          driverId;
+  if (!fcmToken) {
 
-      } else if (
-        senderId === driverId
-      ) {
-
-        recipientId =
-          passengerId;
-
-      } else {
-
-        logger.warn(
-          "Chat notification skipped: sender is not part of ride.",
-          {
-            rideId,
-            messageId,
-            senderId,
-            passengerId,
-            driverId
-          }
-        );
-
-        return;
+    logger.warn(
+      "Chat notification skipped: recipient has no FCM token.",
+      {
+        rideId,
+        recipientId
       }
+    );
 
-      /* ---------------------------------------------------
-       * GET RECIPIENT FCM TOKEN
-       * --------------------------------------------------- */
+    return;
+  }
 
-      const recipientSnapshot =
-        await db.collection("users")
-          .doc(recipientId)
-          .get();
+  let senderRole =
+    String(
+      messageData.senderRole ||
+      messageData.role ||
+      ""
+    ).toUpperCase();
 
-      if (!recipientSnapshot.exists) {
+  if (
+    senderRole !== "PASSENGER" &&
+    senderRole !== "DRIVER"
+  ) {
 
-        logger.warn(
-          "Chat notification skipped: recipient profile not found.",
-          {
-            rideId,
-            recipientId
-          }
-        );
+    senderRole =
+      senderId === driverId
+        ? "DRIVER"
+        : "PASSENGER";
+  }
 
-        return;
-      }
+  const title =
+    senderRole === "DRIVER"
+      ? "🛺 Sakay Na — Driver"
+      : "👤 Sakay Na — Passenger";
 
-      const recipient =
-        recipientSnapshot.data() || {};
+  const body =
+    message.length > 120
+      ? message.substring(0, 117) + "..."
+      : message;
 
-      const fcmToken =
-        String(
-          recipient.fcmToken || ""
-        ).trim();
+  try {
 
-      if (!fcmToken) {
+    await getMessaging().send({
 
-        logger.warn(
-          "Chat notification skipped: recipient has no FCM token.",
-          {
-            rideId,
-            recipientId
-          }
-        );
-
-        return;
-      }
-
-      /* ---------------------------------------------------
-       * SENDER ROLE
-       * --------------------------------------------------- */
-
-      let senderRole =
-        String(
-          messageData.senderRole ||
-          messageData.role ||
-          ""
-        ).toUpperCase();
-
-      if (
-        senderRole !== "PASSENGER" &&
-        senderRole !== "DRIVER"
-      ) {
-
-        senderRole =
-          senderId === driverId
-            ? "DRIVER"
-            : "PASSENGER";
-      }
-
-      const title =
-        senderRole === "DRIVER"
-          ? "Sakay Na - Driver Message"
-          : "Sakay Na - Passenger Message";
-
-      const body =
-        message.length > 120
-          ? message.substring(0, 117) + "..."
-          : message;
-
-      /* ---------------------------------------------------
-       * SEND DATA-ONLY HIGH-PRIORITY FCM
-       * --------------------------------------------------- */
-
-      try {
-
-        await getMessaging().send({
-
-          token:
-            fcmToken,
-
-          data: {
-
-            type:
-              "RIDE_CHAT_MESSAGE",
-
-            rideId:
-              rideId,
-
-            messageId:
-              messageId,
-
-            senderId:
-              senderId,
-
-            senderRole:
-              senderRole,
-
-            title:
-              title,
-
-            message:
-              body
-          },
-
-          android: {
-
-            priority:
-              "high",
-
-            ttl:
-              24 * 60 * 60 * 1000
-          }
-        });
-
-        logger.info(
-          "Ride chat data notification sent.",
-          {
-            rideId,
-            messageId,
-            senderId,
-            recipientId,
-            senderRole
-          }
-        );
-
-      } catch (error) {
-
-        logger.error(
-          "Ride chat notification failed.",
-          {
-            rideId,
-            messageId,
-            senderId,
-            recipientId,
-            error:
-              error.message
-          }
-        );
-      }
-    }
-  );
-
-
-/* ---------------------------------------------------------
- * DRIVER ARRIVED NOTIFICATION
- *
- * Passenger receives this when the driver changes the
- * ride status to DRIVER_ARRIVED.
- *
- * This uses a normal notification+data FCM message because
- * Android can display it directly in the system tray when
- * Sakay Na is in the background.
- * --------------------------------------------------------- */
-
-exports.notifyPassengerDriverArrived =
-  onDocumentUpdated(
-    {
-      document:
-        "rides/{rideId}",
-
-      region:
-        "asia-southeast1"
-    },
-
-    async (event) => {
-
-      const before =
-        event.data?.before;
-
-      const after =
-        event.data?.after;
-
-      if (!before || !after) {
-        return;
-      }
-
-      const beforeData =
-        before.data() || {};
-
-      const afterData =
-        after.data() || {};
-
-      const beforeStatus =
-        String(
-          beforeData.status || ""
-        ).trim().toUpperCase();
-
-      const afterStatus =
-        String(
-          afterData.status || ""
-        ).trim().toUpperCase();
+      token:
+        fcmToken,
 
       /*
-       * Only notify when the status actually changes
-       * into DRIVER_ARRIVED.
+       * DATA ONLY.
+       *
+       * No "notification" object.
        */
 
-      if (
-        afterStatus !== "DRIVER_ARRIVED" ||
-        beforeStatus === "DRIVER_ARRIVED"
-      ) {
-        return;
+      data: {
+
+        type:
+          "RIDE_CHAT_MESSAGE",
+
+        rideId:
+          rideId,
+
+        messageId:
+          messageId,
+
+        senderId:
+          senderId,
+
+        senderRole:
+          senderRole,
+
+        title:
+          title,
+
+        message:
+          body
+      },
+
+      android: {
+
+        priority:
+          "high",
+
+        ttl:
+          24 * 60 * 60 * 1000
       }
+    });
 
-      const passengerId =
-        String(
-          afterData.passengerId || ""
-        ).trim();
-
-      const rideId =
-        String(
-          event.params.rideId || ""
-        ).trim();
-
-      if (!passengerId || !rideId) {
-        return;
+    logger.info(
+      "Ride chat DATA-ONLY notification sent.",
+      {
+        rideId,
+        messageId,
+        senderId,
+        recipientId,
+        senderRole
       }
+    );
 
-      const passengerSnapshot =
-        await db.collection("users")
-          .doc(passengerId)
-          .get();
+  } catch (error) {
 
-      if (!passengerSnapshot.exists) {
-
-        logger.warn(
-          "Driver-arrived notification skipped: passenger profile not found.",
-          {
-            rideId,
-            passengerId
-          }
-        );
-
-        return;
+    logger.error(
+      "Ride chat notification failed.",
+      {
+        rideId,
+        messageId,
+        senderId,
+        recipientId,
+        error:
+          error.message
       }
+    );
+  }
+}
 
-      const passenger =
-        passengerSnapshot.data() || {};
+);
 
-      const fcmToken =
-        String(
-          passenger.fcmToken || ""
-        ).trim();
+/* ---------------------------------------------------------
 
-      if (!fcmToken) {
+* DRIVER ARRIVED NOTIFICATION
+* 
+* Fires when:
+* 
+* rides/{rideId}.status
+* 
+* changes TO:
+* 
+* DRIVER_ARRIVED
+* 
+* The passenger receives the notification.
+* --------------------------------------------------------- */
 
-        logger.warn(
-          "Driver-arrived notification skipped: passenger has no FCM token.",
-          {
-            rideId,
-            passengerId
-          }
-        );
+exports.notifyPassengerDriverArrived =
+onDocumentUpdated(
+{
+document:
+"rides/{rideId}",
 
-        return;
+  region:
+    "asia-southeast1"
+},
+
+async (event) => {
+
+  const before =
+    event.data?.before;
+
+  const after =
+    event.data?.after;
+
+  if (!before || !after) {
+    return;
+  }
+
+  const beforeData =
+    before.data() || {};
+
+  const afterData =
+    after.data() || {};
+
+  const beforeStatus =
+    String(
+      beforeData.status || ""
+    ).trim().toUpperCase();
+
+  const afterStatus =
+    String(
+      afterData.status || ""
+    ).trim().toUpperCase();
+
+  /*
+   * Only fire on the actual transition
+   * into DRIVER_ARRIVED.
+   */
+
+  if (
+    afterStatus !== "DRIVER_ARRIVED" ||
+    beforeStatus === "DRIVER_ARRIVED"
+  ) {
+
+    return;
+  }
+
+  const passengerId =
+    String(
+      afterData.passengerId || ""
+    ).trim();
+
+  const rideId =
+    String(
+      event.params.rideId || ""
+    ).trim();
+
+  if (!passengerId || !rideId) {
+    return;
+  }
+
+  const passengerSnapshot =
+    await db.collection("users")
+      .doc(passengerId)
+      .get();
+
+  if (!passengerSnapshot.exists) {
+
+    logger.warn(
+      "Driver-arrived notification skipped: passenger profile not found.",
+      {
+        rideId,
+        passengerId
       }
+    );
 
-      const title =
-        "Sakay Na - Driver Arrived";
+    return;
+  }
 
-      const body =
-        "Your driver has arrived at the pickup location.";
+  const passenger =
+    passengerSnapshot.data() || {};
 
-      try {
+  const fcmToken =
+    String(
+      passenger.fcmToken || ""
+    ).trim();
 
-        await getMessaging().send({
+  if (!fcmToken) {
 
-          token:
-            fcmToken,
-
-          notification: {
-
-            title:
-              title,
-
-            body:
-              body
-          },
-
-          data: {
-
-            type:
-              "DRIVER_ARRIVED",
-
-            rideId:
-              rideId,
-
-            title:
-              title,
-
-            message:
-              body
-          },
-
-          android: {
-
-            priority:
-              "high",
-
-            ttl:
-              24 * 60 * 60 * 1000,
-
-            notification: {
-
-              channelId:
-                "sakayna_ride_updates",
-
-              sound:
-                "default"
-            }
-          }
-        });
-
-        logger.info(
-          "Driver-arrived notification sent.",
-          {
-            rideId,
-            passengerId
-          }
-        );
-
-      } catch (error) {
-
-        logger.error(
-          "Driver-arrived notification failed.",
-          {
-            rideId,
-            passengerId,
-            error:
-              error.message
-          }
-        );
+    logger.warn(
+      "Driver-arrived notification skipped: passenger has no FCM token.",
+      {
+        rideId,
+        passengerId
       }
-    }
-  );
+    );
+
+    return;
+  }
+
+  const title =
+    "Sakay Na - Driver Arrived";
+
+  const body =
+    "Your driver has arrived at the pickup location.";
+
+  try {
+
+    await getMessaging().send({
+
+      token:
+        fcmToken,
+
+      notification: {
+
+        title:
+          title,
+
+        body:
+          body
+      },
+
+      data: {
+
+        type:
+          "DRIVER_ARRIVED",
+
+        rideId:
+          rideId,
+
+        title:
+          title,
+
+        message:
+          body
+      },
+
+      android: {
+
+        priority:
+          "high",
+
+        ttl:
+          24 * 60 * 60 * 1000,
+
+        notification: {
+
+          channelId:
+            "sakayna_ride_updates",
+
+          sound:
+            "default"
+        }
+      }
+    });
+
+    logger.info(
+      "Driver-arrived notification sent.",
+      {
+        rideId,
+        passengerId
+      }
+    );
+
+  } catch (error) {
+
+    logger.error(
+      "Driver-arrived notification failed.",
+      {
+        rideId,
+        passengerId,
+        error:
+          error.message
+      }
+    );
+  }
+}
+
+);
