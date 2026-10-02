@@ -75,6 +75,18 @@ public class MapActivity extends Activity {
     private double lastPoiLatitude = 0;
     private double lastPoiLongitude = 0;
 
+    /*
+     * GPS-local search protection.
+     *
+     * The fallback coordinates above are only used to initially
+     * display the map. Search is NOT allowed until the phone has
+     * supplied a real GPS/network location.
+     */
+    private boolean hasRealGpsLocation = false;
+    private String currentTown = "";
+    private String currentProvince = "";
+    private boolean resolvingGpsArea = false;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -160,9 +172,6 @@ public class MapActivity extends Activity {
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
 
-        /*
-         * Faster repeat loading.
-         */
         settings.setCacheMode(
                 WebSettings.LOAD_DEFAULT
         );
@@ -197,12 +206,6 @@ public class MapActivity extends Activity {
                                 "🟢 Map ready — waiting for GPS..."
                         );
 
-                        /*
-                         * IMPORTANT:
-                         * Do not load Overpass immediately.
-                         *
-                         * The map becomes usable first.
-                         */
                         if ("SELECT_DESTINATION".equals(mode)) {
 
                             webView.postDelayed(
@@ -522,9 +525,6 @@ public class MapActivity extends Activity {
 
                 "}" +
 
-                /*
-                 * Smooth driver marker movement.
-                 */
                 "function setDriver(lat,lng){" +
 
                 "if(driverMarker==null){" +
@@ -708,6 +708,13 @@ public class MapActivity extends Activity {
                         currentLongitude =
                                 location.getLongitude();
 
+                        /*
+                         * This is now a real phone location.
+                         * The fallback coordinates are never used
+                         * for local search.
+                         */
+                        hasRealGpsLocation = true;
+
                         sendLocationToMap(location);
 
                         statusText.setText(
@@ -717,6 +724,19 @@ public class MapActivity extends Activity {
                                         location.getAccuracy()
                                 )
                         );
+
+                        /*
+                         * Resolve the current town once.
+                         *
+                         * Do not repeatedly reverse-geocode every
+                         * GPS update because public Nominatim should
+                         * not be hammered continuously.
+                         */
+                        if (currentTown.isEmpty()
+                                && !resolvingGpsArea) {
+
+                            resolveCurrentGpsArea(location);
+                        }
 
                         /*
                          * Do not perform POI/network work during
@@ -772,7 +792,20 @@ public class MapActivity extends Activity {
                 currentLongitude =
                         last.getLongitude();
 
+                /*
+                 * Last-known phone location is still a real
+                 * device location, so it can be used to start
+                 * the local search.
+                 */
+                hasRealGpsLocation = true;
+
                 sendLocationToMap(last);
+
+                if ("SELECT_DESTINATION".equals(mode)
+                        && currentTown.isEmpty()) {
+
+                    resolveCurrentGpsArea(last);
+                }
             }
 
         } catch (SecurityException e) {
@@ -1141,6 +1174,23 @@ public class MapActivity extends Activity {
         }).start();
     }
 
+    /*
+     * ============================================================
+     * GPS-LOCAL PLACE SEARCH
+     * ============================================================
+     *
+     * Search sequence:
+     *
+     * 1. Require a real phone location.
+     * 2. Detect the current town/city from GPS.
+     * 3. Add the current town to the search query.
+     * 4. Restrict to Philippines.
+     * 5. Use a 15 km GPS-centered bounded search area.
+     * 6. Reject results belonging to another town when Nominatim
+     *    supplies a town/city value.
+     * 7. Sort remaining results by actual GPS distance.
+     */
+
     private void searchPlace() {
 
         String query =
@@ -1159,13 +1209,38 @@ public class MapActivity extends Activity {
             return;
         }
 
+        if (!hasRealGpsLocation) {
+
+            Toast.makeText(
+                    this,
+                    "📍 Waiting for your phone GPS location...",
+                    Toast.LENGTH_LONG
+            ).show();
+
+            statusText.setText(
+                    "📍 GPS location is required for local search."
+            );
+
+            return;
+        }
+
         searchResultsContainer.removeAllViews();
 
         TextView loading =
                 new TextView(this);
 
-        loading.setText("🔎 Searching...");
-        loading.setPadding(10,10,10,10);
+        loading.setText(
+                currentTown.isEmpty()
+                        ? "🔎 Searching near your GPS location..."
+                        : "🔎 Searching in " + currentTown + "..."
+        );
+
+        loading.setPadding(
+                10,
+                10,
+                10,
+                10
+        );
 
         searchResultsContainer.addView(loading);
 
@@ -1175,22 +1250,86 @@ public class MapActivity extends Activity {
 
             try {
 
+                /*
+                 * 15 km search box centered on the phone GPS.
+                 *
+                 * The town check below provides an additional
+                 * filter when the geocoder returns a town/city.
+                 */
+                double radiusKm = 15.0;
+
+                double latDelta =
+                        radiusKm / 111.0;
+
+                double lonDelta =
+                        radiusKm /
+                        (
+                                111.0 *
+                                Math.max(
+                                        0.2,
+                                        Math.cos(
+                                                Math.toRadians(
+                                                        currentLatitude
+                                                )
+                                        )
+                                )
+                        );
+
+                double left =
+                        currentLongitude - lonDelta;
+
+                double right =
+                        currentLongitude + lonDelta;
+
+                double top =
+                        currentLatitude + latDelta;
+
+                double bottom =
+                        currentLatitude - latDelta;
+
+                String localQuery =
+                        query;
+
+                if (!currentTown.isEmpty()) {
+
+                    localQuery =
+                            query +
+                            ", " +
+                            currentTown;
+                }
+
+                localQuery =
+                        localQuery +
+                        ", Philippines";
+
                 String encoded =
                         URLEncoder.encode(
-                                query,
+                                localQuery,
+                                "UTF-8"
+                        );
+
+                String viewbox =
+                        URLEncoder.encode(
+                                left + "," +
+                                top + "," +
+                                right + "," +
+                                bottom,
                                 "UTF-8"
                         );
 
                 String urlString =
-                        "https://photon.komoot.io/api/" +
-                        "?q=" +
+                        "https://nominatim.openstreetmap.org/search" +
+                        "?format=jsonv2" +
+                        "&q=" +
                         encoded +
-                        "&limit=8" +
-                        "&lat=" +
-                        currentLatitude +
-                        "&lon=" +
-                        currentLongitude +
-                        "&zoom=14";
+                        "&countrycodes=ph" +
+                        "&viewbox=" +
+                        viewbox +
+                        "&bounded=1" +
+                        "&limit=15" +
+                        "&addressdetails=1" +
+                        "&namedetails=1" +
+                        "&accept-language=en";
 
                 URL url =
                         new URL(urlString);
@@ -1200,16 +1339,24 @@ public class MapActivity extends Activity {
                                 url.openConnection();
 
                 connection.setRequestMethod("GET");
-                connection.setConnectTimeout(7000);
-                connection.setReadTimeout(8000);
+
+                connection.setConnectTimeout(8000);
+                connection.setReadTimeout(10000);
 
                 connection.setRequestProperty(
                         "User-Agent",
                         "SakayNa/1.0 Android"
                 );
 
-                if (connection.getResponseCode() != 200) {
-                    throw new Exception("Search failed");
+                int responseCode =
+                        connection.getResponseCode();
+
+                if (responseCode != 200) {
+
+                    throw new Exception(
+                            "Search response " +
+                            responseCode
+                    );
                 }
 
                 BufferedReader reader =
@@ -1225,157 +1372,299 @@ public class MapActivity extends Activity {
 
                 String line;
 
-                while ((line=reader.readLine())!=null) {
+                while ((line = reader.readLine()) != null) {
                     result.append(line);
                 }
 
                 reader.close();
 
-                JSONObject object =
-                        new JSONObject(
+                JSONArray results =
+                        new JSONArray(
                                 result.toString()
                         );
 
-                JSONArray features =
-                        object.optJSONArray(
-                                "features"
+                java.util.ArrayList<SearchResult>
+                        candidates =
+                        new java.util.ArrayList<>();
+
+                for (int i = 0;
+                     i < results.length();
+                     i++) {
+
+                    try {
+
+                        JSONObject item =
+                                results.getJSONObject(i);
+
+                        double lat =
+                                item.optDouble(
+                                        "lat",
+                                        Double.NaN
+                                );
+
+                        double lng =
+                                item.optDouble(
+                                        "lon",
+                                        Double.NaN
+                                );
+
+                        if (Double.isNaN(lat)
+                                || Double.isNaN(lng)) {
+
+                            continue;
+                        }
+
+                        JSONObject address =
+                                item.optJSONObject(
+                                        "address"
+                                );
+
+                        String resultTown =
+                                firstNonEmpty(
+                                        getAddress(
+                                                address,
+                                                "city"
+                                        ),
+                                        getAddress(
+                                                address,
+                                                "municipality"
+                                        ),
+                                        getAddress(
+                                                address,
+                                                "town"
+                                        )
+                                );
+
+                        String resultProvince =
+                                firstNonEmpty(
+                                        getAddress(
+                                                address,
+                                                "state"
+                                        ),
+                                        getAddress(
+                                                address,
+                                                "province"
+                                        )
+                                );
+
+                        /*
+                         * If both the current GPS area and result
+                         * area are known, reject another town.
+                         */
+                        if (!currentTown.isEmpty()
+                                && !resultTown.isEmpty()
+                                && !samePlace(
+                                        currentTown,
+                                        resultTown
+                                )) {
+
+                            continue;
+                        }
+
+                        float[] distance =
+                                new float[1];
+
+                        Location.distanceBetween(
+                                currentLatitude,
+                                currentLongitude,
+                                lat,
+                                lng,
+                                distance
                         );
+
+                        String display =
+                                item.optString(
+                                        "display_name",
+                                        ""
+                                );
+
+                        JSONObject namedetails =
+                                item.optJSONObject(
+                                        "namedetails"
+                                );
+
+                        String placeName =
+                                firstNonEmpty(
+                                        item.optString(
+                                                "name",
+                                                ""
+                                        ),
+                                        namedetails == null
+                                                ? ""
+                                                : namedetails.optString(
+                                                        "name",
+                                                        ""
+                                                ),
+                                        namedetails == null
+                                                ? ""
+                                                : namedetails.optString(
+                                                        "name:en",
+                                                        ""
+                                                )
+                                );
+
+                        if (display.isEmpty()) {
+                            display = placeName;
+                        }
+
+                        if (display.isEmpty()) {
+                            display = "Selected place";
+                        }
+
+                        candidates.add(
+                                new SearchResult(
+                                        lat,
+                                        lng,
+                                        display,
+                                        placeName,
+                                        resultTown,
+                                        resultProvince,
+                                        distance[0]
+                                )
+                        );
+
+                    } catch (Exception ignored) {
+                    }
+                }
+
+                /*
+                 * Nearest result first.
+                 */
+                java.util.Collections.sort(
+                        candidates,
+                        (a,b) ->
+                                Float.compare(
+                                        a.distanceMeters,
+                                        b.distanceMeters
+                                )
+                );
 
                 runOnUiThread(() -> {
 
-                    searchResultsContainer.removeAllViews();
+                    searchResultsContainer
+                            .removeAllViews();
 
-                    if (features == null
-                            || features.length()==0) {
+                    if (candidates.isEmpty()) {
 
                         TextView empty =
                                 new TextView(this);
 
                         empty.setText(
-                                "No places found."
+                                "📍 No matching place found in " +
+                                (
+                                        currentTown.isEmpty()
+                                                ? "your current area."
+                                                : currentTown + "."
+                                )
                         );
 
+                        empty.setTextSize(15);
                         empty.setPadding(
-                                10,10,10,10
+                                10,
+                                10,
+                                10,
+                                10
                         );
 
                         searchResultsContainer
                                 .addView(empty);
 
+                        statusText.setText(
+                                "🔎 No local result found."
+                        );
+
                         return;
                     }
 
-                    for (int i=0;
-                         i<features.length();
+                    int maximum =
+                            Math.min(
+                                    candidates.size(),
+                                    8
+                            );
+
+                    for (int i = 0;
+                         i < maximum;
                          i++) {
 
-                        try {
+                        SearchResult result =
+                                candidates.get(i);
 
-                            JSONObject feature =
-                                    features.getJSONObject(i);
+                        Button button =
+                                new Button(this);
 
-                            JSONObject properties =
-                                    feature.optJSONObject(
-                                            "properties"
+                        String distanceText;
+
+                        if (result.distanceMeters < 1000) {
+
+                            distanceText =
+                                    String.format(
+                                            Locale.US,
+                                            "%.0f m away",
+                                            result.distanceMeters
                                     );
 
-                            JSONObject geometry =
-                                    feature.optJSONObject(
-                                            "geometry"
+                        } else {
+
+                            distanceText =
+                                    String.format(
+                                            Locale.US,
+                                            "%.1f km away",
+                                            result.distanceMeters /
+                                            1000.0
                                     );
-
-                            JSONArray coordinates =
-                                    geometry == null
-                                            ? null
-                                            : geometry.optJSONArray(
-                                                    "coordinates"
-                                            );
-
-                            if (coordinates == null
-                                    || coordinates.length()<2) {
-                                continue;
-                            }
-
-                            double lng =
-                                    coordinates.optDouble(0);
-
-                            double lat =
-                                    coordinates.optDouble(1);
-
-                            String name =
-                                    properties == null
-                                            ? ""
-                                            : properties.optString(
-                                                    "name",
-                                                    ""
-                                            );
-
-                            String street =
-                                    properties == null
-                                            ? ""
-                                            : properties.optString(
-                                                    "street",
-                                                    ""
-                                            );
-
-                            String city =
-                                    properties == null
-                                            ? ""
-                                            : properties.optString(
-                                                    "city",
-                                                    ""
-                                            );
-
-                            String state =
-                                    properties == null
-                                            ? ""
-                                            : properties.optString(
-                                                    "state",
-                                                    ""
-                                            );
-
-                            String display =
-                                    buildPlaceName(
-                                            name,
-                                            street,
-                                            city,
-                                            state
-                                    );
-
-                            if (display.isEmpty()) {
-                                display = "Selected place";
-                            }
-
-                            Button button =
-                                    new Button(this);
-
-                            button.setText(
-                                    "📍 " + display
-                            );
-
-                            button.setGravity(
-                                    Gravity.LEFT
-                            );
-
-                            final double finalLat=lat;
-                            final double finalLng=lng;
-                            final String finalName=display;
-
-                            button.setOnClickListener(
-                                    v ->
-                                            reverseGeocode(
-                                                    finalLat,
-                                                    finalLng,
-                                                    finalName
-                                            )
-                            );
-
-                            searchResultsContainer
-                                    .addView(button);
-
-                        } catch (Exception ignored) {
                         }
+
+                        String buttonText =
+                                "📍 " +
+                                (
+                                        result.placeName.isEmpty()
+                                                ? result.displayName
+                                                : result.placeName
+                                )
+                                +
+                                "\n" +
+                                distanceText;
+
+                        if (!result.town.isEmpty()) {
+
+                            buttonText +=
+                                    " • " +
+                                    result.town;
+                        }
+
+                        button.setText(
+                                buttonText
+                        );
+
+                        button.setGravity(
+                                Gravity.LEFT
+                        );
+
+                        final double finalLat =
+                                result.latitude;
+
+                        final double finalLng =
+                                result.longitude;
+
+                        final String finalName =
+                                result.displayName;
+
+                        button.setOnClickListener(
+                                v ->
+                                        reverseGeocode(
+                                                finalLat,
+                                                finalLng,
+                                                finalName
+                                        )
+                        );
+
+                        searchResultsContainer
+                                .addView(button);
                     }
+
+                    statusText.setText(
+                            "🟢 Local results near your GPS"
+                    );
                 });
 
             } catch (Exception e) {
@@ -1389,11 +1678,19 @@ public class MapActivity extends Activity {
                             new TextView(this);
 
                     error.setText(
-                            "❌ Search failed. Check internet connection."
+                            "❌ Local map search failed. Check internet connection."
                     );
 
-                    error.setTextColor(Color.RED);
-                    error.setPadding(10,10,10,10);
+                    error.setTextColor(
+                            Color.RED
+                    );
+
+                    error.setPadding(
+                            10,
+                            10,
+                            10,
+                            10
+                    );
 
                     searchResultsContainer
                             .addView(error);
@@ -1407,6 +1704,262 @@ public class MapActivity extends Activity {
             }
 
         }).start();
+    }
+
+    /*
+     * Determine the town/city around the phone GPS.
+     */
+    private void resolveCurrentGpsArea(
+            Location location
+    ) {
+
+        if (resolvingGpsArea) {
+            return;
+        }
+
+        resolvingGpsArea = true;
+
+        double lat =
+                location.getLatitude();
+
+        double lng =
+                location.getLongitude();
+
+        new Thread(() -> {
+
+            HttpURLConnection connection = null;
+
+            try {
+
+                String urlString =
+                        "https://nominatim.openstreetmap.org/reverse" +
+                        "?format=jsonv2" +
+                        "&lat=" + lat +
+                        "&lon=" + lng +
+                        "&zoom=12" +
+                        "&addressdetails=1" +
+                        "&accept-language=en";
+
+                URL url =
+                        new URL(urlString);
+
+                connection =
+                        (HttpURLConnection)
+                                url.openConnection();
+
+                connection.setRequestMethod(
+                        "GET"
+                );
+
+                connection.setConnectTimeout(
+                        7000
+                );
+
+                connection.setReadTimeout(
+                        8000
+                );
+
+                connection.setRequestProperty(
+                        "User-Agent",
+                        "SakayNa/1.0 Android"
+                );
+
+                if (connection.getResponseCode()
+                        != 200) {
+
+                    throw new Exception(
+                            "GPS area lookup failed"
+                    );
+                }
+
+                BufferedReader reader =
+                        new BufferedReader(
+                                new InputStreamReader(
+                                        connection.getInputStream(),
+                                        "UTF-8"
+                                )
+                        );
+
+                StringBuilder result =
+                        new StringBuilder();
+
+                String line;
+
+                while ((line = reader.readLine()) != null) {
+                    result.append(line);
+                }
+
+                reader.close();
+
+                JSONObject object =
+                        new JSONObject(
+                                result.toString()
+                        );
+
+                JSONObject address =
+                        object.optJSONObject(
+                                "address"
+                        );
+
+                String town =
+                        firstNonEmpty(
+                                getAddress(
+                                        address,
+                                        "city"
+                                ),
+                                getAddress(
+                                        address,
+                                        "municipality"
+                                ),
+                                getAddress(
+                                        address,
+                                        "town"
+                                )
+                        );
+
+                String province =
+                        firstNonEmpty(
+                                getAddress(
+                                        address,
+                                        "state"
+                                ),
+                                getAddress(
+                                        address,
+                                        "province"
+                                )
+                        );
+
+                final String finalTown =
+                        town;
+
+                final String finalProvince =
+                        province;
+
+                runOnUiThread(() -> {
+
+                    currentTown =
+                            finalTown;
+
+                    currentProvince =
+                            finalProvince;
+
+                    resolvingGpsArea = false;
+
+                    if (!currentTown.isEmpty()) {
+
+                        statusText.setText(
+                                "🟢 GPS area: " +
+                                currentTown
+                        );
+                    }
+                });
+
+            } catch (Exception ignored) {
+
+                runOnUiThread(() ->
+                        resolvingGpsArea = false
+                );
+
+            } finally {
+
+                if (connection != null) {
+                    connection.disconnect();
+                }
+            }
+
+        }).start();
+    }
+
+    /*
+     * Compare town/city names while allowing forms such as:
+     *
+     * "Naga City"
+     * "Naga"
+     * "Municipality of Naga"
+     */
+    private boolean samePlace(
+            String first,
+            String second
+    ) {
+
+        if (first == null
+                || second == null) {
+
+            return false;
+        }
+
+        String a =
+                normalizePlaceName(first);
+
+        String b =
+                normalizePlaceName(second);
+
+        return a.equals(b)
+                || a.contains(b)
+                || b.contains(a);
+    }
+
+    private String normalizePlaceName(
+            String value
+    ) {
+
+        if (value == null) {
+            return "";
+        }
+
+        return value
+                .toLowerCase(Locale.US)
+                .replace("city","")
+                .replace("municipality","")
+                .replace("town","")
+                .replace("of ","")
+                .replace(" ","")
+                .trim();
+    }
+
+    private static class SearchResult {
+
+        double latitude;
+        double longitude;
+
+        String displayName;
+        String placeName;
+        String town;
+        String province;
+
+        float distanceMeters;
+
+        SearchResult(
+                double latitude,
+                double longitude,
+                String displayName,
+                String placeName,
+                String town,
+                String province,
+                float distanceMeters
+        ) {
+
+            this.latitude =
+                    latitude;
+
+            this.longitude =
+                    longitude;
+
+            this.displayName =
+                    displayName;
+
+            this.placeName =
+                    placeName;
+
+            this.town =
+                    town;
+
+            this.province =
+                    province;
+
+            this.distanceMeters =
+                    distanceMeters;
+        }
     }
 
     private String buildPlaceName(
