@@ -8,19 +8,19 @@ import android.app.Service;
 import android.content.Intent;
 import android.content.pm.ServiceInfo;
 import android.os.Build;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 
-import com.google.firebase.Timestamp;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentChange;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
-import com.google.firebase.firestore.Query;
 import com.google.firebase.firestore.QuerySnapshot;
 
 import java.util.HashMap;
@@ -36,6 +36,9 @@ public class SakayNaChatNotificationService extends Service {
     private static final int SERVICE_NOTIFICATION_ID =
             9200;
 
+    private static final long RETRY_DELAY_MS =
+            5000L;
+
     private FirebaseFirestore db;
     private FirebaseAuth auth;
 
@@ -45,11 +48,14 @@ public class SakayNaChatNotificationService extends Service {
     private final Map<String, ListenerRegistration>
             messageListeners = new HashMap<>();
 
-    private final Set<String> knownRideIds =
-            new HashSet<>();
-
     private final Set<String> initializedRides =
             new HashSet<>();
+
+    private final Handler mainHandler =
+            new Handler(Looper.getMainLooper());
+
+    private final Runnable retryMonitoring =
+            () -> startRideMonitoring();
 
     @Override
     public void onCreate() {
@@ -60,7 +66,6 @@ public class SakayNaChatNotificationService extends Service {
 
         createServiceChannel();
         startAsForegroundService();
-
         startRideMonitoring();
     }
 
@@ -78,15 +83,13 @@ public class SakayNaChatNotificationService extends Service {
                 );
 
         channel.setDescription(
-                "Keeps Sakay Na chat notifications available during an active session."
+                "Keeps Sakay Na chat notifications active during an ongoing ride."
         );
 
         channel.setShowBadge(false);
 
         NotificationManager manager =
-                getSystemService(
-                        NotificationManager.class
-                );
+                getSystemService(NotificationManager.class);
 
         if (manager != null) {
             manager.createNotificationChannel(channel);
@@ -120,8 +123,7 @@ public class SakayNaChatNotificationService extends Service {
             startForeground(
                     SERVICE_NOTIFICATION_ID,
                     notification,
-                    ServiceInfo
-                            .FOREGROUND_SERVICE_TYPE_REMOTE_MESSAGING
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_REMOTE_MESSAGING
             );
 
         } else {
@@ -135,20 +137,23 @@ public class SakayNaChatNotificationService extends Service {
 
     private void startRideMonitoring() {
 
+        mainHandler.removeCallbacks(
+                retryMonitoring
+        );
+
         FirebaseUser user =
                 auth.getCurrentUser();
 
         if (user == null) {
-            stopSelf();
+            scheduleMonitoringRetry();
             return;
         }
 
-        String uid =
+        removeRideListenersOnly();
+
+        final String uid =
                 user.getUid();
 
-        /*
-         * PASSENGER RIDES
-         */
         passengerRideListener =
                 db.collection("rides")
                         .whereEqualTo(
@@ -160,6 +165,8 @@ public class SakayNaChatNotificationService extends Service {
 
                                     if (error != null
                                             || snapshot == null) {
+
+                                        scheduleMonitoringRetry();
                                         return;
                                     }
 
@@ -169,9 +176,6 @@ public class SakayNaChatNotificationService extends Service {
                                 }
                         );
 
-        /*
-         * DRIVER RIDES
-         */
         driverRideListener =
                 db.collection("rides")
                         .whereEqualTo(
@@ -183,6 +187,8 @@ public class SakayNaChatNotificationService extends Service {
 
                                     if (error != null
                                             || snapshot == null) {
+
+                                        scheduleMonitoringRetry();
                                         return;
                                     }
 
@@ -193,12 +199,24 @@ public class SakayNaChatNotificationService extends Service {
                         );
     }
 
+    private void scheduleMonitoringRetry() {
+
+        mainHandler.removeCallbacks(
+                retryMonitoring
+        );
+
+        mainHandler.postDelayed(
+                retryMonitoring,
+                RETRY_DELAY_MS
+        );
+    }
+
     private void processRideSnapshot(
             QuerySnapshot snapshot
     ) {
 
-        for (DocumentSnapshot ride
-                : snapshot.getDocuments()) {
+        for (DocumentSnapshot ride :
+                snapshot.getDocuments()) {
 
             String rideId =
                     ride.getId();
@@ -211,7 +229,7 @@ public class SakayNaChatNotificationService extends Service {
 
             if (!isChatRideStatus(status)) {
 
-                removeRideListener(
+                removeMessageListener(
                         rideId
                 );
 
@@ -235,10 +253,6 @@ public class SakayNaChatNotificationService extends Service {
 
                 continue;
             }
-
-            knownRideIds.add(
-                    rideId
-            );
 
             attachMessageListener(
                     rideId
@@ -271,13 +285,11 @@ public class SakayNaChatNotificationService extends Service {
     ) {
 
         if (rideId == null
-                || rideId.trim().isEmpty()) {
-            return;
-        }
+                || rideId.trim().isEmpty()
+                || messageListeners.containsKey(
+                        rideId
+                )) {
 
-        if (messageListeners.containsKey(
-                rideId
-        )) {
             return;
         }
 
@@ -290,15 +302,20 @@ public class SakayNaChatNotificationService extends Service {
 
                                     if (error != null
                                             || snapshot == null) {
+
+                                        removeMessageListener(
+                                                rideId
+                                        );
+
+                                        scheduleMonitoringRetry();
                                         return;
                                     }
 
                                     /*
-                                     * The first snapshot contains
-                                     * existing messages.
+                                     * First snapshot is existing
+                                     * chat history.
                                      *
-                                     * Do NOT notify the user about
-                                     * old messages.
+                                     * Never notify old messages.
                                      */
                                     if (!initializedRides.contains(
                                             rideId
@@ -311,13 +328,14 @@ public class SakayNaChatNotificationService extends Service {
                                         return;
                                     }
 
-                                    for (DocumentChange change
-                                            : snapshot
-                                            .getDocumentChanges()) {
+                                    for (DocumentChange change :
+                                            snapshot
+                                                    .getDocumentChanges()) {
 
                                         if (change.getType()
                                                 != DocumentChange
                                                 .Type.ADDED) {
+
                                             continue;
                                         }
 
@@ -354,9 +372,12 @@ public class SakayNaChatNotificationService extends Service {
                 );
 
         /*
-         * Never notify the person who sent the message.
+         * Never notify the person who
+         * sent the message.
          */
-        if (user.getUid().equals(senderId)) {
+        if (user.getUid().equals(
+                senderId
+        )) {
             return;
         }
 
@@ -419,32 +440,27 @@ public class SakayNaChatNotificationService extends Service {
                         | Intent.FLAG_ACTIVITY_SINGLE_TOP
         );
 
+        int notificationId =
+                createNotificationId(
+                        rideId,
+                        messageDocument.getId()
+                );
+
         int flags =
                 PendingIntent.FLAG_UPDATE_CURRENT;
 
         if (Build.VERSION.SDK_INT >= 23) {
-            flags |= PendingIntent.FLAG_IMMUTABLE;
+
+            flags |=
+                    PendingIntent.FLAG_IMMUTABLE;
         }
 
         PendingIntent pendingIntent =
                 PendingIntent.getActivity(
                         this,
-                        Math.abs(
-                                (
-                                        rideId
-                                                + messageDocument.getId()
-                                ).hashCode()
-                        ),
+                        notificationId,
                         intent,
                         flags
-                );
-
-        int notificationId =
-                Math.abs(
-                        (
-                                rideId
-                                        + messageDocument.getId()
-                        ).hashCode()
                 );
 
         SakayNaNotificationHelper.show(
@@ -456,7 +472,26 @@ public class SakayNaChatNotificationService extends Service {
         );
     }
 
-    private void removeRideListener(
+    private int createNotificationId(
+            String rideId,
+            String messageId
+    ) {
+
+        int hash =
+                (
+                        rideId
+                                + ":"
+                                + messageId
+                ).hashCode();
+
+        if (hash == Integer.MIN_VALUE) {
+            return 1;
+        }
+
+        return Math.abs(hash);
+    }
+
+    private void removeMessageListener(
             String rideId
     ) {
 
@@ -472,10 +507,39 @@ public class SakayNaChatNotificationService extends Service {
         initializedRides.remove(
                 rideId
         );
+    }
 
-        knownRideIds.remove(
-                rideId
-        );
+    private void removeRideListenersOnly() {
+
+        if (passengerRideListener != null) {
+
+            passengerRideListener.remove();
+
+            passengerRideListener = null;
+        }
+
+        if (driverRideListener != null) {
+
+            driverRideListener.remove();
+
+            driverRideListener = null;
+        }
+    }
+
+    private void stopAllListeners() {
+
+        removeRideListenersOnly();
+
+        for (ListenerRegistration registration :
+                messageListeners.values()) {
+
+            if (registration != null) {
+                registration.remove();
+            }
+        }
+
+        messageListeners.clear();
+        initializedRides.clear();
     }
 
     private String getText(
@@ -484,7 +548,9 @@ public class SakayNaChatNotificationService extends Service {
     ) {
 
         String value =
-                document.getString(field);
+                document.getString(
+                        field
+                );
 
         if (value == null) {
             return "";
@@ -501,36 +567,40 @@ public class SakayNaChatNotificationService extends Service {
     ) {
 
         /*
-         * Keep monitoring after the activity is moved
-         * to the background.
+         * Ask Android to recreate this foreground
+         * service if its process is killed.
          */
+        if (passengerRideListener == null
+                && driverRideListener == null) {
+
+            startRideMonitoring();
+        }
+
         return START_STICKY;
+    }
+
+    @Override
+    public void onTaskRemoved(
+            Intent rootIntent
+    ) {
+
+        /*
+         * Do not stop the service when the user
+         * removes Sakay Na from Recents.
+         */
+        super.onTaskRemoved(
+                rootIntent
+        );
     }
 
     @Override
     public void onDestroy() {
 
-        if (passengerRideListener != null) {
-            passengerRideListener.remove();
-            passengerRideListener = null;
-        }
+        mainHandler.removeCallbacks(
+                retryMonitoring
+        );
 
-        if (driverRideListener != null) {
-            driverRideListener.remove();
-            driverRideListener = null;
-        }
-
-        for (ListenerRegistration registration
-                : messageListeners.values()) {
-
-            if (registration != null) {
-                registration.remove();
-            }
-        }
-
-        messageListeners.clear();
-        initializedRides.clear();
-        knownRideIds.clear();
+        stopAllListeners();
 
         super.onDestroy();
     }
@@ -540,6 +610,7 @@ public class SakayNaChatNotificationService extends Service {
     public IBinder onBind(
             Intent intent
     ) {
+
         return null;
     }
 }
