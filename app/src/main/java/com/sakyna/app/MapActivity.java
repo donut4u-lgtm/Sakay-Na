@@ -75,13 +75,6 @@ public class MapActivity extends Activity {
     private double lastPoiLatitude = 0;
     private double lastPoiLongitude = 0;
 
-    /*
-     * GPS-local search protection.
-     *
-     * The fallback coordinates above are only used to initially
-     * display the map. Search is NOT allowed until the phone has
-     * supplied a real GPS/network location.
-     */
     private boolean hasRealGpsLocation = false;
     private String currentTown = "";
     private String currentProvince = "";
@@ -708,11 +701,6 @@ public class MapActivity extends Activity {
                         currentLongitude =
                                 location.getLongitude();
 
-                        /*
-                         * This is now a real phone location.
-                         * The fallback coordinates are never used
-                         * for local search.
-                         */
                         hasRealGpsLocation = true;
 
                         sendLocationToMap(location);
@@ -725,23 +713,12 @@ public class MapActivity extends Activity {
                                 )
                         );
 
-                        /*
-                         * Resolve the current town once.
-                         *
-                         * Do not repeatedly reverse-geocode every
-                         * GPS update because public Nominatim should
-                         * not be hammered continuously.
-                         */
                         if (currentTown.isEmpty()
                                 && !resolvingGpsArea) {
 
                             resolveCurrentGpsArea(location);
                         }
 
-                        /*
-                         * Do not perform POI/network work during
-                         * every GPS update.
-                         */
                         if ("SELECT_DESTINATION".equals(mode)
                                 && mapReady) {
 
@@ -792,11 +769,6 @@ public class MapActivity extends Activity {
                 currentLongitude =
                         last.getLongitude();
 
-                /*
-                 * Last-known phone location is still a real
-                 * device location, so it can be used to start
-                 * the local search.
-                 */
                 hasRealGpsLocation = true;
 
                 sendLocationToMap(last);
@@ -1174,23 +1146,6 @@ public class MapActivity extends Activity {
         }).start();
     }
 
-    /*
-     * ============================================================
-     * GPS-LOCAL PLACE SEARCH
-     * ============================================================
-     *
-     * Search sequence:
-     *
-     * 1. Require a real phone location.
-     * 2. Detect the current town/city from GPS.
-     * 3. Add the current town to the search query.
-     * 4. Restrict to Philippines.
-     * 5. Use a 15 km GPS-centered bounded search area.
-     * 6. Reject results belonging to another town when Nominatim
-     *    supplies a town/city value.
-     * 7. Sort remaining results by actual GPS distance.
-     */
-
     private void searchPlace() {
 
         String query =
@@ -1250,12 +1205,6 @@ public class MapActivity extends Activity {
 
             try {
 
-                /*
-                 * 15 km search box centered on the phone GPS.
-                 *
-                 * The town check below provides an additional
-                 * filter when the geocoder returns a town/city.
-                 */
                 double radiusKm = 15.0;
 
                 double latDelta =
@@ -1447,10 +1396,6 @@ public class MapActivity extends Activity {
                                         )
                                 );
 
-                        /*
-                         * If both the current GPS area and result
-                         * area are known, reject another town.
-                         */
                         if (!currentTown.isEmpty()
                                 && !resultTown.isEmpty()
                                 && !samePlace(
@@ -1527,9 +1472,6 @@ public class MapActivity extends Activity {
                     }
                 }
 
-                /*
-                 * Nearest result first.
-                 */
                 java.util.Collections.sort(
                         candidates,
                         (a,b) ->
@@ -1586,7 +1528,7 @@ public class MapActivity extends Activity {
                          i < maximum;
                          i++) {
 
-                        SearchResult result =
+                        SearchResult searchResult =
                                 candidates.get(i);
 
                         Button button =
@@ -1594,13 +1536,13 @@ public class MapActivity extends Activity {
 
                         String distanceText;
 
-                        if (result.distanceMeters < 1000) {
+                        if (searchResult.distanceMeters < 1000) {
 
                             distanceText =
                                     String.format(
                                             Locale.US,
                                             "%.0f m away",
-                                            result.distanceMeters
+                                            searchResult.distanceMeters
                                     );
 
                         } else {
@@ -1609,7 +1551,7 @@ public class MapActivity extends Activity {
                                     String.format(
                                             Locale.US,
                                             "%.1f km away",
-                                            result.distanceMeters /
+                                            searchResult.distanceMeters /
                                             1000.0
                                     );
                         }
@@ -1617,19 +1559,19 @@ public class MapActivity extends Activity {
                         String buttonText =
                                 "📍 " +
                                 (
-                                        result.placeName.isEmpty()
-                                                ? result.displayName
-                                                : result.placeName
+                                        searchResult.placeName.isEmpty()
+                                                ? searchResult.displayName
+                                                : searchResult.placeName
                                 )
                                 +
                                 "\n" +
                                 distanceText;
 
-                        if (!result.town.isEmpty()) {
+                        if (!searchResult.town.isEmpty()) {
 
                             buttonText +=
                                     " • " +
-                                    result.town;
+                                    searchResult.town;
                         }
 
                         button.setText(
@@ -1641,13 +1583,13 @@ public class MapActivity extends Activity {
                         );
 
                         final double finalLat =
-                                result.latitude;
+                                searchResult.latitude;
 
                         final double finalLng =
-                                result.longitude;
+                                searchResult.longitude;
 
                         final String finalName =
-                                result.displayName;
+                                searchResult.displayName;
 
                         button.setOnClickListener(
                                 v ->
@@ -1706,9 +1648,6 @@ public class MapActivity extends Activity {
         }).start();
     }
 
-    /*
-     * Determine the town/city around the phone GPS.
-     */
     private void resolveCurrentGpsArea(
             Location location
     ) {
@@ -1870,13 +1809,6 @@ public class MapActivity extends Activity {
         }).start();
     }
 
-    /*
-     * Compare town/city names while allowing forms such as:
-     *
-     * "Naga City"
-     * "Naga"
-     * "Municipality of Naga"
-     */
     private boolean samePlace(
             String first,
             String second
