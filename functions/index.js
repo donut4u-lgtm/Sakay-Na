@@ -21,7 +21,8 @@ const {
 } = require("firebase-functions/v2/https");
 
 const {
-  onDocumentCreated
+  onDocumentCreated,
+  onDocumentUpdated
 } = require("firebase-functions/v2/firestore");
 
 const {
@@ -783,12 +784,6 @@ exports.adminResetUserPassword = onCall(
 
 /* ---------------------------------------------------------
  * ADMIN DRIVER APPLICATION NOTIFICATION
- *
- * Fires when a new DRIVER profile is created.
- *
- * It sends an FCM notification to the Admin phone/app.
- *
- * Existing driver registration data is not changed.
  * --------------------------------------------------------- */
 
 exports.notifyAdminNewDriverApplication =
@@ -813,8 +808,6 @@ exports.notifyAdminNewDriverApplication =
       const driver =
         snapshot.data() || {};
 
-      /* Only DRIVER accounts. */
-
       if (
         String(
           driver.role || ""
@@ -823,8 +816,6 @@ exports.notifyAdminNewDriverApplication =
 
         return;
       }
-
-      /* Only pending applications. */
 
       const approved =
         driver.approved === true;
@@ -854,8 +845,6 @@ exports.notifyAdminNewDriverApplication =
       if (!isPending) {
         return;
       }
-
-      /* Get Admin profile. */
 
       const adminSnapshot =
         await db.collection("users")
@@ -993,18 +982,19 @@ exports.notifyAdminNewDriverApplication =
 /* ---------------------------------------------------------
  * RIDE CHAT MESSAGE NOTIFICATION
  *
- * Firestore:
- *
- * rides/{rideId}/messages/{messageId}
- *
  * Passenger -> Driver
  * Driver -> Passenger
  *
- * Firestore remains the source of truth.
- * FCM delivers the visible notification.
+ * IMPORTANT:
+ * This is DATA-ONLY FCM.
  *
- * High priority is used for chat so FCM can attempt
- * delivery while the Android device is sleeping/idle.
+ * When Android is in the background, notification+data
+ * messages are handled by the Android system tray and
+ * do not call onMessageReceived().
+ *
+ * Data-only high-priority messages allow
+ * SakayNaFirebaseMessagingService to receive the data
+ * and create the notification itself.
  * --------------------------------------------------------- */
 
 exports.notifyRideChatMessage =
@@ -1222,8 +1212,8 @@ exports.notifyRideChatMessage =
 
       const title =
         senderRole === "DRIVER"
-          ? "🛺 Sakay Na — Driver"
-          : "👤 Sakay Na — Passenger";
+          ? "Sakay Na - Driver Message"
+          : "Sakay Na - Passenger Message";
 
       const body =
         message.length > 120
@@ -1231,13 +1221,7 @@ exports.notifyRideChatMessage =
           : message;
 
       /* ---------------------------------------------------
-       * SEND FCM
-       *
-       * IMPORTANT:
-       * No fixed Android notification "tag" is used.
-       *
-       * This prevents consecutive chat messages for the
-       * same ride from intentionally replacing one another.
+       * SEND DATA-ONLY HIGH-PRIORITY FCM
        * --------------------------------------------------- */
 
       try {
@@ -1246,15 +1230,6 @@ exports.notifyRideChatMessage =
 
           token:
             fcmToken,
-
-          notification: {
-
-            title:
-              title,
-
-            body:
-              body
-          },
 
           data: {
 
@@ -1286,21 +1261,12 @@ exports.notifyRideChatMessage =
               "high",
 
             ttl:
-              24 * 60 * 60 * 1000,
-
-            notification: {
-
-              channelId:
-                "sakayna_ride_updates",
-
-              sound:
-                "default"
-            }
+              24 * 60 * 60 * 1000
           }
         });
 
         logger.info(
-          "Ride chat notification sent.",
+          "Ride chat data notification sent.",
           {
             rideId,
             messageId,
@@ -1319,6 +1285,200 @@ exports.notifyRideChatMessage =
             messageId,
             senderId,
             recipientId,
+            error:
+              error.message
+          }
+        );
+      }
+    }
+  );
+
+
+/* ---------------------------------------------------------
+ * DRIVER ARRIVED NOTIFICATION
+ *
+ * Passenger receives this when the driver changes the
+ * ride status to DRIVER_ARRIVED.
+ *
+ * This uses a normal notification+data FCM message because
+ * Android can display it directly in the system tray when
+ * Sakay Na is in the background.
+ * --------------------------------------------------------- */
+
+exports.notifyPassengerDriverArrived =
+  onDocumentUpdated(
+    {
+      document:
+        "rides/{rideId}",
+
+      region:
+        "asia-southeast1"
+    },
+
+    async (event) => {
+
+      const before =
+        event.data?.before;
+
+      const after =
+        event.data?.after;
+
+      if (!before || !after) {
+        return;
+      }
+
+      const beforeData =
+        before.data() || {};
+
+      const afterData =
+        after.data() || {};
+
+      const beforeStatus =
+        String(
+          beforeData.status || ""
+        ).trim().toUpperCase();
+
+      const afterStatus =
+        String(
+          afterData.status || ""
+        ).trim().toUpperCase();
+
+      /*
+       * Only notify when the status actually changes
+       * into DRIVER_ARRIVED.
+       */
+
+      if (
+        afterStatus !== "DRIVER_ARRIVED" ||
+        beforeStatus === "DRIVER_ARRIVED"
+      ) {
+        return;
+      }
+
+      const passengerId =
+        String(
+          afterData.passengerId || ""
+        ).trim();
+
+      const rideId =
+        String(
+          event.params.rideId || ""
+        ).trim();
+
+      if (!passengerId || !rideId) {
+        return;
+      }
+
+      const passengerSnapshot =
+        await db.collection("users")
+          .doc(passengerId)
+          .get();
+
+      if (!passengerSnapshot.exists) {
+
+        logger.warn(
+          "Driver-arrived notification skipped: passenger profile not found.",
+          {
+            rideId,
+            passengerId
+          }
+        );
+
+        return;
+      }
+
+      const passenger =
+        passengerSnapshot.data() || {};
+
+      const fcmToken =
+        String(
+          passenger.fcmToken || ""
+        ).trim();
+
+      if (!fcmToken) {
+
+        logger.warn(
+          "Driver-arrived notification skipped: passenger has no FCM token.",
+          {
+            rideId,
+            passengerId
+          }
+        );
+
+        return;
+      }
+
+      const title =
+        "Sakay Na - Driver Arrived";
+
+      const body =
+        "Your driver has arrived at the pickup location.";
+
+      try {
+
+        await getMessaging().send({
+
+          token:
+            fcmToken,
+
+          notification: {
+
+            title:
+              title,
+
+            body:
+              body
+          },
+
+          data: {
+
+            type:
+              "DRIVER_ARRIVED",
+
+            rideId:
+              rideId,
+
+            title:
+              title,
+
+            message:
+              body
+          },
+
+          android: {
+
+            priority:
+              "high",
+
+            ttl:
+              24 * 60 * 60 * 1000,
+
+            notification: {
+
+              channelId:
+                "sakayna_ride_updates",
+
+              sound:
+                "default"
+            }
+          }
+        });
+
+        logger.info(
+          "Driver-arrived notification sent.",
+          {
+            rideId,
+            passengerId
+          }
+        );
+
+      } catch (error) {
+
+        logger.error(
+          "Driver-arrived notification failed.",
+          {
+            rideId,
+            passengerId,
             error:
               error.message
           }
