@@ -51,6 +51,14 @@ public class SakayNaChatNotificationService extends Service {
     private final Set<String> initializedRides =
             new HashSet<>();
 
+    /*
+     * Remembers the previous ride status so that
+     * notifications are sent only when the status
+     * actually changes.
+     */
+    private final Map<String, String> lastRideStatuses =
+            new HashMap<>();
+
     private final Handler mainHandler =
             new Handler(Looper.getMainLooper());
 
@@ -110,7 +118,7 @@ public class SakayNaChatNotificationService extends Service {
                                 "Sakay Na"
                         )
                         .setContentText(
-                                "Chat notifications are active"
+                                "Chat and ride notifications are active"
                         )
                         .setOngoing(true)
                         .setPriority(
@@ -227,15 +235,6 @@ public class SakayNaChatNotificationService extends Service {
                             "status"
                     );
 
-            if (!isChatRideStatus(status)) {
-
-                removeMessageListener(
-                        rideId
-                );
-
-                continue;
-            }
-
             String passengerId =
                     getText(
                             ride,
@@ -248,12 +247,100 @@ public class SakayNaChatNotificationService extends Service {
                             "driverId"
                     );
 
+            /*
+             * We need both IDs before tracking the ride.
+             */
             if (passengerId.isEmpty()
                     || driverId.isEmpty()) {
 
                 continue;
             }
 
+            /*
+             * If the ride is no longer active, stop its
+             * chat listener and forget its previous status.
+             */
+            if (!isChatRideStatus(status)) {
+
+                removeMessageListener(
+                        rideId
+                );
+
+                lastRideStatuses.remove(
+                        rideId
+                );
+
+                continue;
+            }
+
+            FirebaseUser currentUser =
+                    auth.getCurrentUser();
+
+            String currentUid =
+                    currentUser == null
+                            ? ""
+                            : currentUser.getUid();
+
+            String previousStatus =
+                    lastRideStatuses.get(
+                            rideId
+                    );
+
+            /*
+             * Notify PASSENGER when the driver's ride status
+             * changes.
+             *
+             * We do not notify on the first snapshot because
+             * that could create an old/stale notification.
+             */
+            if (previousStatus != null
+                    && !previousStatus.equalsIgnoreCase(
+                            status
+                    )
+                    && passengerId.equals(
+                            currentUid
+                    )) {
+
+                if ("DRIVER_ON_THE_WAY".equalsIgnoreCase(
+                        status
+                )) {
+
+                    showRideStatusNotification(
+                            rideId,
+                            "🚗 Sakay Na — Driver On The Way",
+                            "Your driver is on the way."
+                    );
+
+                } else if (
+                        "DRIVER_ARRIVED".equalsIgnoreCase(
+                                status
+                        )
+                                ||
+                        "ARRIVED".equalsIgnoreCase(
+                                status
+                        )
+                ) {
+
+                    showRideStatusNotification(
+                            rideId,
+                            "📍 Sakay Na — Driver Arrived",
+                            "Your driver has arrived at the pickup location."
+                    );
+                }
+            }
+
+            /*
+             * Remember the current status for the next
+             * Firestore update.
+             */
+            lastRideStatuses.put(
+                    rideId,
+                    status
+            );
+
+            /*
+             * Keep the existing working chat notification.
+             */
             attachMessageListener(
                     rideId
             );
@@ -278,6 +365,68 @@ public class SakayNaChatNotificationService extends Service {
                 || value.equals("ARRIVED")
                 || value.equals("IN_PROGRESS")
                 || value.equals("ONGOING");
+    }
+
+    private void showRideStatusNotification(
+            String rideId,
+            String title,
+            String message
+    ) {
+
+        Intent intent =
+                new Intent(
+                        this,
+                        PassengerActivity.class
+                );
+
+        intent.putExtra(
+                "ride_id",
+                rideId
+        );
+
+        intent.putExtra(
+                "rideId",
+                rideId
+        );
+
+        intent.addFlags(
+                Intent.FLAG_ACTIVITY_NEW_TASK
+                        |
+                Intent.FLAG_ACTIVITY_CLEAR_TOP
+                        |
+                Intent.FLAG_ACTIVITY_SINGLE_TOP
+        );
+
+        int notificationId =
+                createNotificationId(
+                        rideId,
+                        title
+                );
+
+        int flags =
+                PendingIntent.FLAG_UPDATE_CURRENT;
+
+        if (Build.VERSION.SDK_INT >= 23) {
+
+            flags |=
+                    PendingIntent.FLAG_IMMUTABLE;
+        }
+
+        PendingIntent pendingIntent =
+                PendingIntent.getActivity(
+                        this,
+                        notificationId,
+                        intent,
+                        flags
+                );
+
+        SakayNaNotificationHelper.show(
+                this,
+                notificationId,
+                title,
+                message,
+                pendingIntent
+        );
     }
 
     private void attachMessageListener(
@@ -539,7 +688,10 @@ public class SakayNaChatNotificationService extends Service {
         }
 
         messageListeners.clear();
+
         initializedRides.clear();
+
+        lastRideStatuses.clear();
     }
 
     private String getText(
