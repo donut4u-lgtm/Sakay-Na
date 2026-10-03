@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.view.Gravity;
+import android.view.View;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -33,11 +34,12 @@ private FirebaseAuth auth;
 private FirebaseFirestore db;
 private FirebaseUser user;
 
-private LinearLayout settlementContainer;
+private LinearLayout unpaidContainer;
+private LinearLayout verificationContainer;
 private LinearLayout paidHistoryContainer;
 
-private TextView summaryText;
 private TextView statusText;
+private TextView summaryText;
 
 private double pendingTotal = 0.0;
 private double paidTotal = 0.0;
@@ -47,7 +49,6 @@ private static final int BATCH_SIZE = 450;
 private static class DriverDues {
 
     String driverId;
-
     double totalFare = 0.0;
     double totalDues = 0.0;
 
@@ -62,30 +63,19 @@ private static class DriverDues {
 }
 
 @Override
-protected void onCreate(
-        Bundle savedInstanceState
-) {
+protected void onCreate(Bundle savedInstanceState) {
 
-    super.onCreate(
-            savedInstanceState
-    );
+    super.onCreate(savedInstanceState);
 
-    auth =
-            FirebaseAuth.getInstance();
-
-    db =
-            FirebaseFirestore.getInstance();
-
-    user =
-            auth.getCurrentUser();
+    auth = FirebaseAuth.getInstance();
+    db = FirebaseFirestore.getInstance();
+    user = auth.getCurrentUser();
 
     if (
             user == null
                     ||
             !"Ld3rzaCvAGNlXBDCofB3mWjgXWp2"
-                    .equals(
-                            user.getUid()
-                    )
+                    .equals(user.getUid())
     ) {
 
         Toast.makeText(
@@ -95,12 +85,10 @@ protected void onCreate(
         ).show();
 
         finish();
-
         return;
     }
 
     buildScreen();
-
     loadSettlements();
 }
 
@@ -131,7 +119,7 @@ private void buildScreen() {
             new TextView(this);
 
     title.setText(
-            "🛡️ ADMIN\nDRIVER DUES & PAYMENTS"
+            "🛡️ ADMIN\nDRIVER PAYMENTS"
     );
 
     title.setTextSize(27);
@@ -148,12 +136,10 @@ private void buildScreen() {
             10,
             20,
             10,
-            25
+            20
     );
 
-    root.addView(
-            title
-    );
+    root.addView(title);
 
     statusText =
             new TextView(this);
@@ -179,20 +165,18 @@ private void buildScreen() {
             15
     );
 
-    root.addView(
-            statusText
-    );
+    root.addView(statusText);
 
     summaryText =
             new TextView(this);
 
     summaryText.setText(
-            "🔴 TOTAL UNPAID DRIVER DUES\n₱0.00\n\n"
-                    + "🟡 PENDING PAYMENTS\n₱0.00\n\n"
-                    + "🟢 VERIFIED PAYMENTS\n₱0.00"
+            "🔴 UNPAID\n₱0.00\n\n"
+                    + "🟠 NEED VERIFICATION\n0\n\n"
+                    + "🟢 PAID / VERIFIED\n₱0.00"
     );
 
-    summaryText.setTextSize(18);
+    summaryText.setTextSize(17);
 
     summaryText.setTextColor(
             Color.BLACK
@@ -204,9 +188,9 @@ private void buildScreen() {
 
     summaryText.setPadding(
             20,
-            25,
             20,
-            25
+            20,
+            20
     );
 
     summaryText.setBackgroundColor(
@@ -217,86 +201,98 @@ private void buildScreen() {
             )
     );
 
-    root.addView(
-            summaryText
-    );
+    root.addView(summaryText);
 
     Button refreshButton =
             new Button(this);
 
     refreshButton.setText(
-            "🔄 REFRESH DRIVER PAYMENTS"
+            "🔄 REFRESH"
     );
 
     refreshButton.setOnClickListener(
             v -> loadSettlements()
     );
 
-    root.addView(
-            refreshButton
-    );
+    root.addView(refreshButton);
 
-    TextView unpaidTitle =
-            new TextView(this);
+    /*
+     * RED — UNPAID
+     */
+    Button unpaidButton =
+            createLargeButton(
+                    "🔴 UNPAID",
+                    Color.rgb(
+                            210,
+                            0,
+                            0
+                    )
+            );
 
-    unpaidTitle.setText(
-            "💳 CURRENT DRIVER DUES"
-    );
+    root.addView(unpaidButton);
 
-    unpaidTitle.setTextSize(22);
-
-    unpaidTitle.setTextColor(
-            Color.BLACK
-    );
-
-    unpaidTitle.setPadding(
-            0,
-            30,
-            0,
-            15
-    );
-
-    root.addView(
-            unpaidTitle
-    );
-
-    settlementContainer =
+    unpaidContainer =
             new LinearLayout(this);
 
-    settlementContainer.setOrientation(
+    unpaidContainer.setOrientation(
             LinearLayout.VERTICAL
     );
 
-    root.addView(
-            settlementContainer
-    );
-
-    TextView paidTitle =
-            new TextView(this);
-
-    paidTitle.setText(
-            "🟢 PAID DRIVER SETTLEMENT HISTORY"
-    );
-
-    paidTitle.setTextSize(22);
-
-    paidTitle.setTextColor(
-            Color.rgb(
-                    0,
-                    120,
-                    0
-            )
-    );
-
-    paidTitle.setPadding(
-            0,
-            35,
-            0,
-            15
+    unpaidContainer.setVisibility(
+            View.GONE
     );
 
     root.addView(
-            paidTitle
+            unpaidContainer
+    );
+
+    /*
+     * ORANGE — NEED VERIFICATION
+     */
+    Button verificationButton =
+            createLargeButton(
+                    "🟠 NEED VERIFICATION",
+                    Color.rgb(
+                            230,
+                            120,
+                            0
+                    )
+            );
+
+    root.addView(
+            verificationButton
+    );
+
+    verificationContainer =
+            new LinearLayout(this);
+
+    verificationContainer.setOrientation(
+            LinearLayout.VERTICAL
+    );
+
+    verificationContainer.setVisibility(
+            View.GONE
+    );
+
+    root.addView(
+            verificationContainer
+    );
+
+    /*
+     * GREEN — PAID / VERIFIED
+     */
+    Button paidButton =
+            createLargeButton(
+                    "🟢 PAID / VERIFIED",
+                    Color.rgb(
+                            0,
+                            145,
+                            0
+                    )
+            );
+
+    root.addView(
+            paidButton
     );
 
     paidHistoryContainer =
@@ -306,8 +302,30 @@ private void buildScreen() {
             LinearLayout.VERTICAL
     );
 
+    paidHistoryContainer.setVisibility(
+            View.GONE
+    );
+
     root.addView(
             paidHistoryContainer
+    );
+
+    unpaidButton.setOnClickListener(
+            v -> showOnly(
+                    unpaidContainer
+            )
+    );
+
+    verificationButton.setOnClickListener(
+            v -> showOnly(
+                    verificationContainer
+            )
+    );
+
+    paidButton.setOnClickListener(
+            v -> showOnly(
+                    paidHistoryContainer
+            )
     );
 
     Button backButton =
@@ -321,16 +339,73 @@ private void buildScreen() {
             v -> finish()
     );
 
-    root.addView(
-            backButton
+    root.addView(backButton);
+
+    scrollView.addView(root);
+
+    setContentView(scrollView);
+}
+
+private Button createLargeButton(
+        String text,
+        int color
+) {
+
+    Button button =
+            new Button(this);
+
+    button.setText(text);
+
+    button.setTextSize(18);
+
+    button.setTextColor(
+            Color.WHITE
     );
 
-    scrollView.addView(
-            root
+    button.setGravity(
+            Gravity.CENTER
     );
 
-    setContentView(
-            scrollView
+    button.setBackgroundColor(
+            color
+    );
+
+    LinearLayout.LayoutParams params =
+            new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+            );
+
+    params.setMargins(
+            0,
+            12,
+            0,
+            8
+    );
+
+    button.setLayoutParams(params);
+
+    return button;
+}
+
+private void showOnly(
+        LinearLayout selected
+) {
+
+    unpaidContainer.setVisibility(
+            View.GONE
+    );
+
+    verificationContainer.setVisibility(
+            View.GONE
+    );
+
+    paidHistoryContainer.setVisibility(
+            View.GONE
+    );
+
+    selected.setVisibility(
+            View.VISIBLE
     );
 }
 
@@ -341,18 +416,18 @@ private void loadSettlements() {
     }
 
     statusText.setText(
-            "Loading current driver dues..."
+            "Loading driver payments..."
     );
 
-    settlementContainer.removeAllViews();
-
+    unpaidContainer.removeAllViews();
+    verificationContainer.removeAllViews();
     paidHistoryContainer.removeAllViews();
 
     pendingTotal = 0.0;
-
     paidTotal = 0.0;
 
     loadCurrentDues();
+    loadPaidHistory();
 }
 
 private void loadCurrentDues() {
@@ -364,10 +439,7 @@ private void loadCurrentDues() {
             )
             .get()
             .addOnSuccessListener(
-                    dueRides ->
-                            loadPendingPayments(
-                                    dueRides
-                            )
+                    this::loadPendingPayments
             )
             .addOnFailureListener(
                     e -> {
@@ -376,14 +448,12 @@ private void loadCurrentDues() {
                                 "Unable to load driver dues."
                         );
 
-                        Toast.makeText(
-                                this,
-                                "Unable to load driver dues:\n"
+                        addMessage(
+                                unpaidContainer,
+                                "Unable to load unpaid driver dues:\n"
                                         + e.getMessage(),
-                                Toast.LENGTH_LONG
-                        ).show();
-
-                        loadPaidHistory();
+                                Color.RED
+                        );
                     }
             );
 }
@@ -406,6 +476,9 @@ private void loadPendingPayments(
                         Map<String, DriverDues> grouped =
                                 new LinkedHashMap<>();
 
+                        /*
+                         * Build unpaid driver list.
+                         */
                         for (
                                 DocumentSnapshot ride
                                 : dueRides.getDocuments()
@@ -444,20 +517,19 @@ private void loadPendingPayments(
                             }
 
                             dues.totalFare +=
-                                    getFare(
-                                            ride
-                                    );
+                                    getFare(ride);
 
                             dues.totalDues +=
-                                    getDriverDue(
-                                            ride
-                                    );
+                                    getDriverDue(ride);
 
                             dues.dueRides.add(
                                     ride
                             );
                         }
 
+                        /*
+                         * Attach pending payment records.
+                         */
                         for (
                                 DocumentSnapshot payment
                                 : payments.getDocuments()
@@ -495,17 +567,13 @@ private void loadPendingPayments(
                                 );
                             }
 
-                            if (
-                                    dues.pendingPayment
-                                            == null
-                            ) {
-
-                                dues.pendingPayment =
-                                        payment;
-                            }
+                            dues.pendingPayment =
+                                    payment;
                         }
 
                         pendingTotal = 0.0;
+
+                        int verificationCount = 0;
 
                         for (
                                 DriverDues dues
@@ -524,6 +592,13 @@ private void loadPendingPayments(
 
                             pendingTotal +=
                                     dues.totalDues;
+
+                            if (
+                                    dues.pendingPayment
+                                            != null
+                            ) {
+                                verificationCount++;
+                            }
                         }
 
                         pendingTotal =
@@ -531,7 +606,11 @@ private void loadPendingPayments(
                                         pendingTotal
                                 );
 
-                        List<String> emptyDrivers =
+                        /*
+                         * Remove drivers that have no actual
+                         * unpaid rides.
+                         */
+                        List<String> remove =
                                 new ArrayList<>();
 
                         for (
@@ -548,103 +627,136 @@ private void loadPendingPayments(
                                             .isEmpty()
                             ) {
 
-                                emptyDrivers.add(
+                                remove.add(
                                         entry.getKey()
                                 );
                             }
                         }
 
                         for (
-                                String driverId
-                                : emptyDrivers
+                                String id
+                                : remove
                         ) {
 
-                            grouped.remove(
-                                    driverId
-                            );
+                            grouped.remove(id);
                         }
 
-                        if (grouped.isEmpty()) {
+                        /*
+                         * Build the RED unpaid section.
+                         */
+                        boolean hasUnpaid =
+                                false;
 
-                            TextView empty =
-                                    new TextView(this);
+                        /*
+                         * Build the ORANGE verification section.
+                         */
+                        boolean hasVerification =
+                                false;
 
-                            empty.setText(
-                                    "🟢 NO CURRENT UNPAID DRIVER DUES\n\n"
+                        for (
+                                DriverDues dues
+                                : grouped.values()
+                        ) {
+
+                            if (
+                                    dues.dueRides
+                                            .isEmpty()
+                            ) {
+                                continue;
+                            }
+
+                            hasUnpaid = true;
+
+                            addUnpaidDriverCard(
+                                    dues
+                            );
+
+                            if (
+                                    dues.pendingPayment
+                                            != null
+                            ) {
+
+                                hasVerification =
+                                        true;
+
+                                addVerificationCard(
+                                        dues
+                                );
+                            }
+                        }
+
+                        if (!hasUnpaid) {
+
+                            addMessage(
+                                    unpaidContainer,
+                                    "🟢 NO UNPAID DRIVER DUES\n\n"
                                             + "All current 10% platform fees "
-                                            + "have been settled or are not yet due."
-                            );
-
-                            empty.setTextSize(
-                                    18
-                            );
-
-                            empty.setTextColor(
+                                            + "are settled.",
                                     Color.rgb(
                                             0,
                                             130,
                                             0
                                     )
                             );
-
-                            empty.setGravity(
-                                    Gravity.CENTER
-                            );
-
-                            empty.setPadding(
-                                    20,
-                                    40,
-                                    20,
-                                    40
-                            );
-
-                            settlementContainer.addView(
-                                    empty
-                            );
-
-                        } else {
-
-                            for (
-                                    DriverDues dues
-                                    : grouped.values()
-                            ) {
-
-                                addDriverSettlementCard(
-                                        dues
-                                );
-                            }
                         }
 
-                        updateSummary();
+                        if (!hasVerification) {
+
+                            addMessage(
+                                    verificationContainer,
+                                    "🟢 NO PAYMENTS NEED VERIFICATION\n\n"
+                                            + "There are no driver payments "
+                                            + "waiting for Admin verification.",
+                                    Color.rgb(
+                                            0,
+                                            130,
+                                            0
+                                    )
+                            );
+                        }
+
+                        summaryText.setText(
+                                "🔴 UNPAID\n₱"
+                                        + formatMoney(
+                                        pendingTotal
+                                )
+                                        + "\n\n"
+                                        + "🟠 NEED VERIFICATION\n"
+                                        + verificationCount
+                                        + "\n\n"
+                                        + "🟢 PAID / VERIFIED\n₱"
+                                        + formatMoney(
+                                        paidTotal
+                                )
+                        );
 
                         statusText.setText(
                                 grouped.size()
-                                        + " driver(s) currently have unpaid dues."
+                                        + " driver(s) with current unpaid dues."
                         );
-
-                        loadPaidHistory();
                     }
             )
             .addOnFailureListener(
                     e -> {
 
-                        statusText.setText(
-                                "Unable to load pending payments."
+                        addMessage(
+                                unpaidContainer,
+                                "Unable to load unpaid dues:\n"
+                                        + e.getMessage(),
+                                Color.RED
                         );
 
-                        Toast.makeText(
-                                this,
-                                "Unable to load pending payments:\n"
+                        addMessage(
+                                verificationContainer,
+                                "Unable to load payments:\n"
                                         + e.getMessage(),
-                                Toast.LENGTH_LONG
-                        ).show();
-
-                        loadPaidHistory();
+                                Color.RED
+                        );
                     }
             );
 }
 
-private void addDriverSettlementCard(
+private void addUnpaidDriverCard(
         DriverDues dues
 ) {
 
@@ -652,19 +764,22 @@ private void addDriverSettlementCard(
             createCard(
                     Color.rgb(
                             255,
-                            248,
-                            240
+                            242,
+                            242
                     )
             );
 
-    TextView title =
+    card.addView(
             makeText(
-                    "🔴 DRIVER HAS UNPAID DUES",
+                    "🔴 UNPAID DRIVER DUES",
                     21,
-                    Color.BLACK
-            );
-
-    card.addView(title);
+                    Color.rgb(
+                            190,
+                            0,
+                            0
+                    )
+            )
+    );
 
     TextView details =
             makeText(
@@ -676,11 +791,11 @@ private void addDriverSettlementCard(
                             dues.totalFare
                     )
                             + "\n\n"
-                            + "📊 Sakay Na Platform Fee\n₱"
+                            + "📊 Sakay Na Fee — 10%\n₱"
                             + formatMoney(
                             dues.totalDues
                     )
-                            + "  (10%)\n\n"
+                            + "\n\n"
                             + "🧾 Unpaid Bookings\n"
                             + dues.dueRides.size(),
                     16,
@@ -695,167 +810,8 @@ private void addDriverSettlementCard(
     );
 
     if (
-            dues.pendingPayment != null
+            dues.pendingPayment == null
     ) {
-
-        DocumentSnapshot payment =
-                dues.pendingPayment;
-
-        double paymentAmount =
-                getAmount(
-                        payment
-                );
-
-        double duesAtSubmission =
-                getAmountField(
-                        payment,
-                        "duesAmountAtSubmission"
-                );
-
-        String reference =
-                getString(
-                        payment,
-                        "referenceNumber"
-                );
-
-        String paymentMethod =
-                getString(
-                        payment,
-                        "paymentMethod"
-                );
-
-        long submittedAt =
-                getLong(
-                        payment,
-                        "submittedAt"
-                );
-
-        long cutoffAt =
-                getLong(
-                        payment,
-                        "duesCutoffAt"
-                );
-
-        TextView paymentText =
-                makeText(
-                        "🟡 PAYMENT SUBMITTED — WAITING FOR ADMIN\n\n"
-                                + "💸 Amount Submitted\n₱"
-                                + formatMoney(
-                                paymentAmount
-                        )
-                                + "\n\n"
-                                + "🧾 Dues At Submission\n₱"
-                                + formatMoney(
-                                duesAtSubmission
-                        )
-                                + "\n\n"
-                                + "💳 Method\n"
-                                + safeText(
-                                paymentMethod,
-                                "Not provided"
-                        )
-                                + "\n\n"
-                                + "🔢 Reference\n"
-                                + safeText(
-                                reference,
-                                "Not provided"
-                        )
-                                + "\n\n"
-                                + "📅 Submitted\n"
-                                + formatDate(
-                                submittedAt
-                        ),
-                        16,
-                        Color.rgb(
-                                130,
-                                85,
-                                0
-                        )
-                );
-
-        card.addView(
-                paymentText
-        );
-
-        Button verifyButton =
-                new Button(this);
-
-        verifyButton.setText(
-                "✅ VERIFY FULL PAYMENT"
-        );
-
-        verifyButton.setTextColor(
-                Color.WHITE
-        );
-
-        verifyButton.setBackgroundColor(
-                Color.rgb(
-                        0,
-                        150,
-                        0
-                )
-        );
-
-        final String settlementId =
-                payment.getId();
-
-        verifyButton.setOnClickListener(
-                v ->
-                        verifySettlement(
-                                settlementId
-                        )
-        );
-
-        card.addView(
-                verifyButton
-        );
-
-        Button rejectButton =
-                new Button(this);
-
-        rejectButton.setText(
-                "❌ REJECT PAYMENT"
-        );
-
-        rejectButton.setTextColor(
-                Color.WHITE
-        );
-
-        rejectButton.setBackgroundColor(
-                Color.rgb(
-                        200,
-                        0,
-                        0
-                )
-        );
-
-        rejectButton.setOnClickListener(
-                v ->
-                        rejectSettlement(
-                                settlementId
-                        )
-        );
-
-        card.addView(
-                rejectButton
-        );
-
-        if (cutoffAt > 0) {
-
-            card.addView(
-                    makeText(
-                            "ℹ️ Dues created after "
-                                    + formatDate(
-                                    cutoffAt
-                            )
-                                    + " remain unpaid.",
-                            14,
-                            Color.DKGRAY
-                    )
-            );
-        }
-
-    } else {
 
         card.addView(
                 makeText(
@@ -863,8 +819,7 @@ private void addDriverSettlementCard(
                                 + "Driver still owes ₱"
                                 + formatMoney(
                                 dues.totalDues
-                        )
-                                + " to Sakay Na.",
+                        ),
                         17,
                         Color.rgb(
                                 180,
@@ -875,7 +830,213 @@ private void addDriverSettlementCard(
         );
     }
 
-    settlementContainer.addView(
+    unpaidContainer.addView(card);
+}
+
+private void addVerificationCard(
+        DriverDues dues
+) {
+
+    DocumentSnapshot payment =
+            dues.pendingPayment;
+
+    if (payment == null) {
+        return;
+    }
+
+    LinearLayout card =
+            createCard(
+                    Color.rgb(
+                            255,
+                            248,
+                            225
+                    )
+            );
+
+    card.addView(
+            makeText(
+                    "🟠 NEED VERIFICATION",
+                    21,
+                    Color.rgb(
+                            210,
+                            105,
+                            0
+                    )
+            )
+    );
+
+    TextView details =
+            makeText(
+                    "👤 Driver ID\n"
+                            + dues.driverId
+                            + "\n\n"
+                            + "💰 Current Unpaid Dues\n₱"
+                            + formatMoney(
+                            dues.totalDues
+                    ),
+                    16,
+                    Color.DKGRAY
+            );
+
+    card.addView(details);
+
+    loadDriverInformation(
+            dues.driverId,
+            details
+    );
+
+    double paymentAmount =
+            getAmount(
+                    payment
+            );
+
+    double duesAtSubmission =
+            getAmountField(
+                    payment,
+                    "duesAmountAtSubmission"
+            );
+
+    String method =
+            getString(
+                    payment,
+                    "paymentMethod"
+            );
+
+    String reference =
+            getString(
+                    payment,
+                    "referenceNumber"
+            );
+
+    long submittedAt =
+            getLong(
+                    payment,
+                    "submittedAt"
+            );
+
+    long cutoffAt =
+            getLong(
+                    payment,
+                    "duesCutoffAt"
+            );
+
+    card.addView(
+            makeText(
+                    "🟠 PAYMENT SUBMITTED\n\n"
+                            + "💸 Amount Submitted\n₱"
+                            + formatMoney(
+                            paymentAmount
+                    )
+                            + "\n\n"
+                            + "🧾 Dues At Submission\n₱"
+                            + formatMoney(
+                            duesAtSubmission
+                    )
+                            + "\n\n"
+                            + "💳 Payment Method\n"
+                            + safeText(
+                            method,
+                            "Not provided"
+                    )
+                            + "\n\n"
+                            + "🔢 Reference Number\n"
+                            + safeText(
+                            reference,
+                            "Not provided"
+                    )
+                            + "\n\n"
+                            + "📅 Submitted\n"
+                            + formatDate(
+                            submittedAt
+                    ),
+                    16,
+                    Color.rgb(
+                            130,
+                            85,
+                            0
+                    )
+            )
+    );
+
+    Button verifyButton =
+            new Button(this);
+
+    verifyButton.setText(
+            "✅ VERIFY PAYMENT"
+    );
+
+    verifyButton.setTextColor(
+            Color.WHITE
+    );
+
+    verifyButton.setBackgroundColor(
+            Color.rgb(
+                    0,
+                    150,
+                    0
+            )
+    );
+
+    final String settlementId =
+            payment.getId();
+
+    verifyButton.setOnClickListener(
+            v ->
+                    verifySettlement(
+                            settlementId
+                    )
+    );
+
+    card.addView(
+            verifyButton
+    );
+
+    Button rejectButton =
+            new Button(this);
+
+    rejectButton.setText(
+            "❌ REJECT PAYMENT"
+    );
+
+    rejectButton.setTextColor(
+            Color.WHITE
+    );
+
+    rejectButton.setBackgroundColor(
+            Color.rgb(
+                    200,
+                    0,
+                    0
+            )
+    );
+
+    rejectButton.setOnClickListener(
+            v ->
+                    rejectSettlement(
+                            settlementId
+                    )
+    );
+
+    card.addView(
+            rejectButton
+    );
+
+    if (cutoffAt > 0) {
+
+        card.addView(
+                makeText(
+                        "ℹ️ Dues created after "
+                                + formatDate(
+                                cutoffAt
+                        )
+                                + " remain unpaid.",
+                        14,
+                        Color.DKGRAY
+                )
+        );
+    }
+
+    verificationContainer.addView(
             card
     );
 }
@@ -893,12 +1054,8 @@ private void loadDriverInformation(
         return;
     }
 
-    db.collection(
-            "users"
-    )
-            .document(
-                    driverId
-            )
+    db.collection("users")
+            .document(driverId)
             .get()
             .addOnSuccessListener(
                     driver -> {
@@ -1017,12 +1174,10 @@ private void loadPaidHistory() {
                                 payments.isEmpty()
                         ) {
 
-                            paidHistoryContainer.addView(
-                                    makeText(
-                                            "No verified driver payments yet.",
-                                            16,
-                                            Color.DKGRAY
-                                    )
+                            addMessage(
+                                    paidHistoryContainer,
+                                    "No verified driver payments yet.",
+                                    Color.DKGRAY
                             );
 
                             updateSummary();
@@ -1035,13 +1190,10 @@ private void loadPaidHistory() {
                                 : payments.getDocuments()
                         ) {
 
-                            double amount =
+                            paidTotal +=
                                     getAmount(
                                             payment
                                     );
-
-                            paidTotal +=
-                                    amount;
 
                             addPaidHistoryCard(
                                     payment
@@ -1059,16 +1211,11 @@ private void loadPaidHistory() {
             .addOnFailureListener(
                     e -> {
 
-                        paidHistoryContainer
-                                .removeAllViews();
-
-                        paidHistoryContainer.addView(
-                                makeText(
-                                        "Unable to load paid history:\n"
-                                                + e.getMessage(),
-                                        15,
-                                        Color.RED
-                                )
+                        addMessage(
+                                paidHistoryContainer,
+                                "Unable to load paid history:\n"
+                                        + e.getMessage(),
+                                Color.RED
                         );
                     }
             );
@@ -1122,25 +1269,22 @@ private void addPaidHistoryCard(
                     "verifiedAt"
             );
 
-    long paidRideCount =
+    long rideCount =
             getLong(
                     payment,
                     "ridesPaidCount"
             );
 
-    TextView title =
+    card.addView(
             makeText(
-                    "🟢 VERIFIED / PAID",
+                    "🟢 PAID / VERIFIED",
                     21,
                     Color.rgb(
                             0,
                             125,
                             0
                     )
-            );
-
-    card.addView(
-            title
+            )
     );
 
     TextView details =
@@ -1173,16 +1317,16 @@ private void addPaidHistoryCard(
                             submittedAt
                     )
                             + "\n\n"
-                            + "✅ Verified By Admin\n"
+                            + "✅ Verified\n"
                             + formatDate(
                             verifiedAt
                     )
                             + "\n\n"
                             + "🧾 Bookings Covered\n"
                             + (
-                            paidRideCount > 0
+                            rideCount > 0
                                     ? String.valueOf(
-                                    paidRideCount
+                                    rideCount
                             )
                                     : "Recorded in paid rides"
                     ),
@@ -1190,9 +1334,7 @@ private void addPaidHistoryCard(
                     Color.DKGRAY
             );
 
-    card.addView(
-            details
-    );
+    card.addView(details);
 
     loadPaidDriverInformation(
             driverId,
@@ -1217,12 +1359,8 @@ private void loadPaidDriverInformation(
         return;
     }
 
-    db.collection(
-            "users"
-    )
-            .document(
-                    driverId
-            )
+    db.collection("users")
+            .document(driverId)
             .get()
             .addOnSuccessListener(
                     driver -> {
@@ -1272,15 +1410,15 @@ private void loadPaidDriverInformation(
 private void updateSummary() {
 
     summaryText.setText(
-            "🔴 TOTAL UNPAID DRIVER DUES\n₱"
+            "🔴 UNPAID\n₱"
                     + formatMoney(
                     pendingTotal
             )
                     + "\n\n"
-                    + "🟡 PENDING PAYMENTS\n"
-                    + "Awaiting Admin verification"
+                    + "🟠 NEED VERIFICATION\n"
+                    + "Tap orange button to review"
                     + "\n\n"
-                    + "🟢 VERIFIED PAYMENTS\n₱"
+                    + "🟢 PAID / VERIFIED\n₱"
                     + formatMoney(
                     paidTotal
             )
@@ -1295,20 +1433,16 @@ private void verifySettlement(
             settlementId == null
                     ||
             settlementId.isEmpty()
+                    ||
+            user == null
     ) {
-        return;
-    }
-
-    if (user == null) {
         return;
     }
 
     db.collection(
             "driverSettlements"
     )
-            .document(
-                    settlementId
-            )
+            .document(settlementId)
             .get()
             .addOnSuccessListener(
                     settlement -> {
@@ -1324,7 +1458,6 @@ private void verifySettlement(
                             ).show();
 
                             loadSettlements();
-
                             return;
                         }
 
@@ -1347,7 +1480,6 @@ private void verifySettlement(
                             ).show();
 
                             loadSettlements();
-
                             return;
                         }
 
@@ -1396,16 +1528,14 @@ private void verifySettlement(
 
                             Toast.makeText(
                                     this,
-                                    "❌ Payment amount does not match the submitted dues.",
+                                    "❌ Payment amount does not match submitted dues.",
                                     Toast.LENGTH_LONG
                             ).show();
 
                             return;
                         }
 
-                        db.collection(
-                                "rides"
-                        )
+                        db.collection("rides")
                                 .whereEqualTo(
                                         "driverId",
                                         driverId
@@ -1418,9 +1548,8 @@ private void verifySettlement(
                                 .addOnSuccessListener(
                                         dueRides -> {
 
-                                            List<
-                                                    DocumentSnapshot
-                                                    > ridesToPay =
+                                            List<DocumentSnapshot>
+                                                    ridesToPay =
                                                     new ArrayList<>();
 
                                             double amountToMarkPaid =
@@ -1470,11 +1599,11 @@ private void verifySettlement(
 
                                                 Toast.makeText(
                                                         this,
-                                                        "❌ Current unpaid dues do not match the submitted payment.\nExpected: ₱"
+                                                        "❌ Current unpaid dues do not match payment.\nExpected: ₱"
                                                                 + formatMoney(
                                                                 paymentAmount
                                                         )
-                                                                + "\nFound at cutoff: ₱"
+                                                                + "\nFound: ₱"
                                                                 + formatMoney(
                                                                 amountToMarkPaid
                                                         ),
@@ -1490,7 +1619,7 @@ private void verifySettlement(
 
                                                 Toast.makeText(
                                                         this,
-                                                        "No unpaid rides were found for this settlement.",
+                                                        "No unpaid rides were found for this payment.",
                                                         Toast.LENGTH_LONG
                                                 ).show();
 
@@ -1648,7 +1777,7 @@ private void markRideChunk(
 
                         Toast.makeText(
                                 this,
-                                "Unable to mark settlement dues as paid:\n"
+                                "Unable to mark dues as paid:\n"
                                         + e.getMessage(),
                                 Toast.LENGTH_LONG
                         ).show();
@@ -1698,12 +1827,8 @@ private void saveVerifiedSettlement(
     db.collection(
             "driverSettlements"
     )
-            .document(
-                    settlementId
-            )
-            .update(
-                    update
-            )
+            .document(settlementId)
+            .update(update)
             .addOnSuccessListener(
                     unused -> {
 
@@ -1719,14 +1844,9 @@ private void saveVerifiedSettlement(
             .addOnFailureListener(
                     e -> {
 
-                        /*
-                         * The rides have already been marked PAID.
-                         * Keep the settlement visible as PENDING
-                         * if this history update fails.
-                         */
                         Toast.makeText(
                                 this,
-                                "⚠️ Rides were marked PAID, but payment history could not be updated:\n"
+                                "⚠️ Rides were marked PAID, but payment history failed:\n"
                                         + e.getMessage(),
                                 Toast.LENGTH_LONG
                         ).show();
@@ -1744,11 +1864,9 @@ private void rejectSettlement(
             settlementId == null
                     ||
             settlementId.isEmpty()
+                    ||
+            user == null
     ) {
-        return;
-    }
-
-    if (user == null) {
         return;
     }
 
@@ -1773,12 +1891,8 @@ private void rejectSettlement(
     db.collection(
             "driverSettlements"
     )
-            .document(
-                    settlementId
-            )
-            .update(
-                    update
-            )
+            .document(settlementId)
+            .update(update)
             .addOnSuccessListener(
                     v -> {
 
@@ -1833,15 +1947,40 @@ private LinearLayout createCard(
             20
     );
 
-    card.setLayoutParams(
-            params
-    );
+    card.setLayoutParams(params);
 
     card.setBackgroundColor(
             backgroundColor
     );
 
     return card;
+}
+
+private void addMessage(
+        LinearLayout container,
+        String message,
+        int color
+) {
+
+    TextView text =
+            makeText(
+                    message,
+                    17,
+                    color
+            );
+
+    text.setGravity(
+            Gravity.CENTER
+    );
+
+    text.setPadding(
+            20,
+            35,
+            20,
+            35
+    );
+
+    container.addView(text);
 }
 
 private TextView makeText(
@@ -1853,17 +1992,9 @@ private TextView makeText(
     TextView view =
             new TextView(this);
 
-    view.setText(
-            text
-    );
-
-    view.setTextSize(
-            size
-    );
-
-    view.setTextColor(
-            color
-    );
+    view.setText(text);
+    view.setTextSize(size);
+    view.setTextColor(color);
 
     view.setPadding(
             0,
@@ -1892,7 +2023,6 @@ private String firstAvailable(
                     &&
             !value.trim().isEmpty()
     ) {
-
         return value;
     }
 
@@ -1907,7 +2037,6 @@ private String firstAvailable(
                     &&
             !value.trim().isEmpty()
     ) {
-
         return value;
     }
 
@@ -1920,9 +2049,7 @@ private String getString(
 ) {
 
     String value =
-            document.getString(
-                    field
-            );
+            document.getString(field);
 
     if (value == null) {
         return "";
@@ -1937,9 +2064,7 @@ private long getLong(
 ) {
 
     Object value =
-            document.get(
-                    field
-            );
+            document.get(field);
 
     if (
             value instanceof Number
@@ -1968,9 +2093,7 @@ private double getAmountField(
 ) {
 
     Object value =
-            document.get(
-                    field
-            );
+            document.get(field);
 
     if (value == null) {
         return 0.0;
@@ -1987,9 +2110,7 @@ private double getAmountField(
     try {
 
         return Double.parseDouble(
-                String.valueOf(
-                        value
-                )
+                String.valueOf(value)
         );
 
     } catch (Exception e) {
@@ -2003,9 +2124,7 @@ private double getFare(
 ) {
 
     Object value =
-            document.get(
-                    "fare"
-            );
+            document.get("fare");
 
     if (value == null) {
         return 0.0;
@@ -2022,9 +2141,7 @@ private double getFare(
     try {
 
         return Double.parseDouble(
-                String.valueOf(
-                        value
-                )
+                String.valueOf(value)
         );
 
     } catch (Exception e) {
@@ -2052,13 +2169,8 @@ private double getDriverDue(
         );
     }
 
-    double fare =
-            getFare(
-                    document
-            );
-
     return roundMoney(
-            fare * 0.10
+            getFare(document) * 0.10
     );
 }
 
@@ -2137,7 +2249,6 @@ private String formatDate(
 ) {
 
     if (timestamp <= 0) {
-
         return "Not available";
     }
 
@@ -2145,9 +2256,7 @@ private String formatDate(
             "MMM dd, yyyy hh:mm a",
             Locale.US
     ).format(
-            new Date(
-                    timestamp
-            )
+            new Date(timestamp)
     );
 }
 
