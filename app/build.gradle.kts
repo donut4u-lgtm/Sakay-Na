@@ -7,6 +7,10 @@ android {
     namespace = "com.sakyna.app"
     compileSdk = 35
 
+    buildFeatures {
+        buildConfig = true
+    }
+
     defaultConfig {
         applicationId = "com.sakyna.app"
         minSdk = 23
@@ -14,6 +18,14 @@ android {
 
         versionCode = 5
         versionName = "1.0.2"
+
+        val tomtomApiKey = System.getenv("TOMTOM_API_KEY") ?: ""
+
+        buildConfigField(
+            "String",
+            "TOMTOM_API_KEY",
+            "\"${tomtomApiKey.replace("\\", "\\\\").replace("\"", "\\\"")}\""
+        )
     }
 
     signingConfigs {
