@@ -1359,15 +1359,21 @@ public class MapActivity extends Activity {
      * ============================================================
      * TOMTOM SEARCH
      *
-     * FIX:
-     * 1. Search POI first.
-     * 2. Do NOT let distance alone decide the winner.
-     * 3. Exact name/text match gets highest priority.
-     * 4. Same-town matching gets priority.
-     * 5. Distance is used only after relevance.
-     * 6. If POI has no useful text match, use address fallback.
-     * 7. Unrelated results such as a fire station are removed
-     *    when an actual text match exists.
+     * FINAL SEARCH RULE:
+     *
+     * PHONE GPS
+     *      ↓
+     * CURRENT TOWN
+     *      ↓
+     * SEARCH TYPED NAME
+     *      ↓
+     * RESULT MUST MATCH NAME
+     *      ↓
+     * RESULT MUST BE IN CURRENT TOWN
+     *
+     * Distance is NOT used to decide validity.
+     * Distance is NOT used for ranking.
+     * There is NO 5 km / 10 km result filter.
      * ============================================================
      */
     private void searchPlace() {
@@ -1403,6 +1409,28 @@ public class MapActivity extends Activity {
             return;
         }
 
+        /*
+         * The town is mandatory.
+         *
+         * We do NOT perform a search before knowing
+         * the town determined from the phone GPS.
+         */
+        if (currentTown == null
+                || currentTown.trim().isEmpty()) {
+
+            Toast.makeText(
+                    this,
+                    "📍 Getting your current town from GPS...",
+                    Toast.LENGTH_LONG
+            ).show();
+
+            statusText.setText(
+                    "📍 Please wait for GPS town detection."
+            );
+
+            return;
+        }
+
         if (BuildConfig.TOMTOM_API_KEY == null
                 || BuildConfig.TOMTOM_API_KEY
                 .trim()
@@ -1428,11 +1456,11 @@ public class MapActivity extends Activity {
                 new TextView(this);
 
         loading.setText(
-                currentTown.isEmpty()
-                        ? "🔎 Searching near your GPS location..."
-                        : "🔎 Searching in " +
-                          currentTown +
-                          "..."
+                "🔎 Searching \"" +
+                query +
+                "\" in " +
+                currentTown +
+                "..."
         );
 
         loading.setTextSize(15);
@@ -1458,11 +1486,7 @@ public class MapActivity extends Activity {
                         );
 
                 /*
-                 * IMPORTANT:
-                 *
-                 * POI search is done first.
-                 * This prevents broad address/street results
-                 * from competing with actual businesses.
+                 * POI search first.
                  */
                 List<SearchResult> poiResults =
                         requestTomTomResults(
@@ -1478,38 +1502,28 @@ public class MapActivity extends Activity {
                         );
 
                 /*
-                 * If TomTom gives a real text match in POI,
-                 * use ONLY those relevant POI results.
-                 *
-                 * Example:
-                 * query = McDonald's
-                 *
-                 * Fire station = score 0
-                 * McDonald's = score 1000
-                 *
-                 * Fire station will never appear above it.
+                 * If a valid same-town name match exists,
+                 * return ONLY those results.
                  */
                 if (!rankedPoi.isEmpty()) {
 
                     showSearchResults(
                             rankedPoi,
                             query,
-                            "🟢 Local places found"
+                            "🟢 Matching places in " +
+                            currentTown
                     );
 
                     return;
                 }
 
                 /*
-                 * POI did not produce a useful match.
+                 * Street/address fallback.
                  *
-                 * Now allow addresses/streets for searches such
-                 * as:
+                 * Still subject to:
                  *
-                 * Woodlane
-                 * Phase 2
-                 * street names
-                 * subdivision names
+                 * 1. name/text match
+                 * 2. current-town check
                  */
                 List<SearchResult> fallbackResults =
                         requestTomTomResults(
@@ -1527,7 +1541,8 @@ public class MapActivity extends Activity {
                 showSearchResults(
                         rankedFallback,
                         query,
-                        "🟢 Matching local locations"
+                        "🟢 Matching locations in " +
+                        currentTown
                 );
 
             } catch (Exception e) {
@@ -1573,20 +1588,19 @@ public class MapActivity extends Activity {
             String indexSet
     ) throws Exception {
 
-        String localQuery =
-                query;
-
         /*
-         * Town is used as search context, but GPS remains
-         * the actual geographic bias.
+         * Require current GPS town.
          */
-        if (!currentTown.isEmpty()) {
+        if (currentTown == null
+                || currentTown.trim().isEmpty()) {
 
-            localQuery =
-                    query +
-                    ", " +
-                    currentTown;
+            return new ArrayList<>();
         }
+
+        String localQuery =
+                query +
+                ", " +
+                currentTown;
 
         String encodedQuery =
                 URLEncoder.encode(
@@ -1594,6 +1608,20 @@ public class MapActivity extends Activity {
                         "UTF-8"
                 );
 
+        /*
+         * IMPORTANT:
+         *
+         * The 100 km radius is ONLY the TomTom retrieval
+         * area. It is NOT a validity filter.
+         *
+         * We deliberately DO NOT reject a result based
+         * on distance.
+         *
+         * Final validity is decided by:
+         *
+         * 1. Matching the typed search name/text.
+         * 2. Being in the current GPS town.
+         */
         String urlString =
                 "https://api.tomtom.com/search/2/search/" +
                 encodedQuery +
@@ -1604,9 +1632,9 @@ public class MapActivity extends Activity {
                 currentLatitude +
                 "&lon=" +
                 currentLongitude +
-                "&radius=10000" +
+                "&radius=100000" +
                 "&countrySet=PH" +
-                "&limit=30" +
+                "&limit=100" +
                 "&language=en-US" +
                 "&idxSet=" +
                 URLEncoder.encode(
@@ -1630,11 +1658,11 @@ public class MapActivity extends Activity {
             );
 
             connection.setConnectTimeout(
-                    8000
+                    10000
             );
 
             connection.setReadTimeout(
-                    10000
+                    15000
             );
 
             connection.setRequestProperty(
@@ -1727,6 +1755,7 @@ public class MapActivity extends Activity {
 
                     if (Double.isNaN(lat)
                             || Double.isNaN(lng)) {
+
                         continue;
                     }
 
@@ -1764,37 +1793,61 @@ public class MapActivity extends Activity {
                                 );
                     }
 
+                    /*
+                     * TomTom can return municipality,
+                     * municipalitySubdivision, city, or town
+                     * depending on the location.
+                     *
+                     * Use the first useful value.
+                     */
                     String municipality =
-                            "";
-
-                    String countrySubdivision =
-                            "";
-
-                    String country =
                             "";
 
                     if (address != null) {
 
                         municipality =
-                                address.optString(
-                                        "municipality",
-                                        ""
+                                firstNonEmpty(
+                                        address.optString(
+                                                "municipality",
+                                                ""
+                                        ),
+                                        address.optString(
+                                                "municipalitySubdivision",
+                                                ""
+                                        ),
+                                        address.optString(
+                                                "city",
+                                                ""
+                                        ),
+                                        address.optString(
+                                                "town",
+                                                ""
+                                        )
                                 );
+                    }
 
-                        if (municipality.isEmpty()) {
+                    String province =
+                            "";
 
-                            municipality =
-                                    address.optString(
-                                            "municipalitySubdivision",
-                                            ""
-                                    );
-                        }
+                    if (address != null) {
 
-                        countrySubdivision =
-                                address.optString(
-                                        "countrySubdivision",
-                                        ""
+                        province =
+                                firstNonEmpty(
+                                        address.optString(
+                                                "countrySubdivision",
+                                                ""
+                                        ),
+                                        address.optString(
+                                                "countrySecondarySubdivision",
+                                                ""
+                                        )
                                 );
+                    }
+
+                    String country =
+                            "";
+
+                    if (address != null) {
 
                         country =
                                 address.optString(
@@ -1814,24 +1867,6 @@ public class MapActivity extends Activity {
                                     "PH"
                             )) {
 
-                        continue;
-                    }
-
-                    float[] distance =
-                            new float[1];
-
-                    Location.distanceBetween(
-                            currentLatitude,
-                            currentLongitude,
-                            lat,
-                            lng,
-                            distance
-                    );
-
-                    /*
-                     * Keep the search local.
-                     */
-                    if (distance[0] > 10000) {
                         continue;
                     }
 
@@ -1859,8 +1894,32 @@ public class MapActivity extends Activity {
                     } else {
 
                         displayName =
-                                "Selected place";
+                                "";
                     }
+
+                    if (displayName.trim().isEmpty()) {
+                        continue;
+                    }
+
+                    /*
+                     * Distance is retained only as information.
+                     *
+                     * IMPORTANT:
+                     * There is NO distance filter here.
+                     * There is NO 5 km filter.
+                     * There is NO 10 km filter.
+                     * There is NO nearest-place selection.
+                     */
+                    float[] distance =
+                            new float[1];
+
+                    Location.distanceBetween(
+                            currentLatitude,
+                            currentLongitude,
+                            lat,
+                            lng,
+                            distance
+                    );
 
                     candidates.add(
                             new SearchResult(
@@ -1869,7 +1928,7 @@ public class MapActivity extends Activity {
                                     displayName,
                                     placeName,
                                     municipality,
-                                    countrySubdivision,
+                                    province,
                                     distance[0]
                             )
                     );
@@ -1888,14 +1947,6 @@ public class MapActivity extends Activity {
         }
     }
 
-    /*
-     * Normal text:
-     *
-     * McDonald's
-     * -> mc donald s
-     *
-     * This makes matching easier.
-     */
     private String normalizeSearchText(
             String value
     ) {
@@ -1917,15 +1968,6 @@ public class MapActivity extends Activity {
                 );
     }
 
-    /*
-     * Compact text:
-     *
-     * McDonald's
-     * -> mcdonalds
-     *
-     * This is important because TomTom commonly returns
-     * "McDonald's" / "McDonalds" / "McDonald's Branch".
-     */
     private String compactSearchText(
             String value
     ) {
@@ -1939,15 +1981,21 @@ public class MapActivity extends Activity {
     }
 
     /*
-     * Calculates how strongly a TomTom result matches
-     * what the passenger typed.
+     * Search-name matching.
      *
-     * Higher = more relevant.
+     * The actual POI name gets priority.
+     *
+     * Address text is allowed only for address/street
+     * searches when there is no POI name.
      */
     private int searchMatchScore(
             String query,
             SearchResult result
     ) {
+
+        if (result == null) {
+            return 0;
+        }
 
         String q =
                 normalizeSearchText(
@@ -1979,64 +2027,102 @@ public class MapActivity extends Activity {
         }
 
         /*
-         * Exact POI name.
+         * Strongest: exact POI name.
          */
         if (!nc.isEmpty()
                 && nc.equals(qc)) {
 
-            return 1000;
+            return 10000;
         }
 
         /*
-         * Query contained in POI name.
+         * Strong: typed name is contained in POI name.
          *
          * Example:
-         * "mcdonald"
-         * matches
-         * "mcdonalds"
+         * McDonald's
+         * McDonalds
+         * McDonald's Branch
          */
         if (!nc.isEmpty()
                 && nc.contains(qc)) {
 
-            return 900;
+            return 9000;
         }
 
         /*
-         * POI name contained in query.
+         * Strong: POI name is contained in typed text.
          */
         if (!nc.isEmpty()
                 && qc.contains(nc)) {
 
-            return 850;
+            return 8000;
         }
 
-        int tokenMatches = 0;
+        /*
+         * Token matching is based on the actual POI name.
+         *
+         * This prevents unrelated businesses whose address
+         * happens to contain one generic search word from
+         * becoming a match for a business-name search.
+         */
+        if (!name.isEmpty()) {
 
-        String[] tokens =
-                q.split(" ");
+            int nameScore = 0;
 
-        for (String token : tokens) {
+            String[] tokens =
+                    q.split(" ");
 
-            if (token.length() < 2) {
-                continue;
+            for (String token : tokens) {
+
+                if (token.length() < 2) {
+                    continue;
+                }
+
+                if (name.contains(token)) {
+
+                    nameScore += 1000;
+                }
             }
 
-            if (name.contains(token)) {
-
-                tokenMatches += 120;
-
-            } else if (display.contains(token)) {
-
-                tokenMatches += 70;
+            if (nameScore > 0) {
+                return nameScore;
             }
         }
 
-        return tokenMatches;
+        /*
+         * If there is no POI name, this can be an address/street
+         * result. Then allow text overlap against the address.
+         */
+        if (name.isEmpty()
+                && !display.isEmpty()) {
+
+            int addressScore = 0;
+
+            String[] tokens =
+                    q.split(" ");
+
+            for (String token : tokens) {
+
+                if (token.length() < 2) {
+                    continue;
+                }
+
+                if (display.contains(token)) {
+
+                    addressScore += 100;
+                }
+            }
+
+            return addressScore;
+        }
+
+        return 0;
     }
 
     /*
-     * Checks whether the TomTom result is in the
-     * passenger's current town.
+     * STRICT CURRENT-TOWN CHECK.
+     *
+     * A result from another town is NEVER accepted.
      */
     private boolean isSameTownResult(
             SearchResult result
@@ -2048,7 +2134,8 @@ public class MapActivity extends Activity {
             return false;
         }
 
-        if (result.town == null
+        if (result == null
+                || result.town == null
                 || result.town.trim().isEmpty()) {
 
             return false;
@@ -2061,14 +2148,14 @@ public class MapActivity extends Activity {
     }
 
     /*
-     * Final search ranking:
+     * FINAL SEARCH FILTER/RANKING.
      *
-     * 1. Text relevance
-     * 2. Same town
-     * 3. GPS distance
+     * ONLY TWO THINGS MATTER:
      *
-     * If an actual text match exists, unrelated results
-     * with zero text match are removed.
+     * 1. Does the result match what the passenger typed?
+     * 2. Is the result in the current GPS town?
+     *
+     * Distance is NOT used.
      */
     private List<SearchResult> rankSearchResults(
             String query,
@@ -2084,108 +2171,50 @@ public class MapActivity extends Activity {
             return working;
         }
 
-        int bestScore = 0;
+        if (currentTown == null
+                || currentTown.trim().isEmpty()) {
 
-        boolean hasSameTownMatch =
-                false;
+            return working;
+        }
 
-        for (SearchResult result : candidates) {
+        for (SearchResult result :
+                candidates) {
 
+            /*
+             * STEP 1:
+             * Current GPS town only.
+             */
+            if (!isSameTownResult(result)) {
+                continue;
+            }
+
+            /*
+             * STEP 2:
+             * Typed name/text must actually match.
+             */
             result.matchScore =
                     searchMatchScore(
                             query,
                             result
                     );
 
-            result.sameTown =
-                    isSameTownResult(
-                            result
-                    );
-
-            if (result.matchScore > bestScore) {
-
-                bestScore =
-                        result.matchScore;
+            if (result.matchScore <= 0) {
+                continue;
             }
 
-            if (result.matchScore > 0
-                    && result.sameTown) {
+            result.sameTown = true;
 
-                hasSameTownMatch = true;
-            }
+            working.add(
+                    result
+            );
         }
 
         /*
-         * If there is a real text match, remove
-         * completely unrelated results.
+         * Sort ONLY by text relevance.
          *
-         * This is the important fix for:
-         *
-         * McDonald's -> Fire station
+         * No distance.
+         * No nearest result.
          */
-        if (bestScore > 0) {
-
-            for (SearchResult result : candidates) {
-
-                if (result.matchScore > 0) {
-
-                    working.add(
-                            result
-                    );
-                }
-            }
-
-        } else {
-
-            /*
-             * No text match at all.
-             *
-             * Do not pretend an unrelated result is the
-             * requested place.
-             *
-             * For address/street fallback, TomTom can still
-             * return useful address text. The result must
-             * therefore have at least some text overlap.
-             */
-            for (SearchResult result : candidates) {
-
-                if (result.matchScore > 0) {
-
-                    working.add(
-                            result
-                    );
-                }
-            }
-        }
-
-        /*
-         * If we have matching results in the current town,
-         * remove matching results from other towns.
-         */
-        if (hasSameTownMatch) {
-
-            ArrayList<SearchResult>
-                    sameTownResults =
-                    new ArrayList<>();
-
-            for (SearchResult result :
-                    working) {
-
-                if (result.sameTown) {
-
-                    sameTownResults.add(
-                            result
-                    );
-                }
-            }
-
-            if (!sameTownResults.isEmpty()) {
-
-                working =
-                        sameTownResults;
-            }
-        }
-
         Collections.sort(
                 working,
                 new Comparator<SearchResult>() {
@@ -2196,36 +2225,9 @@ public class MapActivity extends Activity {
                             SearchResult b
                     ) {
 
-                        /*
-                         * 1. Text match.
-                         */
-                        int scoreCompare =
-                                Integer.compare(
-                                        b.matchScore,
-                                        a.matchScore
-                                );
-
-                        if (scoreCompare != 0) {
-                            return scoreCompare;
-                        }
-
-                        /*
-                         * 2. Same town.
-                         */
-                        if (a.sameTown
-                                != b.sameTown) {
-
-                            return a.sameTown
-                                    ? -1
-                                    : 1;
-                        }
-
-                        /*
-                         * 3. Nearest GPS distance.
-                         */
-                        return Float.compare(
-                                a.distanceMeters,
-                                b.distanceMeters
+                        return Integer.compare(
+                                b.matchScore,
+                                a.matchScore
                         );
                     }
                 }
@@ -2297,8 +2299,9 @@ public class MapActivity extends Activity {
                         new TextView(this);
 
                 empty.setText(
-                        "📍 No exact or relevant match found for:\n" +
-                        "\"" +
+                        "📍 No matching place found in " +
+                        currentTown +
+                        " for:\n\"" +
                         query +
                         "\""
                 );
@@ -2320,7 +2323,8 @@ public class MapActivity extends Activity {
                         .addView(empty);
 
                 statusText.setText(
-                        "🔎 No matching location found."
+                        "🔎 No matching place found in " +
+                        currentTown
                 );
 
                 return;
@@ -2342,46 +2346,24 @@ public class MapActivity extends Activity {
                 Button button =
                         new Button(this);
 
-                String distanceText;
-
-                if (searchResult.distanceMeters
-                        < 1000) {
-
-                    distanceText =
-                            String.format(
-                                    Locale.US,
-                                    "%.0f m away",
-                                    searchResult.distanceMeters
-                            );
-
-                } else {
-
-                    distanceText =
-                            String.format(
-                                    Locale.US,
-                                    "%.1f km away",
-                                    searchResult.distanceMeters
-                                            / 1000.0
-                            );
-                }
-
                 String resultName =
                         searchResult.placeName
                                 .isEmpty()
                                 ? searchResult.displayName
                                 : searchResult.placeName;
 
+                /*
+                 * DO NOT show distance as a ranking signal.
+                 */
                 String buttonText =
                         "📍 " +
-                        resultName +
-                        "\n" +
-                        distanceText;
+                        resultName;
 
                 if (searchResult.sameTown
                         && !searchResult.town.isEmpty()) {
 
                     buttonText +=
-                            " • " +
+                            "\n" +
                             searchResult.town;
                 }
 
@@ -2406,10 +2388,6 @@ public class MapActivity extends Activity {
                 final String finalName =
                         searchResult.displayName;
 
-                /*
-                 * TomTom result is already the destination.
-                 * Do NOT reverse-geocode it.
-                 */
                 button.setOnClickListener(
                         v ->
                                 selectDestination(
@@ -2525,11 +2503,11 @@ public class MapActivity extends Activity {
                         firstNonEmpty(
                                 getAddress(
                                         address,
-                                        "city"
+                                        "municipality"
                                 ),
                                 getAddress(
                                         address,
-                                        "municipality"
+                                        "city"
                                 ),
                                 getAddress(
                                         address,
@@ -2646,6 +2624,10 @@ public class MapActivity extends Activity {
         String town;
         String province;
 
+        /*
+         * Kept only as informational data.
+         * It is NOT used to filter or rank results.
+         */
         float distanceMeters;
 
         int matchScore = 0;
