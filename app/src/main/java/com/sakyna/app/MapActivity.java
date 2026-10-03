@@ -86,16 +86,23 @@ public class MapActivity extends Activity {
 
         db = FirebaseFirestore.getInstance();
 
-        String receivedMode = getIntent().getStringExtra("mode");
+        String receivedMode =
+                getIntent().getStringExtra("mode");
 
-        if (receivedMode != null && !receivedMode.trim().isEmpty()) {
+        if (receivedMode != null
+                && !receivedMode.trim().isEmpty()) {
+
             mode = receivedMode.trim();
         }
 
-        rideId = getIntent().getStringExtra("ride_id");
+        rideId =
+                getIntent().getStringExtra("ride_id");
 
-        if (rideId == null || rideId.trim().isEmpty()) {
-            rideId = getIntent().getStringExtra("rideId");
+        if (rideId == null
+                || rideId.trim().isEmpty()) {
+
+            rideId =
+                    getIntent().getStringExtra("rideId");
         }
 
         if (rideId == null) {
@@ -114,11 +121,19 @@ public class MapActivity extends Activity {
 
     private void buildScreen() {
 
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(Color.rgb(247, 252, 250));
+        LinearLayout root =
+                new LinearLayout(this);
 
-        TextView title = new TextView(this);
+        root.setOrientation(
+                LinearLayout.VERTICAL
+        );
+
+        root.setBackgroundColor(
+                Color.rgb(247, 252, 250)
+        );
+
+        TextView title =
+                new TextView(this);
 
         title.setText(
                 "LIVE_RIDE".equals(mode)
@@ -127,11 +142,25 @@ public class MapActivity extends Activity {
         );
 
         title.setTextSize(23);
-        title.setTypeface(null, Typeface.BOLD);
-        title.setTextColor(Color.rgb(0, 120, 70));
-        title.setGravity(Gravity.CENTER);
+        title.setTypeface(
+                null,
+                Typeface.BOLD
+        );
 
-        title.setPadding(10, 18, 10, 12);
+        title.setTextColor(
+                Color.rgb(0, 120, 70)
+        );
+
+        title.setGravity(
+                Gravity.CENTER
+        );
+
+        title.setPadding(
+                10,
+                18,
+                10,
+                12
+        );
 
         root.addView(title);
 
@@ -139,28 +168,59 @@ public class MapActivity extends Activity {
             buildSearchArea(root);
         }
 
-        statusText = new TextView(this);
-        statusText.setText("📍 Connecting to GPS...");
+        statusText =
+                new TextView(this);
+
+        statusText.setText(
+                "📍 Connecting to GPS..."
+        );
+
         statusText.setTextSize(14);
-        statusText.setTextColor(Color.DKGRAY);
-        statusText.setGravity(Gravity.CENTER);
-        statusText.setPadding(10, 5, 10, 5);
+
+        statusText.setTextColor(
+                Color.DKGRAY
+        );
+
+        statusText.setGravity(
+                Gravity.CENTER
+        );
+
+        statusText.setPadding(
+                10,
+                5,
+                10,
+                5
+        );
 
         root.addView(statusText);
 
-        destinationText = new TextView(this);
+        destinationText =
+                new TextView(this);
+
         destinationText.setText(
                 "Move the map or search for a destination."
         );
+
         destinationText.setTextSize(15);
-        destinationText.setTextColor(Color.DKGRAY);
-        destinationText.setPadding(15, 6, 15, 6);
+
+        destinationText.setTextColor(
+                Color.DKGRAY
+        );
+
+        destinationText.setPadding(
+                15,
+                6,
+                15,
+                6
+        );
 
         root.addView(destinationText);
 
-        webView = new WebView(this);
+        webView =
+                new WebView(this);
 
-        WebSettings settings = webView.getSettings();
+        WebSettings settings =
+                webView.getSettings();
 
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
@@ -189,7 +249,10 @@ public class MapActivity extends Activity {
                             String url
                     ) {
 
-                        super.onPageFinished(view, url);
+                        super.onPageFinished(
+                                view,
+                                url
+                        );
 
                         mapReady = true;
 
@@ -199,7 +262,8 @@ public class MapActivity extends Activity {
                                 "🟢 Map ready — waiting for GPS..."
                         );
 
-                        if ("SELECT_DESTINATION".equals(mode)) {
+                        if ("SELECT_DESTINATION"
+                                .equals(mode)) {
 
                             webView.postDelayed(
                                     () -> {
@@ -234,10 +298,19 @@ public class MapActivity extends Activity {
                 )
         );
 
-        myLocationButton = new Button(this);
-        myLocationButton.setText("📍 MY LOCATION");
+        myLocationButton =
+                new Button(this);
+
+        myLocationButton.setText(
+                "📍 MY LOCATION"
+        );
+
         myLocationButton.setTextSize(16);
-        myLocationButton.setTextColor(Color.WHITE);
+
+        myLocationButton.setTextColor(
+                Color.WHITE
+        );
+
         myLocationButton.setBackgroundColor(
                 Color.rgb(0, 120, 215)
         );
@@ -246,60 +319,92 @@ public class MapActivity extends Activity {
                 v -> recenterOnMyLocation()
         );
 
-        root.addView(myLocationButton);
+        root.addView(
+                myLocationButton
+        );
 
         if ("SELECT_DESTINATION".equals(mode)) {
 
-            destinationButton = new Button(this);
+            destinationButton =
+                    new Button(this);
 
             destinationButton.setText(
                     "✅ USE THIS DESTINATION"
             );
 
             destinationButton.setTextSize(16);
-            destinationButton.setTextColor(Color.WHITE);
+
+            destinationButton.setTextColor(
+                    Color.WHITE
+            );
+
             destinationButton.setBackgroundColor(
                     Color.rgb(0, 135, 80)
             );
 
-            destinationButton.setEnabled(false);
+            destinationButton.setEnabled(
+                    false
+            );
 
             destinationButton.setOnClickListener(
                     v -> returnDestination()
             );
 
-            root.addView(destinationButton);
+            root.addView(
+                    destinationButton
+            );
         }
 
-        Button backButton = new Button(this);
-        backButton.setText("⬅ BACK");
+        Button backButton =
+                new Button(this);
+
+        backButton.setText(
+                "⬅ BACK"
+        );
 
         backButton.setOnClickListener(
                 v -> finish()
         );
 
-        root.addView(backButton);
+        root.addView(
+                backButton
+        );
 
         setContentView(root);
 
         loadMap();
     }
 
-    private void buildSearchArea(LinearLayout root) {
+    private void buildSearchArea(
+            LinearLayout root
+    ) {
 
-        LinearLayout searchRow = new LinearLayout(this);
+        LinearLayout searchRow =
+                new LinearLayout(this);
+
         searchRow.setOrientation(
                 LinearLayout.HORIZONTAL
         );
 
-        searchRow.setPadding(8, 4, 8, 4);
+        searchRow.setPadding(
+                8,
+                4,
+                8,
+                4
+        );
 
-        searchInput = new EditText(this);
+        searchInput =
+                new EditText(this);
+
         searchInput.setHint(
                 "Search Jollibee, SM, street..."
         );
+
         searchInput.setTextSize(16);
-        searchInput.setSingleLine(true);
+
+        searchInput.setSingleLine(
+                true
+        );
 
         searchRow.addView(
                 searchInput,
@@ -310,9 +415,17 @@ public class MapActivity extends Activity {
                 )
         );
 
-        Button searchButton = new Button(this);
-        searchButton.setText("🔎 SEARCH");
-        searchButton.setTextColor(Color.WHITE);
+        Button searchButton =
+                new Button(this);
+
+        searchButton.setText(
+                "🔎 SEARCH"
+        );
+
+        searchButton.setTextColor(
+                Color.WHITE
+        );
+
         searchButton.setBackgroundColor(
                 Color.rgb(0, 135, 80)
         );
@@ -321,11 +434,16 @@ public class MapActivity extends Activity {
                 v -> searchPlace()
         );
 
-        searchRow.addView(searchButton);
+        searchRow.addView(
+                searchButton
+        );
 
-        root.addView(searchRow);
+        root.addView(
+                searchRow
+        );
 
-        ScrollView scroll = new ScrollView(this);
+        ScrollView scroll =
+                new ScrollView(this);
 
         searchResultsContainer =
                 new LinearLayout(this);
@@ -334,7 +452,9 @@ public class MapActivity extends Activity {
                 LinearLayout.VERTICAL
         );
 
-        scroll.addView(searchResultsContainer);
+        scroll.addView(
+                searchResultsContainer
+        );
 
         root.addView(
                 scroll,
@@ -399,7 +519,8 @@ public class MapActivity extends Activity {
 
                 "<script>" +
 
-                "var map=L.map('map',{preferCanvas:true}).setView([" +
+                "var map=L.map('map'," +
+                "{preferCanvas:true}).setView([" +
                 currentLatitude +
                 "," +
                 currentLongitude +
@@ -416,7 +537,9 @@ public class MapActivity extends Activity {
                 "}" +
                 ").addTo(map);" +
 
-                "L.control.scale({imperial:false}).addTo(map);" +
+                "L.control.scale({" +
+                "imperial:false" +
+                "}).addTo(map);" +
 
                 "var userMarker=null;" +
                 "var accuracyCircle=null;" +
@@ -445,7 +568,8 @@ public class MapActivity extends Activity {
 
                 "userMarker=L.marker([lat,lng],{" +
                 "icon:icon,zIndexOffset:1000" +
-                "}).addTo(map).bindPopup('📍 You are here');" +
+                "}).addTo(map).bindPopup(" +
+                "'📍 You are here');" +
 
                 "}" +
 
@@ -484,7 +608,8 @@ public class MapActivity extends Activity {
                 "}" +
 
                 "if(followUser){" +
-                "map.setView([lat,lng],17,{animate:true});" +
+                "map.setView([lat,lng],17," +
+                "{animate:true});" +
                 "}" +
 
                 "}" +
@@ -496,7 +621,8 @@ public class MapActivity extends Activity {
                 "if(followUser&&userMarker!=null){" +
 
                 "var p=userMarker.getLatLng();" +
-                "map.setView([p.lat,p.lng],17,{animate:true});" +
+                "map.setView([p.lat,p.lng],17," +
+                "{animate:true});" +
 
                 "}" +
 
@@ -533,7 +659,8 @@ public class MapActivity extends Activity {
 
                 "driverMarker=L.marker([lat,lng],{" +
                 "icon:driverIcon,zIndexOffset:900" +
-                "}).addTo(map).bindPopup('🛺 Driver');" +
+                "}).addTo(map).bindPopup(" +
+                "'🛺 Driver');" +
 
                 "}else{" +
 
@@ -584,17 +711,23 @@ public class MapActivity extends Activity {
 
                 "var emoji='📍';" +
 
-                "if(type==='restaurant'||type==='fast_food')emoji='🍽️';" +
+                "if(type==='restaurant'||" +
+                "type==='fast_food')emoji='🍽️';" +
+
                 "else if(type==='cafe')emoji='☕';" +
                 "else if(type==='school')emoji='🏫';" +
-                "else if(type==='hospital'||type==='clinic')emoji='🏥';" +
+                "else if(type==='hospital'||" +
+                "type==='clinic')emoji='🏥';" +
                 "else if(type==='pharmacy')emoji='💊';" +
                 "else if(type==='fuel')emoji='⛽';" +
                 "else if(type==='bank')emoji='🏦';" +
-                "else if(type==='place_of_worship')emoji='⛪';" +
+                "else if(type==='place_of_worship')" +
+                "emoji='⛪';" +
                 "else if(type==='mall')emoji='🏬';" +
-                "else if(type==='supermarket')emoji='🛒';" +
-                "else if(type==='convenience')emoji='🏪';" +
+                "else if(type==='supermarket')" +
+                "emoji='🛒';" +
+                "else if(type==='convenience')" +
+                "emoji='🏪';" +
 
                 "var icon=L.divIcon({" +
                 "className:'sakayna-poi'," +
@@ -613,7 +746,7 @@ public class MapActivity extends Activity {
                 "icon:icon,zIndexOffset:300" +
                 "}).addTo(poiLayer)" +
                 ".bindPopup(escapeHtml(name)+" +
-                "'<br><small>OpenStreetMap place</small>');" +
+                "'<br><small>Nearby place</small>');" +
 
                 "}" +
 
@@ -633,7 +766,8 @@ public class MapActivity extends Activity {
                 "});" +
 
                 "map.on('click',function(e){" +
-                "AndroidMap.tap(e.latlng.lat,e.latlng.lng);" +
+                "AndroidMap.tap(" +
+                "e.latlng.lat,e.latlng.lng);" +
                 "});" +
 
                 "</script>" +
@@ -653,12 +787,20 @@ public class MapActivity extends Activity {
     private class MapBridge {
 
         @JavascriptInterface
-        public void tap(double lat,double lng) {
+        public void tap(
+                double lat,
+                double lng
+        ) {
 
             runOnUiThread(() -> {
 
-                if ("SELECT_DESTINATION".equals(mode)) {
-                    reverseGeocode(lat,lng);
+                if ("SELECT_DESTINATION"
+                        .equals(mode)) {
+
+                    reverseGeocode(
+                            lat,
+                            lng
+                    );
                 }
             });
         }
@@ -668,7 +810,9 @@ public class MapActivity extends Activity {
 
         locationManager =
                 (LocationManager)
-                        getSystemService(LOCATION_SERVICE);
+                        getSystemService(
+                                LOCATION_SERVICE
+                        );
 
         if (checkSelfPermission(
                 Manifest.permission.ACCESS_FINE_LOCATION
@@ -693,7 +837,9 @@ public class MapActivity extends Activity {
                             Location location
                     ) {
 
-                        if (location == null) return;
+                        if (location == null) {
+                            return;
+                        }
 
                         currentLatitude =
                                 location.getLatitude();
@@ -701,9 +847,12 @@ public class MapActivity extends Activity {
                         currentLongitude =
                                 location.getLongitude();
 
-                        hasRealGpsLocation = true;
+                        hasRealGpsLocation =
+                                true;
 
-                        sendLocationToMap(location);
+                        sendLocationToMap(
+                                location
+                        );
 
                         statusText.setText(
                                 String.format(
@@ -716,10 +865,13 @@ public class MapActivity extends Activity {
                         if (currentTown.isEmpty()
                                 && !resolvingGpsArea) {
 
-                            resolveCurrentGpsArea(location);
+                            resolveCurrentGpsArea(
+                                    location
+                            );
                         }
 
-                        if ("SELECT_DESTINATION".equals(mode)
+                        if ("SELECT_DESTINATION"
+                                .equals(mode)
                                 && mapReady) {
 
                             loadNearbyPlacesIfNeeded(
@@ -769,7 +921,8 @@ public class MapActivity extends Activity {
                 currentLongitude =
                         last.getLongitude();
 
-                hasRealGpsLocation = true;
+                hasRealGpsLocation =
+                        true;
 
                 sendLocationToMap(last);
 
@@ -794,12 +947,20 @@ public class MapActivity extends Activity {
         }
     }
 
-    private void sendLocationToMap(Location location) {
+    private void sendLocationToMap(
+            Location location
+    ) {
 
-        if (!mapReady || webView == null) return;
+        if (!mapReady
+                || webView == null) {
+            return;
+        }
 
-        double lat = location.getLatitude();
-        double lng = location.getLongitude();
+        double lat =
+                location.getLatitude();
+
+        double lng =
+                location.getLongitude();
 
         float accuracy =
                 location.hasAccuracy()
@@ -823,11 +984,15 @@ public class MapActivity extends Activity {
 
     private void sendCurrentLocationToMap() {
 
-        if (!mapReady || webView == null) return;
+        if (!mapReady
+                || webView == null) {
+            return;
+        }
 
         String javascript =
                 "setUser(" +
-                currentLatitude + "," +
+                currentLatitude +
+                "," +
                 currentLongitude +
                 ",0);";
 
@@ -839,7 +1004,10 @@ public class MapActivity extends Activity {
 
     private void recenterOnMyLocation() {
 
-        if (!mapReady || webView == null) return;
+        if (!mapReady
+                || webView == null) {
+            return;
+        }
 
         webView.evaluateJavascript(
                 "setFollow(true);",
@@ -858,16 +1026,23 @@ public class MapActivity extends Activity {
             double lng
     ) {
 
-        if (loadingNearbyPlaces) return;
+        if (loadingNearbyPlaces) {
+            return;
+        }
 
         if (lastPoiLatitude == 0
                 && lastPoiLongitude == 0) {
 
-            loadNearbyPlaces(lat,lng);
+            loadNearbyPlaces(
+                    lat,
+                    lng
+            );
+
             return;
         }
 
-        float[] distance = new float[1];
+        float[] distance =
+                new float[1];
 
         Location.distanceBetween(
                 lastPoiLatitude,
@@ -878,10 +1053,20 @@ public class MapActivity extends Activity {
         );
 
         if (distance[0] >= 500) {
-            loadNearbyPlaces(lat,lng);
+
+            loadNearbyPlaces(
+                    lat,
+                    lng
+            );
         }
     }
 
+    /*
+     * Nearby map labels are still loaded from the existing
+     * nearby OpenStreetMap/Overpass layer.
+     *
+     * SEARCH itself is now TomTom.
+     */
     private void loadNearbyPlaces(
             double lat,
             double lng
@@ -953,9 +1138,17 @@ public class MapActivity extends Activity {
                         (HttpURLConnection)
                                 url.openConnection();
 
-                connection.setRequestMethod("GET");
-                connection.setConnectTimeout(8000);
-                connection.setReadTimeout(12000);
+                connection.setRequestMethod(
+                        "GET"
+                );
+
+                connection.setConnectTimeout(
+                        8000
+                );
+
+                connection.setReadTimeout(
+                        12000
+                );
 
                 connection.setRequestProperty(
                         "User-Agent",
@@ -966,6 +1159,7 @@ public class MapActivity extends Activity {
                         connection.getResponseCode();
 
                 if (responseCode != 200) {
+
                     throw new Exception(
                             "Overpass response " +
                             responseCode
@@ -997,12 +1191,16 @@ public class MapActivity extends Activity {
                         );
 
                 JSONArray elements =
-                        object.optJSONArray("elements");
+                        object.optJSONArray(
+                                "elements"
+                        );
 
                 StringBuilder javascript =
                         new StringBuilder();
 
-                javascript.append("clearPOIs();");
+                javascript.append(
+                        "clearPOIs();"
+                );
 
                 if (elements != null) {
 
@@ -1012,7 +1210,9 @@ public class MapActivity extends Activity {
                                     45
                             );
 
-                    for (int i=0;i<maximum;i++) {
+                    for (int i = 0;
+                         i < maximum;
+                         i++) {
 
                         try {
 
@@ -1020,9 +1220,13 @@ public class MapActivity extends Activity {
                                     elements.getJSONObject(i);
 
                             JSONObject tags =
-                                    element.optJSONObject("tags");
+                                    element.optJSONObject(
+                                            "tags"
+                                    );
 
-                            if (tags == null) continue;
+                            if (tags == null) {
+                                continue;
+                            }
 
                             String name =
                                     tags.optString(
@@ -1092,7 +1296,9 @@ public class MapActivity extends Activity {
                                     );
 
                             javascript
-                                    .append("addPOI(")
+                                    .append(
+                                            "addPOI("
+                                    )
                                     .append(elementLat)
                                     .append(",")
                                     .append(elementLng)
@@ -1100,11 +1306,15 @@ public class MapActivity extends Activity {
                                     .append(
                                             escapeJS(name)
                                     )
-                                    .append("','")
+                                    .append(
+                                            "','"
+                                    )
                                     .append(
                                             escapeJS(type)
                                     )
-                                    .append("');");
+                                    .append(
+                                            "');"
+                                    );
 
                         } catch (Exception ignored) {
                         }
@@ -1127,13 +1337,15 @@ public class MapActivity extends Activity {
                         );
                     }
 
-                    loadingNearbyPlaces = false;
+                    loadingNearbyPlaces =
+                            false;
                 });
 
             } catch (Exception ignored) {
 
                 runOnUiThread(() ->
-                        loadingNearbyPlaces = false
+                        loadingNearbyPlaces =
+                                false
                 );
 
             } finally {
@@ -1146,6 +1358,19 @@ public class MapActivity extends Activity {
         }).start();
     }
 
+    /*
+     * TOMTOM FUZZY SEARCH
+     *
+     * Uses:
+     * - phone GPS
+     * - current town
+     * - Philippines restriction
+     * - 10 km local radius
+     * - actual GPS distance sorting
+     *
+     * A selected TomTom result goes directly to
+     * selectDestination(). It is NOT sent through Nominatim.
+     */
     private void searchPlace() {
 
         String query =
@@ -1179,7 +1404,26 @@ public class MapActivity extends Activity {
             return;
         }
 
-        searchResultsContainer.removeAllViews();
+        if (BuildConfig.TOMTOM_API_KEY == null
+                || BuildConfig.TOMTOM_API_KEY
+                .trim()
+                .isEmpty()) {
+
+            Toast.makeText(
+                    this,
+                    "❌ TomTom API key is missing.",
+                    Toast.LENGTH_LONG
+            ).show();
+
+            statusText.setText(
+                    "❌ TomTom API key is not configured."
+            );
+
+            return;
+        }
+
+        searchResultsContainer
+                .removeAllViews();
 
         TextView loading =
                 new TextView(this);
@@ -1187,8 +1431,12 @@ public class MapActivity extends Activity {
         loading.setText(
                 currentTown.isEmpty()
                         ? "🔎 Searching near your GPS location..."
-                        : "🔎 Searching in " + currentTown + "..."
+                        : "🔎 Searching in " +
+                          currentTown +
+                          "..."
         );
+
+        loading.setTextSize(15);
 
         loading.setPadding(
                 10,
@@ -1197,44 +1445,14 @@ public class MapActivity extends Activity {
                 10
         );
 
-        searchResultsContainer.addView(loading);
+        searchResultsContainer
+                .addView(loading);
 
         new Thread(() -> {
 
             HttpURLConnection connection = null;
 
             try {
-
-                double radiusKm = 15.0;
-
-                double latDelta =
-                        radiusKm / 111.0;
-
-                double lonDelta =
-                        radiusKm /
-                        (
-                                111.0 *
-                                Math.max(
-                                        0.2,
-                                        Math.cos(
-                                                Math.toRadians(
-                                                        currentLatitude
-                                                )
-                                        )
-                                )
-                        );
-
-                double left =
-                        currentLongitude - lonDelta;
-
-                double right =
-                        currentLongitude + lonDelta;
-
-                double top =
-                        currentLatitude + latDelta;
-
-                double bottom =
-                        currentLatitude - latDelta;
 
                 String localQuery =
                         query;
@@ -1247,38 +1465,33 @@ public class MapActivity extends Activity {
                             currentTown;
                 }
 
-                localQuery =
-                        localQuery +
-                        ", Philippines";
-
-                String encoded =
+                String encodedQuery =
                         URLEncoder.encode(
                                 localQuery,
                                 "UTF-8"
                         );
 
-                String viewbox =
+                String encodedKey =
                         URLEncoder.encode(
-                                left + "," +
-                                top + "," +
-                                right + "," +
-                                bottom,
+                                BuildConfig.TOMTOM_API_KEY,
                                 "UTF-8"
                         );
 
                 String urlString =
-                        "https://nominatim.openstreetmap.org/search" +
-                        "?format=jsonv2" +
-                        "&q=" +
-                        encoded +
-                        "&countrycodes=ph" +
-                        "&viewbox=" +
-                        viewbox +
-                        "&bounded=1" +
+                        "https://api.tomtom.com/search/2/search/" +
+                        encodedQuery +
+                        ".json" +
+                        "?key=" +
+                        encodedKey +
+                        "&lat=" +
+                        currentLatitude +
+                        "&lon=" +
+                        currentLongitude +
+                        "&radius=10000" +
+                        "&countrySet=PH" +
                         "&limit=15" +
-                        "&addressdetails=1" +
-                        "&namedetails=1" +
-                        "&accept-language=en";
+                        "&language=en-US" +
+                        "&idxSet=POI,PAD,Addr,Str";
 
                 URL url =
                         new URL(urlString);
@@ -1287,10 +1500,22 @@ public class MapActivity extends Activity {
                         (HttpURLConnection)
                                 url.openConnection();
 
-                connection.setRequestMethod("GET");
+                connection.setRequestMethod(
+                        "GET"
+                );
 
-                connection.setConnectTimeout(8000);
-                connection.setReadTimeout(10000);
+                connection.setConnectTimeout(
+                        8000
+                );
+
+                connection.setReadTimeout(
+                        10000
+                );
+
+                connection.setRequestProperty(
+                        "Accept",
+                        "application/json"
+                );
 
                 connection.setRequestProperty(
                         "User-Agent",
@@ -1303,7 +1528,7 @@ public class MapActivity extends Activity {
                 if (responseCode != 200) {
 
                     throw new Exception(
-                            "Search response " +
+                            "TomTom response " +
                             responseCode
                     );
                 }
@@ -1327,154 +1552,208 @@ public class MapActivity extends Activity {
 
                 reader.close();
 
-                JSONArray results =
-                        new JSONArray(
+                JSONObject object =
+                        new JSONObject(
                                 result.toString()
+                        );
+
+                JSONArray results =
+                        object.optJSONArray(
+                                "results"
                         );
 
                 java.util.ArrayList<SearchResult>
                         candidates =
                         new java.util.ArrayList<>();
 
-                for (int i = 0;
-                     i < results.length();
-                     i++) {
+                if (results != null) {
 
-                    try {
+                    for (int i = 0;
+                         i < results.length();
+                         i++) {
 
-                        JSONObject item =
-                                results.getJSONObject(i);
+                        try {
 
-                        double lat =
-                                item.optDouble(
-                                        "lat",
-                                        Double.NaN
-                                );
+                            JSONObject item =
+                                    results.getJSONObject(i);
 
-                        double lng =
-                                item.optDouble(
-                                        "lon",
-                                        Double.NaN
-                                );
+                            JSONObject position =
+                                    item.optJSONObject(
+                                            "position"
+                                    );
 
-                        if (Double.isNaN(lat)
-                                || Double.isNaN(lng)) {
+                            if (position == null) {
+                                continue;
+                            }
 
-                            continue;
-                        }
+                            double lat =
+                                    position.optDouble(
+                                            "lat",
+                                            Double.NaN
+                                    );
 
-                        JSONObject address =
-                                item.optJSONObject(
-                                        "address"
-                                );
+                            double lng =
+                                    position.optDouble(
+                                            "lon",
+                                            Double.NaN
+                                    );
 
-                        String resultTown =
-                                firstNonEmpty(
-                                        getAddress(
-                                                address,
-                                                "city"
-                                        ),
-                                        getAddress(
-                                                address,
-                                                "municipality"
-                                        ),
-                                        getAddress(
-                                                address,
-                                                "town"
-                                        )
-                                );
+                            if (Double.isNaN(lat)
+                                    || Double.isNaN(lng)) {
+                                continue;
+                            }
 
-                        String resultProvince =
-                                firstNonEmpty(
-                                        getAddress(
-                                                address,
-                                                "state"
-                                        ),
-                                        getAddress(
-                                                address,
-                                                "province"
-                                        )
-                                );
+                            JSONObject address =
+                                    item.optJSONObject(
+                                            "address"
+                                    );
 
-                        if (!currentTown.isEmpty()
-                                && !resultTown.isEmpty()
-                                && !samePlace(
-                                        currentTown,
-                                        resultTown
-                                )) {
+                            JSONObject poi =
+                                    item.optJSONObject(
+                                            "poi"
+                                    );
 
-                            continue;
-                        }
+                            String placeName = "";
 
-                        float[] distance =
-                                new float[1];
+                            if (poi != null) {
 
-                        Location.distanceBetween(
-                                currentLatitude,
-                                currentLongitude,
-                                lat,
-                                lng,
-                                distance
-                        );
-
-                        String display =
-                                item.optString(
-                                        "display_name",
-                                        ""
-                                );
-
-                        JSONObject namedetails =
-                                item.optJSONObject(
-                                        "namedetails"
-                                );
-
-                        String placeName =
-                                firstNonEmpty(
-                                        item.optString(
+                                placeName =
+                                        poi.optString(
                                                 "name",
                                                 ""
-                                        ),
-                                        namedetails == null
-                                                ? ""
-                                                : namedetails.optString(
-                                                        "name",
-                                                        ""
-                                                ),
-                                        namedetails == null
-                                                ? ""
-                                                : namedetails.optString(
-                                                        "name:en",
-                                                        ""
-                                                )
-                                );
+                                        );
+                            }
 
-                        if (display.isEmpty()) {
-                            display = placeName;
+                            String freeformAddress =
+                                    "";
+
+                            if (address != null) {
+
+                                freeformAddress =
+                                        address.optString(
+                                                "freeformAddress",
+                                                ""
+                                        );
+                            }
+
+                            String municipality =
+                                    "";
+
+                            String countrySubdivision =
+                                    "";
+
+                            String country =
+                                    "";
+
+                            if (address != null) {
+
+                                municipality =
+                                        address.optString(
+                                                "municipality",
+                                                ""
+                                        );
+
+                                if (municipality.isEmpty()) {
+
+                                    municipality =
+                                            address.optString(
+                                                    "municipalitySubdivision",
+                                                    ""
+                                            );
+                                }
+
+                                countrySubdivision =
+                                        address.optString(
+                                                "countrySubdivision",
+                                                ""
+                                        );
+
+                                country =
+                                        address.optString(
+                                                "country",
+                                                ""
+                                        );
+                            }
+
+                            if (!country.isEmpty()
+                                    && !country.equalsIgnoreCase(
+                                            "Philippines"
+                                    )
+                                    && !country.equalsIgnoreCase(
+                                            "PH"
+                                    )) {
+
+                                continue;
+                            }
+
+                            float[] distance =
+                                    new float[1];
+
+                            Location.distanceBetween(
+                                    currentLatitude,
+                                    currentLongitude,
+                                    lat,
+                                    lng,
+                                    distance
+                            );
+
+                            /*
+                             * TomTom radius is 10 km.
+                             * Explicit local distance check keeps
+                             * the result set local.
+                             */
+
+                            if (distance[0] > 10000) {
+                                continue;
+                            }
+
+                            String displayName;
+
+                            if (!placeName.isEmpty()
+                                    && !freeformAddress.isEmpty()) {
+
+                                displayName =
+                                        placeName +
+                                        ", " +
+                                        freeformAddress;
+
+                            } else if (!placeName.isEmpty()) {
+
+                                displayName =
+                                        placeName;
+
+                            } else if (!freeformAddress
+                                    .isEmpty()) {
+
+                                displayName =
+                                        freeformAddress;
+
+                            } else {
+
+                                displayName =
+                                        "Selected place";
+                            }
+
+                            candidates.add(
+                                    new SearchResult(
+                                            lat,
+                                            lng,
+                                            displayName,
+                                            placeName,
+                                            municipality,
+                                            countrySubdivision,
+                                            distance[0]
+                                    )
+                            );
+
+                        } catch (Exception ignored) {
                         }
-
-                        if (display.isEmpty()) {
-                            display = "Selected place";
-                        }
-
-                        candidates.add(
-                                new SearchResult(
-                                        lat,
-                                        lng,
-                                        display,
-                                        placeName,
-                                        resultTown,
-                                        resultProvince,
-                                        distance[0]
-                                )
-                        );
-
-                    } catch (Exception ignored) {
                     }
                 }
 
                 java.util.Collections.sort(
                         candidates,
-                        (a,b) ->
+                        (a, b) ->
                                 Float.compare(
                                         a.distanceMeters,
                                         b.distanceMeters
@@ -1492,15 +1771,11 @@ public class MapActivity extends Activity {
                                 new TextView(this);
 
                         empty.setText(
-                                "📍 No matching place found in " +
-                                (
-                                        currentTown.isEmpty()
-                                                ? "your current area."
-                                                : currentTown + "."
-                                )
+                                "📍 No matching place found near your GPS location."
                         );
 
                         empty.setTextSize(15);
+
                         empty.setPadding(
                                 10,
                                 10,
@@ -1512,7 +1787,7 @@ public class MapActivity extends Activity {
                                 .addView(empty);
 
                         statusText.setText(
-                                "🔎 No local result found."
+                                "🔎 No nearby TomTom result found."
                         );
 
                         return;
@@ -1536,7 +1811,8 @@ public class MapActivity extends Activity {
 
                         String distanceText;
 
-                        if (searchResult.distanceMeters < 1000) {
+                        if (searchResult.distanceMeters
+                                < 1000) {
 
                             distanceText =
                                     String.format(
@@ -1551,15 +1827,16 @@ public class MapActivity extends Activity {
                                     String.format(
                                             Locale.US,
                                             "%.1f km away",
-                                            searchResult.distanceMeters /
-                                            1000.0
+                                            searchResult.distanceMeters
+                                                    / 1000.0
                                     );
                         }
 
                         String buttonText =
                                 "📍 " +
                                 (
-                                        searchResult.placeName.isEmpty()
+                                        searchResult.placeName
+                                                .isEmpty()
                                                 ? searchResult.displayName
                                                 : searchResult.placeName
                                 )
@@ -1578,6 +1855,10 @@ public class MapActivity extends Activity {
                                 buttonText
                         );
 
+                        button.setTextSize(
+                                14
+                        );
+
                         button.setGravity(
                                 Gravity.LEFT
                         );
@@ -1591,9 +1872,16 @@ public class MapActivity extends Activity {
                         final String finalName =
                                 searchResult.displayName;
 
+                        /*
+                         * IMPORTANT:
+                         *
+                         * Do NOT reverse-geocode TomTom results.
+                         * Keep the TomTom POI/business name.
+                         */
+
                         button.setOnClickListener(
                                 v ->
-                                        reverseGeocode(
+                                        selectDestination(
                                                 finalLat,
                                                 finalLng,
                                                 finalName
@@ -1605,7 +1893,7 @@ public class MapActivity extends Activity {
                     }
 
                     statusText.setText(
-                            "🟢 Local results near your GPS"
+                            "🟢 TomTom results near your GPS"
                     );
                 });
 
@@ -1620,7 +1908,7 @@ public class MapActivity extends Activity {
                             new TextView(this);
 
                     error.setText(
-                            "❌ Local map search failed. Check internet connection."
+                            "❌ TomTom search failed. Check internet connection or API key."
                     );
 
                     error.setTextColor(
@@ -1636,6 +1924,10 @@ public class MapActivity extends Activity {
 
                     searchResultsContainer
                             .addView(error);
+
+                    statusText.setText(
+                            "❌ TomTom search unavailable."
+                    );
                 });
 
             } finally {
@@ -1841,11 +2133,11 @@ public class MapActivity extends Activity {
 
         return value
                 .toLowerCase(Locale.US)
-                .replace("city","")
-                .replace("municipality","")
-                .replace("town","")
-                .replace("of ","")
-                .replace(" ","")
+                .replace("city", "")
+                .replace("municipality", "")
+                .replace("town", "")
+                .replace("of ", "")
+                .replace(" ", "")
                 .trim();
     }
 
@@ -1904,10 +2196,10 @@ public class MapActivity extends Activity {
         StringBuilder result =
                 new StringBuilder();
 
-        addPart(result,name);
-        addPart(result,street);
-        addPart(result,city);
-        addPart(result,state);
+        addPart(result, name);
+        addPart(result, street);
+        addPart(result, city);
+        addPart(result, state);
 
         return result.toString();
     }
@@ -1917,7 +2209,11 @@ public class MapActivity extends Activity {
             double lng
     ) {
 
-        reverseGeocode(lat,lng,"");
+        reverseGeocode(
+                lat,
+                lng,
+                ""
+        );
     }
 
     private void reverseGeocode(
@@ -1932,7 +2228,7 @@ public class MapActivity extends Activity {
 
         new Thread(() -> {
 
-            HttpURLConnection connection=null;
+            HttpURLConnection connection = null;
 
             try {
 
@@ -1953,16 +2249,26 @@ public class MapActivity extends Activity {
                         (HttpURLConnection)
                                 url.openConnection();
 
-                connection.setRequestMethod("GET");
-                connection.setConnectTimeout(7000);
-                connection.setReadTimeout(8000);
+                connection.setRequestMethod(
+                        "GET"
+                );
+
+                connection.setConnectTimeout(
+                        7000
+                );
+
+                connection.setReadTimeout(
+                        8000
+                );
 
                 connection.setRequestProperty(
                         "User-Agent",
                         "SakayNa/1.0 Android"
                 );
 
-                if (connection.getResponseCode()!=200) {
+                if (connection.getResponseCode()
+                        != 200) {
+
                     throw new Exception(
                             "Reverse lookup failed"
                     );
@@ -1981,7 +2287,7 @@ public class MapActivity extends Activity {
 
                 String line;
 
-                while ((line=reader.readLine())!=null) {
+                while ((line = reader.readLine()) != null) {
                     result.append(line);
                 }
 
@@ -1993,22 +2299,29 @@ public class MapActivity extends Activity {
                         );
 
                 JSONObject address =
-                        object.optJSONObject("address");
+                        object.optJSONObject(
+                                "address"
+                        );
 
                 JSONObject names =
-                        object.optJSONObject("namedetails");
+                        object.optJSONObject(
+                                "namedetails"
+                        );
 
                 String name =
                         firstNonEmpty(
-                                object.optString("name",""),
+                                object.optString(
+                                        "name",
+                                        ""
+                                ),
                                 preferredName,
-                                names==null
+                                names == null
                                         ? ""
                                         : names.optString(
                                                 "name",
                                                 ""
                                         ),
-                                names==null
+                                names == null
                                         ? ""
                                         : names.optString(
                                                 "name:en",
@@ -2024,38 +2337,83 @@ public class MapActivity extends Activity {
 
                 String road =
                         firstNonEmpty(
-                                getAddress(address,"road"),
-                                getAddress(address,"pedestrian"),
-                                getAddress(address,"street")
+                                getAddress(
+                                        address,
+                                        "road"
+                                ),
+                                getAddress(
+                                        address,
+                                        "pedestrian"
+                                ),
+                                getAddress(
+                                        address,
+                                        "street"
+                                )
                         );
 
                 String barangay =
                         firstNonEmpty(
-                                getAddress(address,"quarter"),
-                                getAddress(address,"locality"),
-                                getAddress(address,"village"),
-                                getAddress(address,"neighbourhood"),
-                                getAddress(address,"suburb")
+                                getAddress(
+                                        address,
+                                        "quarter"
+                                ),
+                                getAddress(
+                                        address,
+                                        "locality"
+                                ),
+                                getAddress(
+                                        address,
+                                        "village"
+                                ),
+                                getAddress(
+                                        address,
+                                        "neighbourhood"
+                                ),
+                                getAddress(
+                                        address,
+                                        "suburb"
+                                )
                         );
 
                 String city =
                         firstNonEmpty(
-                                getAddress(address,"city"),
-                                getAddress(address,"municipality"),
-                                getAddress(address,"town")
+                                getAddress(
+                                        address,
+                                        "city"
+                                ),
+                                getAddress(
+                                        address,
+                                        "municipality"
+                                ),
+                                getAddress(
+                                        address,
+                                        "town"
+                                )
                         );
 
                 String province =
                         firstNonEmpty(
-                                getAddress(address,"state"),
-                                getAddress(address,"province")
+                                getAddress(
+                                        address,
+                                        "state"
+                                ),
+                                getAddress(
+                                        address,
+                                        "province"
+                                )
                         );
 
                 String postcode =
-                        getAddress(address,"postcode");
+                        getAddress(
+                                address,
+                                "postcode"
+                        );
 
                 String country =
-                        getAddress(address,"country");
+                        getAddress(
+                                address,
+                                "country"
+                        );
 
                 String finalName =
                         buildDetailedAddress(
@@ -2089,7 +2447,8 @@ public class MapActivity extends Activity {
                             );
                 }
 
-                final String resultName=finalName;
+                final String resultName =
+                        finalName;
 
                 runOnUiThread(() ->
                         selectDestination(
@@ -2101,9 +2460,10 @@ public class MapActivity extends Activity {
 
             } catch (Exception e) {
 
-                String fallback=preferredName;
+                String fallback =
+                        preferredName;
 
-                if (fallback==null
+                if (fallback == null
                         || fallback.trim().isEmpty()) {
 
                     fallback =
@@ -2115,7 +2475,8 @@ public class MapActivity extends Activity {
                             );
                 }
 
-                final String resultName=fallback;
+                final String resultName =
+                        fallback;
 
                 runOnUiThread(() ->
                         selectDestination(
@@ -2127,7 +2488,7 @@ public class MapActivity extends Activity {
 
             } finally {
 
-                if (connection!=null) {
+                if (connection != null) {
                     connection.disconnect();
                 }
             }
@@ -2140,12 +2501,19 @@ public class MapActivity extends Activity {
             String key
     ) {
 
-        if (address==null) return "";
+        if (address == null) {
+            return "";
+        }
 
         String value =
-                address.optString(key,"");
+                address.optString(
+                        key,
+                        ""
+                );
 
-        return value==null ? "" : value.trim();
+        return value == null
+                ? ""
+                : value.trim();
     }
 
     private String buildDetailedAddress(
@@ -2162,27 +2530,53 @@ public class MapActivity extends Activity {
         StringBuilder result =
                 new StringBuilder();
 
-        addPart(result,name);
+        addPart(result, name);
 
         if (!house.isEmpty()
                 && !road.isEmpty()) {
 
             addPart(
                     result,
-                    house+" "+road
+                    house + " " + road
             );
 
         } else {
 
-            addPart(result,house);
-            addPart(result,road);
+            addPart(
+                    result,
+                    house
+            );
+
+            addPart(
+                    result,
+                    road
+            );
         }
 
-        addPart(result,barangay);
-        addPart(result,city);
-        addPart(result,province);
-        addPart(result,postcode);
-        addPart(result,country);
+        addPart(
+                result,
+                barangay
+        );
+
+        addPart(
+                result,
+                city
+        );
+
+        addPart(
+                result,
+                province
+        );
+
+        addPart(
+                result,
+                postcode
+        );
+
+        addPart(
+                result,
+                country
+        );
 
         return result.toString();
     }
@@ -2192,16 +2586,18 @@ public class MapActivity extends Activity {
             String value
     ) {
 
-        if (value==null
+        if (value == null
                 || value.trim().isEmpty()) {
             return;
         }
 
-        String clean=value.trim();
+        String clean =
+                value.trim();
 
-        if (result.length()>0) {
+        if (result.length() > 0) {
 
-            String existing=result.toString();
+            String existing =
+                    result.toString();
 
             if (existing.contains(clean)) {
                 return;
@@ -2217,11 +2613,13 @@ public class MapActivity extends Activity {
             String... values
     ) {
 
-        if (values==null) return "";
+        if (values == null) {
+            return "";
+        }
 
-        for (String value:values) {
+        for (String value : values) {
 
-            if (value!=null
+            if (value != null
                     && !value.trim().isEmpty()) {
 
                 return value.trim();
@@ -2237,37 +2635,55 @@ public class MapActivity extends Activity {
             String name
     ) {
 
-        destinationLatitude=lat;
-        destinationLongitude=lng;
-        destinationAddress=name;
-        destinationChosen=true;
+        destinationLatitude =
+                lat;
+
+        destinationLongitude =
+                lng;
+
+        destinationAddress =
+                name;
+
+        destinationChosen =
+                true;
 
         destinationText.setText(
-                "🎯 Destination:\n"+name
+                "🎯 Destination:\n" +
+                name
         );
 
         destinationText.setTextColor(
-                Color.rgb(0,110,70)
+                Color.rgb(0, 110, 70)
         );
 
-        if (destinationButton!=null) {
-            destinationButton.setEnabled(true);
+        if (destinationButton != null) {
+
+            destinationButton.setEnabled(
+                    true
+            );
         }
 
-        if (searchResultsContainer!=null) {
-            searchResultsContainer.removeAllViews();
+        if (searchResultsContainer != null) {
+
+            searchResultsContainer
+                    .removeAllViews();
         }
 
-        if (searchInput!=null) {
-            searchInput.setText(name);
+        if (searchInput != null) {
+
+            searchInput.setText(
+                    name
+            );
         }
 
         if (mapReady) {
 
             String js =
                     "setDestination(" +
-                    lat + "," +
-                    lng + ",'" +
+                    lat +
+                    "," +
+                    lng +
+                    ",'" +
                     escapeJS(name) +
                     "');";
 
@@ -2282,15 +2698,31 @@ public class MapActivity extends Activity {
         );
     }
 
-    private String escapeJS(String value) {
+    private String escapeJS(
+            String value
+    ) {
 
-        if (value==null) return "";
+        if (value == null) {
+            return "";
+        }
 
         return value
-                .replace("\\","\\\\")
-                .replace("'","\\'")
-                .replace("\n"," ")
-                .replace("\r"," ");
+                .replace(
+                        "\\",
+                        "\\\\"
+                )
+                .replace(
+                        "'",
+                        "\\'"
+                )
+                .replace(
+                        "\n",
+                        " "
+                )
+                .replace(
+                        "\r",
+                        " "
+                );
     }
 
     private void returnDestination() {
@@ -2306,7 +2738,8 @@ public class MapActivity extends Activity {
             return;
         }
 
-        Intent result=new Intent();
+        Intent result =
+                new Intent();
 
         result.putExtra(
                 "destination_latitude",
@@ -2351,9 +2784,9 @@ public class MapActivity extends Activity {
                 db.collection("rides")
                         .document(rideId)
                         .addSnapshotListener(
-                                (snapshot,error)->{
+                                (snapshot, error) -> {
 
-                                    if (error!=null) {
+                                    if (error != null) {
 
                                         statusText.setText(
                                                 "❌ Ride connection error"
@@ -2362,7 +2795,7 @@ public class MapActivity extends Activity {
                                         return;
                                     }
 
-                                    if (snapshot==null
+                                    if (snapshot == null
                                             || !snapshot.exists()) {
 
                                         statusText.setText(
@@ -2372,7 +2805,9 @@ public class MapActivity extends Activity {
                                         return;
                                     }
 
-                                    updateLiveRide(snapshot);
+                                    updateLiveRide(
+                                            snapshot
+                                    );
                                 }
                         );
     }
@@ -2382,37 +2817,64 @@ public class MapActivity extends Activity {
     ) {
 
         String status =
-                value(ride,"status");
+                value(
+                        ride,
+                        "status"
+                );
 
         String pickup =
-                value(ride,"pickupName");
+                value(
+                        ride,
+                        "pickupName"
+                );
 
         if (pickup.isEmpty()) {
-            pickup=value(ride,"pickup");
+
+            pickup =
+                    value(
+                            ride,
+                            "pickup"
+                    );
         }
 
         String destination =
-                value(ride,"destinationName");
+                value(
+                        ride,
+                        "destinationName"
+                );
 
         if (destination.isEmpty()) {
-            destination=value(
-                    ride,
-                    "destination"
-            );
+
+            destination =
+                    value(
+                            ride,
+                            "destination"
+                    );
         }
 
         statusText.setText(
                 "🟢 LIVE RIDE\n" +
-                "Status: "+status+"\n" +
-                "📍 "+pickup+"\n" +
-                "🏁 "+destination
+                "Status: " +
+                status +
+                "\n" +
+                "📍 " +
+                pickup +
+                "\n" +
+                "🏁 " +
+                destination
         );
 
         String driverId =
-                value(ride,"driverId");
+                value(
+                        ride,
+                        "driverId"
+                );
 
         if (!driverId.isEmpty()) {
-            listenToDriver(driverId);
+
+            listenToDriver(
+                    driverId
+            );
         }
     }
 
@@ -2420,20 +2882,23 @@ public class MapActivity extends Activity {
             String driverId
     ) {
 
-        if (driverListener!=null) {
+        if (driverListener != null) {
 
             driverListener.remove();
-            driverListener=null;
+
+            driverListener = null;
         }
 
         driverListener =
-                db.collection("driverLocations")
+                db.collection(
+                                "driverLocations"
+                        )
                         .document(driverId)
                         .addSnapshotListener(
-                                (snapshot,error)->{
+                                (snapshot, error) -> {
 
-                                    if (error!=null
-                                            || snapshot==null
+                                    if (error != null
+                                            || snapshot == null
                                             || !snapshot.exists()) {
                                         return;
                                     }
@@ -2448,14 +2913,15 @@ public class MapActivity extends Activity {
                                                     "longitude"
                                             );
 
-                                    if (lat!=null
-                                            && lng!=null
+                                    if (lat != null
+                                            && lng != null
                                             && mapReady
-                                            && webView!=null) {
+                                            && webView != null) {
 
                                         webView.evaluateJavascript(
                                                 "setDriver(" +
-                                                lat + "," +
+                                                lat +
+                                                "," +
                                                 lng +
                                                 ");",
                                                 null
@@ -2471,9 +2937,11 @@ public class MapActivity extends Activity {
     ) {
 
         String value =
-                document.getString(field);
+                document.getString(
+                        field
+                );
 
-        return value==null
+        return value == null
                 ? ""
                 : value.trim();
     }
@@ -2491,11 +2959,12 @@ public class MapActivity extends Activity {
                 grantResults
         );
 
-        if (requestCode==LOCATION_PERMISSION) {
+        if (requestCode ==
+                LOCATION_PERMISSION) {
 
-            if (grantResults.length>0
+            if (grantResults.length > 0
                     && grantResults[0]
-                    ==PackageManager.PERMISSION_GRANTED) {
+                    == PackageManager.PERMISSION_GRANTED) {
 
                 startLocationTracking();
 
@@ -2511,8 +2980,8 @@ public class MapActivity extends Activity {
     @Override
     protected void onDestroy() {
 
-        if (locationManager!=null
-                && locationListener!=null) {
+        if (locationManager != null
+                && locationListener != null) {
 
             try {
 
@@ -2524,21 +2993,23 @@ public class MapActivity extends Activity {
             }
         }
 
-        if (rideListener!=null) {
+        if (rideListener != null) {
+
             rideListener.remove();
-            rideListener=null;
+            rideListener = null;
         }
 
-        if (driverListener!=null) {
+        if (driverListener != null) {
+
             driverListener.remove();
-            driverListener=null;
+            driverListener = null;
         }
 
-        if (webView!=null) {
+        if (webView != null) {
 
             webView.stopLoading();
             webView.destroy();
-            webView=null;
+            webView = null;
         }
 
         super.onDestroy();
