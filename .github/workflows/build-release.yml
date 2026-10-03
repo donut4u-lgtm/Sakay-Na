@@ -151,6 +151,7 @@ jobs:
           PASSWORD_1: ${{ secrets.KEYSTORE_PASSWORD }}
           PASSWORD_2: ${{ secrets.SAKAYNA_KEYSTORE_PASSWORD }}
           SAKAYNA_KEYSTORE_PATH: ${{ runner.temp }}/sakayna-release.jks
+          TOMTOM_API_KEY: ${{ secrets.TOMTOM_API_KEY }}
         run: |
           KEYSTORE_PASSWORD="$PASSWORD_1"
 
@@ -160,6 +161,13 @@ jobs:
 
           export SAKAYNA_KEYSTORE_PASSWORD="$KEYSTORE_PASSWORD"
           export SAKAYNA_KEY_ALIAS="sakayna"
+
+          if [ -z "$TOMTOM_API_KEY" ]; then
+            echo "RED: Missing TOMTOM_API_KEY GitHub secret."
+            exit 1
+          fi
+
+          echo "GREEN: TomTom API key is available."
 
           wget -q \
             https://services.gradle.org/distributions/gradle-8.10.2-bin.zip
