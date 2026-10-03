@@ -84,7 +84,16 @@ jobs:
           echo "GREEN: Signing alias: sakayna"
 
       - name: Build signed release APK
+        env:
+          TOMTOM_API_KEY: ${{ secrets.TOMTOM_API_KEY }}
         run: |
+          if [ -z "$TOMTOM_API_KEY" ]; then
+            echo "RED: Missing TOMTOM_API_KEY GitHub secret."
+            exit 1
+          fi
+
+          echo "GREEN: TomTom API key is available."
+
           gradle :app:assembleRelease --stacktrace
 
       - name: Verify release APK
