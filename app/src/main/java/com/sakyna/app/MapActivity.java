@@ -35,6 +35,10 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Locale;
 
 public class MapActivity extends Activity {
@@ -584,7 +588,6 @@ public class MapActivity extends Activity {
                 "if(accuracy&&accuracy>0){" +
 
                 "if(accuracyCircle==null){" +
-
                 "accuracyCircle=L.circle([lat,lng],{" +
                 "radius:accuracy," +
                 "color:'#1976d2'," +
@@ -1061,12 +1064,6 @@ public class MapActivity extends Activity {
         }
     }
 
-    /*
-     * Nearby map labels are still loaded from the existing
-     * nearby OpenStreetMap/Overpass layer.
-     *
-     * SEARCH itself is now TomTom.
-     */
     private void loadNearbyPlaces(
             double lat,
             double lng
@@ -1359,17 +1356,19 @@ public class MapActivity extends Activity {
     }
 
     /*
-     * TOMTOM FUZZY SEARCH
+     * ============================================================
+     * TOMTOM SEARCH
      *
-     * Uses:
-     * - phone GPS
-     * - current town
-     * - Philippines restriction
-     * - 10 km local radius
-     * - actual GPS distance sorting
-     *
-     * A selected TomTom result goes directly to
-     * selectDestination(). It is NOT sent through Nominatim.
+     * FIX:
+     * 1. Search POI first.
+     * 2. Do NOT let distance alone decide the winner.
+     * 3. Exact name/text match gets highest priority.
+     * 4. Same-town matching gets priority.
+     * 5. Distance is used only after relevance.
+     * 6. If POI has no useful text match, use address fallback.
+     * 7. Unrelated results such as a fire station are removed
+     *    when an actual text match exists.
+     * ============================================================
      */
     private void searchPlace() {
 
@@ -1450,26 +1449,7 @@ public class MapActivity extends Activity {
 
         new Thread(() -> {
 
-            HttpURLConnection connection = null;
-
             try {
-
-                String localQuery =
-                        query;
-
-                if (!currentTown.isEmpty()) {
-
-                    localQuery =
-                            query +
-                            ", " +
-                            currentTown;
-                }
-
-                String encodedQuery =
-                        URLEncoder.encode(
-                                localQuery,
-                                "UTF-8"
-                        );
 
                 String encodedKey =
                         URLEncoder.encode(
@@ -1477,425 +1457,78 @@ public class MapActivity extends Activity {
                                 "UTF-8"
                         );
 
-                String urlString =
-                        "https://api.tomtom.com/search/2/search/" +
-                        encodedQuery +
-                        ".json" +
-                        "?key=" +
-                        encodedKey +
-                        "&lat=" +
-                        currentLatitude +
-                        "&lon=" +
-                        currentLongitude +
-                        "&radius=10000" +
-                        "&countrySet=PH" +
-                        "&limit=15" +
-                        "&language=en-US" +
-                        "&idxSet=POI,PAD,Addr,Str";
+                /*
+                 * IMPORTANT:
+                 *
+                 * POI search is done first.
+                 * This prevents broad address/street results
+                 * from competing with actual businesses.
+                 */
+                List<SearchResult> poiResults =
+                        requestTomTomResults(
+                                query,
+                                encodedKey,
+                                "POI"
+                        );
 
-                URL url =
-                        new URL(urlString);
+                List<SearchResult> rankedPoi =
+                        rankSearchResults(
+                                query,
+                                poiResults
+                        );
 
-                connection =
-                        (HttpURLConnection)
-                                url.openConnection();
+                /*
+                 * If TomTom gives a real text match in POI,
+                 * use ONLY those relevant POI results.
+                 *
+                 * Example:
+                 * query = McDonald's
+                 *
+                 * Fire station = score 0
+                 * McDonald's = score 1000
+                 *
+                 * Fire station will never appear above it.
+                 */
+                if (!rankedPoi.isEmpty()) {
 
-                connection.setRequestMethod(
-                        "GET"
-                );
-
-                connection.setConnectTimeout(
-                        8000
-                );
-
-                connection.setReadTimeout(
-                        10000
-                );
-
-                connection.setRequestProperty(
-                        "Accept",
-                        "application/json"
-                );
-
-                connection.setRequestProperty(
-                        "User-Agent",
-                        "SakayNa/1.0 Android"
-                );
-
-                int responseCode =
-                        connection.getResponseCode();
-
-                if (responseCode != 200) {
-
-                    throw new Exception(
-                            "TomTom response " +
-                            responseCode
+                    showSearchResults(
+                            rankedPoi,
+                            query,
+                            "🟢 Local places found"
                     );
+
+                    return;
                 }
 
-                BufferedReader reader =
-                        new BufferedReader(
-                                new InputStreamReader(
-                                        connection.getInputStream(),
-                                        "UTF-8"
-                                )
+                /*
+                 * POI did not produce a useful match.
+                 *
+                 * Now allow addresses/streets for searches such
+                 * as:
+                 *
+                 * Woodlane
+                 * Phase 2
+                 * street names
+                 * subdivision names
+                 */
+                List<SearchResult> fallbackResults =
+                        requestTomTomResults(
+                                query,
+                                encodedKey,
+                                "POI,PAD,Addr,Str"
                         );
 
-                StringBuilder result =
-                        new StringBuilder();
-
-                String line;
-
-                while ((line = reader.readLine()) != null) {
-                    result.append(line);
-                }
-
-                reader.close();
-
-                JSONObject object =
-                        new JSONObject(
-                                result.toString()
+                List<SearchResult> rankedFallback =
+                        rankSearchResults(
+                                query,
+                                fallbackResults
                         );
 
-                JSONArray results =
-                        object.optJSONArray(
-                                "results"
-                        );
-
-                java.util.ArrayList<SearchResult>
-                        candidates =
-                        new java.util.ArrayList<>();
-
-                if (results != null) {
-
-                    for (int i = 0;
-                         i < results.length();
-                         i++) {
-
-                        try {
-
-                            JSONObject item =
-                                    results.getJSONObject(i);
-
-                            JSONObject position =
-                                    item.optJSONObject(
-                                            "position"
-                                    );
-
-                            if (position == null) {
-                                continue;
-                            }
-
-                            double lat =
-                                    position.optDouble(
-                                            "lat",
-                                            Double.NaN
-                                    );
-
-                            double lng =
-                                    position.optDouble(
-                                            "lon",
-                                            Double.NaN
-                                    );
-
-                            if (Double.isNaN(lat)
-                                    || Double.isNaN(lng)) {
-                                continue;
-                            }
-
-                            JSONObject address =
-                                    item.optJSONObject(
-                                            "address"
-                                    );
-
-                            JSONObject poi =
-                                    item.optJSONObject(
-                                            "poi"
-                                    );
-
-                            String placeName = "";
-
-                            if (poi != null) {
-
-                                placeName =
-                                        poi.optString(
-                                                "name",
-                                                ""
-                                        );
-                            }
-
-                            String freeformAddress =
-                                    "";
-
-                            if (address != null) {
-
-                                freeformAddress =
-                                        address.optString(
-                                                "freeformAddress",
-                                                ""
-                                        );
-                            }
-
-                            String municipality =
-                                    "";
-
-                            String countrySubdivision =
-                                    "";
-
-                            String country =
-                                    "";
-
-                            if (address != null) {
-
-                                municipality =
-                                        address.optString(
-                                                "municipality",
-                                                ""
-                                        );
-
-                                if (municipality.isEmpty()) {
-
-                                    municipality =
-                                            address.optString(
-                                                    "municipalitySubdivision",
-                                                    ""
-                                            );
-                                }
-
-                                countrySubdivision =
-                                        address.optString(
-                                                "countrySubdivision",
-                                                ""
-                                        );
-
-                                country =
-                                        address.optString(
-                                                "country",
-                                                ""
-                                        );
-                            }
-
-                            if (!country.isEmpty()
-                                    && !country.equalsIgnoreCase(
-                                            "Philippines"
-                                    )
-                                    && !country.equalsIgnoreCase(
-                                            "PH"
-                                    )) {
-
-                                continue;
-                            }
-
-                            float[] distance =
-                                    new float[1];
-
-                            Location.distanceBetween(
-                                    currentLatitude,
-                                    currentLongitude,
-                                    lat,
-                                    lng,
-                                    distance
-                            );
-
-                            /*
-                             * TomTom radius is 10 km.
-                             * Explicit local distance check keeps
-                             * the result set local.
-                             */
-
-                            if (distance[0] > 10000) {
-                                continue;
-                            }
-
-                            String displayName;
-
-                            if (!placeName.isEmpty()
-                                    && !freeformAddress.isEmpty()) {
-
-                                displayName =
-                                        placeName +
-                                        ", " +
-                                        freeformAddress;
-
-                            } else if (!placeName.isEmpty()) {
-
-                                displayName =
-                                        placeName;
-
-                            } else if (!freeformAddress
-                                    .isEmpty()) {
-
-                                displayName =
-                                        freeformAddress;
-
-                            } else {
-
-                                displayName =
-                                        "Selected place";
-                            }
-
-                            candidates.add(
-                                    new SearchResult(
-                                            lat,
-                                            lng,
-                                            displayName,
-                                            placeName,
-                                            municipality,
-                                            countrySubdivision,
-                                            distance[0]
-                                    )
-                            );
-
-                        } catch (Exception ignored) {
-                        }
-                    }
-                }
-
-                java.util.Collections.sort(
-                        candidates,
-                        (a, b) ->
-                                Float.compare(
-                                        a.distanceMeters,
-                                        b.distanceMeters
-                                )
+                showSearchResults(
+                        rankedFallback,
+                        query,
+                        "🟢 Matching local locations"
                 );
-
-                runOnUiThread(() -> {
-
-                    searchResultsContainer
-                            .removeAllViews();
-
-                    if (candidates.isEmpty()) {
-
-                        TextView empty =
-                                new TextView(this);
-
-                        empty.setText(
-                                "📍 No matching place found near your GPS location."
-                        );
-
-                        empty.setTextSize(15);
-
-                        empty.setPadding(
-                                10,
-                                10,
-                                10,
-                                10
-                        );
-
-                        searchResultsContainer
-                                .addView(empty);
-
-                        statusText.setText(
-                                "🔎 No nearby TomTom result found."
-                        );
-
-                        return;
-                    }
-
-                    int maximum =
-                            Math.min(
-                                    candidates.size(),
-                                    8
-                            );
-
-                    for (int i = 0;
-                         i < maximum;
-                         i++) {
-
-                        SearchResult searchResult =
-                                candidates.get(i);
-
-                        Button button =
-                                new Button(this);
-
-                        String distanceText;
-
-                        if (searchResult.distanceMeters
-                                < 1000) {
-
-                            distanceText =
-                                    String.format(
-                                            Locale.US,
-                                            "%.0f m away",
-                                            searchResult.distanceMeters
-                                    );
-
-                        } else {
-
-                            distanceText =
-                                    String.format(
-                                            Locale.US,
-                                            "%.1f km away",
-                                            searchResult.distanceMeters
-                                                    / 1000.0
-                                    );
-                        }
-
-                        String buttonText =
-                                "📍 " +
-                                (
-                                        searchResult.placeName
-                                                .isEmpty()
-                                                ? searchResult.displayName
-                                                : searchResult.placeName
-                                )
-                                +
-                                "\n" +
-                                distanceText;
-
-                        if (!searchResult.town.isEmpty()) {
-
-                            buttonText +=
-                                    " • " +
-                                    searchResult.town;
-                        }
-
-                        button.setText(
-                                buttonText
-                        );
-
-                        button.setTextSize(
-                                14
-                        );
-
-                        button.setGravity(
-                                Gravity.LEFT
-                        );
-
-                        final double finalLat =
-                                searchResult.latitude;
-
-                        final double finalLng =
-                                searchResult.longitude;
-
-                        final String finalName =
-                                searchResult.displayName;
-
-                        /*
-                         * IMPORTANT:
-                         *
-                         * Do NOT reverse-geocode TomTom results.
-                         * Keep the TomTom POI/business name.
-                         */
-
-                        button.setOnClickListener(
-                                v ->
-                                        selectDestination(
-                                                finalLat,
-                                                finalLng,
-                                                finalName
-                                        )
-                        );
-
-                        searchResultsContainer
-                                .addView(button);
-                    }
-
-                    statusText.setText(
-                            "🟢 TomTom results near your GPS"
-                    );
-                });
 
             } catch (Exception e) {
 
@@ -1929,15 +1562,871 @@ public class MapActivity extends Activity {
                             "❌ TomTom search unavailable."
                     );
                 });
-
-            } finally {
-
-                if (connection != null) {
-                    connection.disconnect();
-                }
             }
 
         }).start();
+    }
+
+    private List<SearchResult> requestTomTomResults(
+            String query,
+            String encodedKey,
+            String indexSet
+    ) throws Exception {
+
+        String localQuery =
+                query;
+
+        /*
+         * Town is used as search context, but GPS remains
+         * the actual geographic bias.
+         */
+        if (!currentTown.isEmpty()) {
+
+            localQuery =
+                    query +
+                    ", " +
+                    currentTown;
+        }
+
+        String encodedQuery =
+                URLEncoder.encode(
+                        localQuery,
+                        "UTF-8"
+                );
+
+        String urlString =
+                "https://api.tomtom.com/search/2/search/" +
+                encodedQuery +
+                ".json" +
+                "?key=" +
+                encodedKey +
+                "&lat=" +
+                currentLatitude +
+                "&lon=" +
+                currentLongitude +
+                "&radius=10000" +
+                "&countrySet=PH" +
+                "&limit=30" +
+                "&language=en-US" +
+                "&idxSet=" +
+                URLEncoder.encode(
+                        indexSet,
+                        "UTF-8"
+                );
+
+        HttpURLConnection connection = null;
+
+        try {
+
+            URL url =
+                    new URL(urlString);
+
+            connection =
+                    (HttpURLConnection)
+                            url.openConnection();
+
+            connection.setRequestMethod(
+                    "GET"
+            );
+
+            connection.setConnectTimeout(
+                    8000
+            );
+
+            connection.setReadTimeout(
+                    10000
+            );
+
+            connection.setRequestProperty(
+                    "Accept",
+                    "application/json"
+            );
+
+            connection.setRequestProperty(
+                    "User-Agent",
+                    "SakayNa/1.0 Android"
+            );
+
+            int responseCode =
+                    connection.getResponseCode();
+
+            if (responseCode != 200) {
+
+                throw new Exception(
+                        "TomTom response " +
+                        responseCode
+                );
+            }
+
+            BufferedReader reader =
+                    new BufferedReader(
+                            new InputStreamReader(
+                                    connection.getInputStream(),
+                                    "UTF-8"
+                            )
+                    );
+
+            StringBuilder result =
+                    new StringBuilder();
+
+            String line;
+
+            while ((line = reader.readLine()) != null) {
+                result.append(line);
+            }
+
+            reader.close();
+
+            JSONObject object =
+                    new JSONObject(
+                            result.toString()
+                    );
+
+            JSONArray results =
+                    object.optJSONArray(
+                            "results"
+                    );
+
+            ArrayList<SearchResult>
+                    candidates =
+                    new ArrayList<>();
+
+            if (results == null) {
+                return candidates;
+            }
+
+            for (int i = 0;
+                 i < results.length();
+                 i++) {
+
+                try {
+
+                    JSONObject item =
+                            results.getJSONObject(i);
+
+                    JSONObject position =
+                            item.optJSONObject(
+                                    "position"
+                            );
+
+                    if (position == null) {
+                        continue;
+                    }
+
+                    double lat =
+                            position.optDouble(
+                                    "lat",
+                                    Double.NaN
+                            );
+
+                    double lng =
+                            position.optDouble(
+                                    "lon",
+                                    Double.NaN
+                            );
+
+                    if (Double.isNaN(lat)
+                            || Double.isNaN(lng)) {
+                        continue;
+                    }
+
+                    JSONObject address =
+                            item.optJSONObject(
+                                    "address"
+                            );
+
+                    JSONObject poi =
+                            item.optJSONObject(
+                                    "poi"
+                            );
+
+                    String placeName =
+                            "";
+
+                    if (poi != null) {
+
+                        placeName =
+                                poi.optString(
+                                        "name",
+                                        ""
+                                );
+                    }
+
+                    String freeformAddress =
+                            "";
+
+                    if (address != null) {
+
+                        freeformAddress =
+                                address.optString(
+                                        "freeformAddress",
+                                        ""
+                                );
+                    }
+
+                    String municipality =
+                            "";
+
+                    String countrySubdivision =
+                            "";
+
+                    String country =
+                            "";
+
+                    if (address != null) {
+
+                        municipality =
+                                address.optString(
+                                        "municipality",
+                                        ""
+                                );
+
+                        if (municipality.isEmpty()) {
+
+                            municipality =
+                                    address.optString(
+                                            "municipalitySubdivision",
+                                            ""
+                                    );
+                        }
+
+                        countrySubdivision =
+                                address.optString(
+                                        "countrySubdivision",
+                                        ""
+                                );
+
+                        country =
+                                address.optString(
+                                        "country",
+                                        ""
+                                );
+                    }
+
+                    /*
+                     * Philippines only.
+                     */
+                    if (!country.isEmpty()
+                            && !country.equalsIgnoreCase(
+                                    "Philippines"
+                            )
+                            && !country.equalsIgnoreCase(
+                                    "PH"
+                            )) {
+
+                        continue;
+                    }
+
+                    float[] distance =
+                            new float[1];
+
+                    Location.distanceBetween(
+                            currentLatitude,
+                            currentLongitude,
+                            lat,
+                            lng,
+                            distance
+                    );
+
+                    /*
+                     * Keep the search local.
+                     */
+                    if (distance[0] > 10000) {
+                        continue;
+                    }
+
+                    String displayName;
+
+                    if (!placeName.isEmpty()
+                            && !freeformAddress.isEmpty()) {
+
+                        displayName =
+                                placeName +
+                                ", " +
+                                freeformAddress;
+
+                    } else if (!placeName.isEmpty()) {
+
+                        displayName =
+                                placeName;
+
+                    } else if (!freeformAddress
+                            .isEmpty()) {
+
+                        displayName =
+                                freeformAddress;
+
+                    } else {
+
+                        displayName =
+                                "Selected place";
+                    }
+
+                    candidates.add(
+                            new SearchResult(
+                                    lat,
+                                    lng,
+                                    displayName,
+                                    placeName,
+                                    municipality,
+                                    countrySubdivision,
+                                    distance[0]
+                            )
+                    );
+
+                } catch (Exception ignored) {
+                }
+            }
+
+            return candidates;
+
+        } finally {
+
+            if (connection != null) {
+                connection.disconnect();
+            }
+        }
+    }
+
+    /*
+     * Normal text:
+     *
+     * McDonald's
+     * -> mc donald s
+     *
+     * This makes matching easier.
+     */
+    private String normalizeSearchText(
+            String value
+    ) {
+
+        if (value == null) {
+            return "";
+        }
+
+        return value
+                .toLowerCase(Locale.US)
+                .replaceAll(
+                        "[^a-z0-9]+",
+                        " "
+                )
+                .trim()
+                .replaceAll(
+                        "\\s+",
+                        " "
+                );
+    }
+
+    /*
+     * Compact text:
+     *
+     * McDonald's
+     * -> mcdonalds
+     *
+     * This is important because TomTom commonly returns
+     * "McDonald's" / "McDonalds" / "McDonald's Branch".
+     */
+    private String compactSearchText(
+            String value
+    ) {
+
+        return normalizeSearchText(
+                value
+        ).replace(
+                " ",
+                ""
+        );
+    }
+
+    /*
+     * Calculates how strongly a TomTom result matches
+     * what the passenger typed.
+     *
+     * Higher = more relevant.
+     */
+    private int searchMatchScore(
+            String query,
+            SearchResult result
+    ) {
+
+        String q =
+                normalizeSearchText(
+                        query
+                );
+
+        String qc =
+                compactSearchText(
+                        query
+                );
+
+        String name =
+                normalizeSearchText(
+                        result.placeName
+                );
+
+        String nc =
+                compactSearchText(
+                        result.placeName
+                );
+
+        String display =
+                normalizeSearchText(
+                        result.displayName
+                );
+
+        if (qc.isEmpty()) {
+            return 0;
+        }
+
+        /*
+         * Exact POI name.
+         */
+        if (!nc.isEmpty()
+                && nc.equals(qc)) {
+
+            return 1000;
+        }
+
+        /*
+         * Query contained in POI name.
+         *
+         * Example:
+         * "mcdonald"
+         * matches
+         * "mcdonalds"
+         */
+        if (!nc.isEmpty()
+                && nc.contains(qc)) {
+
+            return 900;
+        }
+
+        /*
+         * POI name contained in query.
+         */
+        if (!nc.isEmpty()
+                && qc.contains(nc)) {
+
+            return 850;
+        }
+
+        int tokenMatches = 0;
+
+        String[] tokens =
+                q.split(" ");
+
+        for (String token : tokens) {
+
+            if (token.length() < 2) {
+                continue;
+            }
+
+            if (name.contains(token)) {
+
+                tokenMatches += 120;
+
+            } else if (display.contains(token)) {
+
+                tokenMatches += 70;
+            }
+        }
+
+        return tokenMatches;
+    }
+
+    /*
+     * Checks whether the TomTom result is in the
+     * passenger's current town.
+     */
+    private boolean isSameTownResult(
+            SearchResult result
+    ) {
+
+        if (currentTown == null
+                || currentTown.trim().isEmpty()) {
+
+            return false;
+        }
+
+        if (result.town == null
+                || result.town.trim().isEmpty()) {
+
+            return false;
+        }
+
+        return samePlace(
+                currentTown,
+                result.town
+        );
+    }
+
+    /*
+     * Final search ranking:
+     *
+     * 1. Text relevance
+     * 2. Same town
+     * 3. GPS distance
+     *
+     * If an actual text match exists, unrelated results
+     * with zero text match are removed.
+     */
+    private List<SearchResult> rankSearchResults(
+            String query,
+            List<SearchResult> candidates
+    ) {
+
+        ArrayList<SearchResult> working =
+                new ArrayList<>();
+
+        if (candidates == null
+                || candidates.isEmpty()) {
+
+            return working;
+        }
+
+        int bestScore = 0;
+
+        boolean hasSameTownMatch =
+                false;
+
+        for (SearchResult result : candidates) {
+
+            result.matchScore =
+                    searchMatchScore(
+                            query,
+                            result
+                    );
+
+            result.sameTown =
+                    isSameTownResult(
+                            result
+                    );
+
+            if (result.matchScore > bestScore) {
+
+                bestScore =
+                        result.matchScore;
+            }
+
+            if (result.matchScore > 0
+                    && result.sameTown) {
+
+                hasSameTownMatch = true;
+            }
+        }
+
+        /*
+         * If there is a real text match, remove
+         * completely unrelated results.
+         *
+         * This is the important fix for:
+         *
+         * McDonald's -> Fire station
+         */
+        if (bestScore > 0) {
+
+            for (SearchResult result : candidates) {
+
+                if (result.matchScore > 0) {
+
+                    working.add(
+                            result
+                    );
+                }
+            }
+
+        } else {
+
+            /*
+             * No text match at all.
+             *
+             * Do not pretend an unrelated result is the
+             * requested place.
+             *
+             * For address/street fallback, TomTom can still
+             * return useful address text. The result must
+             * therefore have at least some text overlap.
+             */
+            for (SearchResult result : candidates) {
+
+                if (result.matchScore > 0) {
+
+                    working.add(
+                            result
+                    );
+                }
+            }
+        }
+
+        /*
+         * If we have matching results in the current town,
+         * remove matching results from other towns.
+         */
+        if (hasSameTownMatch) {
+
+            ArrayList<SearchResult>
+                    sameTownResults =
+                    new ArrayList<>();
+
+            for (SearchResult result :
+                    working) {
+
+                if (result.sameTown) {
+
+                    sameTownResults.add(
+                            result
+                    );
+                }
+            }
+
+            if (!sameTownResults.isEmpty()) {
+
+                working =
+                        sameTownResults;
+            }
+        }
+
+        Collections.sort(
+                working,
+                new Comparator<SearchResult>() {
+
+                    @Override
+                    public int compare(
+                            SearchResult a,
+                            SearchResult b
+                    ) {
+
+                        /*
+                         * 1. Text match.
+                         */
+                        int scoreCompare =
+                                Integer.compare(
+                                        b.matchScore,
+                                        a.matchScore
+                                );
+
+                        if (scoreCompare != 0) {
+                            return scoreCompare;
+                        }
+
+                        /*
+                         * 2. Same town.
+                         */
+                        if (a.sameTown
+                                != b.sameTown) {
+
+                            return a.sameTown
+                                    ? -1
+                                    : 1;
+                        }
+
+                        /*
+                         * 3. Nearest GPS distance.
+                         */
+                        return Float.compare(
+                                a.distanceMeters,
+                                b.distanceMeters
+                        );
+                    }
+                }
+        );
+
+        /*
+         * Remove duplicate locations.
+         */
+        ArrayList<SearchResult>
+                uniqueResults =
+                new ArrayList<>();
+
+        for (SearchResult result :
+                working) {
+
+            boolean duplicate = false;
+
+            for (SearchResult existing :
+                    uniqueResults) {
+
+                if (samePlace(
+                        result.placeName,
+                        existing.placeName
+                )
+                        && Math.abs(
+                        result.latitude -
+                                existing.latitude
+                ) < 0.0005
+                        && Math.abs(
+                        result.longitude -
+                                existing.longitude
+                ) < 0.0005) {
+
+                    duplicate = true;
+                    break;
+                }
+            }
+
+            if (!duplicate) {
+
+                uniqueResults.add(
+                        result
+                );
+            }
+
+            if (uniqueResults.size() >= 8) {
+                break;
+            }
+        }
+
+        return uniqueResults;
+    }
+
+    private void showSearchResults(
+            List<SearchResult> candidates,
+            String query,
+            String successMessage
+    ) {
+
+        runOnUiThread(() -> {
+
+            searchResultsContainer
+                    .removeAllViews();
+
+            if (candidates == null
+                    || candidates.isEmpty()) {
+
+                TextView empty =
+                        new TextView(this);
+
+                empty.setText(
+                        "📍 No exact or relevant match found for:\n" +
+                        "\"" +
+                        query +
+                        "\""
+                );
+
+                empty.setTextSize(15);
+
+                empty.setTextColor(
+                        Color.DKGRAY
+                );
+
+                empty.setPadding(
+                        10,
+                        10,
+                        10,
+                        10
+                );
+
+                searchResultsContainer
+                        .addView(empty);
+
+                statusText.setText(
+                        "🔎 No matching location found."
+                );
+
+                return;
+            }
+
+            int maximum =
+                    Math.min(
+                            candidates.size(),
+                            8
+                    );
+
+            for (int i = 0;
+                 i < maximum;
+                 i++) {
+
+                SearchResult searchResult =
+                        candidates.get(i);
+
+                Button button =
+                        new Button(this);
+
+                String distanceText;
+
+                if (searchResult.distanceMeters
+                        < 1000) {
+
+                    distanceText =
+                            String.format(
+                                    Locale.US,
+                                    "%.0f m away",
+                                    searchResult.distanceMeters
+                            );
+
+                } else {
+
+                    distanceText =
+                            String.format(
+                                    Locale.US,
+                                    "%.1f km away",
+                                    searchResult.distanceMeters
+                                            / 1000.0
+                            );
+                }
+
+                String resultName =
+                        searchResult.placeName
+                                .isEmpty()
+                                ? searchResult.displayName
+                                : searchResult.placeName;
+
+                String buttonText =
+                        "📍 " +
+                        resultName +
+                        "\n" +
+                        distanceText;
+
+                if (searchResult.sameTown
+                        && !searchResult.town.isEmpty()) {
+
+                    buttonText +=
+                            " • " +
+                            searchResult.town;
+                }
+
+                button.setText(
+                        buttonText
+                );
+
+                button.setTextSize(
+                        14
+                );
+
+                button.setGravity(
+                        Gravity.LEFT
+                );
+
+                final double finalLat =
+                        searchResult.latitude;
+
+                final double finalLng =
+                        searchResult.longitude;
+
+                final String finalName =
+                        searchResult.displayName;
+
+                /*
+                 * TomTom result is already the destination.
+                 * Do NOT reverse-geocode it.
+                 */
+                button.setOnClickListener(
+                        v ->
+                                selectDestination(
+                                        finalLat,
+                                        finalLng,
+                                        finalName
+                                )
+                );
+
+                searchResultsContainer
+                        .addView(button);
+            }
+
+            statusText.setText(
+                    successMessage
+            );
+        });
     }
 
     private void resolveCurrentGpsArea(
@@ -2118,6 +2607,12 @@ public class MapActivity extends Activity {
         String b =
                 normalizePlaceName(second);
 
+        if (a.isEmpty()
+                || b.isEmpty()) {
+
+            return false;
+        }
+
         return a.equals(b)
                 || a.contains(b)
                 || b.contains(a);
@@ -2152,6 +2647,9 @@ public class MapActivity extends Activity {
         String province;
 
         float distanceMeters;
+
+        int matchScore = 0;
+        boolean sameTown = false;
 
         SearchResult(
                 double latitude,
