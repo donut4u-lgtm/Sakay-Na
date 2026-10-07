@@ -59,11 +59,8 @@ public class AdminActivity extends Activity {
      *
      * drivers/{uid}.online
      *
-     * Admin must therefore NOT depend on:
-     *
-     * users/{uid}.online
-     *
-     * This map is refreshed through a real-time Firestore listener.
+     * Admin therefore reads the drivers collection instead of
+     * depending on users/{uid}.online.
      * ============================================================
      */
     private final Map<String, Boolean> driverOnlineById =
@@ -216,16 +213,54 @@ public class AdminActivity extends Activity {
         rideDocuments.clear();
 
         /*
+         * ============================================================
+         * IMPORTANT FIX
+         *
+         * contentContainer was completely cleared above.
+         *
+         * Therefore the old section references must also be reset.
+         *
+         * Previously onlineDriversSection still pointed to the old,
+         * detached section. buildOnlineDrivers() then reused that
+         * detached section instead of creating a new section/button.
+         *
+         * That caused:
+         *
+         * 🟢 ONLINE DRIVERS — LIVE
+         *
+         * to disappear completely after REFRESH.
+         *
+         * Resetting the references forces createSection() to create
+         * the section and its button again.
+         * ============================================================
+         */
+
+        overviewSection = null;
+        passengersSection = null;
+        approvalSection = null;
+        onlineDriversSection = null;
+        historySection = null;
+        paymentSection = null;
+        driverEarningsDuesSection = null;
+
+        /*
          * Clear old live driver status before starting
          * a fresh dashboard listener.
          */
         driverOnlineById.clear();
 
+        /*
+         * Remove the previous real-time Firestore listener.
+         */
         if (driversListener != null) {
             driversListener.remove();
             driversListener = null;
         }
 
+        /*
+         * The old overview TextView belonged to the old
+         * dashboard and is no longer valid.
+         */
         onlineDriversOverviewValue = null;
 
         statusText.setText(
@@ -250,12 +285,6 @@ public class AdminActivity extends Activity {
                         );
                     }
 
-                    /*
-                     * START LIVE DRIVER STATUS LISTENER.
-                     *
-                     * This reads drivers/{uid}.online
-                     * instead of users/{uid}.online.
-                     */
                     listenToDriverOnlineStatus();
 
                     buildUserSections();
@@ -267,47 +296,11 @@ public class AdminActivity extends Activity {
                             "Unable to load users."
                     );
 
-                    /*
-                     * No user profile list is available if
-                     * users loading failed, so there is no
-                     * useful online-driver list to build.
-                     */
                     buildUserSections();
                     loadRides();
                 });
     }
 
-    /*
-     * ============================================================
-     * LIVE DRIVER STATUS LISTENER
-     *
-     * DriverActivity:
-     *
-     * drivers/{uid}.online = true / false
-     *
-     * Admin:
-     *
-     * reads the drivers collection continuously.
-     *
-     * Therefore:
-     *
-     * Driver GO ONLINE
-     *       ↓
-     * drivers/{uid}.online = true
-     *       ↓
-     * Firestore listener fires
-     *       ↓
-     * Admin shows driver immediately
-     *
-     * Driver GO OFFLINE
-     *       ↓
-     * drivers/{uid}.online = false
-     *       ↓
-     * Firestore listener fires
-     *       ↓
-     * Admin removes driver immediately
-     * ============================================================
-     */
     private void listenToDriverOnlineStatus() {
 
         if (driversListener != null) {
@@ -351,11 +344,6 @@ public class AdminActivity extends Activity {
                                         }
                                     }
 
-                                    /*
-                                     * Users must already be loaded
-                                     * before we can match driver UID
-                                     * with the driver profile.
-                                     */
                                     if (!usersById.isEmpty()) {
 
                                         buildOnlineDrivers();
@@ -368,11 +356,6 @@ public class AdminActivity extends Activity {
                         );
     }
 
-    /*
-     * ============================================================
-     * COUNT LIVE APPROVED DRIVERS
-     * ============================================================
-     */
     private int countLiveApprovedDrivers() {
 
         int count = 0;
@@ -413,24 +396,6 @@ public class AdminActivity extends Activity {
         return count;
     }
 
-    /*
-     * ============================================================
-     * USER SECTIONS
-     *
-     * IMPORTANT:
-     *
-     * There is NO permanent:
-     * - passenger account directory
-     * - approved driver directory
-     * - suspended driver directory
-     *
-     * Admin sees:
-     * - Pending driver applications
-     * - Online approved drivers
-     * - Drivers with outstanding dues
-     * - Today's passenger bookings
-     * ============================================================
-     */
     private void buildUserSections() {
 
         int passengerCount = 0;
@@ -467,15 +432,6 @@ public class AdminActivity extends Activity {
                     pendingCount++;
                 }
 
-                /*
-                 * IMPORTANT:
-                 *
-                 * LIVE ONLINE STATE COMES FROM:
-                 *
-                 * drivers/{uid}.online
-                 *
-                 * NOT users/{uid}.online
-                 */
                 if (
                         "APPROVED".equalsIgnoreCase(
                                 approval
@@ -499,10 +455,6 @@ public class AdminActivity extends Activity {
             }
         }
 
-        /*
-         * Overview is informational only.
-         * Passenger TOTAL does NOT create a passenger list.
-         */
         overviewSection = createSection(
                 "📊 DASHBOARD OVERVIEW"
         );
@@ -535,25 +487,14 @@ public class AdminActivity extends Activity {
                 LIGHT_GREEN
         );
 
-        /*
-         * Dedicated live online-driver overview.
-         */
         addOnlineOverviewCard(
                 onlineDrivers
         );
 
-        /*
-         * Correct Admin sections.
-         */
         buildPendingDrivers();
 
         buildOnlineDrivers();
 
-        /*
-         * Passenger section is created now.
-         * It will be populated ONLY from today's rides
-         * after rides have loaded.
-         */
         passengersSection = createSection(
                 "🛺 TODAY'S PASSENGER BOOKINGS"
         );
@@ -565,9 +506,6 @@ public class AdminActivity extends Activity {
                 LIGHT_BLUE
         );
 
-        /*
-         * Driver dues section is populated after rides load.
-         */
         driverEarningsDuesSection = createSection(
                 "💰 DRIVER DUES — OUTSTANDING ONLY"
         );
@@ -580,11 +518,6 @@ public class AdminActivity extends Activity {
         );
     }
 
-    /*
-     * ============================================================
-     * LIVE ONLINE OVERVIEW CARD
-     * ============================================================
-     */
     private void addOnlineOverviewCard(
             int onlineCount
     ) {
@@ -648,11 +581,6 @@ public class AdminActivity extends Activity {
         }
     }
 
-    /*
-     * ============================================================
-     * DRIVER APPROVAL APPLICATIONS
-     * ============================================================
-     */
     private void buildPendingDrivers() {
 
         approvalSection = createSection(
@@ -711,28 +639,18 @@ public class AdminActivity extends Activity {
         }
     }
 
-    /*
-     * ============================================================
-     * ONLINE DRIVERS
-     *
-     * ONLY approved + currently online drivers appear here.
-     *
-     * LIVE STATUS COMES FROM:
-     *
-     * drivers/{uid}.online
-     *
-     * An approved driver who is offline does NOT appear.
-     *
-     * A suspended driver does NOT appear.
-     * ============================================================
-     */
     private void buildOnlineDrivers() {
 
         /*
-         * The first dashboard build creates the section.
+         * IMPORTANT:
          *
-         * Later Firestore listener updates reuse the same section
-         * instead of creating duplicate sections.
+         * If the dashboard was refreshed, loadDashboard()
+         * has reset onlineDriversSection to null.
+         *
+         * Therefore this creates a fresh section and button.
+         *
+         * On live Firestore updates, the existing attached section
+         * is reused and only its contents are refreshed.
          */
         if (onlineDriversSection == null) {
 
@@ -767,10 +685,9 @@ public class AdminActivity extends Activity {
             }
 
             /*
-             * CRITICAL FIX:
+             * LIVE STATUS:
              *
-             * Read the driver's REAL live state
-             * from drivers/{uid}.online.
+             * drivers/{uid}.online
              */
             if (!Boolean.TRUE.equals(
                     driverOnlineById.get(
@@ -782,7 +699,7 @@ public class AdminActivity extends Activity {
             }
 
             /*
-             * Suspended drivers must never be shown as online.
+             * Suspended drivers must never appear online.
              */
             if ("SUSPENDED".equalsIgnoreCase(
                     driver.getString(
@@ -834,15 +751,6 @@ public class AdminActivity extends Activity {
         );
     }
 
-    /*
-     * ============================================================
-     * DRIVER EARNINGS & OUTSTANDING DUES
-     *
-     * ONLY drivers with outstanding balance appear.
-     *
-     * Settled drivers disappear from this list.
-     * ============================================================
-     */
     private void buildDriverEarningsDues() {
 
         if (driverEarningsDuesSection == null) {
@@ -872,12 +780,6 @@ public class AdminActivity extends Activity {
             DriverDuesRecord record =
                     calculateDriverDues(driver);
 
-            /*
-             * CRITICAL:
-             *
-             * If outstanding balance is zero,
-             * this driver is NOT shown in Driver Dues.
-             */
             if (record.outstanding <= 0.009) {
                 continue;
             }
@@ -1041,9 +943,6 @@ public class AdminActivity extends Activity {
                         ""
                 );
 
-        /*
-         * Authoritative outstanding balance.
-         */
         record.outstanding =
                 Math.max(
                         0,
@@ -1053,9 +952,6 @@ public class AdminActivity extends Activity {
                         )
                 );
 
-        /*
-         * Completed ride earnings.
-         */
         for (DocumentSnapshot ride :
                 rideDocuments) {
 
@@ -1248,7 +1144,6 @@ public class AdminActivity extends Activity {
     ) {
 
         int background;
-
         int statusColor;
 
         if ("OVERDUE".equals(
@@ -1409,18 +1304,6 @@ public class AdminActivity extends Activity {
         return "🟡";
     }
 
-    /*
-     * ============================================================
-     * TODAY'S PASSENGER BOOKINGS
-     *
-     * IMPORTANT:
-     *
-     * Passenger account creation is NOT displayed.
-     *
-     * Only rides/bookings whose ride timestamp is today
-     * are displayed.
-     * ============================================================
-     */
     private void addPassengerBookings() {
 
         if (passengersSection == null) {
@@ -1553,11 +1436,6 @@ public class AdminActivity extends Activity {
         return calendar.getTimeInMillis();
     }
 
-    /*
-     * ============================================================
-     * LOAD RIDES
-     * ============================================================
-     */
     private void loadRides() {
 
         db.collection("rides")
@@ -1594,11 +1472,6 @@ public class AdminActivity extends Activity {
                 });
     }
 
-    /*
-     * ============================================================
-     * RIDE SECTIONS
-     * ============================================================
-     */
     private void buildRideSections() {
 
         historySection = createSection(
@@ -1611,9 +1484,6 @@ public class AdminActivity extends Activity {
 
         renderHistory();
 
-        /*
-         * Separate, directly tappable section.
-         */
         paymentSection = createSection(
                 "💰 FARE & PAYMENT — TAP TO OPEN"
         );
@@ -1650,11 +1520,6 @@ public class AdminActivity extends Activity {
         parent.addView(notice);
     }
 
-    /*
-     * ============================================================
-     * RIDE HISTORY
-     * ============================================================
-     */
     private void renderHistory() {
 
         if (historySection == null) {
@@ -1754,11 +1619,6 @@ public class AdminActivity extends Activity {
                 "EXPIRED".equalsIgnoreCase(status);
     }
 
-    /*
-     * ============================================================
-     * FARE & PAYMENT
-     * ============================================================
-     */
     private void addPaymentFilters(
             LinearLayout parent
     ) {
@@ -2203,11 +2063,6 @@ public class AdminActivity extends Activity {
         }
     }
 
-    /*
-     * ============================================================
-     * RIDE CARD
-     * ============================================================
-     */
     private void addRideCard(
             LinearLayout parent,
             DocumentSnapshot ride
@@ -2412,13 +2267,6 @@ public class AdminActivity extends Activity {
         }
     }
 
-    /*
-     * ============================================================
-     * LOCATION
-     *
-     * Province and Town are ALWAYS separate.
-     * ============================================================
-     */
     private void addLocationColumns(
             LinearLayout parent,
             String province,
@@ -2548,11 +2396,6 @@ public class AdminActivity extends Activity {
         parent.addView(row);
     }
 
-    /*
-     * ============================================================
-     * DRIVER CARD
-     * ============================================================
-     */
     private void addDriverCard(
             LinearLayout parent,
             DocumentSnapshot driver,
@@ -2596,17 +2439,6 @@ public class AdminActivity extends Activity {
         String approval =
                 getApprovalStatus(driver);
 
-        /*
-         * CRITICAL FIX:
-         *
-         * Online status comes from:
-         *
-         * drivers/{uid}.online
-         *
-         * not:
-         *
-         * users/{uid}.online
-         */
         boolean online =
                 Boolean.TRUE.equals(
                         driverOnlineById.get(
@@ -2728,11 +2560,6 @@ public class AdminActivity extends Activity {
         }
     }
 
-    /*
-     * ============================================================
-     * DRIVER APPROVAL
-     * ============================================================
-     */
     private void approveDriver(
             String driverId
     ) {
@@ -2808,11 +2635,6 @@ public class AdminActivity extends Activity {
                 );
     }
 
-    /*
-     * ============================================================
-     * APPROVAL STATUS
-     * ============================================================
-     */
     private String getApprovalStatus(
             DocumentSnapshot user
     ) {
@@ -2858,11 +2680,6 @@ public class AdminActivity extends Activity {
         );
     }
 
-    /*
-     * ============================================================
-     * SECTION BUTTON
-     * ============================================================
-     */
     private LinearLayout createSection(
             String title
     ) {
@@ -2908,10 +2725,6 @@ public class AdminActivity extends Activity {
                 section
         );
 
-        /*
-         * IMPORTANT:
-         * Every section button is independently tappable.
-         */
         sectionButton.setOnClickListener(v -> {
 
             if (
@@ -2934,11 +2747,6 @@ public class AdminActivity extends Activity {
         return section;
     }
 
-    /*
-     * ============================================================
-     * ACTIVE STATUS
-     * ============================================================
-     */
     private boolean isActiveStatus(
             String status
     ) {
@@ -2963,11 +2771,6 @@ public class AdminActivity extends Activity {
                 "ONGOING".equalsIgnoreCase(status);
     }
 
-    /*
-     * ============================================================
-     * RIDE TIMESTAMPS
-     * ============================================================
-     */
     private Long getRideTimestamp(
             DocumentSnapshot ride
     ) {
@@ -3062,11 +2865,6 @@ public class AdminActivity extends Activity {
         };
     }
 
-    /*
-     * ============================================================
-     * UI HELPERS
-     * ============================================================
-     */
     private LinearLayout createChildCard(
             LinearLayout parent,
             int background
@@ -3172,11 +2970,6 @@ public class AdminActivity extends Activity {
         );
     }
 
-    /*
-     * ============================================================
-     * FIREBASE VALUE HELPERS
-     * ============================================================
-     */
     private double readNumber(
             DocumentSnapshot snapshot,
             String field
@@ -3327,11 +3120,6 @@ public class AdminActivity extends Activity {
         return e.getMessage();
     }
 
-    /*
-     * ============================================================
-     * LOGOUT
-     * ============================================================
-     */
     private void logout() {
 
         auth.signOut();
@@ -3353,14 +3141,6 @@ public class AdminActivity extends Activity {
         finish();
     }
 
-    /*
-     * ============================================================
-     * STOP LIVE FIRESTORE LISTENER
-     *
-     * Prevents memory leaks and prevents Admin from continuing
-     * to receive driver-status updates after the screen closes.
-     * ============================================================
-     */
     @Override
     protected void onDestroy() {
 
@@ -3374,11 +3154,6 @@ public class AdminActivity extends Activity {
         super.onDestroy();
     }
 
-    /*
-     * ============================================================
-     * DRIVER DUES DATA OBJECT
-     * ============================================================
-     */
     private static class DriverDuesRecord {
 
         String driverId = "";
