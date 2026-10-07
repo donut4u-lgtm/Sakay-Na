@@ -96,6 +96,19 @@ public class AdminActivity extends Activity {
     private static final long RIDE_REFRESH_MS =
             10000L;
 
+    /*
+     * ============================================================
+     * LIVE DRIVER HEARTBEAT
+     * ============================================================
+     *
+     * DriverActivity sends a heartbeat every 10 seconds.
+     *
+     * Admin considers a driver LIVE only when the last heartbeat
+     * is no more than 30 seconds old.
+     */
+    private static final long LIVE_DRIVER_TIMEOUT_MS =
+            30L * 1000L;
+
     private final Runnable adminRefreshRunnable =
             new Runnable() {
 
@@ -541,6 +554,75 @@ public class AdminActivity extends Activity {
 
     /*
      * ============================================================
+     * CHECK WHETHER DRIVER HEARTBEAT IS FRESH
+     * ============================================================
+     */
+    private boolean isDriverHeartbeatFresh(
+            DocumentSnapshot driver
+    ) {
+
+        if (driver == null) {
+            return false;
+        }
+
+        boolean online =
+                Boolean.TRUE.equals(
+                        driver.getBoolean(
+                                "online"
+                        )
+                );
+
+        if (!online) {
+            return false;
+        }
+
+        long lastOnlineAt = 0L;
+
+        Object heartbeatValue =
+                driver.get(
+                        "lastOnlineAt"
+                );
+
+        if (heartbeatValue instanceof Number) {
+
+            lastOnlineAt =
+                    ((Number) heartbeatValue)
+                            .longValue();
+
+        } else if (
+                heartbeatValue instanceof Timestamp
+        ) {
+
+            lastOnlineAt =
+                    ((Timestamp) heartbeatValue)
+                            .toDate()
+                            .getTime();
+        }
+
+        if (lastOnlineAt <= 0L) {
+
+            /*
+             * Old driver records that have online=true but
+             * have never written the new heartbeat field are
+             * deliberately NOT considered LIVE.
+             */
+            return false;
+        }
+
+        long age =
+                System.currentTimeMillis()
+                        - lastOnlineAt;
+
+        /*
+         * Future timestamps are also accepted as fresh.
+         * This avoids incorrectly hiding a driver because of
+         * a small device-clock difference.
+         */
+        return age <= LIVE_DRIVER_TIMEOUT_MS;
+    }
+
+    /*
+     * ============================================================
      * APPLY DRIVER SNAPSHOT
      * ============================================================
      */
@@ -555,23 +637,24 @@ public class AdminActivity extends Activity {
             for (DocumentSnapshot driver :
                     snapshot.getDocuments()) {
 
-                Boolean online =
-                        driver.getBoolean(
-                                "online"
+                /*
+                 * A driver is LIVE only when:
+                 *
+                 * 1. online == true
+                 * 2. lastOnlineAt exists
+                 * 3. lastOnlineAt is no older than 30 seconds
+                 *
+                 * This prevents yesterday's/stale online=true
+                 * records from appearing as LIVE.
+                 */
+                boolean actuallyLive =
+                        isDriverHeartbeatFresh(
+                                driver
                         );
 
-                /*
-                 * FALSE remains FALSE.
-                 *
-                 * Therefore:
-                 *
-                 * drivers/{uid}.online = false
-                 *
-                 * removes the driver from ONLINE DRIVERS.
-                 */
                 driverOnlineById.put(
                         driver.getId(),
-                        Boolean.TRUE.equals(online)
+                        actuallyLive
                 );
             }
         }
@@ -2390,7 +2473,7 @@ public class AdminActivity extends Activity {
                             ride.getString(
                                     "driverId"
                             )
-                    )
+                            )
             ) {
 
                 continue;
