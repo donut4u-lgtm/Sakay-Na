@@ -76,6 +76,81 @@ public class DriverActivity extends Activity {
     private final Handler expiryHandler =
             new Handler(Looper.getMainLooper());
 
+    /*
+     * =========================================================
+     * LIVE DRIVER HEARTBEAT
+     *
+     * DriverActivity sends a heartbeat every 10 seconds while
+     * the driver is ONLINE.
+     *
+     * Admin will later consider a driver LIVE only when the
+     * heartbeat is fresh.
+     *
+     * Existing old online=true records without lastOnlineAt
+     * will therefore become stale/offline.
+     * =========================================================
+     */
+    private static final long ONLINE_HEARTBEAT_MS =
+            10L * 1000L;
+
+    private static final long LIVE_DRIVER_TIMEOUT_MS =
+            30L * 1000L;
+
+    private final Handler onlineHeartbeatHandler =
+            new Handler(Looper.getMainLooper());
+
+    private final Runnable onlineHeartbeatRunnable =
+            new Runnable() {
+
+                @Override
+                public void run() {
+
+                    if (user != null
+                            && driverOnline
+                            && driverApproved
+                            && !driverSuspended) {
+
+                        long now =
+                                System.currentTimeMillis();
+
+                        Map<String, Object> heartbeat =
+                                new HashMap<>();
+
+                        heartbeat.put(
+                                "driverId",
+                                user.getUid()
+                        );
+
+                        heartbeat.put(
+                                "online",
+                                true
+                        );
+
+                        heartbeat.put(
+                                "lastOnlineAt",
+                                now
+                        );
+
+                        heartbeat.put(
+                                "updatedAt",
+                                now
+                        );
+
+                        db.collection("drivers")
+                                .document(user.getUid())
+                                .set(
+                                        heartbeat,
+                                        SetOptions.merge()
+                                );
+
+                        onlineHeartbeatHandler.postDelayed(
+                                this,
+                                ONLINE_HEARTBEAT_MS
+                        );
+                    }
+                }
+            };
+
     private static final long REQUEST_EXPIRATION_MS =
             30L * 60L * 1000L;
 
@@ -131,6 +206,35 @@ public class DriverActivity extends Activity {
         if (db != null && user != null) {
             loadDriverStatus();
         }
+    }
+
+    /*
+     * =========================================================
+     * LIVE DRIVER HEARTBEAT CONTROL
+     * =========================================================
+     */
+    private void startOnlineHeartbeat() {
+
+        onlineHeartbeatHandler.removeCallbacks(
+                onlineHeartbeatRunnable
+        );
+
+        if (user != null
+                && driverOnline
+                && driverApproved
+                && !driverSuspended) {
+
+            onlineHeartbeatHandler.post(
+                    onlineHeartbeatRunnable
+            );
+        }
+    }
+
+    private void stopOnlineHeartbeat() {
+
+        onlineHeartbeatHandler.removeCallbacks(
+                onlineHeartbeatRunnable
+        );
     }
 
     private void restoreCurrentRide() {
@@ -656,6 +760,8 @@ public class DriverActivity extends Activity {
 
                                     driverOnline = false;
 
+                                    stopOnlineHeartbeat();
+
                                     db.collection("drivers")
                                             .document(user.getUid())
                                             .set(
@@ -679,6 +785,8 @@ public class DriverActivity extends Activity {
                     driverApproved = false;
                     driverSuspended = false;
                     driverOnline = false;
+
+                    stopOnlineHeartbeat();
 
                     updateStatusText();
                     updateOnlineButtons();
@@ -845,6 +953,8 @@ public class DriverActivity extends Activity {
 
                         driverSuspended = true;
                         driverOnline = false;
+
+                        stopOnlineHeartbeat();
 
                         Map<String, Object> suspension =
                                 new HashMap<>();
@@ -1035,13 +1145,52 @@ public class DriverActivity extends Activity {
 
                         driverOnline = false;
 
+                        stopOnlineHeartbeat();
+
                     } else {
 
-                        driverOnline =
+                        boolean storedOnline =
                                 doc.exists()
                                         && Boolean.TRUE.equals(
                                         doc.getBoolean("online")
                                 );
+
+                        long lastOnlineAt =
+                                longValue(
+                                        doc,
+                                        "lastOnlineAt"
+                                );
+
+                        long now =
+                                System.currentTimeMillis();
+
+                        boolean heartbeatFresh =
+                                lastOnlineAt > 0L
+                                        && now - lastOnlineAt
+                                        <= LIVE_DRIVER_TIMEOUT_MS;
+
+                        driverOnline =
+                                storedOnline
+                                        && heartbeatFresh;
+
+                        if (driverOnline) {
+
+                            startOnlineHeartbeat();
+
+                        } else {
+
+                            stopOnlineHeartbeat();
+
+                            if (storedOnline) {
+
+                                db.collection("drivers")
+                                        .document(user.getUid())
+                                        .set(
+                                                buildOfflineData(),
+                                                SetOptions.merge()
+                                        );
+                            }
+                        }
                     }
 
                     updateStatusText();
@@ -1051,6 +1200,8 @@ public class DriverActivity extends Activity {
                 .addOnFailureListener(e -> {
 
                     driverOnline = false;
+
+                    stopOnlineHeartbeat();
 
                     updateStatusText();
                     updateOnlineButtons();
@@ -1071,6 +1222,11 @@ public class DriverActivity extends Activity {
         data.put(
                 "online",
                 false
+        );
+
+        data.put(
+                "lastOnlineAt",
+                0L
         );
 
         data.put(
@@ -1114,6 +1270,8 @@ public class DriverActivity extends Activity {
 
             driverOnline = false;
 
+            stopOnlineHeartbeat();
+
             updateStatusText();
             updateOnlineButtons();
 
@@ -1130,6 +1288,8 @@ public class DriverActivity extends Activity {
 
             driverOnline = false;
 
+            stopOnlineHeartbeat();
+
             updateStatusText();
             updateOnlineButtons();
 
@@ -1141,6 +1301,9 @@ public class DriverActivity extends Activity {
 
             return;
         }
+
+        long now =
+                System.currentTimeMillis();
 
         Map<String, Object> data =
                 new HashMap<>();
@@ -1156,8 +1319,13 @@ public class DriverActivity extends Activity {
         );
 
         data.put(
+                "lastOnlineAt",
+                online ? now : 0L
+        );
+
+        data.put(
                 "updatedAt",
-                System.currentTimeMillis()
+                now
         );
 
         statusText.setText(
@@ -1165,6 +1333,10 @@ public class DriverActivity extends Activity {
                         ? "⏳ GOING ONLINE..."
                         : "⏳ GOING OFFLINE..."
         );
+
+        if (!online) {
+            stopOnlineHeartbeat();
+        }
 
         db.collection("drivers")
                 .document(user.getUid())
@@ -1175,6 +1347,15 @@ public class DriverActivity extends Activity {
                 .addOnSuccessListener(v -> {
 
                     driverOnline = online;
+
+                    if (online) {
+
+                        startOnlineHeartbeat();
+
+                    } else {
+
+                        stopOnlineHeartbeat();
+                    }
 
                     updateStatusText();
                     updateOnlineButtons();
@@ -1189,6 +1370,10 @@ public class DriverActivity extends Activity {
                     ).show();
                 })
                 .addOnFailureListener(e -> {
+
+                    if (online) {
+                        stopOnlineHeartbeat();
+                    }
 
                     updateStatusText();
                     updateOnlineButtons();
@@ -2006,6 +2191,8 @@ public class DriverActivity extends Activity {
 
                                     driverApproved = false;
                                     driverOnline = false;
+
+                                    stopOnlineHeartbeat();
 
                                     db.collection("drivers")
                                             .document(user.getUid())
@@ -3607,6 +3794,13 @@ public class DriverActivity extends Activity {
         final long now =
                 System.currentTimeMillis();
 
+        /*
+         * Stop the heartbeat immediately.
+         * The OFFLINE batch below is the authoritative logout
+         * update.
+         */
+        stopOnlineHeartbeat();
+
         driverOnline = false;
 
         updateStatusText();
@@ -3631,6 +3825,11 @@ public class DriverActivity extends Activity {
         driverOffline.put(
                 "online",
                 false
+        );
+
+        driverOffline.put(
+                "lastOnlineAt",
+                0L
         );
 
         driverOffline.put(
@@ -3703,10 +3902,16 @@ public class DriverActivity extends Activity {
                      * DO NOT silently sign out when the
                      * offline write failed.
                      *
-                     * Otherwise Admin could continue seeing
-                     * this driver as ONLINE.
+                     * Restore the local ONLINE state and
+                     * restart the heartbeat.
                      */
                     driverOnline = true;
+
+                    if (driverApproved
+                            && !driverSuspended) {
+
+                        startOnlineHeartbeat();
+                    }
 
                     updateStatusText();
                     updateOnlineButtons();
@@ -3744,6 +3949,14 @@ public class DriverActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+
+        /*
+         * Stop heartbeat when DriverActivity is destroyed.
+         *
+         * Admin will then stop considering this driver LIVE
+         * after the 30-second freshness window.
+         */
+        stopOnlineHeartbeat();
 
         expiryHandler
                 .removeCallbacksAndMessages(null);
