@@ -19,6 +19,7 @@ import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
+import com.google.firebase.firestore.QuerySnapshot;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -47,6 +48,12 @@ public class AdminActivity extends Activity {
     private LinearLayout paymentSection;
     private LinearLayout driverEarningsDuesSection;
 
+    /*
+     * IMPORTANT:
+     * This declaration was missing in the previous version.
+     */
+    private TextView onlineDriversOverviewValue;
+
     private final Map<String, DocumentSnapshot> usersById =
             new HashMap<>();
 
@@ -67,8 +74,6 @@ public class AdminActivity extends Activity {
      * ============================================================
      * LIVE RIDES / PASSENGER BOOKINGS
      * ============================================================
-     *
-     * Firestore listener keeps ride data current.
      */
     private ListenerRegistration ridesListener;
 
@@ -77,12 +82,10 @@ public class AdminActivity extends Activity {
      * ADMIN LIVE REFRESH FALLBACK
      * ============================================================
      *
-     * This gives the dashboard a second layer of refresh.
+     * Firestore listeners provide immediate updates.
      *
-     * 1. Firestore listeners provide immediate changes.
-     * 2. Periodic reads protect against a stale listener/cache.
-     * 3. The date refresh makes TODAY'S BOOKINGS change
-     *    automatically when the calendar day changes.
+     * Direct Firestore reads provide a fallback in case a
+     * listener/cache becomes stale.
      */
     private final Handler adminRefreshHandler =
             new Handler(Looper.getMainLooper());
@@ -90,8 +93,8 @@ public class AdminActivity extends Activity {
     private static final long DRIVER_REFRESH_MS =
             5000L;
 
-    private static final long DATE_REFRESH_MS =
-            30000L;
+    private static final long RIDE_REFRESH_MS =
+            10000L;
 
     private final Runnable adminRefreshRunnable =
             new Runnable() {
@@ -100,23 +103,23 @@ public class AdminActivity extends Activity {
                 public void run() {
 
                     /*
-                     * Refresh driver online status from
-                     * Firestore directly.
+                     * Direct driver status refresh.
                      */
                     refreshDriverOnlineStatusOnce();
 
                     /*
-                     * Re-render TODAY'S PASSENGER BOOKINGS.
+                     * Direct ride refresh.
+                     */
+                    refreshRidesOnce();
+
+                    /*
+                     * Re-render today's bookings.
                      *
-                     * This is important when the date changes.
-                     * A Firestore document does not change simply
-                     * because midnight has passed.
+                     * This also makes the section switch to
+                     * the new calendar day automatically.
                      */
                     addPassengerBookings();
 
-                    /*
-                     * Keep checking while AdminActivity is alive.
-                     */
                     adminRefreshHandler.postDelayed(
                             this,
                             DRIVER_REFRESH_MS
@@ -337,8 +340,7 @@ public class AdminActivity extends Activity {
     private void loadDashboard() {
 
         /*
-         * Stop existing periodic refresh before starting
-         * a new dashboard cycle.
+         * Stop old periodic refresh.
          */
         adminRefreshHandler.removeCallbacks(
                 adminRefreshRunnable
@@ -355,8 +357,7 @@ public class AdminActivity extends Activity {
         rideDocuments.clear();
 
         /*
-         * Reset section references because the old sections
-         * were removed from contentContainer.
+         * Reset section references.
          */
         overviewSection = null;
         passengersSection = null;
@@ -388,6 +389,9 @@ public class AdminActivity extends Activity {
             ridesListener = null;
         }
 
+        /*
+         * Reset overview TextView.
+         */
         onlineDriversOverviewValue = null;
 
         statusText.setText(
@@ -418,9 +422,15 @@ public class AdminActivity extends Activity {
                     listenToDriverOnlineStatus();
 
                     /*
-                     * Build dashboard sections.
+                     * Build user sections.
                      */
                     buildUserSections();
+
+                    /*
+                     * IMPORTANT:
+                     * Create ride history/payment sections.
+                     */
+                    buildRideSections();
 
                     /*
                      * Start live rides listener.
@@ -428,7 +438,7 @@ public class AdminActivity extends Activity {
                     loadRides();
 
                     /*
-                     * Start periodic fallback refresh.
+                     * Start periodic fallback.
                      */
                     startAdminRefresh();
                 })
@@ -439,6 +449,11 @@ public class AdminActivity extends Activity {
                     );
 
                     buildUserSections();
+
+                    /*
+                     * Still create ride sections.
+                     */
+                    buildRideSections();
 
                     loadRides();
 
@@ -485,12 +500,8 @@ public class AdminActivity extends Activity {
                                     if (error != null) {
 
                                         /*
-                                         * Do not erase the current
-                                         * driver list because of a
-                                         * temporary listener error.
-                                         *
-                                         * The periodic direct read
-                                         * remains active as fallback.
+                                         * Do not clear the list.
+                                         * Direct reads remain active.
                                          */
                                         return;
                                     }
@@ -506,9 +517,6 @@ public class AdminActivity extends Activity {
      * ============================================================
      * DIRECT DRIVER STATUS REFRESH
      * ============================================================
-     *
-     * This is the important fallback for the frozen
-     * ONLINE DRIVERS problem.
      */
     private void refreshDriverOnlineStatusOnce() {
 
@@ -524,10 +532,8 @@ public class AdminActivity extends Activity {
                 .addOnFailureListener(
                         e -> {
                             /*
-                             * Keep the current list when a temporary
-                             * network read fails.
-                             *
-                             * Do not falsely clear all drivers.
+                             * Keep current data on temporary
+                             * network failure.
                              */
                         }
                 );
@@ -539,7 +545,7 @@ public class AdminActivity extends Activity {
      * ============================================================
      */
     private void applyDriverOnlineSnapshot(
-            com.google.firebase.firestore.QuerySnapshot snapshot
+            QuerySnapshot snapshot
     ) {
 
         driverOnlineById.clear();
@@ -555,14 +561,13 @@ public class AdminActivity extends Activity {
                         );
 
                 /*
-                 * FALSE is deliberately stored in the map.
+                 * FALSE remains FALSE.
                  *
-                 * Therefore when a driver logs out and:
+                 * Therefore:
                  *
                  * drivers/{uid}.online = false
                  *
-                 * the driver is removed from the Admin
-                 * ONLINE list.
+                 * removes the driver from ONLINE DRIVERS.
                  */
                 driverOnlineById.put(
                         driver.getId(),
@@ -922,11 +927,6 @@ public class AdminActivity extends Activity {
                 continue;
             }
 
-            /*
-             * LIVE STATUS:
-             *
-             * drivers/{uid}.online
-             */
             if (!Boolean.TRUE.equals(
                     driverOnlineById.get(
                             driver.getId()
@@ -1673,14 +1673,32 @@ public class AdminActivity extends Activity {
         long startOfToday =
                 getStartOfToday();
 
+        long startOfTomorrow =
+                getStartOfTomorrow();
+
         List<DocumentSnapshot> todayBookings =
                 new ArrayList<>();
 
         for (DocumentSnapshot ride :
                 rideDocuments) {
 
+            /*
+             * IMPORTANT:
+             *
+             * Passenger booking date must be based on when
+             * the booking was requested/created.
+             *
+             * We deliberately DO NOT use completedAt first.
+             *
+             * Otherwise:
+             *
+             * Booking created yesterday
+             * + completed today
+             *
+             * could incorrectly appear as TODAY'S BOOKING.
+             */
             Long timestamp =
-                    getRideTimestamp(
+                    getBookingTimestamp(
                             ride
                     );
 
@@ -1688,6 +1706,8 @@ public class AdminActivity extends Activity {
                     timestamp == null
                             ||
                     timestamp < startOfToday
+                            ||
+                    timestamp >= startOfTomorrow
             ) {
 
                 continue;
@@ -1730,7 +1750,7 @@ public class AdminActivity extends Activity {
 
         Collections.sort(
                 todayBookings,
-                newestFirstComparator()
+                bookingNewestFirstComparator()
         );
 
         if (todayBookings.isEmpty()) {
@@ -1753,6 +1773,48 @@ public class AdminActivity extends Activity {
                     ride
             );
         }
+    }
+
+    /*
+     * ============================================================
+     * BOOKING TIMESTAMP
+     * ============================================================
+     *
+     * Used ONLY for today's passenger booking section.
+     */
+    private Long getBookingTimestamp(
+            DocumentSnapshot ride
+    ) {
+
+        String[] fields = {
+                "requestedAt",
+                "createdAt",
+                "bookingCreatedAt",
+                "timestamp",
+                "updatedAt"
+        };
+
+        for (String field :
+                fields) {
+
+            Object value =
+                    ride.get(field);
+
+            if (value instanceof Number) {
+
+                return ((Number) value)
+                        .longValue();
+            }
+
+            if (value instanceof Timestamp) {
+
+                return ((Timestamp) value)
+                        .toDate()
+                        .getTime();
+            }
+        }
+
+        return null;
     }
 
     private long getStartOfToday() {
@@ -1783,6 +1845,78 @@ public class AdminActivity extends Activity {
         return calendar.getTimeInMillis();
     }
 
+    private long getStartOfTomorrow() {
+
+        Calendar calendar =
+                Calendar.getInstance();
+
+        calendar.set(
+                Calendar.HOUR_OF_DAY,
+                0
+        );
+
+        calendar.set(
+                Calendar.MINUTE,
+                0
+        );
+
+        calendar.set(
+                Calendar.SECOND,
+                0
+        );
+
+        calendar.set(
+                Calendar.MILLISECOND,
+                0
+        );
+
+        calendar.add(
+                Calendar.DAY_OF_YEAR,
+                1
+        );
+
+        return calendar.getTimeInMillis();
+    }
+
+    private Comparator<DocumentSnapshot>
+    bookingNewestFirstComparator() {
+
+        return (ride1, ride2) -> {
+
+            Long time1 =
+                    getBookingTimestamp(
+                            ride1
+                    );
+
+            Long time2 =
+                    getBookingTimestamp(
+                            ride2
+                    );
+
+            if (
+                    time1 == null
+                            &&
+                    time2 == null
+            ) {
+
+                return 0;
+            }
+
+            if (time1 == null) {
+                return 1;
+            }
+
+            if (time2 == null) {
+                return -1;
+            }
+
+            return Long.compare(
+                    time2,
+                    time1
+            );
+        };
+    }
+
     /*
      * ============================================================
      * LIVE RIDES LISTENER
@@ -1804,10 +1938,6 @@ public class AdminActivity extends Activity {
 
                                     if (error != null) {
 
-                                        /*
-                                         * Keep existing ride data
-                                         * during temporary errors.
-                                         */
                                         statusText.setText(
                                                 "Users loaded. Live ride data unavailable."
                                         );
@@ -1819,50 +1949,89 @@ public class AdminActivity extends Activity {
                                         return;
                                     }
 
-                                    /*
-                                     * Replace the old ride list
-                                     * with the current Firestore
-                                     * snapshot.
-                                     */
-                                    rideDocuments.clear();
-
-                                    rideDocuments.addAll(
-                                            snapshot.getDocuments()
-                                    );
-
-                                    /*
-                                     * The sections already exist.
-                                     *
-                                     * Do NOT call buildRideSections()
-                                     * here because that would create
-                                     * duplicate section buttons every
-                                     * time Firestore changes.
-                                     */
-
-                                    renderHistory();
-
-                                    renderPayments();
-
-                                    addPassengerBookings();
-
-                                    buildDriverEarningsDues();
-
-                                    statusText.setText(
-                                            "Dashboard live • "
-                                                    + rideDocuments.size()
-                                                    + " ride record(s)"
+                                    applyRideSnapshot(
+                                            snapshot
                                     );
                                 }
                         );
     }
 
+    /*
+     * ============================================================
+     * DIRECT RIDE REFRESH FALLBACK
+     * ============================================================
+     */
+    private void refreshRidesOnce() {
+
+        if (db == null) {
+            return;
+        }
+
+        db.collection("rides")
+                .get()
+                .addOnSuccessListener(
+                        this::applyRideSnapshot
+                )
+                .addOnFailureListener(
+                        e -> {
+                            /*
+                             * Keep current ride data if a temporary
+                             * direct read fails.
+                             */
+                        }
+                );
+    }
+
+    /*
+     * ============================================================
+     * APPLY CURRENT RIDE SNAPSHOT
+     * ============================================================
+     */
+    private void applyRideSnapshot(
+            QuerySnapshot snapshot
+    ) {
+
+        if (snapshot == null) {
+            return;
+        }
+
+        /*
+         * CRITICAL:
+         *
+         * Replace the entire local list.
+         *
+         * This removes yesterday's/deleted/stale documents from
+         * the AdminActivity memory when Firestore no longer
+         * returns them.
+         */
+        rideDocuments.clear();
+
+        rideDocuments.addAll(
+                snapshot.getDocuments()
+        );
+
+        /*
+         * Update all existing ride-related sections.
+         */
+        renderHistory();
+
+        renderPayments();
+
+        addPassengerBookings();
+
+        buildDriverEarningsDues();
+
+        statusText.setText(
+                "Dashboard live • "
+                        + rideDocuments.size()
+                        + " ride record(s)"
+        );
+    }
+
     private void buildRideSections() {
 
         /*
-         * Create the sections only once.
-         *
-         * Subsequent ride updates use renderHistory()
-         * and renderPayments() instead of creating new sections.
+         * Create history section only once.
          */
         if (historySection == null) {
 
@@ -1878,6 +2047,9 @@ public class AdminActivity extends Activity {
 
         renderHistory();
 
+        /*
+         * Create payment section only once.
+         */
         if (paymentSection == null) {
 
             paymentSection =
@@ -3350,10 +3522,6 @@ public class AdminActivity extends Activity {
             DocumentSnapshot ride
     ) {
 
-        /*
-         * Keep the same timestamp priority used
-         * by the existing AdminActivity.
-         */
         String[] fields = {
                 "completedAt",
                 "cancelledAt",
@@ -3736,12 +3904,15 @@ public class AdminActivity extends Activity {
     private void logout() {
 
         /*
-         * Stop listeners/timers before leaving AdminActivity.
+         * Stop periodic refresh.
          */
         adminRefreshHandler.removeCallbacks(
                 adminRefreshRunnable
         );
 
+        /*
+         * Stop driver listener.
+         */
         if (driversListener != null) {
 
             driversListener.remove();
@@ -3749,6 +3920,9 @@ public class AdminActivity extends Activity {
             driversListener = null;
         }
 
+        /*
+         * Stop rides listener.
+         */
         if (ridesListener != null) {
 
             ridesListener.remove();
@@ -3778,16 +3952,10 @@ public class AdminActivity extends Activity {
     @Override
     protected void onDestroy() {
 
-        /*
-         * Stop periodic refresh.
-         */
         adminRefreshHandler.removeCallbacks(
                 adminRefreshRunnable
         );
 
-        /*
-         * Stop driver listener.
-         */
         if (driversListener != null) {
 
             driversListener.remove();
@@ -3795,9 +3963,6 @@ public class AdminActivity extends Activity {
             driversListener = null;
         }
 
-        /*
-         * Stop rides listener.
-         */
         if (ridesListener != null) {
 
             ridesListener.remove();
