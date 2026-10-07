@@ -16,6 +16,7 @@ import com.google.firebase.Timestamp;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.ListenerRegistration;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -49,6 +50,28 @@ public class AdminActivity extends Activity {
 
     private final List<DocumentSnapshot> rideDocuments =
             new ArrayList<>();
+
+    /*
+     * ============================================================
+     * LIVE DRIVER ONLINE STATUS
+     *
+     * DriverActivity stores the live online/offline state in:
+     *
+     * drivers/{uid}.online
+     *
+     * Admin must therefore NOT depend on:
+     *
+     * users/{uid}.online
+     *
+     * This map is refreshed through a real-time Firestore listener.
+     * ============================================================
+     */
+    private final Map<String, Boolean> driverOnlineById =
+            new HashMap<>();
+
+    private ListenerRegistration driversListener;
+
+    private TextView onlineDriversOverviewValue;
 
     private static final int GREEN =
             Color.rgb(0, 125, 80);
@@ -192,6 +215,19 @@ public class AdminActivity extends Activity {
         usersById.clear();
         rideDocuments.clear();
 
+        /*
+         * Clear old live driver status before starting
+         * a fresh dashboard listener.
+         */
+        driverOnlineById.clear();
+
+        if (driversListener != null) {
+            driversListener.remove();
+            driversListener = null;
+        }
+
+        onlineDriversOverviewValue = null;
+
         statusText.setText(
                 "Loading users and rides..."
         );
@@ -214,6 +250,14 @@ public class AdminActivity extends Activity {
                         );
                     }
 
+                    /*
+                     * START LIVE DRIVER STATUS LISTENER.
+                     *
+                     * This reads drivers/{uid}.online
+                     * instead of users/{uid}.online.
+                     */
+                    listenToDriverOnlineStatus();
+
                     buildUserSections();
                     loadRides();
                 })
@@ -223,9 +267,150 @@ public class AdminActivity extends Activity {
                             "Unable to load users."
                     );
 
+                    /*
+                     * No user profile list is available if
+                     * users loading failed, so there is no
+                     * useful online-driver list to build.
+                     */
                     buildUserSections();
                     loadRides();
                 });
+    }
+
+    /*
+     * ============================================================
+     * LIVE DRIVER STATUS LISTENER
+     *
+     * DriverActivity:
+     *
+     * drivers/{uid}.online = true / false
+     *
+     * Admin:
+     *
+     * reads the drivers collection continuously.
+     *
+     * Therefore:
+     *
+     * Driver GO ONLINE
+     *       ↓
+     * drivers/{uid}.online = true
+     *       ↓
+     * Firestore listener fires
+     *       ↓
+     * Admin shows driver immediately
+     *
+     * Driver GO OFFLINE
+     *       ↓
+     * drivers/{uid}.online = false
+     *       ↓
+     * Firestore listener fires
+     *       ↓
+     * Admin removes driver immediately
+     * ============================================================
+     */
+    private void listenToDriverOnlineStatus() {
+
+        if (driversListener != null) {
+            driversListener.remove();
+        }
+
+        driversListener =
+                db.collection("drivers")
+                        .addSnapshotListener(
+                                (snapshot, error) -> {
+
+                                    if (error != null) {
+
+                                        statusText.setText(
+                                                "Users loaded. Live driver status unavailable."
+                                        );
+
+                                        return;
+                                    }
+
+                                    driverOnlineById.clear();
+
+                                    if (snapshot != null) {
+
+                                        for (
+                                                DocumentSnapshot driver :
+                                                snapshot.getDocuments()
+                                        ) {
+
+                                            Boolean online =
+                                                    driver.getBoolean(
+                                                            "online"
+                                                    );
+
+                                            driverOnlineById.put(
+                                                    driver.getId(),
+                                                    Boolean.TRUE.equals(
+                                                            online
+                                                    )
+                                            );
+                                        }
+                                    }
+
+                                    /*
+                                     * Users must already be loaded
+                                     * before we can match driver UID
+                                     * with the driver profile.
+                                     */
+                                    if (!usersById.isEmpty()) {
+
+                                        buildOnlineDrivers();
+
+                                        updateOnlineOverview(
+                                                countLiveApprovedDrivers()
+                                        );
+                                    }
+                                }
+                        );
+    }
+
+    /*
+     * ============================================================
+     * COUNT LIVE APPROVED DRIVERS
+     * ============================================================
+     */
+    private int countLiveApprovedDrivers() {
+
+        int count = 0;
+
+        for (DocumentSnapshot user :
+                usersById.values()) {
+
+            if (!"DRIVER".equalsIgnoreCase(
+                    user.getString("role")
+            )) {
+                continue;
+            }
+
+            if (!"APPROVED".equalsIgnoreCase(
+                    getApprovalStatus(user)
+            )) {
+                continue;
+            }
+
+            if ("SUSPENDED".equalsIgnoreCase(
+                    user.getString(
+                            "driverAccountStatus"
+                    )
+            )) {
+                continue;
+            }
+
+            if (Boolean.TRUE.equals(
+                    driverOnlineById.get(
+                            user.getId()
+                    )
+            )) {
+
+                count++;
+            }
+        }
+
+        return count;
     }
 
     /*
@@ -282,13 +467,30 @@ public class AdminActivity extends Activity {
                     pendingCount++;
                 }
 
+                /*
+                 * IMPORTANT:
+                 *
+                 * LIVE ONLINE STATE COMES FROM:
+                 *
+                 * drivers/{uid}.online
+                 *
+                 * NOT users/{uid}.online
+                 */
                 if (
                         "APPROVED".equalsIgnoreCase(
                                 approval
                         )
                         &&
                         Boolean.TRUE.equals(
-                                user.getBoolean("online")
+                                driverOnlineById.get(
+                                        user.getId()
+                                )
+                        )
+                        &&
+                        !"SUSPENDED".equalsIgnoreCase(
+                                user.getString(
+                                        "driverAccountStatus"
+                                )
                         )
                 ) {
 
@@ -333,11 +535,11 @@ public class AdminActivity extends Activity {
                 LIGHT_GREEN
         );
 
-        addInfoCard(
-                overviewSection,
-                "🟢 DRIVERS ONLINE",
-                String.valueOf(onlineDrivers),
-                LIGHT_GREEN
+        /*
+         * Dedicated live online-driver overview.
+         */
+        addOnlineOverviewCard(
+                onlineDrivers
         );
 
         /*
@@ -376,6 +578,74 @@ public class AdminActivity extends Activity {
                 "Loading outstanding driver dues...",
                 LIGHT_BLUE
         );
+    }
+
+    /*
+     * ============================================================
+     * LIVE ONLINE OVERVIEW CARD
+     * ============================================================
+     */
+    private void addOnlineOverviewCard(
+            int onlineCount
+    ) {
+
+        LinearLayout card =
+                createChildCard(
+                        overviewSection,
+                        LIGHT_GREEN
+                );
+
+        addCardText(
+                card,
+                "🟢 DRIVERS ONLINE",
+                17,
+                DARK
+        );
+
+        onlineDriversOverviewValue =
+                new TextView(this);
+
+        onlineDriversOverviewValue.setText(
+                String.valueOf(
+                        onlineCount
+                )
+        );
+
+        onlineDriversOverviewValue.setTextSize(
+                23
+        );
+
+        onlineDriversOverviewValue.setTextColor(
+                GREEN
+        );
+
+        onlineDriversOverviewValue.setPadding(
+                0,
+                4,
+                0,
+                4
+        );
+
+        card.addView(
+                onlineDriversOverviewValue
+        );
+    }
+
+    private void updateOnlineOverview(
+            int onlineCount
+    ) {
+
+        if (
+                onlineDriversOverviewValue
+                        != null
+        ) {
+
+            onlineDriversOverviewValue.setText(
+                    String.valueOf(
+                            onlineCount
+                    )
+            );
+        }
     }
 
     /*
@@ -447,14 +717,34 @@ public class AdminActivity extends Activity {
      *
      * ONLY approved + currently online drivers appear here.
      *
+     * LIVE STATUS COMES FROM:
+     *
+     * drivers/{uid}.online
+     *
      * An approved driver who is offline does NOT appear.
+     *
+     * A suspended driver does NOT appear.
      * ============================================================
      */
     private void buildOnlineDrivers() {
 
-        onlineDriversSection = createSection(
-                "🟢 ONLINE DRIVERS — LIVE"
-        );
+        /*
+         * The first dashboard build creates the section.
+         *
+         * Later Firestore listener updates reuse the same section
+         * instead of creating duplicate sections.
+         */
+        if (onlineDriversSection == null) {
+
+            onlineDriversSection =
+                    createSection(
+                            "🟢 ONLINE DRIVERS — LIVE"
+                    );
+
+        } else {
+
+            onlineDriversSection.removeAllViews();
+        }
 
         List<DocumentSnapshot> online =
                 new ArrayList<>();
@@ -463,17 +753,31 @@ public class AdminActivity extends Activity {
                 usersById.values()) {
 
             if (!"DRIVER".equalsIgnoreCase(
-                    driver.getString("role"))) {
+                    driver.getString("role")
+            )) {
+
                 continue;
             }
 
             if (!"APPROVED".equalsIgnoreCase(
-                    getApprovalStatus(driver))) {
+                    getApprovalStatus(driver)
+            )) {
+
                 continue;
             }
 
+            /*
+             * CRITICAL FIX:
+             *
+             * Read the driver's REAL live state
+             * from drivers/{uid}.online.
+             */
             if (!Boolean.TRUE.equals(
-                    driver.getBoolean("online"))) {
+                    driverOnlineById.get(
+                            driver.getId()
+                    )
+            )) {
+
                 continue;
             }
 
@@ -483,7 +787,9 @@ public class AdminActivity extends Activity {
             if ("SUSPENDED".equalsIgnoreCase(
                     driver.getString(
                             "driverAccountStatus"
-                    ))) {
+                    )
+            )) {
+
                 continue;
             }
 
@@ -508,6 +814,8 @@ public class AdminActivity extends Activity {
                     LIGHT_YELLOW
             );
 
+            updateOnlineOverview(0);
+
             return;
         }
 
@@ -520,6 +828,10 @@ public class AdminActivity extends Activity {
                     false
             );
         }
+
+        updateOnlineOverview(
+                online.size()
+        );
     }
 
     /*
@@ -1445,13 +1757,6 @@ public class AdminActivity extends Activity {
     /*
      * ============================================================
      * FARE & PAYMENT
-     *
-     * IMPORTANT:
-     *
-     * This no longer requires:
-     * adminTransactionRecorded == true
-     *
-     * It reads actual ride fare/payment information.
      * ============================================================
      */
     private void addPaymentFilters(
@@ -1544,14 +1849,6 @@ public class AdminActivity extends Activity {
             return;
         }
 
-        /*
-         * Keep:
-         *
-         * child 0 = filter label
-         * child 1 = filter buttons
-         *
-         * Remove only previous payment results.
-         */
         int childCount =
                 paymentSection.getChildCount();
 
@@ -1605,10 +1902,6 @@ public class AdminActivity extends Activity {
                             ""
                     );
 
-            /*
-             * A REQUESTED booking with no driver has not
-             * become an actual accepted transaction.
-             */
             if (
                     "REQUESTED".equalsIgnoreCase(status)
                             &&
@@ -1621,9 +1914,6 @@ public class AdminActivity extends Activity {
                 continue;
             }
 
-            /*
-             * Ignore records that have no fare.
-             */
             double fare =
                     readNumber(
                             ride,
@@ -1852,12 +2142,6 @@ public class AdminActivity extends Activity {
                 GREEN
         );
 
-        /*
-         * Passenger identity is intentionally NOT used
-         * as a separate passenger management list.
-         *
-         * The transaction is about the ride/fare/payment.
-         */
         addCardText(
                 card,
                 "🚕 Driver: "
@@ -2027,11 +2311,6 @@ public class AdminActivity extends Activity {
                 GREEN
         );
 
-        /*
-         * No separate passenger-account listing.
-         *
-         * This card represents the actual booking.
-         */
         addCardText(
                 card,
                 "🛺 PASSENGER BOOKING",
@@ -2317,9 +2596,22 @@ public class AdminActivity extends Activity {
         String approval =
                 getApprovalStatus(driver);
 
+        /*
+         * CRITICAL FIX:
+         *
+         * Online status comes from:
+         *
+         * drivers/{uid}.online
+         *
+         * not:
+         *
+         * users/{uid}.online
+         */
         boolean online =
                 Boolean.TRUE.equals(
-                        driver.getBoolean("online")
+                        driverOnlineById.get(
+                                driver.getId()
+                        )
                 );
 
         addCardText(
@@ -2439,12 +2731,6 @@ public class AdminActivity extends Activity {
     /*
      * ============================================================
      * DRIVER APPROVAL
-     *
-     * After approval:
-     * - removed from pending
-     * - online forced false
-     * - does NOT appear in an Approved Drivers directory
-     * - appears later only when online
      * ============================================================
      */
     private void approveDriver(
@@ -3065,6 +3351,27 @@ public class AdminActivity extends Activity {
         startActivity(intent);
 
         finish();
+    }
+
+    /*
+     * ============================================================
+     * STOP LIVE FIRESTORE LISTENER
+     *
+     * Prevents memory leaks and prevents Admin from continuing
+     * to receive driver-status updates after the screen closes.
+     * ============================================================
+     */
+    @Override
+    protected void onDestroy() {
+
+        if (driversListener != null) {
+
+            driversListener.remove();
+
+            driversListener = null;
+        }
+
+        super.onDestroy();
     }
 
     /*
