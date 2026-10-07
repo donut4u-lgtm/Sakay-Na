@@ -30,6 +30,7 @@ import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
 import com.google.firebase.firestore.QuerySnapshot;
 import com.google.firebase.firestore.SetOptions;
+import com.google.firebase.firestore.WriteBatch;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -92,18 +93,8 @@ public class DriverActivity extends Activity {
     private LocationManager locationManager;
     private LocationListener locationListener;
 
-    /*
-     * Current driver's latest GPS location.
-     *
-     * Used only to determine when FINISHED can be
-     * enabled at the booked destination.
-     */
     private Location currentDriverLocation;
 
-    /*
-     * Keeps the current ride snapshot so the
-     * FINISHED button can refresh when GPS moves.
-     */
     private DocumentSnapshot currentRideSnapshot;
 
     private static final int LOCATION_PERMISSION = 2001;
@@ -126,20 +117,7 @@ public class DriverActivity extends Activity {
         buildScreen();
         loadDriverStatus();
         startLocationUpdates();
-
-        /*
-         * GREEN RIDE RECOVERY:
-         *
-         * Look for an active ride already assigned
-         * to this driver before starting the normal
-         * current-ride listener.
-         *
-         * This allows the driver to close/reopen the
-         * app or recreate the activity without losing
-         * the active ride from the dashboard.
-         */
         restoreCurrentRide();
-
         startRequestExpiryChecker();
 
         SakayNaNotificationHelper
@@ -155,24 +133,6 @@ public class DriverActivity extends Activity {
         }
     }
 
-    /*
-     * =========================================================
-     * GREEN RIDE RECOVERY
-     *
-     * Recover an active ride assigned to the current
-     * driver after an Activity/process restart.
-     *
-     * Terminal rides are ignored:
-     * COMPLETED
-     * CANCELLED
-     * DECLINED
-     * EXPIRED
-     * FINISHED
-     *
-     * If more than one active ride somehow exists,
-     * the newest active ride is recovered.
-     * =========================================================
-     */
     private void restoreCurrentRide() {
 
         if (user == null) {
@@ -259,13 +219,6 @@ public class DriverActivity extends Activity {
                 })
                 .addOnFailureListener(e -> {
 
-                    /*
-                     * Do not invent a ride if recovery
-                     * cannot be verified.
-                     *
-                     * The normal listener will remain
-                     * available for future rides.
-                     */
                     currentRideId = "";
 
                     listenForCurrentRide();
@@ -3617,51 +3570,176 @@ public class DriverActivity extends Activity {
         }
     }
 
+    /*
+     * =========================================================
+     * FIX:
+     * DRIVER LOGOUT MUST FIRST WRITE OFFLINE STATUS.
+     *
+     * The previous version used addOnCompleteListener()
+     * and signed out even when the Firestore write failed.
+     *
+     * This version:
+     *
+     * 1. Sets drivers/{uid}.online = false
+     * 2. Sets users/{uid}.online = false
+     * 3. Uses one Firestore batch so both writes happen together
+     * 4. Only signs out after the batch succeeds
+     * 5. Shows the Firestore error if the write fails
+     *
+     * This gives Admin's live drivers listener a definite
+     * OFFLINE change to receive.
+     * =========================================================
+     */
     private void logout() {
 
-        Map<String, Object> data =
+        if (user == null) {
+
+            auth.signOut();
+
+            goToMainAfterLogout();
+
+            return;
+        }
+
+        final String uid =
+                user.getUid();
+
+        final long now =
+                System.currentTimeMillis();
+
+        driverOnline = false;
+
+        updateStatusText();
+        updateOnlineButtons();
+
+        if (statusText != null) {
+
+            statusText.setText(
+                    "⏳ LOGGING OUT...\n"
+                            + "Setting driver OFFLINE..."
+            );
+        }
+
+        Map<String, Object> driverOffline =
                 new HashMap<>();
 
-        data.put(
+        driverOffline.put(
+                "driverId",
+                uid
+        );
+
+        driverOffline.put(
                 "online",
                 false
         );
 
-        data.put(
+        driverOffline.put(
                 "updatedAt",
-                System.currentTimeMillis()
+                now
         );
 
-        db.collection("drivers")
-                .document(user.getUid())
-                .set(
-                        data,
-                        SetOptions.merge()
-                )
-                .addOnCompleteListener(
-                        task -> {
+        Map<String, Object> userOffline =
+                new HashMap<>();
 
-                            auth.signOut();
+        userOffline.put(
+                "online",
+                false
+        );
 
-                            Intent intent =
-                                    new Intent(
-                                            this,
-                                            MainActivity.class
-                                    );
+        userOffline.put(
+                "updatedAt",
+                now
+        );
 
-                            intent.addFlags(
-                                    Intent.FLAG_ACTIVITY_CLEAR_TOP
-                                            |
-                                    Intent.FLAG_ACTIVITY_NEW_TASK
-                                            |
-                                    Intent.FLAG_ACTIVITY_CLEAR_TASK
-                            );
+        WriteBatch batch =
+                db.batch();
 
-                            startActivity(intent);
+        batch.set(
+                db.collection("drivers")
+                        .document(uid),
+                driverOffline,
+                SetOptions.merge()
+        );
 
-                            finish();
-                        }
+        batch.set(
+                db.collection("users")
+                        .document(uid),
+                userOffline,
+                SetOptions.merge()
+        );
+
+        batch.commit()
+                .addOnSuccessListener(v -> {
+
+                    driverOnline = false;
+
+                    /*
+                     * Stop the ride-request listener before
+                     * signing out.
+                     */
+                    if (requestListener != null) {
+
+                        requestListener.remove();
+                        requestListener = null;
+                    }
+
+                    if (currentRideListener != null) {
+
+                        currentRideListener.remove();
+                        currentRideListener = null;
+                    }
+
+                    /*
+                     * Now it is safe to sign out because
+                     * Firestore has confirmed OFFLINE.
+                     */
+                    auth.signOut();
+
+                    goToMainAfterLogout();
+                })
+                .addOnFailureListener(e -> {
+
+                    /*
+                     * DO NOT silently sign out when the
+                     * offline write failed.
+                     *
+                     * Otherwise Admin could continue seeing
+                     * this driver as ONLINE.
+                     */
+                    driverOnline = true;
+
+                    updateStatusText();
+                    updateOnlineButtons();
+
+                    Toast.makeText(
+                            this,
+                            "⚠️ LOGOUT NOT COMPLETED\n"
+                                    + "Sakay Na could not update your OFFLINE status.\n\n"
+                                    + e.getMessage(),
+                            Toast.LENGTH_LONG
+                    ).show();
+                });
+    }
+
+    private void goToMainAfterLogout() {
+
+        Intent intent =
+                new Intent(
+                        this,
+                        MainActivity.class
                 );
+
+        intent.addFlags(
+                Intent.FLAG_ACTIVITY_CLEAR_TOP
+                        |
+                Intent.FLAG_ACTIVITY_NEW_TASK
+                        |
+                Intent.FLAG_ACTIVITY_CLEAR_TASK
+        );
+
+        startActivity(intent);
+
+        finish();
     }
 
     @Override
