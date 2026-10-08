@@ -27,10 +27,10 @@ public final class UpdateChecker {
             "https://api.github.com/repos/donut4u-lgtm/Sakay-Na/releases/latest";
 
     /*
-     * ALL Sakay Na public updates use this single APK.
+     * PERMANENT SAKAY NA APK DOWNLOAD
      *
-     * The APK itself is built from the current Sakay Na source,
-     * which uses @sakayna.app for passenger and driver authentication.
+     * This always points to the APK asset named SakayNa.apk
+     * in the latest published GitHub release.
      */
     private static final String DOWNLOAD_URL =
             "https://github.com/donut4u-lgtm/Sakay-Na/releases/latest/download/SakayNa.apk";
@@ -39,6 +39,10 @@ public final class UpdateChecker {
     }
 
     public static void check(Context context) {
+
+        if (context == null) {
+            return;
+        }
 
         ExecutorService executor =
                 Executors.newSingleThreadExecutor();
@@ -55,6 +59,13 @@ public final class UpdateChecker {
 
                 executor.shutdown();
 
+                /*
+                 * IMPORTANT:
+                 *
+                 * If GitHub cannot be reached, do NOT block the app.
+                 * Mandatory update happens only when a newer release
+                 * has been positively confirmed.
+                 */
                 if (release == null || context == null) {
                     return;
                 }
@@ -62,10 +73,16 @@ public final class UpdateChecker {
                 long currentCode =
                         getInstalledVersionCode(context);
 
+                /*
+                 * Current app is already the same version or newer.
+                 */
                 if (release.versionCode <= currentCode) {
                     return;
                 }
 
+                /*
+                 * Update dialog requires an Activity.
+                 */
                 if (!(context instanceof Activity)) {
                     return;
                 }
@@ -73,7 +90,7 @@ public final class UpdateChecker {
                 Activity activity =
                         (Activity) context;
 
-                showUpdateDialog(
+                showMandatoryUpdateDialog(
                         activity,
                         release.versionName,
                         release.versionCode
@@ -113,6 +130,7 @@ public final class UpdateChecker {
     private static ReleaseInfo fetchLatestRelease() {
 
         HttpURLConnection connection = null;
+        BufferedReader reader = null;
 
         try {
 
@@ -148,7 +166,7 @@ public final class UpdateChecker {
                 return null;
             }
 
-            BufferedReader reader =
+            reader =
                     new BufferedReader(
                             new InputStreamReader(
                                     connection.getInputStream()
@@ -165,8 +183,6 @@ public final class UpdateChecker {
 
                 jsonText.append(line);
             }
-
-            reader.close();
 
             JSONObject json =
                     new JSONObject(
@@ -188,6 +204,11 @@ public final class UpdateChecker {
             long versionCode =
                     extractVersionCode(body);
 
+            /*
+             * A release without a valid version code is not considered
+             * an update. This prevents a bad/malformed GitHub release
+             * from locking users out.
+             */
             if (versionCode <= 0) {
                 return null;
             }
@@ -208,7 +229,18 @@ public final class UpdateChecker {
 
         } finally {
 
+            if (reader != null) {
+
+                try {
+
+                    reader.close();
+
+                } catch (Exception ignored) {
+                }
+            }
+
             if (connection != null) {
+
                 connection.disconnect();
             }
         }
@@ -246,11 +278,15 @@ public final class UpdateChecker {
         }
     }
 
-    private static void showUpdateDialog(
+    private static void showMandatoryUpdateDialog(
             Activity activity,
             String versionName,
             long versionCode
     ) {
+
+        if (activity == null) {
+            return;
+        }
 
         if (activity.isFinishing()) {
             return;
@@ -262,54 +298,103 @@ public final class UpdateChecker {
             return;
         }
 
-        new AlertDialog.Builder(activity)
+        AlertDialog dialog =
+                new AlertDialog.Builder(activity)
 
-                .setTitle(
-                        "🛺 Sakay Na Update Available"
-                )
+                        .setTitle(
+                                "🛺 Sakay Na Update Required"
+                        )
 
-                .setMessage(
-                        "A newer Sakay Na version is available.\n\n"
-                                + "Version "
-                                + versionName
-                                + " ("
-                                + versionCode
-                                + ")"
-                                + "\n\n"
-                                + "Update using the official Sakay Na APK."
-                )
+                        .setMessage(
+                                "A newer version of Sakay Na is required.\n\n"
+                                        + "New version: "
+                                        + versionName
+                                        + " ("
+                                        + versionCode
+                                        + ")"
+                                        + "\n\n"
+                                        + "Please update the app to continue using "
+                                        + "the latest Sakay Na features and services."
+                        )
 
-                .setPositiveButton(
-                        "UPDATE NOW",
-                        (dialog, which) -> {
+                        .setPositiveButton(
+                                "UPDATE NOW",
+                                (dialogInterface, which) -> {
 
-                            try {
+                                    openLatestApk(
+                                            activity
+                                    );
+                                }
+                        )
 
-                                Intent intent =
-                                        new Intent(
-                                                Intent.ACTION_VIEW,
-                                                Uri.parse(
-                                                        DOWNLOAD_URL
-                                                )
-                                        );
+                        /*
+                         * NO LATER BUTTON.
+                         *
+                         * The user must update after a newer version
+                         * has been confirmed.
+                         */
+                        .setCancelable(false)
 
-                                activity.startActivity(
-                                        intent
-                                );
+                        .create();
 
-                            } catch (Exception ignored) {
-                            }
-                        }
-                )
+        dialog.setCanceledOnTouchOutside(false);
 
-                .setNegativeButton(
-                        "LATER",
-                        null
-                )
+        dialog.setOnShowListener(
+                dialogInterface -> {
 
-                .setCancelable(true)
+                    /*
+                     * Make sure the only available action is UPDATE NOW.
+                     */
+                    if (dialog.getButton(
+                            AlertDialog.BUTTON_POSITIVE
+                    ) != null) {
 
-                .show();
+                        dialog.getButton(
+                                AlertDialog.BUTTON_POSITIVE
+                        ).setText(
+                                "UPDATE NOW"
+                        );
+                    }
+                }
+        );
+
+        dialog.show();
+    }
+
+    private static void openLatestApk(
+            Activity activity
+    ) {
+
+        if (activity == null) {
+            return;
+        }
+
+        try {
+
+            Intent intent =
+                    new Intent(
+                            Intent.ACTION_VIEW,
+                            Uri.parse(
+                                    DOWNLOAD_URL
+                            )
+                    );
+
+            intent.addFlags(
+                    Intent.FLAG_ACTIVITY_NEW_TASK
+            );
+
+            activity.startActivity(
+                    intent
+            );
+
+        } catch (Exception ignored) {
+
+            /*
+             * If Android cannot find a browser/app capable of
+             * opening the download URL, do nothing rather than
+             * crashing Sakay Na.
+             */
+        }
     }
 
     private static final class ReleaseInfo {
