@@ -56,6 +56,26 @@ public class DriverActivity extends Activity {
     private boolean driverApproved = false;
     private boolean driverSuspended = false;
 
+    /*
+     * =========================================================
+     * DRIVER VERSION GATE
+     *
+     * Driver must run the latest verified Sakay Na release
+     * before being allowed to go ONLINE or accept bookings.
+     * =========================================================
+     */
+    private boolean driverVersionAllowed = false;
+    private boolean driverVersionCheckComplete = false;
+    private boolean driverVersionCheckRunning = false;
+
+    private String driverVersionMessage =
+            "⏳ Checking Sakay Na app version...";
+
+    private String latestRequiredVersionName = "";
+    private long latestRequiredVersionCode = -1L;
+
+    private boolean updateDialogShowing = false;
+
     private double driverSettlementBalance = 0.0;
 
     private long suspensionDeadlineAt = 0L;
@@ -108,7 +128,9 @@ public class DriverActivity extends Activity {
                     if (user != null
                             && driverOnline
                             && driverApproved
-                            && !driverSuspended) {
+                            && !driverSuspended
+                            && driverVersionAllowed
+                            && driverVersionCheckComplete) {
 
                         long now =
                                 System.currentTimeMillis();
@@ -190,7 +212,13 @@ public class DriverActivity extends Activity {
         }
 
         buildScreen();
-        loadDriverStatus();
+
+        /*
+         * VERSION CHECK MUST COMPLETE BEFORE DRIVER
+         * STATUS/ONLINE/BOOKING ACCESS IS ENABLED.
+         */
+        checkDriverVersionForDriver();
+
         startLocationUpdates();
         restoreCurrentRide();
         startRequestExpiryChecker();
@@ -204,8 +232,259 @@ public class DriverActivity extends Activity {
         super.onResume();
 
         if (db != null && user != null) {
-            loadDriverStatus();
+
+            /*
+             * Re-check every time DriverActivity becomes active.
+             * This means an old driver APK cannot remain usable
+             * after a newer mandatory release is published.
+             */
+            checkDriverVersionForDriver();
         }
+    }
+
+    /*
+     * =========================================================
+     * DRIVER VERSION GATE
+     * =========================================================
+     */
+    private void checkDriverVersionForDriver() {
+
+        if (user == null) {
+            return;
+        }
+
+        driverVersionCheckComplete = false;
+        driverVersionAllowed = false;
+        driverVersionCheckRunning = true;
+
+        driverVersionMessage =
+                "⏳ Checking Sakay Na app version...";
+
+        /*
+         * Immediately prevent the driver from remaining ONLINE
+         * while the latest release is being verified.
+         */
+        driverOnline = false;
+
+        stopOnlineHeartbeat();
+
+        updateStatusText();
+        updateOnlineButtons();
+
+        if (requestsText != null) {
+
+            requestsText.setText(
+                    "⏳ CHECKING SAKAY NA APP VERSION...\n\n"
+                            + "Driver booking access is temporarily locked while the latest release is verified."
+            );
+        }
+
+        UpdateChecker.checkDriverVersion(
+                this,
+                new UpdateChecker.DriverVersionCallback() {
+
+                    @Override
+                    public void onResult(
+                            boolean allowed,
+                            boolean updateRequired,
+                            String latestVersionName,
+                            long latestVersionCode
+                    ) {
+
+                        if (isFinishing()
+                                || isDestroyed()) {
+                            return;
+                        }
+
+                        driverVersionCheckRunning = false;
+                        driverVersionCheckComplete = true;
+
+                        latestRequiredVersionName =
+                                latestVersionName == null
+                                        ? ""
+                                        : latestVersionName;
+
+                        latestRequiredVersionCode =
+                                latestVersionCode;
+
+                        if (allowed) {
+
+                            driverVersionAllowed = true;
+
+                            driverVersionMessage =
+                                    "🟢 Sakay Na app version verified.";
+
+                            updateStatusText();
+                            updateOnlineButtons();
+
+                            loadDriverStatus();
+
+                            return;
+                        }
+
+                        /*
+                         * Either the installed driver APK is old,
+                         * or the latest release could not be verified.
+                         *
+                         * Both cases fail CLOSED for driver booking.
+                         */
+                        driverVersionAllowed = false;
+                        driverOnline = false;
+
+                        stopOnlineHeartbeat();
+
+                        db.collection("drivers")
+                                .document(user.getUid())
+                                .set(
+                                        buildOfflineData(),
+                                        SetOptions.merge()
+                                );
+
+                        updateStatusText();
+                        updateOnlineButtons();
+
+                        listenForRideRequests();
+
+                        if (updateRequired) {
+
+                            driverVersionMessage =
+                                    "🔴 APP UPDATE REQUIRED";
+
+                            showDriverUpdateRequiredDialog();
+
+                        } else {
+
+                            driverVersionMessage =
+                                    "🔴 VERSION VERIFICATION FAILED";
+
+                            showDriverVersionVerificationFailed();
+                        }
+
+                        updateStatusText();
+                        updateOnlineButtons();
+                        renderRideRequests(
+                                latestRequestSnapshot
+                        );
+                    }
+                }
+        );
+    }
+
+    private void showDriverUpdateRequiredDialog() {
+
+        if (updateDialogShowing) {
+            return;
+        }
+
+        updateDialogShowing = true;
+
+        String installedVersionName =
+                BuildConfig.VERSION_NAME;
+
+        long installedVersionCode =
+                UpdateChecker.getInstalledVersionCode(
+                        this
+                );
+
+        String latestText =
+                latestRequiredVersionName.isEmpty()
+                        ? "Latest release"
+                        : latestRequiredVersionName;
+
+        String message =
+                "🔴 RED DIAGNOSTIC\n\n"
+                        + "SAKAY NA DRIVER ACCESS BLOCKED\n\n"
+                        + "Reason:\n"
+                        + "APP UPDATE REQUIRED\n\n"
+                        + "Installed Version:\n"
+                        + installedVersionName
+                        + "\n\n"
+                        + "Installed Version Code:\n"
+                        + installedVersionCode
+                        + "\n\n"
+                        + "Latest Version:\n"
+                        + latestText
+                        + "\n\n"
+                        + "Latest Required Version Code:\n"
+                        + latestRequiredVersionCode
+                        + "\n\n"
+                        + "Driver is OFFLINE.\n"
+                        + "Please update Sakay Na to continue accepting bookings.";
+
+        AlertDialog dialog =
+                new AlertDialog.Builder(this)
+                        .setTitle(
+                                "🔴 SAKAY NA UPDATE REQUIRED"
+                        )
+                        .setMessage(message)
+                        .setCancelable(false)
+                        .setPositiveButton(
+                                "UPDATE SAKAY NA",
+                                (d, which) -> {
+
+                                    updateDialogShowing =
+                                            false;
+
+                                    UpdateChecker.openLatestApk(
+                                            this
+                                    );
+                                }
+                        )
+                        .create();
+
+        dialog.setOnDismissListener(
+                d -> updateDialogShowing = false
+        );
+
+        dialog.show();
+    }
+
+    private void showDriverVersionVerificationFailed() {
+
+        String installedVersionName =
+                BuildConfig.VERSION_NAME;
+
+        long installedVersionCode =
+                UpdateChecker.getInstalledVersionCode(
+                        this
+                );
+
+        String message =
+                "🔴 RED DIAGNOSTIC\n\n"
+                        + "SAKAY NA DRIVER ACCESS BLOCKED\n\n"
+                        + "Reason:\n"
+                        + "VERSION VERIFICATION FAILED\n\n"
+                        + "Installed Version:\n"
+                        + installedVersionName
+                        + "\n\n"
+                        + "Installed Version Code:\n"
+                        + installedVersionCode
+                        + "\n\n"
+                        + "The latest Sakay Na release could not be verified.\n\n"
+                        + "Driver is OFFLINE for safety.\n"
+                        + "Check your internet connection and try again.";
+
+        new AlertDialog.Builder(this)
+                .setTitle(
+                        "🔴 RED DIAGNOSTIC"
+                )
+                .setMessage(message)
+                .setPositiveButton(
+                        "TRY AGAIN",
+                        (dialog, which) ->
+                                checkDriverVersionForDriver()
+                )
+                .setNegativeButton(
+                        "CLOSE",
+                        null
+                )
+                .show();
+    }
+
+    private boolean isDriverVersionReady() {
+
+        return driverVersionCheckComplete
+                && driverVersionAllowed;
     }
 
     /*
@@ -222,7 +501,9 @@ public class DriverActivity extends Activity {
         if (user != null
                 && driverOnline
                 && driverApproved
-                && !driverSuspended) {
+                && !driverSuspended
+                && driverVersionAllowed
+                && driverVersionCheckComplete) {
 
             onlineHeartbeatHandler.post(
                     onlineHeartbeatRunnable
@@ -699,6 +980,24 @@ public class DriverActivity extends Activity {
             return;
         }
 
+        /*
+         * Never load usable driver access before the version
+         * gate is verified.
+         */
+        if (!isDriverVersionReady()) {
+
+            driverOnline = false;
+
+            stopOnlineHeartbeat();
+
+            updateStatusText();
+            updateOnlineButtons();
+
+            listenForRideRequests();
+
+            return;
+        }
+
         db.collection("users")
                 .document(user.getUid())
                 .get()
@@ -1136,12 +1435,25 @@ public class DriverActivity extends Activity {
 
     private void loadOnlineStatus() {
 
+        if (!isDriverVersionReady()) {
+
+            driverOnline = false;
+
+            stopOnlineHeartbeat();
+
+            updateStatusText();
+            updateOnlineButtons();
+
+            return;
+        }
+
         db.collection("drivers")
                 .document(user.getUid())
                 .get()
                 .addOnSuccessListener(doc -> {
 
-                    if (driverSuspended) {
+                    if (driverSuspended
+                            || !isDriverVersionReady()) {
 
                         driverOnline = false;
 
@@ -1244,6 +1556,18 @@ public class DriverActivity extends Activity {
             return;
         }
 
+        /*
+         * VERSION GATE HAS PRIORITY.
+         */
+        if (!driverVersionCheckComplete
+                || !driverVersionAllowed) {
+
+            onlineButton.setEnabled(false);
+            offlineButton.setEnabled(false);
+
+            return;
+        }
+
         if (!driverApproved
                 || driverSuspended) {
 
@@ -1265,6 +1589,29 @@ public class DriverActivity extends Activity {
     private void setDriverOnline(
             boolean online
     ) {
+
+        /*
+         * VERSION GATE — FIRST CHECK.
+         */
+        if (!isDriverVersionReady()) {
+
+            driverOnline = false;
+
+            stopOnlineHeartbeat();
+
+            updateStatusText();
+            updateOnlineButtons();
+
+            Toast.makeText(
+                    this,
+                    "🔴 Sakay Na app version must be verified before driver access.",
+                    Toast.LENGTH_LONG
+            ).show();
+
+            checkDriverVersionForDriver();
+
+            return;
+        }
 
         if (online && driverSuspended) {
 
@@ -1389,6 +1736,78 @@ public class DriverActivity extends Activity {
 
     private void updateStatusText() {
 
+        if (statusText == null) {
+            return;
+        }
+
+        /*
+         * VERSION DIAGNOSTIC HAS HIGHEST PRIORITY.
+         */
+        if (!driverVersionCheckComplete) {
+
+            statusText.setText(
+                    "⏳ CHECKING SAKAY NA APP VERSION...\n\n"
+                            + driverVersionMessage
+            );
+
+            statusText.setTextColor(
+                    Color.rgb(190, 90, 0)
+            );
+
+            return;
+        }
+
+        if (!driverVersionAllowed) {
+
+            String installedVersionName =
+                    BuildConfig.VERSION_NAME;
+
+            long installedVersionCode =
+                    UpdateChecker.getInstalledVersionCode(
+                            this
+                    );
+
+            String latestName =
+                    latestRequiredVersionName.isEmpty()
+                            ? "Unavailable"
+                            : latestRequiredVersionName;
+
+            String latestCode =
+                    latestRequiredVersionCode > 0
+                            ? String.valueOf(
+                            latestRequiredVersionCode
+                    )
+                            : "Unavailable";
+
+            statusText.setText(
+                    "🔴 RED DIAGNOSTIC\n\n"
+                            + "DRIVER BOOKING ACCESS BLOCKED\n\n"
+                            + "Reason:\n"
+                            + driverVersionMessage
+                            + "\n\n"
+                            + "Installed Version:\n"
+                            + installedVersionName
+                            + "\n"
+                            + "Installed Version Code:\n"
+                            + installedVersionCode
+                            + "\n\n"
+                            + "Latest Version:\n"
+                            + latestName
+                            + "\n"
+                            + "Required Version Code:\n"
+                            + latestCode
+                            + "\n\n"
+                            + "🔴 DRIVER OFFLINE\n"
+                            + "Update/verify Sakay Na before accepting bookings."
+            );
+
+            statusText.setTextColor(
+                    Color.rgb(180, 0, 0)
+            );
+
+            return;
+        }
+
         if (driverSuspended) {
 
             String balance =
@@ -1509,7 +1928,8 @@ public class DriverActivity extends Activity {
             QuerySnapshot snapshots
     ) {
 
-        if (!driverOnline
+        if (!isDriverVersionReady()
+                || !driverOnline
                 || !driverApproved
                 || driverSuspended
                 || snapshots == null) {
@@ -1638,6 +2058,30 @@ public class DriverActivity extends Activity {
         }
 
         requestContainer.removeAllViews();
+
+        if (!driverVersionCheckComplete) {
+
+            requestsText.setText(
+                    "⏳ CHECKING SAKAY NA APP VERSION...\n\n"
+                            + "Ride requests are temporarily locked."
+            );
+
+            return;
+        }
+
+        if (!driverVersionAllowed) {
+
+            requestsText.setText(
+                    "🔴 RED DIAGNOSTIC\n\n"
+                            + "DRIVER BOOKING ACCESS BLOCKED\n\n"
+                            + driverVersionMessage
+                            + "\n\n"
+                            + "🔴 Driver is OFFLINE.\n"
+                            + "Please update/verify Sakay Na before accepting rides."
+            );
+
+            return;
+        }
 
         if (driverSuspended) {
 
@@ -1879,6 +2323,7 @@ public class DriverActivity extends Activity {
                 driverOnline
                         && driverApproved
                         && !driverSuspended
+                        && isDriverVersionReady()
         );
 
         Button decline =
@@ -1897,6 +2342,19 @@ public class DriverActivity extends Activity {
         );
 
         accept.setOnClickListener(v -> {
+
+            if (!isDriverVersionReady()) {
+
+                Toast.makeText(
+                        this,
+                        "🔴 App update/version verification is required before accepting rides.",
+                        Toast.LENGTH_LONG
+                ).show();
+
+                checkDriverVersionForDriver();
+
+                return;
+            }
 
             if (driverSuspended) {
 
@@ -2072,6 +2530,26 @@ public class DriverActivity extends Activity {
             LinearLayout card
     ) {
 
+        /*
+         * VERSION GATE — SECONDARY SERVER-SIDE CLIENT CHECK.
+         */
+        if (!isDriverVersionReady()) {
+
+            card.setVisibility(
+                    LinearLayout.VISIBLE
+            );
+
+            Toast.makeText(
+                    this,
+                    "🔴 App update/version verification is required before accepting rides.",
+                    Toast.LENGTH_LONG
+            ).show();
+
+            checkDriverVersionForDriver();
+
+            return;
+        }
+
         if (driverSuspended) {
 
             card.setVisibility(
@@ -2117,6 +2595,32 @@ public class DriverActivity extends Activity {
                     checkUnpaidDues(
                             profile,
                             () -> {
+
+                                if (!isDriverVersionReady()) {
+
+                                    hiddenRequestIds.remove(
+                                            rideId
+                                    );
+
+                                    card.setVisibility(
+                                            LinearLayout.VISIBLE
+                                    );
+
+                                    driverOnline = false;
+
+                                    stopOnlineHeartbeat();
+
+                                    updateStatusText();
+                                    updateOnlineButtons();
+
+                                    Toast.makeText(
+                                            this,
+                                            "🔴 Sakay Na app update/version verification is required.",
+                                            Toast.LENGTH_LONG
+                                    ).show();
+
+                                    return;
+                                }
 
                                 if (driverSuspended) {
 
@@ -3872,10 +4376,6 @@ public class DriverActivity extends Activity {
 
                     driverOnline = false;
 
-                    /*
-                     * Stop the ride-request listener before
-                     * signing out.
-                     */
                     if (requestListener != null) {
 
                         requestListener.remove();
@@ -3888,27 +4388,17 @@ public class DriverActivity extends Activity {
                         currentRideListener = null;
                     }
 
-                    /*
-                     * Now it is safe to sign out because
-                     * Firestore has confirmed OFFLINE.
-                     */
                     auth.signOut();
 
                     goToMainAfterLogout();
                 })
                 .addOnFailureListener(e -> {
 
-                    /*
-                     * DO NOT silently sign out when the
-                     * offline write failed.
-                     *
-                     * Restore the local ONLINE state and
-                     * restart the heartbeat.
-                     */
                     driverOnline = true;
 
                     if (driverApproved
-                            && !driverSuspended) {
+                            && !driverSuspended
+                            && isDriverVersionReady()) {
 
                         startOnlineHeartbeat();
                     }
