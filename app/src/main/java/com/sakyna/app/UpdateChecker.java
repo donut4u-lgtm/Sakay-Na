@@ -29,7 +29,7 @@ public final class UpdateChecker {
     /*
      * PERMANENT SAKAY NA APK DOWNLOAD
      *
-     * This always points to the APK asset named SakayNa.apk
+     * Always points to the APK asset named SakayNa.apk
      * in the latest published GitHub release.
      */
     private static final String DOWNLOAD_URL =
@@ -38,6 +38,16 @@ public final class UpdateChecker {
     private UpdateChecker() {
     }
 
+    /*
+     * ============================================================
+     * NORMAL APP UPDATE CHECK
+     * ============================================================
+     *
+     * Used by the normal Sakay Na application startup.
+     *
+     * If a newer release is positively confirmed, the user must
+     * update before continuing.
+     */
     public static void check(Context context) {
 
         if (context == null) {
@@ -60,11 +70,8 @@ public final class UpdateChecker {
                 executor.shutdown();
 
                 /*
-                 * IMPORTANT:
-                 *
-                 * If GitHub cannot be reached, do NOT block the app.
-                 * Mandatory update happens only when a newer release
-                 * has been positively confirmed.
+                 * If GitHub cannot be reached, do not block the
+                 * normal application startup.
                  */
                 if (release == null || context == null) {
                     return;
@@ -74,7 +81,7 @@ public final class UpdateChecker {
                         getInstalledVersionCode(context);
 
                 /*
-                 * Current app is already the same version or newer.
+                 * Same or newer version = already current.
                  */
                 if (release.versionCode <= currentCode) {
                     return;
@@ -99,9 +106,103 @@ public final class UpdateChecker {
         });
     }
 
-    private static long getInstalledVersionCode(
+    /*
+     * ============================================================
+     * DRIVER VERSION GATE
+     * ============================================================
+     *
+     * This is separate from the normal update notification.
+     *
+     * Driver operations must only be allowed when the installed
+     * APK versionCode is equal to or newer than the latest
+     * published release.
+     *
+     * If GitHub cannot be verified, the driver gate FAILS CLOSED.
+     * That means the driver cannot go online or accept rides until
+     * the application can verify its version.
+     */
+    public interface DriverVersionCallback {
+
+        void onResult(
+                boolean allowed,
+                boolean updateRequired,
+                String latestVersionName,
+                long latestVersionCode
+        );
+    }
+
+    public static void checkDriverVersion(
+            Context context,
+            DriverVersionCallback callback
+    ) {
+
+        if (context == null || callback == null) {
+            return;
+        }
+
+        ExecutorService executor =
+                Executors.newSingleThreadExecutor();
+
+        Handler mainHandler =
+                new Handler(Looper.getMainLooper());
+
+        executor.execute(() -> {
+
+            ReleaseInfo release =
+                    fetchLatestRelease();
+
+            long currentCode =
+                    getInstalledVersionCode(context);
+
+            mainHandler.post(() -> {
+
+                executor.shutdown();
+
+                /*
+                 * Cannot verify the current published release.
+                 *
+                 * FAIL CLOSED for drivers.
+                 */
+                if (release == null) {
+
+                    callback.onResult(
+                            false,
+                            false,
+                            "",
+                            0
+                    );
+
+                    return;
+                }
+
+                boolean allowed =
+                        currentCode >= release.versionCode;
+
+                boolean updateRequired =
+                        currentCode < release.versionCode;
+
+                callback.onResult(
+                        allowed,
+                        updateRequired,
+                        release.versionName,
+                        release.versionCode
+                );
+            });
+        });
+    }
+
+    /*
+     * ============================================================
+     * INSTALLED VERSION
+     * ============================================================
+     */
+    public static long getInstalledVersionCode(
             Context context
     ) {
+
+        if (context == null) {
+            return 0;
+        }
 
         try {
 
@@ -127,6 +228,11 @@ public final class UpdateChecker {
         }
     }
 
+    /*
+     * ============================================================
+     * FETCH LATEST GITHUB RELEASE
+     * ============================================================
+     */
     private static ReleaseInfo fetchLatestRelease() {
 
         HttpURLConnection connection = null;
@@ -201,13 +307,20 @@ public final class UpdateChecker {
                             ""
                     );
 
+            /*
+             * The release body MUST contain:
+             *
+             * Version Code: 6
+             *
+             * for a future versionCode 6 release.
+             */
             long versionCode =
                     extractVersionCode(body);
 
             /*
-             * A release without a valid version code is not considered
-             * an update. This prevents a bad/malformed GitHub release
-             * from locking users out.
+             * Never consider a release valid without a version
+             * code. This prevents malformed releases from
+             * accidentally blocking the application.
              */
             if (versionCode <= 0) {
                 return null;
@@ -246,6 +359,11 @@ public final class UpdateChecker {
         }
     }
 
+    /*
+     * ============================================================
+     * VERSION CODE EXTRACTION
+     * ============================================================
+     */
     private static long extractVersionCode(
             String body
     ) {
@@ -278,6 +396,11 @@ public final class UpdateChecker {
         }
     }
 
+    /*
+     * ============================================================
+     * NORMAL UPDATE DIALOG
+     * ============================================================
+     */
     private static void showMandatoryUpdateDialog(
             Activity activity,
             String versionName,
@@ -329,9 +452,6 @@ public final class UpdateChecker {
 
                         /*
                          * NO LATER BUTTON.
-                         *
-                         * The user must update after a newer version
-                         * has been confirmed.
                          */
                         .setCancelable(false)
 
@@ -342,9 +462,6 @@ public final class UpdateChecker {
         dialog.setOnShowListener(
                 dialogInterface -> {
 
-                    /*
-                     * Make sure the only available action is UPDATE NOW.
-                     */
                     if (dialog.getButton(
                             AlertDialog.BUTTON_POSITIVE
                     ) != null) {
@@ -361,7 +478,15 @@ public final class UpdateChecker {
         dialog.show();
     }
 
-    private static void openLatestApk(
+    /*
+     * ============================================================
+     * OPEN LATEST APK
+     * ============================================================
+     *
+     * PUBLIC because DriverActivity also needs to open the
+     * mandatory update download.
+     */
+    public static void openLatestApk(
             Activity activity
     ) {
 
@@ -390,13 +515,16 @@ public final class UpdateChecker {
         } catch (Exception ignored) {
 
             /*
-             * If Android cannot find a browser/app capable of
-             * opening the download URL, do nothing rather than
-             * crashing Sakay Na.
+             * Do not crash Sakay Na if Android cannot open the URL.
              */
         }
     }
 
+    /*
+     * ============================================================
+     * RELEASE INFORMATION
+     * ============================================================
+     */
     private static final class ReleaseInfo {
 
         final String versionName;
