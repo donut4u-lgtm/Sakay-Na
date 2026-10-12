@@ -8,6 +8,7 @@ import android.view.Gravity;
 import android.view.View;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
+import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.LinearLayout;
@@ -15,6 +16,8 @@ import android.widget.ScrollView;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.location.Address;
+import android.location.Geocoder;
 
 import com.google.firebase.Timestamp;
 import com.google.firebase.firestore.DocumentSnapshot;
@@ -36,16 +39,12 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import android.location.Address;
-import android.location.Geocoder;
-
 public class BookingActivityMapActivity extends Activity {
 
     private FirebaseFirestore db;
     private ListenerRegistration ridesListener;
 
     private LinearLayout root;
-    private LinearLayout filters;
     private Spinner provinceSpinner;
     private Spinner townSpinner;
     private WebView mapView;
@@ -62,13 +61,11 @@ public class BookingActivityMapActivity extends Activity {
     private final ExecutorService geocoderExecutor =
             Executors.newSingleThreadExecutor();
 
-    private long startOfDay;
-    private long endOfDay;
-
     private long selectedStart;
     private long selectedEnd;
 
     private boolean updatingSpinners = false;
+    private boolean mapPageReady = false;
 
     private static final String ALL_PROVINCES = "All Provinces";
     private static final String ALL_TOWNS = "All Towns / Cities";
@@ -77,6 +74,7 @@ public class BookingActivityMapActivity extends Activity {
     private static final int DARK_GREEN = Color.rgb(0, 95, 55);
 
     private static class RideItem {
+
         String id;
         String passengerId;
         String status;
@@ -107,28 +105,12 @@ public class BookingActivityMapActivity extends Activity {
         db = FirebaseFirestore.getInstance();
 
         Calendar calendar = Calendar.getInstance();
+        setStartOfDay(calendar);
 
-        calendar.set(
-                Calendar.HOUR_OF_DAY, 0
-        );
-        calendar.set(
-                Calendar.MINUTE, 0
-        );
-        calendar.set(
-                Calendar.SECOND, 0
-        );
-        calendar.set(
-                Calendar.MILLISECOND, 0
-        );
-
-        startOfDay = calendar.getTimeInMillis();
+        selectedStart = calendar.getTimeInMillis();
 
         calendar.add(Calendar.DAY_OF_MONTH, 1);
-
-        endOfDay = calendar.getTimeInMillis() - 1;
-
-        selectedStart = startOfDay;
-        selectedEnd = endOfDay;
+        selectedEnd = calendar.getTimeInMillis() - 1;
 
         buildScreen();
         setupMap();
@@ -136,13 +118,18 @@ public class BookingActivityMapActivity extends Activity {
         listenForBookings();
     }
 
+    private void setStartOfDay(Calendar calendar) {
+        calendar.set(Calendar.HOUR_OF_DAY, 0);
+        calendar.set(Calendar.MINUTE, 0);
+        calendar.set(Calendar.SECOND, 0);
+        calendar.set(Calendar.MILLISECOND, 0);
+    }
+
     private void buildScreen() {
 
         root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(
-                Color.rgb(245, 248, 246)
-        );
+        root.setBackgroundColor(Color.rgb(245, 248, 246));
 
         LinearLayout header = new LinearLayout(this);
         header.setOrientation(LinearLayout.VERTICAL);
@@ -159,9 +146,7 @@ public class BookingActivityMapActivity extends Activity {
 
         header.addView(
                 title,
-                new LinearLayout.LayoutParams(
-                        -1, -2
-                )
+                new LinearLayout.LayoutParams(-1, -2)
         );
 
         TextView subtitle = new TextView(this);
@@ -172,16 +157,12 @@ public class BookingActivityMapActivity extends Activity {
 
         header.addView(
                 subtitle,
-                new LinearLayout.LayoutParams(
-                        -1, -2
-                )
+                new LinearLayout.LayoutParams(-1, -2)
         );
 
         root.addView(
                 header,
-                new LinearLayout.LayoutParams(
-                        -1, -2
-                )
+                new LinearLayout.LayoutParams(-1, -2)
         );
 
         ScrollView scroll = new ScrollView(this);
@@ -198,30 +179,25 @@ public class BookingActivityMapActivity extends Activity {
 
         content.addView(statusText);
 
-        TextView provinceLabel = label("PROVINCE");
-        content.addView(provinceLabel);
+        content.addView(label("PROVINCE"));
 
         provinceSpinner = new Spinner(this);
+
         content.addView(
                 provinceSpinner,
-                new LinearLayout.LayoutParams(
-                        -1, 52
-                )
+                new LinearLayout.LayoutParams(-1, 52)
         );
 
-        TextView townLabel = label("TOWN / CITY");
-        content.addView(townLabel);
+        content.addView(label("TOWN / CITY"));
 
         townSpinner = new Spinner(this);
+
         content.addView(
                 townSpinner,
-                new LinearLayout.LayoutParams(
-                        -1, 52
-                )
+                new LinearLayout.LayoutParams(-1, 52)
         );
 
-        TextView dateLabel = label("BOOKING DATE RANGE");
-        content.addView(dateLabel);
+        content.addView(label("BOOKING DATE RANGE"));
 
         LinearLayout dateRow = new LinearLayout(this);
         dateRow.setOrientation(LinearLayout.HORIZONTAL);
@@ -240,16 +216,12 @@ public class BookingActivityMapActivity extends Activity {
 
         dateRow.addView(
                 startDateButton,
-                new LinearLayout.LayoutParams(
-                        0, -2, 1
-                )
+                new LinearLayout.LayoutParams(0, -2, 1)
         );
 
         dateRow.addView(
                 endDateButton,
-                new LinearLayout.LayoutParams(
-                        0, -2, 1
-                )
+                new LinearLayout.LayoutParams(0, -2, 1)
         );
 
         content.addView(dateRow);
@@ -269,26 +241,12 @@ public class BookingActivityMapActivity extends Activity {
         todayButton.setOnClickListener(v -> {
 
             Calendar calendar = Calendar.getInstance();
-
-            calendar.set(
-                    Calendar.HOUR_OF_DAY, 0
-            );
-            calendar.set(
-                    Calendar.MINUTE, 0
-            );
-            calendar.set(
-                    Calendar.SECOND, 0
-            );
-            calendar.set(
-                    Calendar.MILLISECOND, 0
-            );
+            setStartOfDay(calendar);
 
             selectedStart = calendar.getTimeInMillis();
 
             calendar.add(Calendar.DAY_OF_MONTH, 1);
-
-            selectedEnd =
-                    calendar.getTimeInMillis() - 1;
+            selectedEnd = calendar.getTimeInMillis() - 1;
 
             updateDateText();
             renderMap();
@@ -296,31 +254,23 @@ public class BookingActivityMapActivity extends Activity {
 
         content.addView(
                 todayButton,
-                new LinearLayout.LayoutParams(
-                        -1, -2
-                )
+                new LinearLayout.LayoutParams(-1, -2)
         );
 
-        TextView mapLabel = label(
-                "PICKUP AND DESTINATION LOCATIONS"
+        content.addView(
+                label("PICKUP AND DESTINATION LOCATIONS")
         );
-
-        content.addView(mapLabel);
 
         mapView = new WebView(this);
 
         content.addView(
                 mapView,
-                new LinearLayout.LayoutParams(
-                        -1, 520
-                )
+                new LinearLayout.LayoutParams(-1, 520)
         );
 
-        TextView detailsLabel = label(
-                "SELECTED BOOKING DETAILS"
+        content.addView(
+                label("SELECTED BOOKING DETAILS")
         );
-
-        content.addView(detailsLabel);
 
         detailsText = new TextView(this);
         detailsText.setText(
@@ -333,31 +283,23 @@ public class BookingActivityMapActivity extends Activity {
 
         content.addView(
                 detailsText,
-                new LinearLayout.LayoutParams(
-                        -1, -2
-                )
+                new LinearLayout.LayoutParams(-1, -2)
         );
 
         Button backButton = new Button(this);
         backButton.setText("BACK TO ADMIN DASHBOARD");
-        backButton.setOnClickListener(
-                v -> finish()
-        );
+        backButton.setOnClickListener(v -> finish());
 
         content.addView(
                 backButton,
-                new LinearLayout.LayoutParams(
-                        -1, -2
-                )
+                new LinearLayout.LayoutParams(-1, -2)
         );
 
         scroll.addView(content);
 
         root.addView(
                 scroll,
-                new LinearLayout.LayoutParams(
-                        -1, 0, 1
-                )
+                new LinearLayout.LayoutParams( -1, 0, 1)
         );
 
         setContentView(root);
@@ -382,15 +324,12 @@ public class BookingActivityMapActivity extends Activity {
 
     private void setupMap() {
 
-        WebSettings settings =
-                mapView.getSettings();
+        WebSettings settings = mapView.getSettings();
 
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
 
-        mapView.setBackgroundColor(
-                Color.rgb(235, 241, 237)
-        );
+        mapView.setBackgroundColor(Color.rgb(235, 241, 237));
 
         String html =
                 "<!DOCTYPE html>" +
@@ -428,9 +367,7 @@ public class BookingActivityMapActivity extends Activity {
                 "'<br><b>Status:</b> '+r.status+" +
                 "'<br><button onclick=\"showDetails(\\''+r.id+'\\')\">Booking details</button>'" +
                 ");" +
-                "pickup.on('click',function(){" +
-                "showDetails(r.id);" +
-                "});" +
+                "pickup.on('click',function(){showDetails(r.id);});" +
                 "markers.push(pickup);" +
                 "points.push([r.plat,r.plng]);" +
                 "var dest=L.marker([r.dlat,r.dlng]).addTo(map);" +
@@ -439,9 +376,7 @@ public class BookingActivityMapActivity extends Activity {
                 "'<br><b>Status:</b> '+r.status+" +
                 "'<br><button onclick=\"showDetails(\\''+r.id+'\\')\">Booking details</button>'" +
                 ");" +
-                "dest.on('click',function(){" +
-                "showDetails(r.id);" +
-                "});" +
+                "dest.on('click',function(){showDetails(r.id);});" +
                 "markers.push(dest);" +
                 "points.push([r.dlat,r.dlng]);" +
                 "});" +
@@ -459,16 +394,24 @@ public class BookingActivityMapActivity extends Activity {
                 new android.webkit.WebViewClient() {
 
                     @Override
+                    public void onPageFinished(
+                            WebView view,
+                            String url
+                    ) {
+                        super.onPageFinished(view, url);
+                        mapPageReady = true;
+                        renderMap();
+                    }
+
+                    @Override
                     public boolean shouldOverrideUrlLoading(
-                            android.webkit.WebView view,
+                            WebView view,
                             String url
                     ) {
 
                         if (
                                 url != null &&
-                                url.startsWith(
-                                        "sakayna://booking/"
-                                )
+                                url.startsWith("sakayna://booking/")
                         ) {
                             String id = url.substring(
                                     "sakayna://booking/".length()
@@ -505,28 +448,26 @@ public class BookingActivityMapActivity extends Activity {
     private void setupSpinners() {
 
         provinceSpinner.setAdapter(
-                adapter(Collections.singletonList(
-                        ALL_PROVINCES
-                ))
+                adapter(Collections.singletonList(ALL_PROVINCES))
         );
 
         townSpinner.setAdapter(
-                adapter(Collections.singletonList(
-                        ALL_TOWNS
-                ))
+                adapter(Collections.singletonList(ALL_TOWNS))
         );
 
         provinceSpinner.setOnItemSelectedListener(
-                new android.widget.AdapterView.OnItemSelectedListener() {
+                new AdapterView.OnItemSelectedListener() {
 
                     @Override
                     public void onItemSelected(
-                            android.widget.AdapterView<?> parent,
+                            AdapterView<?> parent,
                             View view,
                             int position,
                             long id
                     ) {
-                        if (updatingSpinners) return;
+                        if (updatingSpinners) {
+                            return;
+                        }
 
                         refreshTownSpinner();
                         renderMap();
@@ -534,46 +475,45 @@ public class BookingActivityMapActivity extends Activity {
 
                     @Override
                     public void onNothingSelected(
-                            android.widget.AdapterView<?> parent
+                            AdapterView<?> parent
                     ) {
                     }
                 }
         );
 
         townSpinner.setOnItemSelectedListener(
-                new android.widget.AdapterView.OnItemSelectedListener() {
+                new AdapterView.OnItemSelectedListener() {
 
                     @Override
                     public void onItemSelected(
-                            android.widget.AdapterView<?> parent,
+                            AdapterView<?> parent,
                             View view,
                             int position,
                             long id
                     ) {
-                        if (updatingSpinners) return;
+                        if (updatingSpinners) {
+                            return;
+                        }
 
                         renderMap();
                     }
 
                     @Override
                     public void onNothingSelected(
-                            android.widget.AdapterView<?> parent
+                            AdapterView<?> parent
                     ) {
                     }
                 }
         );
     }
 
-    private ArrayAdapter<String> adapter(
-            List<String> values
-    ) {
+    private ArrayAdapter<String> adapter(List<String> values) {
 
-        ArrayAdapter<String> result =
-                new ArrayAdapter<>(
-                        this,
-                        android.R.layout.simple_spinner_item,
-                        values
-                );
+        ArrayAdapter<String> result = new ArrayAdapter<>(
+                this,
+                android.R.layout.simple_spinner_item,
+                values
+        );
 
         result.setDropDownViewResource(
                 android.R.layout.simple_spinner_dropdown_item
@@ -584,70 +524,63 @@ public class BookingActivityMapActivity extends Activity {
 
     private void listenForBookings() {
 
-        ridesListener =
-                db.collection("rides")
-                        .addSnapshotListener(
-                                (snapshot, error) -> {
+        ridesListener = db.collection("rides")
+                .addSnapshotListener((snapshot, error) -> {
 
-                                    if (error != null) {
+                    if (error != null) {
 
-                                        statusText.setText(
-                                                "Unable to load live bookings. " +
-                                                "Check connection and Firestore access."
-                                        );
-
-                                        return;
-                                    }
-
-                                    if (snapshot == null) {
-                                        return;
-                                    }
-
-                                    rides.clear();
-
-                                    for (
-                                            DocumentSnapshot doc :
-                                            snapshot.getDocuments()
-                                    ) {
-
-                                        RideItem ride =
-                                                readRide(doc);
-
-                                        if (ride == null) {
-                                            continue;
-                                        }
-
-                                        rides.add(ride);
-                                    }
-
-                                    statusText.setText(
-                                            "Live booking records: " +
-                                            rides.size()
-                                    );
-
-                                    rebuildLocationFilters();
-                                    renderMap();
-
-                                    resolveUnresolvedLocations();
-                                }
+                        statusText.setText(
+                                "Unable to load live bookings. " +
+                                "Check connection and Firestore access."
                         );
+
+                        return;
+                    }
+
+                    if (snapshot == null) {
+                        return;
+                    }
+
+                    List<RideItem> updatedRides = new ArrayList<>();
+
+                    for (DocumentSnapshot doc : snapshot.getDocuments()) {
+
+                        RideItem ride = readRide(doc);
+
+                        if (ride != null) {
+
+                            // Preserve previously resolved locations
+                            // when Firestore sends another snapshot.
+                            for (RideItem oldRide : rides) {
+
+                                if (oldRide.id.equals(ride.id)) {
+                                    ride.province = oldRide.province;
+                                    ride.town = oldRide.town;
+                                    ride.locationResolved =
+                                            oldRide.locationResolved;
+                                    break;
+                                }
+                            }
+
+                            updatedRides.add(ride);
+                        }
+                    }
+
+                    rides.clear();
+                    rides.addAll(updatedRides);
+
+                    rebuildLocationFilters();
+                    renderMap();
+                    resolveUnresolvedLocations();
+                });
     }
 
-    private RideItem readRide(
-            DocumentSnapshot doc
-    ) {
+    private RideItem readRide(DocumentSnapshot doc) {
 
-        Double pickupLat =
-                getNumber(doc, "pickupLatitude");
-
-        Double pickupLng =
-                getNumber(doc, "pickupLongitude");
-
-        Double destinationLat =
-                getNumber(doc, "destinationLatitude");
-
-        Double destinationLng =
-                getNumber(doc, "destinationLongitude");
+        Double pickupLat = getNumber(doc, "pickupLatitude");
+        Double pickupLng = getNumber(doc, "pickupLongitude");
+        Double destinationLat = getNumber(doc, "destinationLatitude");
+        Double destinationLng = getNumber(doc, "destinationLongitude");
 
         if (
                 pickupLat == null ||
@@ -660,62 +593,44 @@ public class BookingActivityMapActivity extends Activity {
 
         if (
                 !validCoordinates(pickupLat, pickupLng) ||
-                !validCoordinates(
-                        destinationLat,
-                        destinationLng
-                )
+                !validCoordinates(destinationLat, destinationLng)
         ) {
             return null;
         }
 
-        RideItem ride =
-                new RideItem(doc.getId());
+        RideItem ride = new RideItem(doc.getId());
 
         ride.pickupLat = pickupLat;
         ride.pickupLng = pickupLng;
-
         ride.destinationLat = destinationLat;
         ride.destinationLng = destinationLng;
 
-        ride.passengerId =
-                safe(doc.getString("passengerId"));
+        ride.passengerId = safe(doc.getString("passengerId"));
+        ride.status = safe(doc.getString("status"));
 
-        ride.status =
-                safe(doc.getString("status"));
+        ride.pickup = firstNonEmpty(
+                doc.getString("pickupName"),
+                doc.getString("pickup")
+        );
 
-        ride.pickup =
-                firstNonEmpty(
-                        doc.getString("pickupName"),
-                        doc.getString("pickup")
-                );
+        ride.destination = firstNonEmpty(
+                doc.getString("destinationName"),
+                doc.getString("destination")
+        );
 
-        ride.destination =
-                firstNonEmpty(
-                        doc.getString("destinationName"),
-                        doc.getString("destination")
-                );
+        ride.paymentMethod = safe(doc.getString("paymentMethod"));
+        ride.paymentStatus = safe(doc.getString("paymentStatus"));
 
-        ride.paymentMethod =
-                safe(doc.getString("paymentMethod"));
-
-        ride.paymentStatus =
-                safe(doc.getString("paymentStatus"));
-
-        Timestamp created =
-                doc.getTimestamp("createdAt");
+        Timestamp created = doc.getTimestamp("createdAt");
 
         if (created != null) {
-            ride.createdAt =
-                    created.toDate().getTime();
+            ride.createdAt = created.toDate().getTime();
         }
 
         return ride;
     }
 
-    private Double getNumber(
-            DocumentSnapshot doc,
-            String key
-    ) {
+    private Double getNumber(DocumentSnapshot doc, String key) {
 
         Object value = doc.get(key);
 
@@ -726,10 +641,7 @@ public class BookingActivityMapActivity extends Activity {
         return null;
     }
 
-    private boolean validCoordinates(
-            double lat,
-            double lng
-    ) {
+    private boolean validCoordinates(double lat, double lng) {
 
         return lat >= -90 &&
                 lat <= 90 &&
@@ -742,8 +654,8 @@ public class BookingActivityMapActivity extends Activity {
 
         if (!Geocoder.isPresent()) {
             statusText.setText(
-                    "Live bookings loaded. " +
-                    "Address lookup is unavailable on this device."
+                    "Live bookings loaded. Address lookup " +
+                    "is unavailable on this device."
             );
             return;
         }
@@ -763,36 +675,32 @@ public class BookingActivityMapActivity extends Activity {
 
                 try {
 
-                    Geocoder geocoder =
-                            new Geocoder(
-                                    getApplicationContext(),
-                                    Locale.getDefault()
-                            );
+                    Geocoder geocoder = new Geocoder(
+                            getApplicationContext(),
+                            Locale.getDefault()
+                    );
 
-                    List<Address> addresses =
-                            geocoder.getFromLocation(
-                                    ride.pickupLat,
-                                    ride.pickupLng,
-                                    1
-                            );
+                    List<Address> addresses = geocoder.getFromLocation(
+                            ride.pickupLat,
+                            ride.pickupLng,
+                            1
+                    );
 
-                    if (
-                            addresses != null &&
-                            !addresses.isEmpty()
-                    ) {
+                    if (addresses != null && !addresses.isEmpty()) {
 
-                        Address address =
-                                addresses.get(0);
+                        Address address = addresses.get(0);
 
-                        province = safe(
-                                address.getAdminArea()
-                        );
+                        province = safe(address.getAdminArea());
 
                         town = firstNonEmpty(
                                 address.getLocality(),
                                 address.getSubAdminArea(),
                                 address.getSubLocality()
                         );
+
+                        if ("Not available".equals(town)) {
+                            town = "";
+                        }
                     }
 
                 } catch (Exception ignored) {
@@ -807,11 +715,8 @@ public class BookingActivityMapActivity extends Activity {
 
                         if (current.id.equals(ride.id)) {
 
-                            current.province =
-                                    resolvedProvince;
-
-                            current.town =
-                                    resolvedTown;
+                            current.province = resolvedProvince;
+                            current.town = resolvedTown;
 
                             break;
                         }
@@ -826,8 +731,7 @@ public class BookingActivityMapActivity extends Activity {
 
     private void rebuildLocationFilters() {
 
-        String previousProvince =
-                selectedProvince();
+        String previousProvince = selectedProvince();
 
         provinces.clear();
         provinces.add(ALL_PROVINCES);
@@ -842,16 +746,11 @@ public class BookingActivityMapActivity extends Activity {
             }
         }
 
-        List<String> provinceList =
-                new ArrayList<>(provinces);
+        List<String> provinceList = new ArrayList<>(provinces);
 
         if (provinceList.size() > 1) {
 
-            List<String> rest =
-                    provinceList.subList(
-                            1,
-                            provinceList.size()
-                    );
+            List<String> rest = provinceList.subList(1, provinceList.size());
 
             Collections.sort(
                     rest,
@@ -861,16 +760,11 @@ public class BookingActivityMapActivity extends Activity {
 
         updatingSpinners = true;
 
-        provinceSpinner.setAdapter(
-                adapter(provinceList)
-        );
+        provinceSpinner.setAdapter(adapter(provinceList));
 
-        int provinceIndex =
-                provinceList.indexOf(previousProvince);
+        int provinceIndex = provinceList.indexOf(previousProvince);
 
-        provinceSpinner.setSelection(
-                Math.max(0, provinceIndex)
-        );
+        provinceSpinner.setSelection(Math.max(0, provinceIndex));
 
         updatingSpinners = false;
 
@@ -879,11 +773,8 @@ public class BookingActivityMapActivity extends Activity {
 
     private void refreshTownSpinner() {
 
-        String selectedProvince =
-                selectedProvince();
-
-        String previousTown =
-                selectedTown();
+        String selectedProvince = selectedProvince();
+        String previousTown = selectedTown();
 
         towns.clear();
         towns.add(ALL_TOWNS);
@@ -904,16 +795,11 @@ public class BookingActivityMapActivity extends Activity {
             }
         }
 
-        List<String> townList =
-                new ArrayList<>(towns);
+        List<String> townList = new ArrayList<>(towns);
 
         if (townList.size() > 1) {
 
-            List<String> rest =
-                    townList.subList(
-                            1,
-                            townList.size()
-                    );
+            List<String> rest = townList.subList(1, townList.size());
 
             Collections.sort(
                     rest,
@@ -923,24 +809,18 @@ public class BookingActivityMapActivity extends Activity {
 
         updatingSpinners = true;
 
-        townSpinner.setAdapter(
-                adapter(townList)
-        );
+        townSpinner.setAdapter(adapter(townList));
 
-        int index =
-                townList.indexOf(previousTown);
+        int index = townList.indexOf(previousTown);
 
-        townSpinner.setSelection(
-                Math.max(0, index)
-        );
+        townSpinner.setSelection(Math.max(0, index));
 
         updatingSpinners = false;
     }
 
     private String selectedProvince() {
 
-        Object selected =
-                provinceSpinner.getSelectedItem();
+        Object selected = provinceSpinner.getSelectedItem();
 
         return selected == null
                 ? ALL_PROVINCES
@@ -949,8 +829,7 @@ public class BookingActivityMapActivity extends Activity {
 
     private String selectedTown() {
 
-        Object selected =
-                townSpinner.getSelectedItem();
+        Object selected = townSpinner.getSelectedItem();
 
         return selected == null
                 ? ALL_TOWNS
@@ -959,88 +838,74 @@ public class BookingActivityMapActivity extends Activity {
 
     private void showDatePicker(boolean startDate) {
 
-        Calendar calendar =
-                Calendar.getInstance();
+        Calendar calendar = Calendar.getInstance();
 
         calendar.setTimeInMillis(
-                startDate
-                        ? selectedStart
-                        : selectedEnd
+                startDate ? selectedStart : selectedEnd
         );
 
-        DatePickerDialog dialog =
-                new DatePickerDialog(
-                        this,
-                        (picker, year, month, day) -> {
+        DatePickerDialog dialog = new DatePickerDialog(
+                this,
+                (picker, year, month, day) -> {
 
-                            Calendar chosen =
-                                    Calendar.getInstance();
+                    Calendar chosen = Calendar.getInstance();
 
-                            chosen.set(
-                                    year,
-                                    month,
-                                    day,
-                                    0,
-                                    0,
-                                    0
-                            );
+                    chosen.set(
+                            year,
+                            month,
+                            day,
+                            0,
+                            0,
+                            0
+                    );
 
-                            chosen.set(
-                                    Calendar.MILLISECOND,
-                                    0
-                            );
+                    chosen.set(Calendar.MILLISECOND, 0);
 
-                            if (startDate) {
+                    long newStart = selectedStart;
+                    long newEnd = selectedEnd;
 
-                                selectedStart =
-                                        chosen.getTimeInMillis();
+                    if (startDate) {
 
-                            } else {
+                        newStart = chosen.getTimeInMillis();
 
-                                chosen.add(
-                                        Calendar.DAY_OF_MONTH,
-                                        1
-                                );
+                    } else {
 
-                                selectedEnd =
-                                        chosen.getTimeInMillis() - 1;
-                            }
+                        chosen.add(Calendar.DAY_OF_MONTH, 1);
+                        newEnd = chosen.getTimeInMillis() - 1;
+                    }
 
-                            if (selectedEnd < selectedStart) {
+                    // Validate before changing the stored dates.
+                    if (newEnd < newStart) {
 
-                                Toast.makeText(
-                                        this,
-                                        "End date must not be before start date.",
-                                        Toast.LENGTH_SHORT
-                                ).show();
+                        Toast.makeText(
+                                this,
+                                "End date must not be before start date.",
+                                Toast.LENGTH_SHORT
+                        ).show();
 
-                                return;
-                            }
+                        return;
+                    }
 
-                            updateDateText();
-                            renderMap();
-                        },
-                        calendar.get(
-                                Calendar.YEAR
-                        ),
-                        calendar.get(
-                                Calendar.MONTH
-                        ),
-                        calendar.get(
-                                Calendar.DAY_OF_MONTH
-                        )
-                );
+                    selectedStart = newStart;
+                    selectedEnd = newEnd;
+
+                    updateDateText();
+                    renderMap();
+                },
+                calendar.get(Calendar.YEAR),
+                calendar.get(Calendar.MONTH),
+                calendar.get(Calendar.DAY_OF_MONTH)
+        );
 
         dialog.show();
     }
 
     private void updateDateText() {
 
-        SimpleDateFormat format =
-                new SimpleDateFormat(
-                        "dd MMM yyyy",
-                        Locale.getDefault()
-                );
+        SimpleDateFormat format = new SimpleDateFormat(
+                "dd MMM yyyy",
+                Locale.getDefault()
+        );
 
         dateText.setText(
                 "Selected: " +
@@ -1060,7 +925,7 @@ public class BookingActivityMapActivity extends Activity {
 
     private void renderMap() {
 
-        if (mapView == null) {
+        if (mapView == null || !mapPageReady) {
             return;
         }
 
@@ -1096,8 +961,7 @@ public class BookingActivityMapActivity extends Activity {
 
             try {
 
-                JSONObject item =
-                        new JSONObject();
+                JSONObject item = new JSONObject();
 
                 item.put("id", ride.id);
                 item.put("status", ride.status);
@@ -1111,7 +975,6 @@ public class BookingActivityMapActivity extends Activity {
                 item.put("dlng", ride.destinationLng);
 
                 array.put(item);
-
                 visible++;
 
             } catch (Exception ignored) {
@@ -1125,18 +988,10 @@ public class BookingActivityMapActivity extends Activity {
                 visible
         );
 
-        String json = array.toString();
+        String script = "addBookingMarkers(" + array.toString() + ")";
 
-        String script =
-                "javascript:addBookingMarkers(" +
-                json +
-                ")";
-
-        mapView.post(
-                () -> mapView.evaluateJavascript(
-                        script,
-                        null
-                )
+        mapView.post(() ->
+                mapView.evaluateJavascript(script, null)
         );
     }
 
@@ -1148,11 +1003,10 @@ public class BookingActivityMapActivity extends Activity {
                 continue;
             }
 
-            SimpleDateFormat format =
-                    new SimpleDateFormat(
-                            "dd MMM yyyy, hh:mm a",
-                            Locale.getDefault()
-                    );
+            SimpleDateFormat format = new SimpleDateFormat(
+                    "dd MMM yyyy, hh:mm a",
+                    Locale.getDefault()
+            );
 
             String text =
                     "BOOKING ID\n" +
@@ -1172,11 +1026,7 @@ public class BookingActivityMapActivity extends Activity {
                     "\n\nBOOKING DATE\n" +
                     (
                             ride.createdAt > 0
-                                    ? format.format(
-                                            new Date(
-                                                    ride.createdAt
-                                            )
-                                    )
+                                    ? format.format(new Date(ride.createdAt))
                                     : "Not available"
                     );
 
@@ -1190,23 +1040,20 @@ public class BookingActivityMapActivity extends Activity {
         );
     }
 
-    private String firstNonEmpty(
-            String first,
-            String second
-    ) {
+    // FIX: accepts any number of candidate strings.
+    private String firstNonEmpty(String... values) {
 
-        if (
-                first != null &&
-                !first.trim().isEmpty()
-        ) {
-            return first;
-        }
+        if (values != null) {
 
-        if (
-                second != null &&
-                !second.trim().isEmpty()
-        ) {
-            return second;
+            for (String value : values) {
+
+                if (
+                        value != null &&
+                        !value.trim().isEmpty()
+                ) {
+                    return value;
+                }
+            }
         }
 
         return "Not available";
@@ -1230,6 +1077,7 @@ public class BookingActivityMapActivity extends Activity {
         geocoderExecutor.shutdownNow();
 
         if (mapView != null) {
+            mapPageReady = false;
             mapView.stopLoading();
             mapView.destroy();
             mapView = null;
