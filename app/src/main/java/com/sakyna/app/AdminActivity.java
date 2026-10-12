@@ -48,10 +48,6 @@ public class AdminActivity extends Activity {
     private LinearLayout paymentSection;
     private LinearLayout driverEarningsDuesSection;
 
-    /*
-     * IMPORTANT:
-     * This declaration was missing in the previous version.
-     */
     private TextView onlineDriversOverviewValue;
 
     private final Map<String, DocumentSnapshot> usersById =
@@ -60,77 +56,27 @@ public class AdminActivity extends Activity {
     private final List<DocumentSnapshot> rideDocuments =
             new ArrayList<>();
 
-    /*
-     * ============================================================
-     * LIVE DRIVER ONLINE STATUS
-     * ============================================================
-     */
     private final Map<String, Boolean> driverOnlineById =
             new HashMap<>();
 
     private ListenerRegistration driversListener;
-
-    /*
-     * ============================================================
-     * LIVE RIDES / PASSENGER BOOKINGS
-     * ============================================================
-     */
     private ListenerRegistration ridesListener;
 
-    /*
-     * ============================================================
-     * ADMIN LIVE REFRESH FALLBACK
-     * ============================================================
-     *
-     * Firestore listeners provide immediate updates.
-     *
-     * Direct Firestore reads provide a fallback in case a
-     * listener/cache becomes stale.
-     */
     private final Handler adminRefreshHandler =
             new Handler(Looper.getMainLooper());
 
-    private static final long DRIVER_REFRESH_MS =
-            5000L;
+    private static final long DRIVER_REFRESH_MS = 5000L;
+    private static final long RIDE_REFRESH_MS = 10000L;
 
-    private static final long RIDE_REFRESH_MS =
-            10000L;
-
-    /*
-     * ============================================================
-     * LIVE DRIVER HEARTBEAT
-     * ============================================================
-     *
-     * DriverActivity sends a heartbeat every 10 seconds.
-     *
-     * Admin considers a driver LIVE only when the last heartbeat
-     * is no more than 30 seconds old.
-     */
     private static final long LIVE_DRIVER_TIMEOUT_MS =
             30L * 1000L;
 
     private final Runnable adminRefreshRunnable =
             new Runnable() {
-
                 @Override
                 public void run() {
-
-                    /*
-                     * Direct driver status refresh.
-                     */
                     refreshDriverOnlineStatusOnce();
-
-                    /*
-                     * Direct ride refresh.
-                     */
                     refreshRidesOnce();
-
-                    /*
-                     * Re-render today's bookings.
-                     *
-                     * This also makes the section switch to
-                     * the new calendar day automatically.
-                     */
                     addPassengerBookings();
 
                     adminRefreshHandler.postDelayed(
@@ -165,17 +111,12 @@ public class AdminActivity extends Activity {
             Color.rgb(110, 110, 110);
 
     private static final int HISTORY_DAYS = 7;
-
     private int paymentDays = 30;
 
     private static final double PLATFORM_FEE_RATE = 0.10;
 
     private static final long SEVEN_DAYS_MILLIS =
-            7L
-                    * 24L
-                    * 60L
-                    * 60L
-                    * 1000L;
+            7L * 24L * 60L * 60L * 1000L;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -190,140 +131,87 @@ public class AdminActivity extends Activity {
 
     private void buildScreen() {
 
-        LinearLayout root =
-                new LinearLayout(this);
-
-        root.setOrientation(
-                LinearLayout.VERTICAL
-        );
-
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(WHITE);
+        root.setPadding(16, 16, 16, 16);
 
-        root.setPadding(
-                16,
-                16,
-                16,
-                16
-        );
-
-        TextView title =
-                new TextView(this);
-
-        title.setText(
-                "🛺 SAKAY NA ADMIN"
-        );
-
+        TextView title = new TextView(this);
+        title.setText("🛺 SAKAY NA ADMIN");
         title.setTextSize(28);
-
         title.setTypeface(
                 null,
                 android.graphics.Typeface.BOLD
         );
-
         title.setTextColor(GREEN);
-
-        title.setGravity(
-                Gravity.CENTER
-        );
-
+        title.setGravity(Gravity.CENTER);
         root.addView(title);
 
-        TextView subtitle =
-                new TextView(this);
-
-        subtitle.setText(
-                "ADMIN CONTROL CENTER"
-        );
-
+        TextView subtitle = new TextView(this);
+        subtitle.setText("ADMIN CONTROL CENTER");
         subtitle.setTextSize(15);
-
         subtitle.setTextColor(DARK);
-
-        subtitle.setGravity(
-                Gravity.CENTER
-        );
-
-        subtitle.setPadding(
-                0,
-                0,
-                0,
-                12
-        );
-
+        subtitle.setGravity(Gravity.CENTER);
+        subtitle.setPadding(0, 0, 0, 12);
         root.addView(subtitle);
 
-        statusText =
-                new TextView(this);
-
-        statusText.setText(
-                "Loading dashboard..."
-        );
-
+        statusText = new TextView(this);
+        statusText.setText("Loading dashboard...");
         statusText.setTextSize(15);
-
         statusText.setTextColor(GRAY);
-
-        statusText.setGravity(
-                Gravity.CENTER
-        );
-
+        statusText.setGravity(Gravity.CENTER);
         root.addView(statusText);
 
-        Button refresh =
-                new Button(this);
-
-        refresh.setText(
-                "🔄 REFRESH"
-        );
-
-        refresh.setOnClickListener(
-                v -> loadDashboard()
-        );
-
+        Button refresh = new Button(this);
+        refresh.setText("🔄 REFRESH");
+        refresh.setOnClickListener(v -> loadDashboard());
         root.addView(refresh);
 
-        Button settlementButton =
+        /*
+         * NEW BUTTON:
+         * Opens the separate booking activity map.
+         */
+        Button bookingActivityMapButton =
                 new Button(this);
 
-        settlementButton.setText(
-                "💰 DRIVER SETTLEMENTS"
+        bookingActivityMapButton.setText(
+                "🗺️ BOOKING ACTIVITY MAP"
         );
 
-        settlementButton.setOnClickListener(
-                v -> {
+        bookingActivityMapButton.setOnClickListener(v -> {
+            Intent intent = new Intent(
+                    AdminActivity.this,
+                    BookingActivityMapActivity.class
+            );
 
-                    Intent intent =
-                            new Intent(
-                                    AdminActivity.this,
-                                    AdminSettlementActivity.class
-                            );
+            startActivity(intent);
+        });
 
-                    startActivity(intent);
-                }
-        );
+        root.addView(bookingActivityMapButton);
+
+        Button settlementButton = new Button(this);
+        settlementButton.setText("💰 DRIVER SETTLEMENTS");
+
+        settlementButton.setOnClickListener(v -> {
+            Intent intent = new Intent(
+                    AdminActivity.this,
+                    AdminSettlementActivity.class
+            );
+
+            startActivity(intent);
+        });
 
         root.addView(settlementButton);
 
-        ScrollView scrollView =
-                new ScrollView(this);
+        ScrollView scrollView = new ScrollView(this);
 
-        contentContainer =
-                new LinearLayout(this);
-
+        contentContainer = new LinearLayout(this);
         contentContainer.setOrientation(
                 LinearLayout.VERTICAL
         );
+        contentContainer.setPadding(0, 10, 0, 20);
 
-        contentContainer.setPadding(
-                0,
-                10,
-                0,
-                20
-        );
-
-        scrollView.addView(
-                contentContainer
-        );
+        scrollView.addView(contentContainer);
 
         root.addView(
                 scrollView,
@@ -334,17 +222,9 @@ public class AdminActivity extends Activity {
                 )
         );
 
-        Button logout =
-                new Button(this);
-
-        logout.setText(
-                "🚪 LOGOUT"
-        );
-
-        logout.setOnClickListener(
-                v -> logout()
-        );
-
+        Button logout = new Button(this);
+        logout.setText("🚪 LOGOUT");
+        logout.setOnClickListener(v -> logout());
         root.addView(logout);
 
         setContentView(root);
@@ -352,9 +232,6 @@ public class AdminActivity extends Activity {
 
     private void loadDashboard() {
 
-        /*
-         * Stop old periodic refresh.
-         */
         adminRefreshHandler.removeCallbacks(
                 adminRefreshRunnable
         );
@@ -366,12 +243,8 @@ public class AdminActivity extends Activity {
         contentContainer.removeAllViews();
 
         usersById.clear();
-
         rideDocuments.clear();
 
-        /*
-         * Reset section references.
-         */
         overviewSection = null;
         passengersSection = null;
         approvalSection = null;
@@ -382,34 +255,19 @@ public class AdminActivity extends Activity {
 
         driverOnlineById.clear();
 
-        /*
-         * Remove old driver listener.
-         */
         if (driversListener != null) {
-
             driversListener.remove();
-
             driversListener = null;
         }
 
-        /*
-         * Remove old ride listener.
-         */
         if (ridesListener != null) {
-
             ridesListener.remove();
-
             ridesListener = null;
         }
 
-        /*
-         * Reset overview TextView.
-         */
         onlineDriversOverviewValue = null;
 
-        statusText.setText(
-                "Loading users and rides..."
-        );
+        statusText.setText("Loading users and rides...");
 
         loadUsers();
     }
@@ -429,30 +287,10 @@ public class AdminActivity extends Activity {
                         );
                     }
 
-                    /*
-                     * Start live driver listener.
-                     */
                     listenToDriverOnlineStatus();
-
-                    /*
-                     * Build user sections.
-                     */
                     buildUserSections();
-
-                    /*
-                     * IMPORTANT:
-                     * Create ride history/payment sections.
-                     */
                     buildRideSections();
-
-                    /*
-                     * Start live rides listener.
-                     */
                     loadRides();
-
-                    /*
-                     * Start periodic fallback.
-                     */
                     startAdminRefresh();
                 })
                 .addOnFailureListener(e -> {
@@ -462,75 +300,38 @@ public class AdminActivity extends Activity {
                     );
 
                     buildUserSections();
-
-                    /*
-                     * Still create ride sections.
-                     */
                     buildRideSections();
-
                     loadRides();
-
                     startAdminRefresh();
                 });
     }
 
-    /*
-     * ============================================================
-     * START PERIODIC ADMIN REFRESH
-     * ============================================================
-     */
     private void startAdminRefresh() {
-
         adminRefreshHandler.removeCallbacks(
                 adminRefreshRunnable
         );
 
-        /*
-         * Run immediately.
-         */
         adminRefreshRunnable.run();
     }
 
-    /*
-     * ============================================================
-     * LIVE DRIVER LISTENER
-     * ============================================================
-     */
     private void listenToDriverOnlineStatus() {
 
         if (driversListener != null) {
-
             driversListener.remove();
-
             driversListener = null;
         }
 
-        driversListener =
-                db.collection("drivers")
-                        .addSnapshotListener(
-                                (snapshot, error) -> {
+        driversListener = db.collection("drivers")
+                .addSnapshotListener((snapshot, error) -> {
 
-                                    if (error != null) {
+                    if (error != null) {
+                        return;
+                    }
 
-                                        /*
-                                         * Do not clear the list.
-                                         * Direct reads remain active.
-                                         */
-                                        return;
-                                    }
-
-                                    applyDriverOnlineSnapshot(
-                                            snapshot
-                                    );
-                                }
-                        );
+                    applyDriverOnlineSnapshot(snapshot);
+                });
     }
 
-    /*
-     * ============================================================
-     * DIRECT DRIVER STATUS REFRESH
-     * ============================================================
-     */
     private void refreshDriverOnlineStatusOnce() {
 
         if (db == null) {
@@ -542,21 +343,11 @@ public class AdminActivity extends Activity {
                 .addOnSuccessListener(
                         this::applyDriverOnlineSnapshot
                 )
-                .addOnFailureListener(
-                        e -> {
-                            /*
-                             * Keep current data on temporary
-                             * network failure.
-                             */
-                        }
-                );
+                .addOnFailureListener(e -> {
+                    // Retain the current data after temporary errors.
+                });
     }
 
-    /*
-     * ============================================================
-     * CHECK WHETHER DRIVER HEARTBEAT IS FRESH
-     * ============================================================
-     */
     private boolean isDriverHeartbeatFresh(
             DocumentSnapshot driver
     ) {
@@ -565,67 +356,34 @@ public class AdminActivity extends Activity {
             return false;
         }
 
-        boolean online =
-                Boolean.TRUE.equals(
-                        driver.getBoolean(
-                                "online"
-                        )
-                );
+        boolean online = Boolean.TRUE.equals(
+                driver.getBoolean("online")
+        );
 
         if (!online) {
             return false;
         }
 
         long lastOnlineAt = 0L;
-
-        Object heartbeatValue =
-                driver.get(
-                        "lastOnlineAt"
-                );
+        Object heartbeatValue = driver.get("lastOnlineAt");
 
         if (heartbeatValue instanceof Number) {
-
-            lastOnlineAt =
-                    ((Number) heartbeatValue)
-                            .longValue();
-
-        } else if (
-                heartbeatValue instanceof Timestamp
-        ) {
-
-            lastOnlineAt =
-                    ((Timestamp) heartbeatValue)
-                            .toDate()
-                            .getTime();
+            lastOnlineAt = ((Number) heartbeatValue).longValue();
+        } else if (heartbeatValue instanceof Timestamp) {
+            lastOnlineAt = ((Timestamp) heartbeatValue)
+                    .toDate()
+                    .getTime();
         }
 
         if (lastOnlineAt <= 0L) {
-
-            /*
-             * Old driver records that have online=true but
-             * have never written the new heartbeat field are
-             * deliberately NOT considered LIVE.
-             */
             return false;
         }
 
-        long age =
-                System.currentTimeMillis()
-                        - lastOnlineAt;
+        long age = System.currentTimeMillis() - lastOnlineAt;
 
-        /*
-         * Future timestamps are also accepted as fresh.
-         * This avoids incorrectly hiding a driver because of
-         * a small device-clock difference.
-         */
         return age <= LIVE_DRIVER_TIMEOUT_MS;
     }
 
-    /*
-     * ============================================================
-     * APPLY DRIVER SNAPSHOT
-     * ============================================================
-     */
     private void applyDriverOnlineSnapshot(
             QuerySnapshot snapshot
     ) {
@@ -633,24 +391,11 @@ public class AdminActivity extends Activity {
         driverOnlineById.clear();
 
         if (snapshot != null) {
-
             for (DocumentSnapshot driver :
                     snapshot.getDocuments()) {
 
-                /*
-                 * A driver is LIVE only when:
-                 *
-                 * 1. online == true
-                 * 2. lastOnlineAt exists
-                 * 3. lastOnlineAt is no older than 30 seconds
-                 *
-                 * This prevents yesterday's/stale online=true
-                 * records from appearing as LIVE.
-                 */
                 boolean actuallyLive =
-                        isDriverHeartbeatFresh(
-                                driver
-                        );
+                        isDriverHeartbeatFresh(driver);
 
                 driverOnlineById.put(
                         driver.getId(),
@@ -660,7 +405,6 @@ public class AdminActivity extends Activity {
         }
 
         if (!usersById.isEmpty()) {
-
             buildOnlineDrivers();
 
             updateOnlineOverview(
@@ -673,8 +417,7 @@ public class AdminActivity extends Activity {
 
         int count = 0;
 
-        for (DocumentSnapshot user :
-                usersById.values()) {
+        for (DocumentSnapshot user : usersById.values()) {
 
             if (!"DRIVER".equalsIgnoreCase(
                     user.getString("role")
@@ -689,19 +432,14 @@ public class AdminActivity extends Activity {
             }
 
             if ("SUSPENDED".equalsIgnoreCase(
-                    user.getString(
-                            "driverAccountStatus"
-                    )
+                    user.getString("driverAccountStatus")
             )) {
                 continue;
             }
 
             if (Boolean.TRUE.equals(
-                    driverOnlineById.get(
-                            user.getId()
-                    )
+                    driverOnlineById.get(user.getId())
             )) {
-
                 count++;
             }
         }
@@ -712,126 +450,84 @@ public class AdminActivity extends Activity {
     private void buildUserSections() {
 
         int passengerCount = 0;
-
         int driverCount = 0;
-
         int pendingCount = 0;
-
         int approvedCount = 0;
-
         int onlineDrivers = 0;
 
-        for (DocumentSnapshot user :
-                usersById.values()) {
+        for (DocumentSnapshot user : usersById.values()) {
 
-            String role =
-                    user.getString("role");
+            String role = user.getString("role");
 
             if ("PASSENGER".equalsIgnoreCase(role)) {
-
                 passengerCount++;
 
-            } else if (
-                    "DRIVER".equalsIgnoreCase(role)
-            ) {
+            } else if ("DRIVER".equalsIgnoreCase(role)) {
 
                 driverCount++;
 
-                String approval =
-                        getApprovalStatus(user);
+                String approval = getApprovalStatus(user);
 
-                if ("APPROVED".equalsIgnoreCase(
-                        approval
-                )) {
-
+                if ("APPROVED".equalsIgnoreCase(approval)) {
                     approvedCount++;
 
-                } else if (
-                        "PENDING_APPROVAL"
-                                .equalsIgnoreCase(
-                                        approval
-                                )
-                ) {
-
+                } else if ("PENDING_APPROVAL"
+                        .equalsIgnoreCase(approval)) {
                     pendingCount++;
                 }
 
-                if (
-                        "APPROVED".equalsIgnoreCase(
-                                approval
+                if ("APPROVED".equalsIgnoreCase(approval)
+                        && Boolean.TRUE.equals(
+                                driverOnlineById.get(user.getId())
                         )
-                                &&
-                        Boolean.TRUE.equals(
-                                driverOnlineById.get(
-                                        user.getId()
-                                )
-                        )
-                                &&
-                        !"SUSPENDED".equalsIgnoreCase(
-                                user.getString(
-                                        "driverAccountStatus"
-                                )
-                        )
-                ) {
-
+                        && !"SUSPENDED".equalsIgnoreCase(
+                                user.getString("driverAccountStatus")
+                        )) {
                     onlineDrivers++;
                 }
             }
         }
 
-        overviewSection =
-                createSection(
-                        "📊 DASHBOARD OVERVIEW"
-                );
+        overviewSection = createSection(
+                "📊 DASHBOARD OVERVIEW"
+        );
 
         addInfoCard(
                 overviewSection,
                 "👤 PASSENGER ACCOUNTS",
-                String.valueOf(
-                        passengerCount
-                ),
+                String.valueOf(passengerCount),
                 LIGHT_BLUE
         );
 
         addInfoCard(
                 overviewSection,
                 "🚕 DRIVER ACCOUNTS",
-                String.valueOf(
-                        driverCount
-                ),
+                String.valueOf(driverCount),
                 LIGHT_GREEN
         );
 
         addInfoCard(
                 overviewSection,
                 "⏳ PENDING DRIVER APPLICATIONS",
-                String.valueOf(
-                        pendingCount
-                ),
+                String.valueOf(pendingCount),
                 LIGHT_YELLOW
         );
 
         addInfoCard(
                 overviewSection,
                 "✅ APPROVED DRIVERS",
-                String.valueOf(
-                        approvedCount
-                ),
+                String.valueOf(approvedCount),
                 LIGHT_GREEN
         );
 
-        addOnlineOverviewCard(
-                onlineDrivers
-        );
+        addOnlineOverviewCard(onlineDrivers);
 
         buildPendingDrivers();
-
         buildOnlineDrivers();
 
-        passengersSection =
-                createSection(
-                        "🛺 TODAY'S PASSENGER BOOKINGS"
-                );
+        passengersSection = createSection(
+                "🛺 TODAY'S PASSENGER BOOKINGS"
+        );
 
         addInfoCard(
                 passengersSection,
@@ -840,10 +536,9 @@ public class AdminActivity extends Activity {
                 LIGHT_BLUE
         );
 
-        driverEarningsDuesSection =
-                createSection(
-                        "💰 DRIVER DUES — OUTSTANDING ONLY"
-                );
+        driverEarningsDuesSection = createSection(
+                "💰 DRIVER DUES — OUTSTANDING ONLY"
+        );
 
         addInfoCard(
                 driverEarningsDuesSection,
@@ -853,15 +548,12 @@ public class AdminActivity extends Activity {
         );
     }
 
-    private void addOnlineOverviewCard(
-            int onlineCount
-    ) {
+    private void addOnlineOverviewCard(int onlineCount) {
 
-        LinearLayout card =
-                createChildCard(
-                        overviewSection,
-                        LIGHT_GREEN
-                );
+        LinearLayout card = createChildCard(
+                overviewSection,
+                LIGHT_GREEN
+        );
 
         addCardText(
                 card,
@@ -870,161 +562,99 @@ public class AdminActivity extends Activity {
                 DARK
         );
 
-        onlineDriversOverviewValue =
-                new TextView(this);
-
+        onlineDriversOverviewValue = new TextView(this);
         onlineDriversOverviewValue.setText(
-                String.valueOf(
-                        onlineCount
-                )
+                String.valueOf(onlineCount)
         );
+        onlineDriversOverviewValue.setTextSize(23);
+        onlineDriversOverviewValue.setTextColor(GREEN);
+        onlineDriversOverviewValue.setPadding(0, 4, 0, 4);
 
-        onlineDriversOverviewValue.setTextSize(
-                23
-        );
-
-        onlineDriversOverviewValue.setTextColor(
-                GREEN
-        );
-
-        onlineDriversOverviewValue.setPadding(
-                0,
-                4,
-                0,
-                4
-        );
-
-        card.addView(
-                onlineDriversOverviewValue
-        );
+        card.addView(onlineDriversOverviewValue);
     }
 
-    private void updateOnlineOverview(
-            int onlineCount
-    ) {
-
-        if (
-                onlineDriversOverviewValue
-                        != null
-        ) {
-
+    private void updateOnlineOverview(int onlineCount) {
+        if (onlineDriversOverviewValue != null) {
             onlineDriversOverviewValue.setText(
-                    String.valueOf(
-                            onlineCount
-                    )
+                    String.valueOf(onlineCount)
             );
         }
     }
 
     private void buildPendingDrivers() {
 
-        approvalSection =
-                createSection(
-                        "🔔 DRIVER APPROVAL APPLICATIONS"
-                );
+        approvalSection = createSection(
+                "🔔 DRIVER APPROVAL APPLICATIONS"
+        );
 
-        List<DocumentSnapshot> pending =
-                new ArrayList<>();
+        List<DocumentSnapshot> pending = new ArrayList<>();
 
-        for (DocumentSnapshot user :
-                usersById.values()) {
-
-            if (
-                    "DRIVER".equalsIgnoreCase(
-                            user.getString("role")
-                    )
-                            &&
-                    "PENDING_APPROVAL"
-                            .equalsIgnoreCase(
-                                    getApprovalStatus(user)
-                            )
-            ) {
-
+        for (DocumentSnapshot user : usersById.values()) {
+            if ("DRIVER".equalsIgnoreCase(
+                    user.getString("role")
+            ) && "PENDING_APPROVAL".equalsIgnoreCase(
+                    getApprovalStatus(user)
+            )) {
                 pending.add(user);
             }
         }
 
         Collections.sort(
                 pending,
-                (a, b) ->
-                        getDisplayName(a)
-                                .compareToIgnoreCase(
-                                        getDisplayName(b)
-                                )
+                (a, b) -> getDisplayName(a)
+                        .compareToIgnoreCase(getDisplayName(b))
         );
 
         if (pending.isEmpty()) {
-
             addInfoCard(
                     approvalSection,
                     "🔔 DRIVER APPROVAL APPLICATIONS",
                     "No drivers waiting for approval.",
                     LIGHT_GREEN
             );
-
             return;
         }
 
-        for (DocumentSnapshot driver :
-                pending) {
-
-            addDriverCard(
-                    approvalSection,
-                    driver,
-                    true
-            );
+        for (DocumentSnapshot driver : pending) {
+            addDriverCard(approvalSection, driver, true);
         }
     }
 
     private void buildOnlineDrivers() {
 
         if (onlineDriversSection == null) {
-
-            onlineDriversSection =
-                    createSection(
-                            "🟢 ONLINE DRIVERS — LIVE"
-                    );
-
+            onlineDriversSection = createSection(
+                    "🟢 ONLINE DRIVERS — LIVE"
+            );
         } else {
-
             onlineDriversSection.removeAllViews();
         }
 
-        List<DocumentSnapshot> online =
-                new ArrayList<>();
+        List<DocumentSnapshot> online = new ArrayList<>();
 
-        for (DocumentSnapshot driver :
-                usersById.values()) {
+        for (DocumentSnapshot driver : usersById.values()) {
 
             if (!"DRIVER".equalsIgnoreCase(
                     driver.getString("role")
             )) {
-
                 continue;
             }
 
             if (!"APPROVED".equalsIgnoreCase(
                     getApprovalStatus(driver)
             )) {
-
                 continue;
             }
 
             if (!Boolean.TRUE.equals(
-                    driverOnlineById.get(
-                            driver.getId()
-                    )
+                    driverOnlineById.get(driver.getId())
             )) {
-
                 continue;
             }
 
             if ("SUSPENDED".equalsIgnoreCase(
-                    driver.getString(
-                            "driverAccountStatus"
-                    )
+                    driver.getString("driverAccountStatus")
             )) {
-
                 continue;
             }
 
@@ -1033,15 +663,11 @@ public class AdminActivity extends Activity {
 
         Collections.sort(
                 online,
-                (a, b) ->
-                        getDisplayName(a)
-                                .compareToIgnoreCase(
-                                        getDisplayName(b)
-                                )
+                (a, b) -> getDisplayName(a)
+                        .compareToIgnoreCase(getDisplayName(b))
         );
 
         if (online.isEmpty()) {
-
             addInfoCard(
                     onlineDriversSection,
                     "🟢 ONLINE DRIVERS",
@@ -1050,23 +676,14 @@ public class AdminActivity extends Activity {
             );
 
             updateOnlineOverview(0);
-
             return;
         }
 
-        for (DocumentSnapshot driver :
-                online) {
-
-            addDriverCard(
-                    onlineDriversSection,
-                    driver,
-                    false
-            );
+        for (DocumentSnapshot driver : online) {
+            addDriverCard(onlineDriversSection, driver, false);
         }
 
-        updateOnlineOverview(
-                online.size()
-        );
+        updateOnlineOverview(online.size());
     }
 
     private void buildDriverEarningsDues() {
@@ -1078,56 +695,36 @@ public class AdminActivity extends Activity {
         driverEarningsDuesSection.removeAllViews();
 
         double totalEarnings = 0;
-
         double totalPlatformFees = 0;
-
         double totalOutstanding = 0;
 
         int dueCount = 0;
-
         int overdueCount = 0;
 
-        List<DriverDuesRecord> records =
-                new ArrayList<>();
+        List<DriverDuesRecord> records = new ArrayList<>();
 
-        for (DocumentSnapshot driver :
-                usersById.values()) {
+        for (DocumentSnapshot driver : usersById.values()) {
 
             if (!"DRIVER".equalsIgnoreCase(
                     driver.getString("role")
             )) {
-
                 continue;
             }
 
-            DriverDuesRecord record =
-                    calculateDriverDues(
-                            driver
-                    );
+            DriverDuesRecord record = calculateDriverDues(driver);
 
             if (record.outstanding <= 0.009) {
                 continue;
             }
 
             records.add(record);
+            totalEarnings += record.earnings;
+            totalPlatformFees += record.platformFee;
+            totalOutstanding += record.outstanding;
 
-            totalEarnings +=
-                    record.earnings;
-
-            totalPlatformFees +=
-                    record.platformFee;
-
-            totalOutstanding +=
-                    record.outstanding;
-
-            if ("OVERDUE".equals(
-                    record.status
-            )) {
-
+            if ("OVERDUE".equals(record.status)) {
                 overdueCount++;
-
             } else {
-
                 dueCount++;
             }
         }
@@ -1135,121 +732,68 @@ public class AdminActivity extends Activity {
         addInfoCard(
                 driverEarningsDuesSection,
                 "💵 DRIVER EARNINGS",
-                formatPeso(
-                        totalEarnings
-                ),
+                formatPeso(totalEarnings),
                 LIGHT_GREEN
         );
 
         addInfoCard(
                 driverEarningsDuesSection,
                 "🏦 SAKAY NA FEE — 10%",
-                formatPeso(
-                        totalPlatformFees
-                ),
+                formatPeso(totalPlatformFees),
                 LIGHT_BLUE
         );
 
         addInfoCard(
                 driverEarningsDuesSection,
                 "🔴 TOTAL OUTSTANDING",
-                formatPeso(
-                        totalOutstanding
-                ),
-                totalOutstanding > 0
-                        ? LIGHT_RED
-                        : LIGHT_GREEN
+                formatPeso(totalOutstanding),
+                totalOutstanding > 0 ? LIGHT_RED : LIGHT_GREEN
         );
 
         addInfoCard(
                 driverEarningsDuesSection,
                 "🟡 DRIVERS WITH DUES",
-                String.valueOf(
-                        dueCount
-                ),
+                String.valueOf(dueCount),
                 LIGHT_YELLOW
         );
 
         addInfoCard(
                 driverEarningsDuesSection,
                 "🔴 OVERDUE > 7 DAYS",
-                String.valueOf(
-                        overdueCount
-                ),
-                overdueCount > 0
-                        ? LIGHT_RED
-                        : LIGHT_GREEN
+                String.valueOf(overdueCount),
+                overdueCount > 0 ? LIGHT_RED : LIGHT_GREEN
         );
 
         if (records.isEmpty()) {
-
             addInfoCard(
                     driverEarningsDuesSection,
                     "💰 DRIVER DUES",
                     "No drivers currently have outstanding dues.",
                     LIGHT_GREEN
             );
-
             return;
         }
 
-        TextView title =
-                new TextView(this);
-
-        title.setText(
-                "💰 DRIVERS WITH OUTSTANDING DUES"
-        );
-
+        TextView title = new TextView(this);
+        title.setText("💰 DRIVERS WITH OUTSTANDING DUES");
         title.setTextSize(20);
-
         title.setTypeface(
                 null,
                 android.graphics.Typeface.BOLD
         );
-
         title.setTextColor(GREEN);
+        title.setPadding(0, 12, 0, 12);
+        driverEarningsDuesSection.addView(title);
 
-        title.setPadding(
-                0,
-                12,
-                0,
-                12
-        );
+        Collections.sort(records, (a, b) -> {
+            if (a.statusRank != b.statusRank) {
+                return Integer.compare(a.statusRank, b.statusRank);
+            }
+            return Double.compare(b.outstanding, a.outstanding);
+        });
 
-        driverEarningsDuesSection.addView(
-                title
-        );
-
-        Collections.sort(
-                records,
-                (a, b) -> {
-
-                    if (
-                            a.statusRank
-                                    !=
-                            b.statusRank
-                    ) {
-
-                        return Integer.compare(
-                                a.statusRank,
-                                b.statusRank
-                        );
-                    }
-
-                    return Double.compare(
-                            b.outstanding,
-                            a.outstanding
-                    );
-                }
-        );
-
-        for (DriverDuesRecord record :
-                records) {
-
-            addDriverDuesCard(
-                    driverEarningsDuesSection,
-                    record
-            );
+        for (DriverDuesRecord record : records) {
+            addDriverDuesCard(driverEarningsDuesSection, record);
         }
     }
 
@@ -1257,217 +801,116 @@ public class AdminActivity extends Activity {
             DocumentSnapshot driver
     ) {
 
-        DriverDuesRecord record =
-                new DriverDuesRecord();
+        DriverDuesRecord record = new DriverDuesRecord();
 
-        record.driverId =
-                driver.getId();
+        record.driverId = driver.getId();
 
-        record.name =
-                firstNonEmpty(
-                        driver.getString(
-                                "driverName"
-                        ),
-                        driver.getString(
-                                "name"
-                        )
-                );
+        record.name = firstNonEmpty(
+                driver.getString("driverName"),
+                driver.getString("name")
+        );
 
-        record.phone =
-                driver.getString(
-                        "phone"
-                );
+        record.phone = driver.getString("phone");
+        record.province = driver.getString("province");
+        record.town = driver.getString("town");
+        record.approvalStatus = getApprovalStatus(driver);
 
-        record.province =
-                driver.getString(
-                        "province"
-                );
+        record.accountStatus = valueOrDefault(
+                driver.getString("driverAccountStatus"),
+                ""
+        );
 
-        record.town =
-                driver.getString(
-                        "town"
-                );
+        record.outstanding = Math.max(
+                0,
+                readNumber(driver, "driverSettlementBalance")
+        );
 
-        record.approvalStatus =
-                getApprovalStatus(
-                        driver
-                );
+        for (DocumentSnapshot ride : rideDocuments) {
 
-        record.accountStatus =
-                valueOrDefault(
-                        driver.getString(
-                                "driverAccountStatus"
-                        ),
-                        ""
-                );
+            String rideDriverId = ride.getString("driverId");
 
-        record.outstanding =
-                Math.max(
-                        0,
-                        readNumber(
-                                driver,
-                                "driverSettlementBalance"
-                        )
-                );
-
-        for (DocumentSnapshot ride :
-                rideDocuments) {
-
-            String rideDriverId =
-                    ride.getString(
-                            "driverId"
-                    );
-
-            if (
-                    rideDriverId == null
-                            ||
-                    !record.driverId.equals(
-                            rideDriverId
-                    )
-            ) {
-
+            if (rideDriverId == null
+                    || !record.driverId.equals(rideDriverId)) {
                 continue;
             }
 
-            String status =
-                    ride.getString(
-                            "status"
-                    );
+            String status = ride.getString("status");
 
-            if (!"COMPLETED".equalsIgnoreCase(
-                    status
-            )) {
-
+            if (!"COMPLETED".equalsIgnoreCase(status)) {
                 continue;
             }
 
-            double fare =
-                    readNumber(
-                            ride,
-                            "fare"
-                    );
+            double fare = readNumber(ride, "fare");
 
             if (fare > 0) {
-
-                record.earnings +=
-                        fare;
+                record.earnings += fare;
             }
         }
 
         record.platformFee =
-                record.earnings
-                        * PLATFORM_FEE_RATE;
+                record.earnings * PLATFORM_FEE_RATE;
 
-        record.paid =
-                Math.max(
-                        0,
-                        record.platformFee
-                                - record.outstanding
-                );
+        record.paid = Math.max(
+                0,
+                record.platformFee - record.outstanding
+        );
 
         record.oldestDueTimestamp =
-                findOldestDueTimestamp(
-                        record.driverId
-                );
+                findOldestDueTimestamp(record.driverId);
 
         if (record.oldestDueTimestamp != null) {
 
-            long age =
-                    System.currentTimeMillis()
-                            -
-                            record.oldestDueTimestamp;
+            long age = System.currentTimeMillis()
+                    - record.oldestDueTimestamp;
 
             if (age > SEVEN_DAYS_MILLIS) {
-
-                record.status =
-                        "OVERDUE";
-
+                record.status = "OVERDUE";
                 record.statusRank = 0;
-
             } else {
-
-                record.status =
-                        "DUE";
-
+                record.status = "DUE";
                 record.statusRank = 1;
             }
 
-            record.daysUnpaid =
-                    Math.max(
-                            0,
-                            age / (
-                                    24L
-                                            * 60L
-                                            * 60L
-                                            * 1000L
-                            )
-                    );
+            record.daysUnpaid = Math.max(
+                    0,
+                    age / (24L * 60L * 60L * 1000L)
+            );
 
         } else {
-
-            record.status =
-                    "DUE";
-
+            record.status = "DUE";
             record.statusRank = 1;
-
             record.daysUnpaid = 0;
         }
 
         return record;
     }
 
-    private Long findOldestDueTimestamp(
-            String driverId
-    ) {
+    private Long findOldestDueTimestamp(String driverId) {
 
         Long oldest = null;
 
-        for (DocumentSnapshot ride :
-                rideDocuments) {
+        for (DocumentSnapshot ride : rideDocuments) {
 
-            String rideDriverId =
-                    ride.getString(
-                            "driverId"
-                    );
+            String rideDriverId = ride.getString("driverId");
 
-            if (
-                    rideDriverId == null
-                            ||
-                    !driverId.equals(
-                            rideDriverId
-                    )
-            ) {
-
+            if (rideDriverId == null
+                    || !driverId.equals(rideDriverId)) {
                 continue;
             }
 
-            String duesStatus =
-                    ride.getString(
-                            "driverDuesStatus"
-                    );
+            String duesStatus = ride.getString("driverDuesStatus");
 
-            if (!"DUE".equalsIgnoreCase(
-                    duesStatus
-            )) {
-
+            if (!"DUE".equalsIgnoreCase(duesStatus)) {
                 continue;
             }
 
-            Long timestamp =
-                    getDueTimestamp(
-                            ride
-                    );
+            Long timestamp = getDueTimestamp(ride);
 
             if (timestamp == null) {
                 continue;
             }
 
-            if (
-                    oldest == null
-                            ||
-                    timestamp < oldest
-            ) {
-
+            if (oldest == null || timestamp < oldest) {
                 oldest = timestamp;
             }
         }
@@ -1475,9 +918,7 @@ public class AdminActivity extends Activity {
         return oldest;
     }
 
-    private Long getDueTimestamp(
-            DocumentSnapshot ride
-    ) {
+    private Long getDueTimestamp(DocumentSnapshot ride) {
 
         String[] fields = {
                 "driverDueAt",
@@ -1490,20 +931,15 @@ public class AdminActivity extends Activity {
                 "updatedAt"
         };
 
-        for (String field :
-                fields) {
+        for (String field : fields) {
 
-            Object value =
-                    ride.get(field);
+            Object value = ride.get(field);
 
             if (value instanceof Number) {
-
-                return ((Number) value)
-                        .longValue();
+                return ((Number) value).longValue();
             }
 
             if (value instanceof Timestamp) {
-
                 return ((Timestamp) value)
                         .toDate()
                         .getTime();
@@ -1519,60 +955,32 @@ public class AdminActivity extends Activity {
     ) {
 
         int background;
-
         int statusColor;
 
-        if ("OVERDUE".equals(
-                record.status
-        )) {
-
-            background =
-                    LIGHT_RED;
-
-            statusColor =
-                    Color.rgb(
-                            190,
-                            0,
-                            0
-                    );
-
+        if ("OVERDUE".equals(record.status)) {
+            background = LIGHT_RED;
+            statusColor = Color.rgb(190, 0, 0);
         } else {
-
-            background =
-                    LIGHT_YELLOW;
-
-            statusColor =
-                    Color.rgb(
-                            180,
-                            120,
-                            0
-                    );
+            background = LIGHT_YELLOW;
+            statusColor = Color.rgb(180, 120, 0);
         }
 
-        LinearLayout card =
-                createChildCard(
-                        parent,
-                        background
-                );
+        LinearLayout card = createChildCard(parent, background);
 
         addCardText(
                 card,
-                statusIcon(
-                        record.status
-                )
-                        + " "
+                statusIcon(record.status) + " "
                         + valueOrDefault(
-                        record.name,
-                        "Driver name not provided"
-                ),
+                                record.name,
+                                "Driver name not provided"
+                        ),
                 20,
                 statusColor
         );
 
         addCardText(
                 card,
-                "📱 Phone: "
-                        + valueOrDefault(
+                "📱 Phone: " + valueOrDefault(
                         record.phone,
                         "Phone not provided"
                 ),
@@ -1580,18 +988,12 @@ public class AdminActivity extends Activity {
                 DARK
         );
 
-        addLocationColumns(
-                card,
-                record.province,
-                record.town
-        );
+        addLocationColumns(card, record.province, record.town);
 
         addCardText(
                 card,
                 "💵 Completed Ride Earnings: "
-                        + formatPeso(
-                        record.earnings
-                ),
+                        + formatPeso(record.earnings),
                 16,
                 DARK
         );
@@ -1599,9 +1001,7 @@ public class AdminActivity extends Activity {
         addCardText(
                 card,
                 "🏦 Sakay Na Fee — 10%: "
-                        + formatPeso(
-                        record.platformFee
-                ),
+                        + formatPeso(record.platformFee),
                 16,
                 DARK
         );
@@ -1609,28 +1009,16 @@ public class AdminActivity extends Activity {
         addCardText(
                 card,
                 "💰 OUTSTANDING DUE: "
-                        + formatPeso(
-                        record.outstanding
-                ),
+                        + formatPeso(record.outstanding),
                 19,
-                Color.rgb(
-                        190,
-                        0,
-                        0
-                )
+                Color.rgb(190, 0, 0)
         );
 
-        if (
-                record.oldestDueTimestamp
-                        != null
-        ) {
-
+        if (record.oldestDueTimestamp != null) {
             addCardText(
                     card,
                     "📅 Oldest DUE: "
-                            + formatDate(
-                            record.oldestDueTimestamp
-                    ),
+                            + formatDate(record.oldestDueTimestamp),
                     14,
                     GRAY
             );
@@ -1638,8 +1026,7 @@ public class AdminActivity extends Activity {
             addCardText(
                     card,
                     "⏳ Days Unpaid: "
-                            + record.daysUnpaid
-                            + " day(s)",
+                            + record.daysUnpaid + " day(s)",
                     17,
                     statusColor
             );
@@ -1647,77 +1034,41 @@ public class AdminActivity extends Activity {
 
         addCardText(
                 card,
-                "📌 SETTLEMENT STATUS: "
-                        + record.status,
+                "📌 SETTLEMENT STATUS: " + record.status,
                 18,
                 statusColor
         );
 
-        if ("OVERDUE".equals(
-                record.status
-        )) {
-
+        if ("OVERDUE".equals(record.status)) {
             addCardText(
                     card,
                     "🔴 OVERDUE MORE THAN 7 DAYS",
                     17,
-                    Color.rgb(
-                            190,
-                            0,
-                            0
-                    )
+                    Color.rgb(190, 0, 0)
             );
-
         } else {
-
             addCardText(
                     card,
                     "🟡 PAYMENT DUE",
                     16,
-                    Color.rgb(
-                            180,
-                            120,
-                            0
-                    )
+                    Color.rgb(180, 120, 0)
             );
         }
 
-        if ("SUSPENDED".equalsIgnoreCase(
-                record.accountStatus
-        )) {
-
+        if ("SUSPENDED".equalsIgnoreCase(record.accountStatus)) {
             addCardText(
                     card,
                     "🚫 DRIVER ACCOUNT: SUSPENDED",
                     17,
-                    Color.rgb(
-                            190,
-                            0,
-                            0
-                    )
+                    Color.rgb(190, 0, 0)
             );
         }
     }
 
-    private String statusIcon(
-            String status
-    ) {
-
-        if ("OVERDUE".equals(
-                status
-        )) {
-
-            return "🔴";
-        }
-
-        return "🟡";
+    private String statusIcon(String status) {
+        return "OVERDUE".equals(status) ? "🔴" : "🟡";
     }
 
-    /*
-     * ============================================================
-     * TODAY'S PASSENGER BOOKINGS
-     * ============================================================
-     */
     private void addPassengerBookings() {
 
         if (passengersSection == null) {
@@ -1726,109 +1077,48 @@ public class AdminActivity extends Activity {
 
         passengersSection.removeAllViews();
 
-        TextView bookingTitle =
-                new TextView(this);
-
-        bookingTitle.setText(
-                "🛺 TODAY'S PASSENGER BOOKINGS"
-        );
-
+        TextView bookingTitle = new TextView(this);
+        bookingTitle.setText("🛺 TODAY'S PASSENGER BOOKINGS");
         bookingTitle.setTextSize(20);
-
         bookingTitle.setTypeface(
                 null,
                 android.graphics.Typeface.BOLD
         );
-
         bookingTitle.setTextColor(GREEN);
+        bookingTitle.setPadding(0, 8, 0, 12);
+        passengersSection.addView(bookingTitle);
 
-        bookingTitle.setPadding(
-                0,
-                8,
-                0,
-                12
-        );
+        long startOfToday = getStartOfToday();
+        long startOfTomorrow = getStartOfTomorrow();
 
-        passengersSection.addView(
-                bookingTitle
-        );
+        List<DocumentSnapshot> todayBookings = new ArrayList<>();
 
-        long startOfToday =
-                getStartOfToday();
+        for (DocumentSnapshot ride : rideDocuments) {
 
-        long startOfTomorrow =
-                getStartOfTomorrow();
+            Long timestamp = getBookingTimestamp(ride);
 
-        List<DocumentSnapshot> todayBookings =
-                new ArrayList<>();
-
-        for (DocumentSnapshot ride :
-                rideDocuments) {
-
-            /*
-             * IMPORTANT:
-             *
-             * Passenger booking date must be based on when
-             * the booking was requested/created.
-             *
-             * We deliberately DO NOT use completedAt first.
-             *
-             * Otherwise:
-             *
-             * Booking created yesterday
-             * + completed today
-             *
-             * could incorrectly appear as TODAY'S BOOKING.
-             */
-            Long timestamp =
-                    getBookingTimestamp(
-                            ride
-                    );
-
-            if (
-                    timestamp == null
-                            ||
-                    timestamp < startOfToday
-                            ||
-                    timestamp >= startOfTomorrow
-            ) {
-
+            if (timestamp == null
+                    || timestamp < startOfToday
+                    || timestamp >= startOfTomorrow) {
                 continue;
             }
 
-            String passengerId =
-                    ride.getString(
-                            "passengerId"
-                    );
+            String passengerId = ride.getString("passengerId");
 
-            if (!hasText(
-                    passengerId
-            )) {
-
+            if (!hasText(passengerId)) {
                 continue;
             }
 
-            DocumentSnapshot passenger =
-                    usersById.get(
-                            passengerId
-                    );
+            DocumentSnapshot passenger = usersById.get(passengerId);
 
-            if (
-                    passenger == null
-                            ||
-                    !"PASSENGER".equalsIgnoreCase(
-                            passenger.getString(
-                                    "role"
-                            )
-                    )
-            ) {
-
+            if (passenger == null
+                    || !"PASSENGER".equalsIgnoreCase(
+                            passenger.getString("role")
+                    )) {
                 continue;
             }
 
-            todayBookings.add(
-                    ride
-            );
+            todayBookings.add(ride);
         }
 
         Collections.sort(
@@ -1837,37 +1127,21 @@ public class AdminActivity extends Activity {
         );
 
         if (todayBookings.isEmpty()) {
-
             addInfoCard(
                     passengersSection,
                     "🛺 TODAY'S BOOKINGS",
                     "No passenger bookings today.",
                     LIGHT_YELLOW
             );
-
             return;
         }
 
-        for (DocumentSnapshot ride :
-                todayBookings) {
-
-            addRideCard(
-                    passengersSection,
-                    ride
-            );
+        for (DocumentSnapshot ride : todayBookings) {
+            addRideCard(passengersSection, ride);
         }
     }
 
-    /*
-     * ============================================================
-     * BOOKING TIMESTAMP
-     * ============================================================
-     *
-     * Used ONLY for today's passenger booking section.
-     */
-    private Long getBookingTimestamp(
-            DocumentSnapshot ride
-    ) {
+    private Long getBookingTimestamp(DocumentSnapshot ride) {
 
         String[] fields = {
                 "requestedAt",
@@ -1877,20 +1151,15 @@ public class AdminActivity extends Activity {
                 "updatedAt"
         };
 
-        for (String field :
-                fields) {
+        for (String field : fields) {
 
-            Object value =
-                    ride.get(field);
+            Object value = ride.get(field);
 
             if (value instanceof Number) {
-
-                return ((Number) value)
-                        .longValue();
+                return ((Number) value).longValue();
             }
 
             if (value instanceof Timestamp) {
-
                 return ((Timestamp) value)
                         .toDate()
                         .getTime();
@@ -1902,61 +1171,26 @@ public class AdminActivity extends Activity {
 
     private long getStartOfToday() {
 
-        Calendar calendar =
-                Calendar.getInstance();
+        Calendar calendar = Calendar.getInstance();
 
-        calendar.set(
-                Calendar.HOUR_OF_DAY,
-                0
-        );
-
-        calendar.set(
-                Calendar.MINUTE,
-                0
-        );
-
-        calendar.set(
-                Calendar.SECOND,
-                0
-        );
-
-        calendar.set(
-                Calendar.MILLISECOND,
-                0
-        );
+        calendar.set(Calendar.HOUR_OF_DAY, 0);
+        calendar.set(Calendar.MINUTE, 0);
+        calendar.set(Calendar.SECOND, 0);
+        calendar.set(Calendar.MILLISECOND, 0);
 
         return calendar.getTimeInMillis();
     }
 
     private long getStartOfTomorrow() {
 
-        Calendar calendar =
-                Calendar.getInstance();
+        Calendar calendar = Calendar.getInstance();
 
-        calendar.set(
-                Calendar.HOUR_OF_DAY,
-                0
-        );
+        calendar.set(Calendar.HOUR_OF_DAY, 0);
+        calendar.set(Calendar.MINUTE, 0);
+        calendar.set(Calendar.SECOND, 0);
+        calendar.set(Calendar.MILLISECOND, 0);
 
-        calendar.set(
-                Calendar.MINUTE,
-                0
-        );
-
-        calendar.set(
-                Calendar.SECOND,
-                0
-        );
-
-        calendar.set(
-                Calendar.MILLISECOND,
-                0
-        );
-
-        calendar.add(
-                Calendar.DAY_OF_YEAR,
-                1
-        );
+        calendar.add(Calendar.DAY_OF_YEAR, 1);
 
         return calendar.getTimeInMillis();
     }
@@ -1966,22 +1200,10 @@ public class AdminActivity extends Activity {
 
         return (ride1, ride2) -> {
 
-            Long time1 =
-                    getBookingTimestamp(
-                            ride1
-                    );
+            Long time1 = getBookingTimestamp(ride1);
+            Long time2 = getBookingTimestamp(ride2);
 
-            Long time2 =
-                    getBookingTimestamp(
-                            ride2
-                    );
-
-            if (
-                    time1 == null
-                            &&
-                    time2 == null
-            ) {
-
+            if (time1 == null && time2 == null) {
                 return 0;
             }
 
@@ -1993,57 +1215,35 @@ public class AdminActivity extends Activity {
                 return -1;
             }
 
-            return Long.compare(
-                    time2,
-                    time1
-            );
+            return Long.compare(time2, time1);
         };
     }
 
-    /*
-     * ============================================================
-     * LIVE RIDES LISTENER
-     * ============================================================
-     */
     private void loadRides() {
 
         if (ridesListener != null) {
-
             ridesListener.remove();
-
             ridesListener = null;
         }
 
-        ridesListener =
-                db.collection("rides")
-                        .addSnapshotListener(
-                                (snapshot, error) -> {
+        ridesListener = db.collection("rides")
+                .addSnapshotListener((snapshot, error) -> {
 
-                                    if (error != null) {
-
-                                        statusText.setText(
-                                                "Users loaded. Live ride data unavailable."
-                                        );
-
-                                        return;
-                                    }
-
-                                    if (snapshot == null) {
-                                        return;
-                                    }
-
-                                    applyRideSnapshot(
-                                            snapshot
-                                    );
-                                }
+                    if (error != null) {
+                        statusText.setText(
+                                "Users loaded. Live ride data unavailable."
                         );
+                        return;
+                    }
+
+                    if (snapshot == null) {
+                        return;
+                    }
+
+                    applyRideSnapshot(snapshot);
+                });
     }
 
-    /*
-     * ============================================================
-     * DIRECT RIDE REFRESH FALLBACK
-     * ============================================================
-     */
     private void refreshRidesOnce() {
 
         if (db == null) {
@@ -2052,56 +1252,24 @@ public class AdminActivity extends Activity {
 
         db.collection("rides")
                 .get()
-                .addOnSuccessListener(
-                        this::applyRideSnapshot
-                )
-                .addOnFailureListener(
-                        e -> {
-                            /*
-                             * Keep current ride data if a temporary
-                             * direct read fails.
-                             */
-                        }
-                );
+                .addOnSuccessListener(this::applyRideSnapshot)
+                .addOnFailureListener(e -> {
+                    // Keep current ride data on temporary errors.
+                });
     }
 
-    /*
-     * ============================================================
-     * APPLY CURRENT RIDE SNAPSHOT
-     * ============================================================
-     */
-    private void applyRideSnapshot(
-            QuerySnapshot snapshot
-    ) {
+    private void applyRideSnapshot(QuerySnapshot snapshot) {
 
         if (snapshot == null) {
             return;
         }
 
-        /*
-         * CRITICAL:
-         *
-         * Replace the entire local list.
-         *
-         * This removes yesterday's/deleted/stale documents from
-         * the AdminActivity memory when Firestore no longer
-         * returns them.
-         */
         rideDocuments.clear();
+        rideDocuments.addAll(snapshot.getDocuments());
 
-        rideDocuments.addAll(
-                snapshot.getDocuments()
-        );
-
-        /*
-         * Update all existing ride-related sections.
-         */
         renderHistory();
-
         renderPayments();
-
         addPassengerBookings();
-
         buildDriverEarningsDues();
 
         statusText.setText(
@@ -2113,47 +1281,28 @@ public class AdminActivity extends Activity {
 
     private void buildRideSections() {
 
-        /*
-         * Create history section only once.
-         */
         if (historySection == null) {
-
-            historySection =
-                    createSection(
-                            "📋 RIDE HISTORY — LAST 7 DAYS"
-                    );
-
-            addHistoryNotice(
-                    historySection
+            historySection = createSection(
+                    "📋 RIDE HISTORY — LAST 7 DAYS"
             );
+            addHistoryNotice(historySection);
         }
 
         renderHistory();
 
-        /*
-         * Create payment section only once.
-         */
         if (paymentSection == null) {
-
-            paymentSection =
-                    createSection(
-                            "💰 FARE & PAYMENT — TAP TO OPEN"
-                    );
-
-            addPaymentFilters(
-                    paymentSection
+            paymentSection = createSection(
+                    "💰 FARE & PAYMENT — TAP TO OPEN"
             );
+            addPaymentFilters(paymentSection);
         }
 
         renderPayments();
     }
 
-    private void addHistoryNotice(
-            LinearLayout parent
-    ) {
+    private void addHistoryNotice(LinearLayout parent) {
 
-        TextView notice =
-                new TextView(this);
+        TextView notice = new TextView(this);
 
         notice.setText(
                 "Completed, cancelled, declined and expired rides "
@@ -2162,19 +1311,10 @@ public class AdminActivity extends Activity {
         );
 
         notice.setTextSize(15);
-
         notice.setTextColor(DARK);
+        notice.setPadding(0, 0, 0, 12);
 
-        notice.setPadding(
-                0,
-                0,
-                0,
-                12
-        );
-
-        parent.addView(
-                notice
-        );
+        parent.addView(notice);
     }
 
     private void renderHistory() {
@@ -2183,70 +1323,37 @@ public class AdminActivity extends Activity {
             return;
         }
 
-        int childCount =
-                historySection.getChildCount();
+        int childCount = historySection.getChildCount();
 
         if (childCount > 1) {
-
-            historySection.removeViews(
-                    1,
-                    childCount - 1
-            );
+            historySection.removeViews(1, childCount - 1);
         }
 
-        long cutoff =
-                System.currentTimeMillis()
-                        -
-                        HISTORY_DAYS
-                                * 24L
-                                * 60L
-                                * 60L
-                                * 1000L;
+        long cutoff = System.currentTimeMillis()
+                - HISTORY_DAYS * 24L * 60L * 60L * 1000L;
 
-        List<DocumentSnapshot> history =
-                new ArrayList<>();
+        List<DocumentSnapshot> history = new ArrayList<>();
 
-        for (DocumentSnapshot ride :
-                rideDocuments) {
+        for (DocumentSnapshot ride : rideDocuments) {
 
-            String status =
-                    ride.getString(
-                            "status"
-                    );
+            String status = ride.getString("status");
 
-            if (!isHistoryStatus(
-                    status
-            )) {
-
+            if (!isHistoryStatus(status)) {
                 continue;
             }
 
-            Long timestamp =
-                    getRideTimestamp(
-                            ride
-                    );
+            Long timestamp = getRideTimestamp(ride);
 
-            if (
-                    timestamp == null
-                            ||
-                    timestamp < cutoff
-            ) {
-
+            if (timestamp == null || timestamp < cutoff) {
                 continue;
             }
 
-            history.add(
-                    ride
-            );
+            history.add(ride);
         }
 
-        Collections.sort(
-                history,
-                newestFirstComparator()
-        );
+        Collections.sort(history, newestFirstComparator());
 
         if (history.isEmpty()) {
-
             addInfoCard(
                     historySection,
                     "📋 RIDE HISTORY",
@@ -2254,142 +1361,62 @@ public class AdminActivity extends Activity {
                             + "found in the last 7 days.",
                     LIGHT_YELLOW
             );
-
             return;
         }
 
-        for (DocumentSnapshot ride :
-                history) {
-
-            addRideCard(
-                    historySection,
-                    ride
-            );
+        for (DocumentSnapshot ride : history) {
+            addRideCard(historySection, ride);
         }
     }
 
-    private boolean isHistoryStatus(
-            String status
-    ) {
+    private boolean isHistoryStatus(String status) {
 
-        if (!hasText(
-                status
-        )) {
-
+        if (!hasText(status)) {
             return false;
         }
 
-        return
-                "COMPLETED".equalsIgnoreCase(
-                        status
-                )
-                        ||
-                "CANCELLED".equalsIgnoreCase(
-                        status
-                )
-                        ||
-                "DECLINED".equalsIgnoreCase(
-                        status
-                )
-                        ||
-                "EXPIRED".equalsIgnoreCase(
-                        status
-                );
+        return "COMPLETED".equalsIgnoreCase(status)
+                || "CANCELLED".equalsIgnoreCase(status)
+                || "DECLINED".equalsIgnoreCase(status)
+                || "EXPIRED".equalsIgnoreCase(status);
     }
 
-    private void addPaymentFilters(
-            LinearLayout parent
-    ) {
+    private void addPaymentFilters(LinearLayout parent) {
 
-        TextView label =
-                new TextView(this);
-
-        label.setText(
-                "💰 FARE & PAYMENT — SELECT PERIOD"
-        );
-
+        TextView label = new TextView(this);
+        label.setText("💰 FARE & PAYMENT — SELECT PERIOD");
         label.setTextSize(16);
-
         label.setTextColor(DARK);
-
-        label.setPadding(
-                0,
-                4,
-                0,
-                4
-        );
-
+        label.setPadding(0, 4, 0, 4);
         parent.addView(label);
 
-        LinearLayout row =
-                new LinearLayout(this);
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
 
-        row.setOrientation(
-                LinearLayout.HORIZONTAL
-        );
+        Button today = new Button(this);
+        today.setText("TODAY");
+        today.setOnClickListener(v -> {
+            paymentDays = 1;
+            renderPayments();
+        });
 
-        Button today =
-                new Button(this);
+        Button week = new Button(this);
+        week.setText("7 DAYS");
+        week.setOnClickListener(v -> {
+            paymentDays = 7;
+            renderPayments();
+        });
 
-        today.setText(
-                "TODAY"
-        );
+        Button month = new Button(this);
+        month.setText("30 DAYS");
+        month.setOnClickListener(v -> {
+            paymentDays = 30;
+            renderPayments();
+        });
 
-        today.setOnClickListener(
-                v -> {
-
-                    paymentDays = 1;
-
-                    renderPayments();
-                }
-        );
-
-        Button week =
-                new Button(this);
-
-        week.setText(
-                "7 DAYS"
-        );
-
-        week.setOnClickListener(
-                v -> {
-
-                    paymentDays = 7;
-
-                    renderPayments();
-                }
-        );
-
-        Button month =
-                new Button(this);
-
-        month.setText(
-                "30 DAYS"
-        );
-
-        month.setOnClickListener(
-                v -> {
-
-                    paymentDays = 30;
-
-                    renderPayments();
-                }
-        );
-
-        row.addView(
-                today,
-                weighted()
-        );
-
-        row.addView(
-                week,
-                weighted()
-        );
-
-        row.addView(
-                month,
-                weighted()
-        );
+        row.addView(today, weighted());
+        row.addView(week, weighted());
+        row.addView(month, weighted());
 
         parent.addView(row);
     }
@@ -2400,194 +1427,111 @@ public class AdminActivity extends Activity {
             return;
         }
 
-        int childCount =
-                paymentSection.getChildCount();
+        int childCount = paymentSection.getChildCount();
 
         if (childCount > 2) {
-
-            paymentSection.removeViews(
-                    2,
-                    childCount - 2
-            );
+            paymentSection.removeViews(2, childCount - 2);
         }
 
-        long cutoff =
-                System.currentTimeMillis()
-                        -
-                        paymentDays
-                                * 24L
-                                * 60L
-                                * 60L
-                                * 1000L;
+        long cutoff = System.currentTimeMillis()
+                - paymentDays * 24L * 60L * 60L * 1000L;
 
         double recordedFare = 0;
-
         double cashTotal = 0;
-
         double gcashTotal = 0;
-
         double mayaTotal = 0;
 
         int recordedCount = 0;
-
         int cashCount = 0;
-
         int gcashCount = 0;
-
         int mayaCount = 0;
 
-        List<DocumentSnapshot> paymentRides =
-                new ArrayList<>();
+        List<DocumentSnapshot> paymentRides = new ArrayList<>();
 
-        for (DocumentSnapshot ride :
-                rideDocuments) {
+        for (DocumentSnapshot ride : rideDocuments) {
 
-            Long timestamp =
-                    getRideTimestamp(
-                            ride
-                    );
+            Long timestamp = getRideTimestamp(ride);
 
-            if (
-                    timestamp == null
-                            ||
-                    timestamp < cutoff
-            ) {
-
+            if (timestamp == null || timestamp < cutoff) {
                 continue;
             }
 
-            String status =
-                    valueOrDefault(
-                            ride.getString(
-                                    "status"
-                            ),
-                            ""
-                    );
+            String status = valueOrDefault(
+                    ride.getString("status"),
+                    ""
+            );
 
-            if (
-                    "REQUESTED".equalsIgnoreCase(
-                            status
-                    )
-                            &&
-                    !hasText(
-                            ride.getString(
-                                    "driverId"
-                            )
-                            )
-            ) {
-
+            if ("REQUESTED".equalsIgnoreCase(status)
+                    && !hasText(ride.getString("driverId"))) {
                 continue;
             }
 
-            double fare =
-                    readNumber(
-                            ride,
-                            "fare"
-                    );
+            double fare = readNumber(ride, "fare");
 
             if (fare <= 0) {
                 continue;
             }
 
-            String payment =
-                    normalizePaymentMethod(
-                            ride.getString(
-                                    "paymentMethod"
-                            )
-                    );
+            String payment = normalizePaymentMethod(
+                    ride.getString("paymentMethod")
+            );
 
-            recordedFare +=
-                    fare;
-
+            recordedFare += fare;
             recordedCount++;
 
-            if ("CASH".equals(
-                    payment
-            )) {
-
+            if ("CASH".equals(payment)) {
                 cashTotal += fare;
-
                 cashCount++;
-
-            } else if ("GCASH".equals(
-                    payment
-            )) {
-
+            } else if ("GCASH".equals(payment)) {
                 gcashTotal += fare;
-
                 gcashCount++;
-
-            } else if ("MAYA".equals(
-                    payment
-            )) {
-
+            } else if ("MAYA".equals(payment)) {
                 mayaTotal += fare;
-
                 mayaCount++;
             }
 
-            paymentRides.add(
-                    ride
-            );
+            paymentRides.add(ride);
         }
 
         addInfoCard(
                 paymentSection,
                 "🧾 RIDE PAYMENT TRANSACTIONS",
-                String.valueOf(
-                        recordedCount
-                ),
+                String.valueOf(recordedCount),
                 LIGHT_GREEN
         );
 
         addInfoCard(
                 paymentSection,
                 "💰 TOTAL FARE",
-                formatPeso(
-                        recordedFare
-                ),
+                formatPeso(recordedFare),
                 LIGHT_GREEN
         );
 
         addInfoCard(
                 paymentSection,
                 "💵 CASH",
-                formatPeso(
-                        cashTotal
-                )
-                        + " • "
-                        + cashCount
-                        + " transaction(s)",
+                formatPeso(cashTotal) + " • "
+                        + cashCount + " transaction(s)",
                 LIGHT_YELLOW
         );
 
         addInfoCard(
                 paymentSection,
                 "📱 GCASH",
-                formatPeso(
-                        gcashTotal
-                )
-                        + " • "
-                        + gcashCount
-                        + " transaction(s)",
+                formatPeso(gcashTotal) + " • "
+                        + gcashCount + " transaction(s)",
                 LIGHT_BLUE
         );
 
         addInfoCard(
                 paymentSection,
                 "📱 MAYA",
-                formatPeso(
-                        mayaTotal
-                )
-                        + " • "
-                        + mayaCount
-                        + " transaction(s)",
+                formatPeso(mayaTotal) + " • "
+                        + mayaCount + " transaction(s)",
                 LIGHT_GREEN
         );
 
-        TextView note =
-                new TextView(this);
-
+        TextView note = new TextView(this);
         note.setText(
                 "ℹ️ Fare and payment are read directly "
                         + "from ride records. "
@@ -2595,49 +1539,25 @@ public class AdminActivity extends Activity {
                         + "from the ride's payment method. "
                         + "A booking with no fare is not counted."
         );
-
         note.setTextSize(14);
-
         note.setTextColor(DARK);
-
-        note.setPadding(
-                12,
-                12,
-                12,
-                18
-        );
-
+        note.setPadding(12, 12, 12, 18);
         paymentSection.addView(note);
 
-        TextView transactionTitle =
-                new TextView(this);
-
+        TextView transactionTitle = new TextView(this);
         transactionTitle.setText(
                 "🧾 RECENT FARE & PAYMENT TRANSACTIONS"
         );
-
         transactionTitle.setTextSize(19);
-
         transactionTitle.setTypeface(
                 null,
                 android.graphics.Typeface.BOLD
         );
-
         transactionTitle.setTextColor(GREEN);
-
-        transactionTitle.setPadding(
-                0,
-                8,
-                0,
-                12
-        );
-
-        paymentSection.addView(
-                transactionTitle
-        );
+        transactionTitle.setPadding(0, 8, 0, 12);
+        paymentSection.addView(transactionTitle);
 
         if (paymentRides.isEmpty()) {
-
             addInfoCard(
                     paymentSection,
                     "🧾 TRANSACTIONS",
@@ -2645,22 +1565,13 @@ public class AdminActivity extends Activity {
                             + "for the selected period.",
                     LIGHT_YELLOW
             );
-
             return;
         }
 
-        Collections.sort(
-                paymentRides,
-                newestFirstComparator()
-        );
+        Collections.sort(paymentRides, newestFirstComparator());
 
-        for (DocumentSnapshot ride :
-                paymentRides) {
-
-            addPaymentTransactionCard(
-                    paymentSection,
-                    ride
-            );
+        for (DocumentSnapshot ride : paymentRides) {
+            addPaymentTransactionCard(paymentSection, ride);
         }
     }
 
@@ -2669,84 +1580,42 @@ public class AdminActivity extends Activity {
             DocumentSnapshot ride
     ) {
 
-        LinearLayout card =
-                createChildCard(
-                        parent,
-                        LIGHT_BLUE
-                );
+        LinearLayout card = createChildCard(parent, LIGHT_BLUE);
 
-        String driverId =
-                ride.getString(
-                        "driverId"
-                );
+        String driverId = ride.getString("driverId");
+        DocumentSnapshot driver = usersById.get(driverId);
 
-        DocumentSnapshot driver =
-                usersById.get(
-                        driverId
-                );
-
-        String driverName =
-                firstNonEmpty(
-                        ride.getString(
-                                "driverName"
-                        ),
-                        driver == null
-                                ? ""
-                                : firstNonEmpty(
-                                driver.getString(
-                                        "driverName"
-                                ),
-                                driver.getString(
-                                        "name"
-                                )
+        String driverName = firstNonEmpty(
+                ride.getString("driverName"),
+                driver == null
+                        ? ""
+                        : firstNonEmpty(
+                                driver.getString("driverName"),
+                                driver.getString("name")
                         )
-                );
-
-        String driverPhone =
-                firstNonEmpty(
-                        ride.getString(
-                                "driverPhone"
-                        ),
-                        driver == null
-                                ? ""
-                                : driver.getString(
-                                "phone"
-                        )
-                );
-
-        String payment =
-                normalizePaymentMethod(
-                        ride.getString(
-                                "paymentMethod"
-                        )
-                );
-
-        double fare =
-                readNumber(
-                        ride,
-                        "fare"
-                );
-
-        String rideStatus =
-                valueOrDefault(
-                        ride.getString(
-                                "status"
-                        ),
-                        "UNKNOWN"
-                );
-
-        addCardText(
-                card,
-                "🧾 RIDE #"
-                        + ride.getId(),
-                18,
-                GREEN
         );
 
+        String driverPhone = firstNonEmpty(
+                ride.getString("driverPhone"),
+                driver == null ? "" : driver.getString("phone")
+        );
+
+        String payment = normalizePaymentMethod(
+                ride.getString("paymentMethod")
+        );
+
+        double fare = readNumber(ride, "fare");
+
+        String rideStatus = valueOrDefault(
+                ride.getString("status"),
+                "UNKNOWN"
+        );
+
+        addCardText(card, "🧾 RIDE #" + ride.getId(), 18, GREEN);
+
         addCardText(
                 card,
-                "🚕 Driver: "
-                        + valueOrDefault(
+                "🚕 Driver: " + valueOrDefault(
                         driverName,
                         "Driver not assigned"
                 ),
@@ -2756,8 +1625,7 @@ public class AdminActivity extends Activity {
 
         addCardText(
                 card,
-                "📱 Driver Phone: "
-                        + valueOrDefault(
+                "📱 Driver Phone: " + valueOrDefault(
                         driverPhone,
                         "Phone not available"
                 ),
@@ -2767,43 +1635,31 @@ public class AdminActivity extends Activity {
 
         addCardText(
                 card,
-                "🚦 Ride Status: "
-                        + rideStatus,
+                "🚦 Ride Status: " + rideStatus,
                 16,
                 DARK
         );
 
         addCardText(
                 card,
-                "💰 FARE: "
-                        + formatPeso(
-                        fare
-                ),
+                "💰 FARE: " + formatPeso(fare),
                 19,
                 GREEN
         );
 
         addCardText(
                 card,
-                "💳 PAYMENT: "
-                        + payment,
+                "💳 PAYMENT: " + payment,
                 17,
                 DARK
         );
 
-        Long timestamp =
-                getRideTimestamp(
-                        ride
-                );
+        Long timestamp = getRideTimestamp(ride);
 
         if (timestamp != null) {
-
             addCardText(
                     card,
-                    "🕒 "
-                            + formatDate(
-                            timestamp
-                    ),
+                    "🕒 " + formatDate(timestamp),
                     14,
                     GRAY
             );
@@ -2815,177 +1671,84 @@ public class AdminActivity extends Activity {
             DocumentSnapshot ride
     ) {
 
-        LinearLayout card =
-                createChildCard(
-                        parent,
-                        LIGHT_BLUE
-                );
+        LinearLayout card = createChildCard(parent, LIGHT_BLUE);
 
-        String pickup =
-                firstNonEmpty(
-                        ride.getString(
-                                "pickupName"
-                        ),
-                        ride.getString(
-                                "pickup"
-                        )
-                );
-
-        String destination =
-                firstNonEmpty(
-                        ride.getString(
-                                "destinationName"
-                        ),
-                        ride.getString(
-                                "destination"
-                        )
-                );
-
-        String status =
-                valueOrDefault(
-                        ride.getString(
-                                "status"
-                        ),
-                        "UNKNOWN"
-                );
-
-        String payment =
-                valueOrDefault(
-                        ride.getString(
-                                "paymentMethod"
-                        ),
-                        "Not provided"
-                );
-
-        double fare =
-                readNumber(
-                        ride,
-                        "fare"
-                );
-
-        String driverId =
-                ride.getString(
-                        "driverId"
-                );
-
-        DocumentSnapshot driver =
-                usersById.get(
-                        driverId
-                );
-
-        String driverName =
-                firstNonEmpty(
-                        ride.getString(
-                                "driverName"
-                        ),
-                        driver == null
-                                ? ""
-                                : firstNonEmpty(
-                                driver.getString(
-                                        "driverName"
-                                ),
-                                driver.getString(
-                                        "name"
-                                )
-                        )
-                );
-
-        String driverPhone =
-                firstNonEmpty(
-                        ride.getString(
-                                "driverPhone"
-                        ),
-                        driver == null
-                                ? ""
-                                : driver.getString(
-                                "phone"
-                        )
-                );
-
-        String plate =
-                firstNonEmpty(
-                        ride.getString(
-                                "driverPlateNumber"
-                        ),
-                        driver == null
-                                ? ""
-                                : driver.getString(
-                                "plateNumber"
-                        )
-                );
-
-        String vehicle =
-                firstNonEmpty(
-                        ride.getString(
-                                "driverVehicle"
-                        ),
-                        driver == null
-                                ? ""
-                                : driver.getString(
-                                "vehicleDescription"
-                        )
-                );
-
-        addCardText(
-                card,
-                "🛺 RIDE #"
-                        + ride.getId(),
-                18,
-                GREEN
+        String pickup = firstNonEmpty(
+                ride.getString("pickupName"),
+                ride.getString("pickup")
         );
 
-        addCardText(
-                card,
-                "🛺 PASSENGER BOOKING",
-                16,
-                DARK
+        String destination = firstNonEmpty(
+                ride.getString("destinationName"),
+                ride.getString("destination")
         );
+
+        String status = valueOrDefault(
+                ride.getString("status"),
+                "UNKNOWN"
+        );
+
+        String payment = valueOrDefault(
+                ride.getString("paymentMethod"),
+                "Not provided"
+        );
+
+        double fare = readNumber(ride, "fare");
+
+        String driverId = ride.getString("driverId");
+        DocumentSnapshot driver = usersById.get(driverId);
+
+        String driverName = firstNonEmpty(
+                ride.getString("driverName"),
+                driver == null
+                        ? ""
+                        : firstNonEmpty(
+                                driver.getString("driverName"),
+                                driver.getString("name")
+                        )
+        );
+
+        String driverPhone = firstNonEmpty(
+                ride.getString("driverPhone"),
+                driver == null ? "" : driver.getString("phone")
+        );
+
+        String plate = firstNonEmpty(
+                ride.getString("driverPlateNumber"),
+                driver == null ? "" : driver.getString("plateNumber")
+        );
+
+        String vehicle = firstNonEmpty(
+                ride.getString("driverVehicle"),
+                driver == null
+                        ? ""
+                        : driver.getString("vehicleDescription")
+        );
+
+        addCardText(card, "🛺 RIDE #" + ride.getId(), 18, GREEN);
+        addCardText(card, "🛺 PASSENGER BOOKING", 16, DARK);
 
         addCardText(
                 card,
                 "🚕 DRIVER\n"
-                        + valueOrDefault(
-                        driverName,
-                        "Driver not assigned"
-                )
+                        + valueOrDefault(driverName, "Driver not assigned")
                         + "\n📱 "
-                        + valueOrDefault(
-                        driverPhone,
-                        "Phone not available"
-                ),
+                        + valueOrDefault(driverPhone, "Phone not available"),
                 16,
                 DARK
         );
 
         if (hasText(plate)) {
-
-            addCardText(
-                    card,
-                    "🪪 Plate: "
-                            + plate,
-                    15,
-                    DARK
-            );
+            addCardText(card, "🪪 Plate: " + plate, 15, DARK);
         }
 
         if (hasText(vehicle)) {
-
-            addCardText(
-                    card,
-                    "🛺 Tricycle: "
-                            + vehicle,
-                    15,
-                    DARK
-            );
+            addCardText(card, "🛺 Tricycle: " + vehicle, 15, DARK);
         }
 
         addCardText(
                 card,
-                "📍 Pickup:\n"
-                        + valueOrDefault(
-                        pickup,
-                        "Not provided"
-                ),
+                "📍 Pickup:\n" + valueOrDefault(pickup, "Not provided"),
                 15,
                 DARK
         );
@@ -2993,54 +1756,19 @@ public class AdminActivity extends Activity {
         addCardText(
                 card,
                 "🎯 Destination:\n"
-                        + valueOrDefault(
-                        destination,
-                        "Not provided"
-                ),
+                        + valueOrDefault(destination, "Not provided"),
                 15,
                 DARK
         );
 
-        addCardText(
-                card,
-                "💰 Fare: "
-                        + formatPeso(
-                        fare
-                ),
-                16,
-                DARK
-        );
+        addCardText(card, "💰 Fare: " + formatPeso(fare), 16, DARK);
+        addCardText(card, "💳 Payment: " + payment, 16, DARK);
+        addCardText(card, "🚦 Status: " + status, 16, DARK);
 
-        addCardText(
-                card,
-                "💳 Payment: "
-                        + payment,
-                16,
-                DARK
-        );
-
-        addCardText(
-                card,
-                "🚦 Status: "
-                        + status,
-                16,
-                DARK
-        );
-
-        String date =
-                getRideDateText(
-                        ride
-                );
+        String date = getRideDateText(ride);
 
         if (hasText(date)) {
-
-            addCardText(
-                    card,
-                    "🕒 "
-                            + date,
-                    14,
-                    GRAY
-            );
+            addCardText(card, "🕒 " + date, 14, GRAY);
         }
     }
 
@@ -3050,109 +1778,55 @@ public class AdminActivity extends Activity {
             String town
     ) {
 
-        LinearLayout row =
-                new LinearLayout(this);
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setPadding(0, 6, 0, 6);
 
-        row.setOrientation(
-                LinearLayout.HORIZONTAL
-        );
+        LinearLayout provinceColumn = new LinearLayout(this);
+        provinceColumn.setOrientation(LinearLayout.VERTICAL);
 
-        row.setPadding(
-                0,
-                6,
-                0,
-                6
-        );
+        LinearLayout townColumn = new LinearLayout(this);
+        townColumn.setOrientation(LinearLayout.VERTICAL);
 
-        LinearLayout provinceColumn =
-                new LinearLayout(this);
-
-        provinceColumn.setOrientation(
-                LinearLayout.VERTICAL
-        );
-
-        LinearLayout townColumn =
-                new LinearLayout(this);
-
-        townColumn.setOrientation(
-                LinearLayout.VERTICAL
-        );
-
-        TextView provinceLabel =
-                new TextView(this);
-
-        provinceLabel.setText(
-                "🗺️ PROVINCE"
-        );
-
+        TextView provinceLabel = new TextView(this);
+        provinceLabel.setText("🗺️ PROVINCE");
         provinceLabel.setTextSize(13);
-
         provinceLabel.setTypeface(
                 null,
                 android.graphics.Typeface.BOLD
         );
-
         provinceLabel.setTextColor(GRAY);
 
-        TextView provinceValue =
-                new TextView(this);
-
-        provinceValue.setText(
-                valueOrDefault(
-                        province,
-                        "PROVINCE NOT PROVIDED"
-                )
-        );
-
+        TextView provinceValue = new TextView(this);
+        provinceValue.setText(valueOrDefault(
+                province,
+                "PROVINCE NOT PROVIDED"
+        ));
         provinceValue.setTextSize(16);
-
         provinceValue.setTextColor(DARK);
 
-        provinceColumn.addView(
-                provinceLabel
-        );
+        provinceColumn.addView(provinceLabel);
+        provinceColumn.addView(provinceValue);
 
-        provinceColumn.addView(
-                provinceValue
-        );
-
-        TextView townLabel =
-                new TextView(this);
-
-        townLabel.setText(
-                "🏘️ TOWN"
-        );
-
+        TextView townLabel = new TextView(this);
+        townLabel.setText("🏘️ TOWN");
         townLabel.setTextSize(13);
-
         townLabel.setTypeface(
                 null,
                 android.graphics.Typeface.BOLD
         );
-
         townLabel.setTextColor(GRAY);
 
-        TextView townValue =
-                new TextView(this);
-
-        townValue.setText(
-                valueOrDefault(
-                        town,
-                        "TOWN NOT PROVIDED"
-                )
-        );
-
+        TextView townValue = new TextView(this);
+        townValue.setText(valueOrDefault(
+                town,
+                "TOWN NOT PROVIDED"
+        ));
         townValue.setTextSize(16);
-
         townValue.setTextColor(DARK);
 
-        townColumn.addView(
-                townLabel
-        );
-
-        townColumn.addView(
-                townValue
-        );
+        townColumn.addView(townLabel);
+        townColumn.addView(townValue);
 
         row.addView(
                 provinceColumn,
@@ -3181,207 +1855,96 @@ public class AdminActivity extends Activity {
             boolean approvalOnly
     ) {
 
-        LinearLayout card =
-                createChildCard(
-                        parent,
-                        approvalOnly
-                                ? LIGHT_YELLOW
-                                : LIGHT_GREEN
-                );
+        LinearLayout card = createChildCard(
+                parent,
+                approvalOnly ? LIGHT_YELLOW : LIGHT_GREEN
+        );
 
-        String name =
-                firstNonEmpty(
-                        driver.getString(
-                                "driverName"
-                        ),
-                        driver.getString(
-                                "name"
-                        )
-                );
+        String name = firstNonEmpty(
+                driver.getString("driverName"),
+                driver.getString("name")
+        );
 
-        String phone =
-                driver.getString(
-                        "phone"
-                );
+        String phone = driver.getString("phone");
+        String town = driver.getString("town");
+        String province = driver.getString("province");
+        String plate = driver.getString("plateNumber");
+        String franchise = driver.getString("franchiseNumber");
+        String vehicle = driver.getString("vehicleDescription");
+        String approval = getApprovalStatus(driver);
 
-        String town =
-                driver.getString(
-                        "town"
-                );
-
-        String province =
-                driver.getString(
-                        "province"
-                );
-
-        String plate =
-                driver.getString(
-                        "plateNumber"
-                );
-
-        String franchise =
-                driver.getString(
-                        "franchiseNumber"
-                );
-
-        String vehicle =
-                driver.getString(
-                        "vehicleDescription"
-                );
-
-        String approval =
-                getApprovalStatus(
-                        driver
-                );
-
-        boolean online =
-                Boolean.TRUE.equals(
-                        driverOnlineById.get(
-                                driver.getId()
-                        )
-                );
+        boolean online = Boolean.TRUE.equals(
+                driverOnlineById.get(driver.getId())
+        );
 
         addCardText(
                 card,
-                "🚕 "
-                        + valueOrDefault(
-                        name,
-                        "Driver name not provided"
-                ),
+                "🚕 " + valueOrDefault(name, "Driver name not provided"),
                 19,
                 GREEN
         );
 
         addCardText(
                 card,
-                "📱 Phone: "
-                        + valueOrDefault(
-                        phone,
-                        "Phone not provided"
-                ),
+                "📱 Phone: " + valueOrDefault(phone, "Phone not provided"),
                 16,
                 DARK
         );
 
-        addLocationColumns(
-                card,
-                province,
-                town
-        );
+        addLocationColumns(card, province, town);
 
         if (hasText(plate)) {
-
-            addCardText(
-                    card,
-                    "🪪 Plate Number: "
-                            + plate,
-                    16,
-                    DARK
-            );
+            addCardText(card, "🪪 Plate Number: " + plate, 16, DARK);
         }
 
         if (hasText(franchise)) {
-
-            addCardText(
-                    card,
-                    "📄 Franchise Number: "
-                            + franchise,
-                    16,
-                    DARK
-            );
+            addCardText(card, "📄 Franchise Number: " + franchise, 16, DARK);
         }
 
         if (hasText(vehicle)) {
-
-            addCardText(
-                    card,
-                    "🛺 Tricycle: "
-                            + vehicle,
-                    16,
-                    DARK
-            );
+            addCardText(card, "🛺 Tricycle: " + vehicle, 16, DARK);
         }
 
-        addCardText(
-                card,
-                "Approval: "
-                        + approval,
-                16,
-                DARK
-        );
+        addCardText(card, "Approval: " + approval, 16, DARK);
 
         addCardText(
                 card,
-                "Online: "
-                        + (
-                        online
-                                ? "🟢 YES"
-                                : "🔴 NO"
-                ),
+                "Online: " + (online ? "🟢 YES" : "🔴 NO"),
                 16,
                 DARK
         );
 
         if (approvalOnly) {
 
-            Button approve =
-                    new Button(this);
-
-            approve.setText(
-                    "✅ APPROVE DRIVER"
-            );
-
+            Button approve = new Button(this);
+            approve.setText("✅ APPROVE DRIVER");
             approve.setOnClickListener(
-                    v -> approveDriver(
-                            driver.getId()
-                    )
+                    v -> approveDriver(driver.getId())
             );
+            card.addView(approve);
 
-            card.addView(
-                    approve
-            );
-
-            Button reject =
-                    new Button(this);
-
-            reject.setText(
-                    "❌ REJECT & ERASE DRIVER"
-            );
-
+            Button reject = new Button(this);
+            reject.setText("❌ REJECT & ERASE DRIVER");
             reject.setOnClickListener(
-                    v -> rejectDriver(
-                            driver.getId()
-                    )
+                    v -> rejectDriver(driver.getId())
             );
-
-            card.addView(
-                    reject
-            );
+            card.addView(reject);
         }
     }
 
-    private void approveDriver(
-            String driverId
-    ) {
+    private void approveDriver(String driverId) {
 
         db.collection("users")
                 .document(driverId)
                 .update(
-                        "approved",
-                        true,
-                        "approvalStatus",
-                        "APPROVED",
-                        "driverStatus",
-                        "APPROVED",
-                        "canAcceptRides",
-                        true,
-                        "online",
-                        false,
-                        "approvedAt",
-                        System.currentTimeMillis()
+                        "approved", true,
+                        "approvalStatus", "APPROVED",
+                        "driverStatus", "APPROVED",
+                        "canAcceptRides", true,
+                        "online", false,
+                        "approvedAt", System.currentTimeMillis()
                 )
                 .addOnSuccessListener(v -> {
-
                     Toast.makeText(
                             this,
                             "Driver approved. Driver removed from pending applications.",
@@ -3390,132 +1953,81 @@ public class AdminActivity extends Activity {
 
                     loadDashboard();
                 })
-                .addOnFailureListener(
-                        e ->
-                                Toast.makeText(
-                                        this,
-                                        "Approval failed:\n"
-                                                + safeMessage(e),
-                                        Toast.LENGTH_LONG
-                                ).show()
+                .addOnFailureListener(e ->
+                        Toast.makeText(
+                                this,
+                                "Approval failed:\n" + safeMessage(e),
+                                Toast.LENGTH_LONG
+                        ).show()
                 );
     }
 
-    private void rejectDriver(
-            String driverId
-    ) {
+    private void rejectDriver(String driverId) {
 
         db.collection("users")
                 .document(driverId)
                 .delete()
-                .addOnSuccessListener(v -> {
+                .addOnSuccessListener(v ->
+                        db.collection("driverLocations")
+                                .document(driverId)
+                                .delete()
+                                .addOnCompleteListener(ignored -> {
+                                    Toast.makeText(
+                                            this,
+                                            "Driver rejected and erased from Firestore.",
+                                            Toast.LENGTH_LONG
+                                    ).show();
 
-                    db.collection("driverLocations")
-                            .document(driverId)
-                            .delete()
-                            .addOnCompleteListener(
-                                    ignored -> {
-
-                                        Toast.makeText(
-                                                this,
-                                                "Driver rejected and erased from Firestore.",
-                                                Toast.LENGTH_LONG
-                                        ).show();
-
-                                        loadDashboard();
-                                    }
-                            );
-                })
-                .addOnFailureListener(
-                        e ->
-                                Toast.makeText(
-                                        this,
-                                        "Driver erase failed:\n"
-                                                + safeMessage(e),
-                                        Toast.LENGTH_LONG
-                                ).show()
+                                    loadDashboard();
+                                })
+                )
+                .addOnFailureListener(e ->
+                        Toast.makeText(
+                                this,
+                                "Driver erase failed:\n" + safeMessage(e),
+                                Toast.LENGTH_LONG
+                        ).show()
                 );
     }
 
-    private String getApprovalStatus(
-            DocumentSnapshot user
-    ) {
+    private String getApprovalStatus(DocumentSnapshot user) {
 
-        String status =
-                user.getString(
-                        "approvalStatus"
-                );
+        String status = user.getString("approvalStatus");
 
         if (hasText(status)) {
             return status;
         }
 
-        Boolean approved =
-                user.getBoolean(
-                        "approved"
-                );
+        Boolean approved = user.getBoolean("approved");
 
-        if (Boolean.TRUE.equals(
-                approved
-        )) {
-
+        if (Boolean.TRUE.equals(approved)) {
             return "APPROVED";
         }
 
         return "PENDING_APPROVAL";
     }
 
-    private String getDisplayName(
-            DocumentSnapshot user
-    ) {
+    private String getDisplayName(DocumentSnapshot user) {
 
-        String name =
-                firstNonEmpty(
-                        user.getString(
-                                "driverName"
-                        ),
-                        user.getString(
-                                "name"
-                        )
-                );
-
-        return valueOrDefault(
-                name,
-                "Unnamed User"
+        String name = firstNonEmpty(
+                user.getString("driverName"),
+                user.getString("name")
         );
+
+        return valueOrDefault(name, "Unnamed User");
     }
 
-    private LinearLayout createSection(
-            String title
-    ) {
+    private LinearLayout createSection(String title) {
 
-        LinearLayout section =
-                new LinearLayout(this);
+        LinearLayout section = new LinearLayout(this);
+        section.setOrientation(LinearLayout.VERTICAL);
+        section.setVisibility(View.GONE);
 
-        section.setOrientation(
-                LinearLayout.VERTICAL
-        );
-
-        section.setVisibility(
-                View.GONE
-        );
-
-        Button sectionButton =
-                new Button(this);
-
-        sectionButton.setText(
-                title
-        );
-
+        Button sectionButton = new Button(this);
+        sectionButton.setText(title);
         sectionButton.setTextSize(17);
-
-        sectionButton.setTextColor(
-                Color.WHITE
-        );
-
-        sectionButton.setBackgroundColor(
-                GREEN
-        );
+        sectionButton.setTextColor(Color.WHITE);
+        sectionButton.setBackgroundColor(GREEN);
 
         LinearLayout.LayoutParams params =
                 new LinearLayout.LayoutParams(
@@ -3523,87 +2035,38 @@ public class AdminActivity extends Activity {
                         LinearLayout.LayoutParams.WRAP_CONTENT
                 );
 
-        params.setMargins(
-                0,
-                8,
-                0,
-                8
-        );
+        params.setMargins(0, 8, 0, 8);
 
-        contentContainer.addView(
-                sectionButton,
-                params
-        );
+        contentContainer.addView(sectionButton, params);
+        contentContainer.addView(section);
 
-        contentContainer.addView(
-                section
-        );
-
-        sectionButton.setOnClickListener(
-                v -> {
-
-                    if (
-                            section.getVisibility()
-                                    == View.VISIBLE
-                    ) {
-
-                        section.setVisibility(
-                                View.GONE
-                        );
-
-                    } else {
-
-                        section.setVisibility(
-                                View.VISIBLE
-                        );
-                    }
-                }
-        );
+        sectionButton.setOnClickListener(v -> {
+            if (section.getVisibility() == View.VISIBLE) {
+                section.setVisibility(View.GONE);
+            } else {
+                section.setVisibility(View.VISIBLE);
+            }
+        });
 
         return section;
     }
 
-    private boolean isActiveStatus(
-            String status
-    ) {
+    private boolean isActiveStatus(String status) {
 
         if (!hasText(status)) {
             return false;
         }
 
-        return
-                "REQUESTED".equalsIgnoreCase(
-                        status
-                )
-                        ||
-                "ACCEPTED".equalsIgnoreCase(
-                        status
-                )
-                        ||
-                "DRIVER_ON_THE_WAY".equalsIgnoreCase(
-                        status
-                )
-                        ||
-                "DRIVER_ARRIVED".equalsIgnoreCase(
-                        status
-                )
-                        ||
-                "IN_PROGRESS".equalsIgnoreCase(
-                        status
-                )
-                        ||
-                "ARRIVED".equalsIgnoreCase(
-                        status
-                )
-                        ||
-                "ONGOING".equalsIgnoreCase(
-                        status
-                );
+        return "REQUESTED".equalsIgnoreCase(status)
+                || "ACCEPTED".equalsIgnoreCase(status)
+                || "DRIVER_ON_THE_WAY".equalsIgnoreCase(status)
+                || "DRIVER_ARRIVED".equalsIgnoreCase(status)
+                || "IN_PROGRESS".equalsIgnoreCase(status)
+                || "ARRIVED".equalsIgnoreCase(status)
+                || "ONGOING".equalsIgnoreCase(status);
     }
 
-    private Long getRideTimestamp(
-            DocumentSnapshot ride
-    ) {
+    private Long getRideTimestamp(DocumentSnapshot ride) {
 
         String[] fields = {
                 "completedAt",
@@ -3616,20 +2079,15 @@ public class AdminActivity extends Activity {
                 "updatedAt"
         };
 
-        for (String field :
-                fields) {
+        for (String field : fields) {
 
-            Object value =
-                    ride.get(field);
+            Object value = ride.get(field);
 
             if (value instanceof Number) {
-
-                return ((Number) value)
-                        .longValue();
+                return ((Number) value).longValue();
             }
 
             if (value instanceof Timestamp) {
-
                 return ((Timestamp) value)
                         .toDate()
                         .getTime();
@@ -3639,51 +2097,30 @@ public class AdminActivity extends Activity {
         return null;
     }
 
-    private String getRideDateText(
-            DocumentSnapshot ride
-    ) {
+    private String getRideDateText(DocumentSnapshot ride) {
 
-        Long timestamp =
-                getRideTimestamp(
-                        ride
-                );
+        Long timestamp = getRideTimestamp(ride);
 
         if (timestamp == null) {
             return "";
         }
 
-        SimpleDateFormat format =
-                new SimpleDateFormat(
-                        "MMM dd, yyyy hh:mm a",
-                        Locale.getDefault()
-                );
-
-        return format.format(
-                new Date(timestamp)
+        SimpleDateFormat format = new SimpleDateFormat(
+                "MMM dd, yyyy hh:mm a",
+                Locale.getDefault()
         );
+
+        return format.format(new Date(timestamp));
     }
 
-    private Comparator<DocumentSnapshot>
-    newestFirstComparator() {
+    private Comparator<DocumentSnapshot> newestFirstComparator() {
 
         return (ride1, ride2) -> {
 
-            Long time1 =
-                    getRideTimestamp(
-                            ride1
-                    );
+            Long time1 = getRideTimestamp(ride1);
+            Long time2 = getRideTimestamp(ride2);
 
-            Long time2 =
-                    getRideTimestamp(
-                            ride2
-                    );
-
-            if (
-                    time1 == null
-                            &&
-                    time2 == null
-            ) {
-
+            if (time1 == null && time2 == null) {
                 return 0;
             }
 
@@ -3695,10 +2132,7 @@ public class AdminActivity extends Activity {
                 return -1;
             }
 
-            return Long.compare(
-                    time2,
-                    time1
-            );
+            return Long.compare(time2, time1);
         };
     }
 
@@ -3707,23 +2141,10 @@ public class AdminActivity extends Activity {
             int background
     ) {
 
-        LinearLayout card =
-                new LinearLayout(this);
-
-        card.setOrientation(
-                LinearLayout.VERTICAL
-        );
-
-        card.setPadding(
-                18,
-                18,
-                18,
-                18
-        );
-
-        card.setBackgroundColor(
-                background
-        );
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(18, 18, 18, 18);
+        card.setBackgroundColor(background);
 
         LinearLayout.LayoutParams params =
                 new LinearLayout.LayoutParams(
@@ -3731,17 +2152,9 @@ public class AdminActivity extends Activity {
                         LinearLayout.LayoutParams.WRAP_CONTENT
                 );
 
-        params.setMargins(
-                0,
-                0,
-                0,
-                14
-        );
+        params.setMargins(0, 0, 0, 14);
 
-        parent.addView(
-                card,
-                params
-        );
+        parent.addView(card, params);
 
         return card;
     }
@@ -3753,25 +2166,10 @@ public class AdminActivity extends Activity {
             int background
     ) {
 
-        LinearLayout card =
-                createChildCard(
-                        parent,
-                        background
-                );
+        LinearLayout card = createChildCard(parent, background);
 
-        addCardText(
-                card,
-                title,
-                17,
-                DARK
-        );
-
-        addCardText(
-                card,
-                value,
-                23,
-                GREEN
-        );
+        addCardText(card, title, 17, DARK);
+        addCardText(card, value, 23, GREEN);
     }
 
     private void addCardText(
@@ -3781,31 +2179,13 @@ public class AdminActivity extends Activity {
             int color
     ) {
 
-        TextView text =
-                new TextView(this);
+        TextView text = new TextView(this);
+        text.setText(value);
+        text.setTextSize(size);
+        text.setTextColor(color);
+        text.setPadding(0, 4, 0, 4);
 
-        text.setText(
-                value
-        );
-
-        text.setTextSize(
-                size
-        );
-
-        text.setTextColor(
-                color
-        );
-
-        text.setPadding(
-                0,
-                4,
-                0,
-                4
-        );
-
-        card.addView(
-                text
-        );
+        card.addView(text);
     }
 
     private LinearLayout.LayoutParams weighted() {
@@ -3823,29 +2203,17 @@ public class AdminActivity extends Activity {
     ) {
 
         try {
-
-            Object value =
-                    snapshot.get(
-                            field
-                    );
+            Object value = snapshot.get(field);
 
             if (value instanceof Number) {
-
-                return ((Number) value)
-                        .doubleValue();
+                return ((Number) value).doubleValue();
             }
 
             if (value instanceof String) {
-
-                String text =
-                        ((String) value)
-                                .trim();
+                String text = ((String) value).trim();
 
                 if (!text.isEmpty()) {
-
-                    return Double.parseDouble(
-                            text
-                    );
+                    return Double.parseDouble(text);
                 }
             }
 
@@ -3855,84 +2223,46 @@ public class AdminActivity extends Activity {
         return 0;
     }
 
-    private String normalizePaymentMethod(
-            String payment
-    ) {
+    private String normalizePaymentMethod(String payment) {
 
-        if (!hasText(
-                payment
-        )) {
-
+        if (!hasText(payment)) {
             return "NOT PROVIDED";
         }
 
-        String value =
-                payment.trim()
-                        .toUpperCase(
-                                Locale.US
-                        );
+        String value = payment.trim().toUpperCase(Locale.US);
 
-        if (value.contains(
-                "GCASH"
-        )) {
-
+        if (value.contains("GCASH")) {
             return "GCASH";
         }
 
-        if (
-                value.contains(
-                        "MAYA"
-                )
-                        ||
-                value.contains(
-                        "PAYMAYA"
-                )
-        ) {
-
+        if (value.contains("MAYA")
+                || value.contains("PAYMAYA")) {
             return "MAYA";
         }
 
-        if (value.contains(
-                "CASH"
-        )) {
-
+        if (value.contains("CASH")) {
             return "CASH";
         }
 
         return value;
     }
 
-    private String formatPeso(
-            double amount
-    ) {
+    private String formatPeso(double amount) {
 
-        return "₱"
-                + String.format(
-                Locale.US,
-                "%.2f",
-                amount
-        );
+        return "₱" + String.format(Locale.US, "%.2f", amount);
     }
 
-    private String formatDate(
-            long timestamp
-    ) {
+    private String formatDate(long timestamp) {
 
-        SimpleDateFormat format =
-                new SimpleDateFormat(
-                        "MMM dd, yyyy hh:mm a",
-                        Locale.getDefault()
-                );
-
-        return format.format(
-                new Date(timestamp)
+        SimpleDateFormat format = new SimpleDateFormat(
+                "MMM dd, yyyy hh:mm a",
+                Locale.getDefault()
         );
+
+        return format.format(new Date(timestamp));
     }
 
-    private String firstNonEmpty(
-            String first,
-            String second
-    ) {
+    private String firstNonEmpty(String first, String second) {
 
         if (hasText(first)) {
             return first;
@@ -3945,39 +2275,21 @@ public class AdminActivity extends Activity {
         return "";
     }
 
-    private String valueOrDefault(
-            String value,
-            String fallback
-    ) {
+    private String valueOrDefault(String value, String fallback) {
 
-        return hasText(value)
-                ? value
-                : fallback;
+        return hasText(value) ? value : fallback;
     }
 
-    private boolean hasText(
-            String value
-    ) {
+    private boolean hasText(String value) {
 
-        return value != null
-                &&
-                !value.trim().isEmpty();
+        return value != null && !value.trim().isEmpty();
     }
 
-    private String safeMessage(
-            Exception e
-    ) {
+    private String safeMessage(Exception e) {
 
-        if (
-                e == null
-                        ||
-                e.getMessage() == null
-                        ||
-                e.getMessage()
-                        .trim()
-                        .isEmpty()
-        ) {
-
+        if (e == null
+                || e.getMessage() == null
+                || e.getMessage().trim().isEmpty()) {
             return "Unknown Firebase error.";
         }
 
@@ -3986,49 +2298,30 @@ public class AdminActivity extends Activity {
 
     private void logout() {
 
-        /*
-         * Stop periodic refresh.
-         */
         adminRefreshHandler.removeCallbacks(
                 adminRefreshRunnable
         );
 
-        /*
-         * Stop driver listener.
-         */
         if (driversListener != null) {
-
             driversListener.remove();
-
             driversListener = null;
         }
 
-        /*
-         * Stop rides listener.
-         */
         if (ridesListener != null) {
-
             ridesListener.remove();
-
             ridesListener = null;
         }
 
         auth.signOut();
 
-        Intent intent =
-                new Intent(
-                        this,
-                        MainActivity.class
-                );
+        Intent intent = new Intent(this, MainActivity.class);
 
         intent.addFlags(
                 Intent.FLAG_ACTIVITY_NEW_TASK
-                        |
-                Intent.FLAG_ACTIVITY_CLEAR_TASK
+                        | Intent.FLAG_ACTIVITY_CLEAR_TASK
         );
 
         startActivity(intent);
-
         finish();
     }
 
@@ -4040,16 +2333,12 @@ public class AdminActivity extends Activity {
         );
 
         if (driversListener != null) {
-
             driversListener.remove();
-
             driversListener = null;
         }
 
         if (ridesListener != null) {
-
             ridesListener.remove();
-
             ridesListener = null;
         }
 
@@ -4059,29 +2348,19 @@ public class AdminActivity extends Activity {
     private static class DriverDuesRecord {
 
         String driverId = "";
-
         String name = "";
-
         String phone = "";
-
         String province = "";
-
         String town = "";
-
         String approvalStatus = "";
-
         String accountStatus = "";
 
         double earnings = 0;
-
         double platformFee = 0;
-
         double paid = 0;
-
         double outstanding = 0;
 
         Long oldestDueTimestamp = null;
-
         long daysUnpaid = 0;
 
         String status = "DUE";
