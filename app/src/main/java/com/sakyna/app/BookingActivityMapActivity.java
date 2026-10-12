@@ -3,6 +3,8 @@ package com.sakyna.app;
 import android.app.Activity;
 import android.app.DatePickerDialog;
 import android.graphics.Color;
+import android.location.Address;
+import android.location.Geocoder;
 import android.os.Bundle;
 import android.util.Log;
 import android.util.TypedValue;
@@ -19,8 +21,6 @@ import android.widget.ScrollView;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
-import android.location.Address;
-import android.location.Geocoder;
 
 import com.google.firebase.Timestamp;
 import com.google.firebase.firestore.DocumentSnapshot;
@@ -30,6 +30,8 @@ import com.google.firebase.firestore.ListenerRegistration;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLDecoder;
@@ -38,11 +40,9 @@ import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collections;
 import java.util.Date;
-import java.util.LinkedHashSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -107,7 +107,9 @@ public class BookingActivityMapActivity extends Activity {
 
         long createdAt;
 
-        boolean locationResolved;
+        boolean hasPickupCoordinates;
+        boolean hasDestinationCoordinates;
+        boolean locationResolutionStarted;
 
         RideItem(String id) {
             this.id = id;
@@ -205,6 +207,13 @@ public class BookingActivityMapActivity extends Activity {
         c.set(Calendar.MINUTE, 0);
         c.set(Calendar.SECOND, 0);
         c.set(Calendar.MILLISECOND, 0);
+    }
+
+    private void setEndOfDay(Calendar c) {
+        c.set(Calendar.HOUR_OF_DAY, 23);
+        c.set(Calendar.MINUTE, 59);
+        c.set(Calendar.SECOND, 59);
+        c.set(Calendar.MILLISECOND, 999);
     }
 
     private int dp(float value) {
@@ -326,8 +335,8 @@ public class BookingActivityMapActivity extends Activity {
 
             selectedStart = c.getTimeInMillis();
 
-            c.add(Calendar.DAY_OF_MONTH, 1);
-            selectedEnd = c.getTimeInMillis() - 1;
+            setEndOfDay(c);
+            selectedEnd = c.getTimeInMillis();
 
             updateDateText();
             renderMap();
@@ -428,6 +437,7 @@ public class BookingActivityMapActivity extends Activity {
                 ".replace(/'/g,'&#39;');}" +
                 "function addBookingMarkers(data){clearMarkers();var points=[];" +
                 "data.forEach(function(r){" +
+                "if(!isFinite(r.plat)||!isFinite(r.plng)||!isFinite(r.dlat)||!isFinite(r.dlng))return;" +
                 "var p=L.marker([r.plat,r.plng]).addTo(map);" +
                 "p.bindPopup('<b>PICKUP</b><br>'+esc(r.pickup)+'<br><b>Status:</b> '+esc(r.status));" +
                 "p.on('click',function(){showDetails(r.id)});" +
@@ -443,6 +453,7 @@ public class BookingActivityMapActivity extends Activity {
                 "</script></body></html>";
 
         mapView.setWebViewClient(new WebViewClient() {
+
             @Override
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
@@ -498,13 +509,14 @@ public class BookingActivityMapActivity extends Activity {
     }
 
     private void setupSpinners() {
-        provinceSpinner.setAdapter(
-                adapter(Collections.singletonList(ALL_PROVINCES))
-        );
+        provinceNames.clear();
+        provinceNames.add(ALL_PROVINCES);
 
-        townSpinner.setAdapter(
-                adapter(Collections.singletonList(ALL_TOWNS))
-        );
+        provinceSpinner.setAdapter(adapter(provinceNames));
+
+        List<String> towns = new ArrayList<>();
+        towns.add(ALL_TOWNS);
+        townSpinner.setAdapter(adapter(towns));
 
         provinceSpinner.setOnItemSelectedListener(
                 new AdapterView.OnItemSelectedListener() {
@@ -563,7 +575,6 @@ public class BookingActivityMapActivity extends Activity {
     }
 
     // Load provinces and cities/municipalities independently.
-    // A failure in one request must never leave both dropdowns empty.
     private void loadPhilippineAreas() {
         statusText.setText(
                 "Loading Philippine provinces and cities/municipalities..."
@@ -604,6 +615,10 @@ public class BookingActivityMapActivity extends Activity {
                                     normalizeCode(code),
                                     name
                             );
+                            loadedProvinceCodes.put(
+                                    normalizeCode(name),
+                                    name
+                            );
                         }
                     }
 
@@ -615,7 +630,7 @@ public class BookingActivityMapActivity extends Activity {
 
                 } catch (Exception e) {
                     provinceError = e;
-                    Log.e(TAG, "Primary province list request failed", e);
+                    Log.e(TAG, "Province list request failed", e);
                 }
 
                 try {
@@ -631,6 +646,7 @@ public class BookingActivityMapActivity extends Activity {
 
                         String name = jsonName(o.opt("name"));
                         Object provinceValue = o.opt("province");
+
                         String province = jsonName(provinceValue);
                         String provinceCode = "";
 
@@ -660,23 +676,16 @@ public class BookingActivityMapActivity extends Activity {
                             provinceCode = jsonName(o.opt("provinceCode"));
                         }
 
-                        if (province.isEmpty() && !provinceCode.isEmpty()) {
-                            province = loadedProvinceCodes.get(
-                                    normalizeCode(provinceCode)
-                            );
+                        String normalizedCode = normalizeCode(provinceCode);
+
+                        if (province.isEmpty() && !normalizedCode.isEmpty()) {
+                            province = loadedProvinceCodes.get(normalizedCode);
                         }
 
-                        if (province != null &&
-                                loadedProvinceCodes.containsKey(
-                                        normalizeCode(province)
-                                )) {
-                            if (provinceCode.isEmpty()) {
-                                provinceCode = province;
-                            }
+                        String normalizedProvince = normalizeCode(province);
 
-                            province = loadedProvinceCodes.get(
-                                    normalizeCode(province)
-                            );
+                        if (loadedProvinceCodes.containsKey(normalizedProvince)) {
+                            province = loadedProvinceCodes.get(normalizedProvince);
                         }
 
                         String type = jsonName(o.opt("type"));
@@ -701,16 +710,18 @@ public class BookingActivityMapActivity extends Activity {
 
                 } catch (Exception e) {
                     placesError = e;
-                    Log.e(TAG, "Primary city/municipality list request failed", e);
+                    Log.e(TAG, "City/municipality list request failed", e);
                 }
 
-                Collections.sort(
-                        loadedProvinces.subList(
-                                1,
-                                loadedProvinces.size()
-                        ),
-                        String.CASE_INSENSITIVE_ORDER
-                );
+                if (loadedProvinces.size() > 1) {
+                    Collections.sort(
+                            loadedProvinces.subList(
+                                    1,
+                                    loadedProvinces.size()
+                            ),
+                            String.CASE_INSENSITIVE_ORDER
+                    );
+                }
 
                 final List<String> finalProvinces = loadedProvinces;
                 final List<AreaPlace> finalPlaces = loadedPlaces;
@@ -721,12 +732,12 @@ public class BookingActivityMapActivity extends Activity {
                 runOnUiThread(() -> {
                     if (activityDestroyed || isFinishing()) return;
 
+                    provinceNames.clear();
+
                     if (finalProvinces.size() <= 1) {
-                        provinceNames.clear();
                         provinceNames.add(ALL_PROVINCES);
                         provinceNames.addAll(defaultPhilippineProvinces());
                     } else {
-                        provinceNames.clear();
                         provinceNames.addAll(finalProvinces);
                     }
 
@@ -740,7 +751,6 @@ public class BookingActivityMapActivity extends Activity {
 
                     inferRideAreasFromText();
 
-                    // Include provinces already present in ride documents.
                     for (RideItem ride : rides) {
                         if (ride.province != null &&
                                 !ride.province.trim().isEmpty() &&
@@ -762,17 +772,9 @@ public class BookingActivityMapActivity extends Activity {
                         );
                     }
 
-                    String oldProvince = selectedProvince();
-
                     updatingSpinners = true;
                     provinceSpinner.setAdapter(adapter(provinceNames));
-
-                    int index = findIgnoreCase(
-                            provinceNames,
-                            oldProvince
-                    );
-
-                    provinceSpinner.setSelection(Math.max(0, index));
+                    provinceSpinner.setSelection(0);
                     updatingSpinners = false;
 
                     refreshTownSpinner();
@@ -797,8 +799,8 @@ public class BookingActivityMapActivity extends Activity {
 
                     } else {
                         statusText.setText(
-                                "Using built-in province list; city/municipality data " +
-                                "could not load. Check internet and reopen this screen."
+                                "Using built-in province list; area data could not load. " +
+                                "Check internet and reopen this screen."
                         );
                     }
                 });
@@ -873,10 +875,8 @@ public class BookingActivityMapActivity extends Activity {
                 );
             }
 
-            java.io.InputStream in = connection.getInputStream();
-
-            java.io.ByteArrayOutputStream out =
-                    new java.io.ByteArrayOutputStream();
+            InputStream in = connection.getInputStream();
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
 
             byte[] buffer = new byte[8192];
             int n;
@@ -888,7 +888,6 @@ public class BookingActivityMapActivity extends Activity {
             in.close();
 
             String body = out.toString("UTF-8");
-
             Object parsed =
                     new org.json.JSONTokener(body).nextValue();
 
@@ -933,4 +932,190 @@ public class BookingActivityMapActivity extends Activity {
         for (String key : new String[]{"data", "result", "payload"}) {
             Object nested = obj.opt(key);
 
-            if (nested instanceof JSONObject
+            if (nested instanceof JSONObject ||
+                    nested instanceof JSONArray) {
+                JSONArray result = findArrayInResponse(nested);
+
+                if (result != null) {
+                    return result;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private String jsonName(Object value) {
+        if (value == null || value == JSONObject.NULL) {
+            return "";
+        }
+
+        if (value instanceof JSONObject) {
+            JSONObject object = (JSONObject) value;
+
+            String name = jsonName(object.opt("name"));
+            if (!name.isEmpty()) return name;
+
+            name = jsonName(object.opt("description"));
+            if (!name.isEmpty()) return name;
+
+            name = jsonName(object.opt("code"));
+            if (!name.isEmpty()) return name;
+
+            return "";
+        }
+
+        String result = String.valueOf(value).trim();
+
+        if ("null".equalsIgnoreCase(result) ||
+                "undefined".equalsIgnoreCase(result)) {
+            return "";
+        }
+
+        return result;
+    }
+
+    private String normalizeCode(String value) {
+        if (value == null) return "";
+
+        return value
+                .trim()
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("[^a-z0-9]", "");
+    }
+
+    private boolean containsIgnoreCase(List<String> values, String target) {
+        if (values == null || target == null) return false;
+
+        for (String value : values) {
+            if (value != null && value.equalsIgnoreCase(target.trim())) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private int findIgnoreCase(List<String> values, String target) {
+        if (values == null || target == null) return 0;
+
+        for (int i = 0; i < values.size(); i++) {
+            String value = values.get(i);
+
+            if (value != null && value.equalsIgnoreCase(target.trim())) {
+                return i;
+            }
+        }
+
+        return 0;
+    }
+
+    private List<String> defaultPhilippineProvinces() {
+        List<String> result = new ArrayList<>();
+
+        Collections.addAll(
+                result,
+                "Abra",
+                "Agusan del Norte",
+                "Agusan del Sur",
+                "Aklan",
+                "Albay",
+                "Antique",
+                "Apayao",
+                "Aurora",
+                "Basilan",
+                "Bataan",
+                "Batanes",
+                "Batangas",
+                "Benguet",
+                "Biliran",
+                "Bohol",
+                "Bukidnon",
+                "Bulacan",
+                "Cagayan",
+                "Camarines Norte",
+                "Camarines Sur",
+                "Camiguin",
+                "Capiz",
+                "Catanduanes",
+                "Cavite",
+                "Cebu",
+                "Cotabato",
+                "Davao de Oro",
+                "Davao del Norte",
+                "Davao del Sur",
+                "Davao Occidental",
+                "Davao Oriental",
+                "Dinagat Islands",
+                "Eastern Samar",
+                "Guimaras",
+                "Ifugao",
+                "Ilocos Norte",
+                "Ilocos Sur",
+                "Iloilo",
+                "Isabela",
+                "Kalinga",
+                "La Union",
+                "Laguna",
+                "Lanao del Norte",
+                "Lanao del Sur",
+                "Leyte",
+                "Maguindanao del Norte",
+                "Maguindanao del Sur",
+                "Marinduque",
+                "Masbate",
+                "Misamis Occidental",
+                "Misamis Oriental",
+                "Mountain Province",
+                "Negros Occidental",
+                "Negros Oriental",
+                "Northern Samar",
+                "Nueva Ecija",
+                "Nueva Vizcaya",
+                "Occidental Mindoro",
+                "Oriental Mindoro",
+                "Palawan",
+                "Pampanga",
+                "Pangasinan",
+                "Quezon",
+                "Quirino",
+                "Rizal",
+                "Romblon",
+                "Samar",
+                "Sarangani",
+                "Siquijor",
+                "Sorsogon",
+                "South Cotabato",
+                "Southern Leyte",
+                "Sultan Kudarat",
+                "Sulu",
+                "Surigao del Norte",
+                "Surigao del Sur",
+                "Tarlac",
+                "Tawi-Tawi",
+                "Zambales",
+                "Zamboanga del Norte",
+                "Zamboanga del Sur",
+                "Zamboanga Sibugay"
+        );
+
+        Collections.sort(result, String.CASE_INSENSITIVE_ORDER);
+        return result;
+    }
+
+    private void inferRideAreasFromText() {
+        for (RideItem ride : rides) {
+            if (ride == null) continue;
+
+            if (ride.province == null) ride.province = "";
+            if (ride.town == null) ride.town = "";
+
+            String combined = (
+                    safe(ride.pickup) + " " +
+                    safe(ride.destination)
+            ).toLowerCase(Locale.ROOT);
+
+            for (AreaPlace place : areaPlaces) {
+                if (place == null || place.name == null) continue;
+
+                if (combined.contains(place.name.toLower
