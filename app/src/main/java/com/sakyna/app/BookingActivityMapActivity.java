@@ -8,6 +8,7 @@ import android.view.Gravity;
 import android.view.View;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
+import android.webkit.WebViewClient;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
@@ -27,6 +28,7 @@ import com.google.firebase.firestore.ListenerRegistration;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.net.URLDecoder;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -66,6 +68,7 @@ public class BookingActivityMapActivity extends Activity {
 
     private boolean updatingSpinners = false;
     private boolean mapPageReady = false;
+    private boolean activityDestroyed = false;
 
     private static final String ALL_PROVINCES = "All Provinces";
     private static final String ALL_TOWNS = "All Towns / Cities";
@@ -102,20 +105,89 @@ public class BookingActivityMapActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        db = FirebaseFirestore.getInstance();
+        try {
+            Calendar calendar = Calendar.getInstance();
+            setStartOfDay(calendar);
 
-        Calendar calendar = Calendar.getInstance();
-        setStartOfDay(calendar);
+            selectedStart = calendar.getTimeInMillis();
 
-        selectedStart = calendar.getTimeInMillis();
+            calendar.add(Calendar.DAY_OF_MONTH, 1);
+            selectedEnd = calendar.getTimeInMillis() - 1;
 
-        calendar.add(Calendar.DAY_OF_MONTH, 1);
-        selectedEnd = calendar.getTimeInMillis() - 1;
+            db = FirebaseFirestore.getInstance();
 
-        buildScreen();
-        setupMap();
-        setupSpinners();
-        listenForBookings();
+            buildScreen();
+            setupMap();
+            setupSpinners();
+            listenForBookings();
+
+        } catch (Exception e) {
+            android.util.Log.e(
+                    "SakayNaBookingMap",
+                    "Booking map startup failed",
+                    e
+            );
+
+            showStartupError(e);
+        }
+    }
+
+    private void showStartupError(Exception error) {
+
+        try {
+            mapPageReady = false;
+
+            TextView message = new TextView(this);
+
+            String reason = error.getMessage();
+
+            if (reason == null || reason.trim().isEmpty()) {
+                reason = error.getClass().getSimpleName();
+            }
+
+            message.setText(
+                    "SAKAY NA BOOKING MAP\n\n" +
+                    "The booking map could not start.\n\n" +
+                    "Error: " + error.getClass().getSimpleName() +
+                    "\n\nDetails: " + reason +
+                    "\n\nCheck the connection and try again. " +
+                    "If the problem continues, return to the Admin Dashboard."
+            );
+
+            message.setTextSize(16);
+            message.setTextColor(Color.DKGRAY);
+            message.setPadding(24, 32, 24, 32);
+
+            LinearLayout screen = new LinearLayout(this);
+            screen.setOrientation(LinearLayout.VERTICAL);
+            screen.setPadding(16, 16, 16, 16);
+            screen.setBackgroundColor(Color.WHITE);
+
+            screen.addView(
+                    message,
+                    new LinearLayout.LayoutParams(-1, 0, 1)
+            );
+
+            Button backButton = new Button(this);
+            backButton.setText("BACK TO ADMIN DASHBOARD");
+            backButton.setOnClickListener(v -> finish());
+
+            screen.addView(
+                    backButton,
+                    new LinearLayout.LayoutParams(-1, -2)
+            );
+
+            setContentView(screen);
+
+        } catch (Exception displayError) {
+            android.util.Log.e(
+                    "SakayNaBookingMap",
+                    "Unable to display startup error screen",
+                    displayError
+            );
+
+            finish();
+        }
     }
 
     private void setStartOfDay(Calendar calendar) {
@@ -263,10 +335,11 @@ public class BookingActivityMapActivity extends Activity {
 
         mapView = new WebView(this);
 
-        content.addView(
-                mapView,
+        mapView.setLayoutParams(
                 new LinearLayout.LayoutParams(-1, 520)
         );
+
+        content.addView(mapView);
 
         content.addView(
                 label("SELECTED BOOKING DETAILS")
@@ -299,7 +372,7 @@ public class BookingActivityMapActivity extends Activity {
 
         root.addView(
                 scroll,
-                new LinearLayout.LayoutParams( -1, 0, 1)
+                new LinearLayout.LayoutParams(-1, 0, 1)
         );
 
         setContentView(root);
@@ -390,51 +463,50 @@ public class BookingActivityMapActivity extends Activity {
                 "</script>" +
                 "</body></html>";
 
-        mapView.setWebViewClient(
-                new android.webkit.WebViewClient() {
+        mapView.setWebViewClient(new WebViewClient() {
 
-                    @Override
-                    public void onPageFinished(
-                            WebView view,
-                            String url
-                    ) {
-                        super.onPageFinished(view, url);
-                        mapPageReady = true;
-                        renderMap();
-                    }
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                super.onPageFinished(view, url);
 
-                    @Override
-                    public boolean shouldOverrideUrlLoading(
-                            WebView view,
-                            String url
-                    ) {
-
-                        if (
-                                url != null &&
-                                url.startsWith("sakayna://booking/")
-                        ) {
-                            String id = url.substring(
-                                    "sakayna://booking/".length()
-                            );
-
-                            try {
-                                id = java.net.URLDecoder.decode(
-                                        id,
-                                        "UTF-8"
-                                );
-
-                                showBookingDetails(id);
-
-                            } catch (Exception ignored) {
-                            }
-
-                            return true;
-                        }
-
-                        return false;
-                    }
+                if (activityDestroyed) {
+                    return;
                 }
-        );
+
+                mapPageReady = true;
+                renderMap();
+            }
+
+            @Override
+            public boolean shouldOverrideUrlLoading(
+                    WebView view,
+                    String url
+            ) {
+
+                if (url != null && url.startsWith("sakayna://booking/")) {
+
+                    String id = url.substring(
+                            "sakayna://booking/".length()
+                    );
+
+                    try {
+                        id = URLDecoder.decode(id, "UTF-8");
+                        showBookingDetails(id);
+
+                    } catch (Exception e) {
+                        android.util.Log.e(
+                                "SakayNaBookingMap",
+                                "Unable to open booking details",
+                                e
+                        );
+                    }
+
+                    return true;
+                }
+
+                return false;
+            }
+        });
 
         mapView.loadDataWithBaseURL(
                 "https://localhost/",
@@ -465,7 +537,7 @@ public class BookingActivityMapActivity extends Activity {
                             int position,
                             long id
                     ) {
-                        if (updatingSpinners) {
+                        if (updatingSpinners || activityDestroyed) {
                             return;
                         }
 
@@ -474,9 +546,7 @@ public class BookingActivityMapActivity extends Activity {
                     }
 
                     @Override
-                    public void onNothingSelected(
-                            AdapterView<?> parent
-                    ) {
+                    public void onNothingSelected(AdapterView<?> parent) {
                     }
                 }
         );
@@ -491,7 +561,7 @@ public class BookingActivityMapActivity extends Activity {
                             int position,
                             long id
                     ) {
-                        if (updatingSpinners) {
+                        if (updatingSpinners || activityDestroyed) {
                             return;
                         }
 
@@ -499,9 +569,7 @@ public class BookingActivityMapActivity extends Activity {
                     }
 
                     @Override
-                    public void onNothingSelected(
-                            AdapterView<?> parent
-                    ) {
+                    public void onNothingSelected(AdapterView<?> parent) {
                     }
                 }
         );
@@ -527,11 +595,21 @@ public class BookingActivityMapActivity extends Activity {
         ridesListener = db.collection("rides")
                 .addSnapshotListener((snapshot, error) -> {
 
+                    if (activityDestroyed || isFinishing()) {
+                        return;
+                    }
+
                     if (error != null) {
 
                         statusText.setText(
                                 "Unable to load live bookings. " +
-                                "Check connection and Firestore access."
+                                "Check your connection and Firestore access."
+                        );
+
+                        android.util.Log.e(
+                                "SakayNaBookingMap",
+                                "Live bookings listener failed",
+                                error
                         );
 
                         return;
@@ -541,37 +619,49 @@ public class BookingActivityMapActivity extends Activity {
                         return;
                     }
 
-                    List<RideItem> updatedRides = new ArrayList<>();
+                    try {
+                        List<RideItem> updatedRides = new ArrayList<>();
 
-                    for (DocumentSnapshot doc : snapshot.getDocuments()) {
+                        for (DocumentSnapshot doc : snapshot.getDocuments()) {
 
-                        RideItem ride = readRide(doc);
+                            RideItem ride = readRide(doc);
 
-                        if (ride != null) {
+                            if (ride != null) {
 
-                            // Preserve previously resolved locations
-                            // when Firestore sends another snapshot.
-                            for (RideItem oldRide : rides) {
+                                for (RideItem oldRide : rides) {
 
-                                if (oldRide.id.equals(ride.id)) {
-                                    ride.province = oldRide.province;
-                                    ride.town = oldRide.town;
-                                    ride.locationResolved =
-                                            oldRide.locationResolved;
-                                    break;
+                                    if (oldRide.id.equals(ride.id)) {
+                                        ride.province = oldRide.province;
+                                        ride.town = oldRide.town;
+                                        ride.locationResolved =
+                                                oldRide.locationResolved;
+                                        break;
+                                    }
                                 }
+
+                                updatedRides.add(ride);
                             }
-
-                            updatedRides.add(ride);
                         }
+
+                        rides.clear();
+                        rides.addAll(updatedRides);
+
+                        rebuildLocationFilters();
+                        renderMap();
+                        resolveUnresolvedLocations();
+
+                    } catch (Exception e) {
+
+                        android.util.Log.e(
+                                "SakayNaBookingMap",
+                                "Unable to process booking records",
+                                e
+                        );
+
+                        statusText.setText(
+                                "Bookings were received, but could not be displayed."
+                        );
                     }
-
-                    rides.clear();
-                    rides.addAll(updatedRides);
-
-                    rebuildLocationFilters();
-                    renderMap();
-                    resolveUnresolvedLocations();
                 });
     }
 
@@ -652,6 +742,10 @@ public class BookingActivityMapActivity extends Activity {
 
     private void resolveUnresolvedLocations() {
 
+        if (activityDestroyed) {
+            return;
+        }
+
         if (!Geocoder.isPresent()) {
             statusText.setText(
                     "Live bookings loaded. Address lookup " +
@@ -668,68 +762,92 @@ public class BookingActivityMapActivity extends Activity {
 
             ride.locationResolved = true;
 
-            geocoderExecutor.execute(() -> {
+            try {
+                geocoderExecutor.execute(() -> {
 
-                String province = "";
-                String town = "";
+                    String province = "";
+                    String town = "";
 
-                try {
-
-                    Geocoder geocoder = new Geocoder(
-                            getApplicationContext(),
-                            Locale.getDefault()
-                    );
-
-                    List<Address> addresses = geocoder.getFromLocation(
-                            ride.pickupLat,
-                            ride.pickupLng,
-                            1
-                    );
-
-                    if (addresses != null && !addresses.isEmpty()) {
-
-                        Address address = addresses.get(0);
-
-                        province = safe(address.getAdminArea());
-
-                        town = firstNonEmpty(
-                                address.getLocality(),
-                                address.getSubAdminArea(),
-                                address.getSubLocality()
+                    try {
+                        Geocoder geocoder = new Geocoder(
+                                getApplicationContext(),
+                                Locale.getDefault()
                         );
 
-                        if ("Not available".equals(town)) {
-                            town = "";
+                        List<Address> addresses = geocoder.getFromLocation(
+                                ride.pickupLat,
+                                ride.pickupLng,
+                                1
+                        );
+
+                        if (addresses != null && !addresses.isEmpty()) {
+
+                            Address address = addresses.get(0);
+
+                            province = safe(address.getAdminArea());
+
+                            town = firstNonEmpty(
+                                    address.getLocality(),
+                                    address.getSubAdminArea(),
+                                    address.getSubLocality()
+                            );
+
+                            if ("Not available".equals(town)) {
+                                town = "";
+                            }
                         }
+
+                    } catch (Exception e) {
+                        android.util.Log.w(
+                                "SakayNaBookingMap",
+                                "Address lookup failed for booking " + ride.id,
+                                e
+                        );
                     }
 
-                } catch (Exception ignored) {
-                }
+                    final String resolvedProvince = province;
+                    final String resolvedTown = town;
 
-                final String resolvedProvince = province;
-                final String resolvedTown = town;
+                    runOnUiThread(() -> {
 
-                runOnUiThread(() -> {
-
-                    for (RideItem current : rides) {
-
-                        if (current.id.equals(ride.id)) {
-
-                            current.province = resolvedProvince;
-                            current.town = resolvedTown;
-
-                            break;
+                        if (activityDestroyed || isFinishing()) {
+                            return;
                         }
-                    }
 
-                    rebuildLocationFilters();
-                    renderMap();
+                        for (RideItem current : rides) {
+
+                            if (current.id.equals(ride.id)) {
+                                current.province = resolvedProvince;
+                                current.town = resolvedTown;
+                                break;
+                            }
+                        }
+
+                        rebuildLocationFilters();
+                        renderMap();
+                    });
                 });
-            });
+
+            } catch (Exception e) {
+
+                android.util.Log.w(
+                        "SakayNaBookingMap",
+                        "Unable to schedule address lookup",
+                        e
+                );
+            }
         }
     }
 
     private void rebuildLocationFilters() {
+
+        if (
+                activityDestroyed ||
+                provinceSpinner == null ||
+                townSpinner == null
+        ) {
+            return;
+        }
 
         String previousProvince = selectedProvince();
 
@@ -772,6 +890,14 @@ public class BookingActivityMapActivity extends Activity {
     }
 
     private void refreshTownSpinner() {
+
+        if (
+                activityDestroyed ||
+                townSpinner == null ||
+                provinceSpinner == null
+        ) {
+            return;
+        }
 
         String selectedProvince = selectedProvince();
         String previousTown = selectedTown();
@@ -820,6 +946,10 @@ public class BookingActivityMapActivity extends Activity {
 
     private String selectedProvince() {
 
+        if (provinceSpinner == null) {
+            return ALL_PROVINCES;
+        }
+
         Object selected = provinceSpinner.getSelectedItem();
 
         return selected == null
@@ -828,6 +958,10 @@ public class BookingActivityMapActivity extends Activity {
     }
 
     private String selectedTown() {
+
+        if (townSpinner == null) {
+            return ALL_TOWNS;
+        }
 
         Object selected = townSpinner.getSelectedItem();
 
@@ -838,6 +972,10 @@ public class BookingActivityMapActivity extends Activity {
 
     private void showDatePicker(boolean startDate) {
 
+        if (activityDestroyed) {
+            return;
+        }
+
         Calendar calendar = Calendar.getInstance();
 
         calendar.setTimeInMillis(
@@ -847,6 +985,10 @@ public class BookingActivityMapActivity extends Activity {
         DatePickerDialog dialog = new DatePickerDialog(
                 this,
                 (picker, year, month, day) -> {
+
+                    if (activityDestroyed) {
+                        return;
+                    }
 
                     Calendar chosen = Calendar.getInstance();
 
@@ -874,7 +1016,6 @@ public class BookingActivityMapActivity extends Activity {
                         newEnd = chosen.getTimeInMillis() - 1;
                     }
 
-                    // Validate before changing the stored dates.
                     if (newEnd < newStart) {
 
                         Toast.makeText(
@@ -902,6 +1043,14 @@ public class BookingActivityMapActivity extends Activity {
 
     private void updateDateText() {
 
+        if (
+                dateText == null ||
+                startDateButton == null ||
+                endDateButton == null
+        ) {
+            return;
+        }
+
         SimpleDateFormat format = new SimpleDateFormat(
                 "dd MMM yyyy",
                 Locale.getDefault()
@@ -925,41 +1074,44 @@ public class BookingActivityMapActivity extends Activity {
 
     private void renderMap() {
 
-        if (mapView == null || !mapPageReady) {
+        if (
+                activityDestroyed ||
+                mapView == null ||
+                !mapPageReady
+        ) {
             return;
         }
 
-        String province = selectedProvince();
-        String town = selectedTown();
+        try {
+            String province = selectedProvince();
+            String town = selectedTown();
 
-        JSONArray array = new JSONArray();
+            JSONArray array = new JSONArray();
 
-        int visible = 0;
+            int visible = 0;
 
-        for (RideItem ride : rides) {
+            for (RideItem ride : rides) {
 
-            if (
-                    ride.createdAt < selectedStart ||
-                    ride.createdAt > selectedEnd
-            ) {
-                continue;
-            }
+                if (
+                        ride.createdAt < selectedStart ||
+                        ride.createdAt > selectedEnd
+                ) {
+                    continue;
+                }
 
-            if (
-                    !ALL_PROVINCES.equals(province) &&
-                    !province.equals(ride.province)
-            ) {
-                continue;
-            }
+                if (
+                        !ALL_PROVINCES.equals(province) &&
+                        !province.equals(ride.province)
+                ) {
+                    continue;
+                }
 
-            if (
-                    !ALL_TOWNS.equals(town) &&
-                    !town.equals(ride.town)
-            ) {
-                continue;
-            }
-
-            try {
+                if (
+                        !ALL_TOWNS.equals(town) &&
+                        !town.equals(ride.town)
+                ) {
+                    continue;
+                }
 
                 JSONObject item = new JSONObject();
 
@@ -976,26 +1128,51 @@ public class BookingActivityMapActivity extends Activity {
 
                 array.put(item);
                 visible++;
+            }
 
-            } catch (Exception ignored) {
+            if (statusText != null) {
+                statusText.setText(
+                        "Live booking records: " +
+                        rides.size() +
+                        " • Matching bookings: " +
+                        visible
+                );
+            }
+
+            String script = "addBookingMarkers(" + array.toString() + ")";
+
+            mapView.post(() -> {
+
+                if (
+                        !activityDestroyed &&
+                        mapView != null &&
+                        mapPageReady
+                ) {
+                    mapView.evaluateJavascript(script, null);
+                }
+            });
+
+        } catch (Exception e) {
+
+            android.util.Log.e(
+                    "SakayNaBookingMap",
+                    "Unable to render booking map",
+                    e
+            );
+
+            if (statusText != null) {
+                statusText.setText(
+                        "Unable to display the map records."
+                );
             }
         }
-
-        statusText.setText(
-                "Live booking records: " +
-                rides.size() +
-                " • Matching bookings: " +
-                visible
-        );
-
-        String script = "addBookingMarkers(" + array.toString() + ")";
-
-        mapView.post(() ->
-                mapView.evaluateJavascript(script, null)
-        );
     }
 
     private void showBookingDetails(String id) {
+
+        if (activityDestroyed || detailsText == null) {
+            return;
+        }
 
         for (RideItem ride : rides) {
 
@@ -1040,7 +1217,6 @@ public class BookingActivityMapActivity extends Activity {
         );
     }
 
-    // FIX: accepts any number of candidate strings.
     private String firstNonEmpty(String... values) {
 
         if (values != null) {
@@ -1069,6 +1245,9 @@ public class BookingActivityMapActivity extends Activity {
     @Override
     protected void onDestroy() {
 
+        activityDestroyed = true;
+        mapPageReady = false;
+
         if (ridesListener != null) {
             ridesListener.remove();
             ridesListener = null;
@@ -1077,9 +1256,18 @@ public class BookingActivityMapActivity extends Activity {
         geocoderExecutor.shutdownNow();
 
         if (mapView != null) {
-            mapPageReady = false;
-            mapView.stopLoading();
-            mapView.destroy();
+            try {
+                mapView.stopLoading();
+                mapView.setWebViewClient(null);
+                mapView.destroy();
+            } catch (Exception e) {
+                android.util.Log.w(
+                        "SakayNaBookingMap",
+                        "WebView cleanup failed",
+                        e
+                );
+            }
+
             mapView = null;
         }
 
