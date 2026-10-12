@@ -1,3 +1,4 @@
+
 package com.sakyna.app;
 
 import android.app.Activity;
@@ -10,6 +11,7 @@ import android.util.Log;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
+import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -30,10 +32,7 @@ import com.google.firebase.firestore.ListenerRegistration;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import java.io.ByteArrayOutputStream;
-import java.io.InputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
+import java.io.IOException;
 import java.net.URLDecoder;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -74,7 +73,6 @@ public class BookingActivityMapActivity extends Activity {
     private final List<RideItem> rides = new ArrayList<>();
     private final List<AreaPlace> areaPlaces = new ArrayList<>();
     private final List<String> provinceNames = new ArrayList<>();
-
     private final Map<String, String> provinceNameByCode = new HashMap<>();
 
     private final ExecutorService background =
@@ -142,11 +140,10 @@ public class BookingActivityMapActivity extends Activity {
         try {
             Calendar c = Calendar.getInstance();
             setStartOfDay(c);
-
             selectedStart = c.getTimeInMillis();
 
-            c.add(Calendar.DAY_OF_MONTH, 1);
-            selectedEnd = c.getTimeInMillis() - 1;
+            setEndOfDay(c);
+            selectedEnd = c.getTimeInMillis();
 
             db = FirebaseFirestore.getInstance();
 
@@ -165,14 +162,12 @@ public class BookingActivityMapActivity extends Activity {
     private void showStartupError(Exception e) {
         try {
             TextView msg = new TextView(this);
-
             msg.setText(
                     "SAKAY NA BOOKING MAP\n\n" +
                     "The booking map could not start.\n\nError: " +
                     e.getClass().getSimpleName() +
                     "\n" + safe(e.getMessage())
             );
-
             msg.setTextSize(16);
             msg.setTextColor(Color.DKGRAY);
             msg.setPadding(24, 32, 24, 32);
@@ -180,7 +175,6 @@ public class BookingActivityMapActivity extends Activity {
             LinearLayout screen = new LinearLayout(this);
             screen.setOrientation(LinearLayout.VERTICAL);
             screen.setPadding(16, 16, 16, 16);
-
             screen.addView(
                     msg,
                     new LinearLayout.LayoutParams(-1, 0, 1)
@@ -189,14 +183,12 @@ public class BookingActivityMapActivity extends Activity {
             Button back = new Button(this);
             back.setText("BACK TO ADMIN DASHBOARD");
             back.setOnClickListener(v -> finish());
-
             screen.addView(
                     back,
                     new LinearLayout.LayoutParams(-1, -2)
             );
 
             setContentView(screen);
-
         } catch (Exception ignored) {
             finish();
         }
@@ -241,7 +233,6 @@ public class BookingActivityMapActivity extends Activity {
         title.setTextSize(25);
         title.setGravity(Gravity.CENTER);
         title.setTypeface(null, android.graphics.Typeface.BOLD);
-
         header.addView(
                 title,
                 new LinearLayout.LayoutParams(-1, -2)
@@ -252,7 +243,6 @@ public class BookingActivityMapActivity extends Activity {
         subtitle.setTextColor(Color.WHITE);
         subtitle.setTextSize(16);
         subtitle.setGravity(Gravity.CENTER);
-
         header.addView(
                 subtitle,
                 new LinearLayout.LayoutParams(-1, -2)
@@ -310,12 +300,10 @@ public class BookingActivityMapActivity extends Activity {
                 startDateButton,
                 new LinearLayout.LayoutParams(0, dp(44), 1)
         );
-
         dates.addView(
                 endDateButton,
                 new LinearLayout.LayoutParams(0, dp(44), 1)
         );
-
         content.addView(dates);
 
         dateText = new TextView(this);
@@ -328,11 +316,9 @@ public class BookingActivityMapActivity extends Activity {
         today.setText("SHOW TODAY'S BOOKINGS");
         today.setTextColor(Color.WHITE);
         today.setBackgroundColor(GREEN);
-
         today.setOnClickListener(v -> {
             Calendar c = Calendar.getInstance();
             setStartOfDay(c);
-
             selectedStart = c.getTimeInMillis();
 
             setEndOfDay(c);
@@ -341,7 +327,6 @@ public class BookingActivityMapActivity extends Activity {
             updateDateText();
             renderMap();
         });
-
         content.addView(
                 today,
                 new LinearLayout.LayoutParams(-1, dp(46))
@@ -350,7 +335,6 @@ public class BookingActivityMapActivity extends Activity {
         content.addView(label("PICKUP AND DESTINATION LOCATIONS"));
 
         mapView = new WebView(this);
-
         int screenHeight =
                 getResources().getDisplayMetrics().heightPixels;
 
@@ -362,7 +346,6 @@ public class BookingActivityMapActivity extends Activity {
         mapView.setLayoutParams(
                 new LinearLayout.LayoutParams(-1, mapHeight)
         );
-
         content.addView(mapView);
 
         content.addView(label("SELECTED BOOKING DETAILS"));
@@ -384,14 +367,12 @@ public class BookingActivityMapActivity extends Activity {
         Button back = new Button(this);
         back.setText("BACK TO ADMIN DASHBOARD");
         back.setOnClickListener(v -> finish());
-
         content.addView(
                 back,
                 new LinearLayout.LayoutParams(-1, dp(46))
         );
 
         scroll.addView(content);
-
         root.addView(
                 scroll,
                 new LinearLayout.LayoutParams(-1, 0, 1)
@@ -412,9 +393,9 @@ public class BookingActivityMapActivity extends Activity {
     }
 
     private void setupMap() {
-        WebSettings s = mapView.getSettings();
-        s.setJavaScriptEnabled(true);
-        s.setDomStorageEnabled(true);
+        WebSettings settings = mapView.getSettings();
+        settings.setJavaScriptEnabled(true);
+        settings.setDomStorageEnabled(true);
 
         mapView.setBackgroundColor(Color.rgb(235, 241, 237));
 
@@ -453,7 +434,6 @@ public class BookingActivityMapActivity extends Activity {
                 "</script></body></html>";
 
         mapView.setWebViewClient(new WebViewClient() {
-
             @Override
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
@@ -478,24 +458,15 @@ public class BookingActivityMapActivity extends Activity {
                     WebView view,
                     String url
             ) {
-                if (url != null &&
-                        url.startsWith("sakayna://booking/")) {
-                    try {
-                        String id = URLDecoder.decode(
-                                url.substring("sakayna://booking/".length()),
-                                "UTF-8"
-                        );
+                return handleMapUrl(url);
+            }
 
-                        showBookingDetails(id);
-
-                    } catch (Exception e) {
-                        Log.e(TAG, "Unable to open booking details", e);
-                    }
-
-                    return true;
-                }
-
-                return false;
+            @Override
+            public boolean shouldOverrideUrlLoading(
+                    WebView view,
+                    WebResourceRequest request
+            ) {
+                return handleMapUrl(request.getUrl().toString());
             }
         });
 
@@ -508,10 +479,26 @@ public class BookingActivityMapActivity extends Activity {
         );
     }
 
+    private boolean handleMapUrl(String url) {
+        if (url != null && url.startsWith("sakayna://booking/")) {
+            try {
+                String id = URLDecoder.decode(
+                        url.substring("sakayna://booking/".length()),
+                        "UTF-8"
+                );
+                showBookingDetails(id);
+            } catch (Exception e) {
+                Log.e(TAG, "Unable to open booking details", e);
+            }
+            return true;
+        }
+
+        return false;
+    }
+
     private void setupSpinners() {
         provinceNames.clear();
         provinceNames.add(ALL_PROVINCES);
-
         provinceSpinner.setAdapter(adapter(provinceNames));
 
         List<String> towns = new ArrayList<>();
@@ -522,19 +509,18 @@ public class BookingActivityMapActivity extends Activity {
                 new AdapterView.OnItemSelectedListener() {
                     @Override
                     public void onItemSelected(
-                            AdapterView<?> p,
-                            View v,
+                            AdapterView<?> parent,
+                            View view,
                             int position,
                             long id
                     ) {
                         if (updatingSpinners || activityDestroyed) return;
-
                         refreshTownSpinner();
                         renderMap();
                     }
 
                     @Override
-                    public void onNothingSelected(AdapterView<?> p) {
+                    public void onNothingSelected(AdapterView<?> parent) {
                     }
                 }
         );
@@ -543,8 +529,8 @@ public class BookingActivityMapActivity extends Activity {
                 new AdapterView.OnItemSelectedListener() {
                     @Override
                     public void onItemSelected(
-                            AdapterView<?> p,
-                            View v,
+                            AdapterView<?> parent,
+                            View view,
                             int position,
                             long id
                     ) {
@@ -554,7 +540,7 @@ public class BookingActivityMapActivity extends Activity {
                     }
 
                     @Override
-                    public void onNothingSelected(AdapterView<?> p) {
+                    public void onNothingSelected(AdapterView<?> parent) {
                     }
                 }
         );
@@ -566,15 +552,12 @@ public class BookingActivityMapActivity extends Activity {
                 android.R.layout.simple_spinner_item,
                 values
         );
-
         a.setDropDownViewResource(
                 android.R.layout.simple_spinner_dropdown_item
         );
-
         return a;
     }
 
-    // Load provinces and cities/municipalities independently.
     private void loadPhilippineAreas() {
         statusText.setText(
                 "Loading Philippine provinces and cities/municipalities..."
@@ -612,12 +595,10 @@ public class BookingActivityMapActivity extends Activity {
 
                         if (!name.isEmpty() && !code.isEmpty()) {
                             loadedProvinceCodes.put(
-                                    normalizeCode(code),
-                                    name
+                                    normalizeCode(code), name
                             );
                             loadedProvinceCodes.put(
-                                    normalizeCode(name),
-                                    name
+                                    normalizeCode(name), name
                             );
                         }
                     }
@@ -627,7 +608,6 @@ public class BookingActivityMapActivity extends Activity {
                                 "The province endpoint returned no province names"
                         );
                     }
-
                 } catch (Exception e) {
                     provinceError = e;
                     Log.e(TAG, "Province list request failed", e);
@@ -652,7 +632,6 @@ public class BookingActivityMapActivity extends Activity {
 
                         if (provinceValue instanceof JSONObject) {
                             JSONObject po = (JSONObject) provinceValue;
-
                             provinceCode = jsonName(po.opt("code"));
 
                             if (province.isEmpty()) {
@@ -663,15 +642,12 @@ public class BookingActivityMapActivity extends Activity {
                         if (province.isEmpty()) {
                             province = jsonName(o.opt("province_name"));
                         }
-
                         if (province.isEmpty()) {
                             province = jsonName(o.opt("provinceName"));
                         }
-
                         if (provinceCode.isEmpty()) {
                             provinceCode = jsonName(o.opt("province_code"));
                         }
-
                         if (provinceCode.isEmpty()) {
                             provinceCode = jsonName(o.opt("provinceCode"));
                         }
@@ -683,23 +659,16 @@ public class BookingActivityMapActivity extends Activity {
                         }
 
                         String normalizedProvince = normalizeCode(province);
-
                         if (loadedProvinceCodes.containsKey(normalizedProvince)) {
                             province = loadedProvinceCodes.get(normalizedProvince);
                         }
 
                         String type = jsonName(o.opt("type"));
-
                         if (name.isEmpty()) continue;
 
-                        loadedPlaces.add(
-                                new AreaPlace(
-                                        name,
-                                        province,
-                                        provinceCode,
-                                        type
-                                )
-                        );
+                        loadedPlaces.add(new AreaPlace(
+                                name, province, provinceCode, type
+                        ));
                     }
 
                     if (loadedPlaces.isEmpty()) {
@@ -707,7 +676,6 @@ public class BookingActivityMapActivity extends Activity {
                                 "The city/municipality endpoint returned no places"
                         );
                     }
-
                 } catch (Exception e) {
                     placesError = e;
                     Log.e(TAG, "City/municipality list request failed", e);
@@ -715,10 +683,7 @@ public class BookingActivityMapActivity extends Activity {
 
                 if (loadedProvinces.size() > 1) {
                     Collections.sort(
-                            loadedProvinces.subList(
-                                    1,
-                                    loadedProvinces.size()
-                            ),
+                            loadedProvinces.subList(1, loadedProvinces.size()),
                             String.CASE_INSENSITIVE_ORDER
                     );
                 }
@@ -748,26 +713,20 @@ public class BookingActivityMapActivity extends Activity {
                     provinceNameByCode.putAll(finalProvinceCodes);
 
                     areaLoadFinished = true;
-
                     inferRideAreasFromText();
 
                     for (RideItem ride : rides) {
                         if (ride.province != null &&
                                 !ride.province.trim().isEmpty() &&
                                 !containsIgnoreCase(
-                                        provinceNames,
-                                        ride.province.trim()
-                                )) {
+                                        provinceNames, ride.province.trim())) {
                             provinceNames.add(ride.province.trim());
                         }
                     }
 
                     if (provinceNames.size() > 1) {
                         Collections.sort(
-                                provinceNames.subList(
-                                        1,
-                                        provinceNames.size()
-                                ),
+                                provinceNames.subList(1, provinceNames.size()),
                                 String.CASE_INSENSITIVE_ORDER
                         );
                     }
@@ -789,14 +748,12 @@ public class BookingActivityMapActivity extends Activity {
                                 " cities/municipalities • Live bookings: " +
                                 rides.size()
                         );
-
                     } else if (finalProvinceError == null &&
                             finalPlacesError != null) {
                         statusText.setText(
                                 "Province list loaded; city/municipality list unavailable. " +
                                 "Check internet and reopen this screen."
                         );
-
                     } else {
                         statusText.setText(
                                 "Using built-in province list; area data could not load. " +
@@ -805,14 +762,12 @@ public class BookingActivityMapActivity extends Activity {
                     }
                 });
             });
-
         } catch (Exception e) {
             Log.e(TAG, "Unable to start area list request", e);
 
             provinceNames.clear();
             provinceNames.add(ALL_PROVINCES);
             provinceNames.addAll(defaultPhilippineProvinces());
-
             areaLoadFinished = true;
 
             updatingSpinners = true;
@@ -825,29 +780,18 @@ public class BookingActivityMapActivity extends Activity {
 
     private JSONArray fetchFirstAvailable(String... addresses)
             throws Exception {
-
         Exception last = null;
 
         for (String address : addresses) {
             try {
                 JSONArray result = fetchArray(address);
-
                 if (result != null && result.length() > 0) {
                     return result;
                 }
-
-                last = new Exception(
-                        "No records returned by " + address
-                );
-
+                last = new Exception("No records returned by " + address);
             } catch (Exception e) {
                 last = e;
-
-                Log.w(
-                        TAG,
-                        "Area endpoint failed: " + address +
-                        " — " + e.getMessage()
-                );
+                Log.w(TAG, "Area endpoint failed: " + address, e);
             }
         }
 
@@ -857,8 +801,9 @@ public class BookingActivityMapActivity extends Activity {
     }
 
     private JSONArray fetchArray(String address) throws Exception {
-        HttpURLConnection connection =
-                (HttpURLConnection) new URL(address).openConnection();
+        java.net.HttpURLConnection connection =
+                (java.net.HttpURLConnection)
+                        new java.net.URL(address).openConnection();
 
         connection.setRequestMethod("GET");
         connection.setConnectTimeout(10000);
@@ -875,8 +820,9 @@ public class BookingActivityMapActivity extends Activity {
                 );
             }
 
-            InputStream in = connection.getInputStream();
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            java.io.InputStream in = connection.getInputStream();
+            java.io.ByteArrayOutputStream out =
+                    new java.io.ByteArrayOutputStream();
 
             byte[] buffer = new byte[8192];
             int n;
@@ -888,17 +834,12 @@ public class BookingActivityMapActivity extends Activity {
             in.close();
 
             String body = out.toString("UTF-8");
-            Object parsed =
-                    new org.json.JSONTokener(body).nextValue();
+            Object parsed = new org.json.JSONTokener(body).nextValue();
 
             JSONArray array = findArrayInResponse(parsed);
-
             if (array != null) return array;
 
-            throw new Exception(
-                    "Unexpected JSON structure from " + address
-            );
-
+            throw new Exception("Unexpected JSON structure from " + address);
         } finally {
             connection.disconnect();
         }
@@ -914,14 +855,9 @@ public class BookingActivityMapActivity extends Activity {
         JSONObject obj = (JSONObject) parsed;
 
         String[] arrayKeys = {
-                "data",
-                "results",
-                "items",
-                "provinces",
-                "cities_municipalities",
-                "citiesMunicipalities",
-                "cities",
-                "municipalities"
+                "data", "results", "items", "provinces",
+                "cities_municipalities", "citiesMunicipalities",
+                "cities", "municipalities"
         };
 
         for (String key : arrayKeys) {
@@ -935,10 +871,7 @@ public class BookingActivityMapActivity extends Activity {
             if (nested instanceof JSONObject ||
                     nested instanceof JSONArray) {
                 JSONArray result = findArrayInResponse(nested);
-
-                if (result != null) {
-                    return result;
-                }
+                if (result != null) return result;
             }
         }
 
@@ -946,9 +879,7 @@ public class BookingActivityMapActivity extends Activity {
     }
 
     private String jsonName(Object value) {
-        if (value == null || value == JSONObject.NULL) {
-            return "";
-        }
+        if (value == null || value == JSONObject.NULL) return "";
 
         if (value instanceof JSONObject) {
             JSONObject object = (JSONObject) value;
@@ -978,8 +909,7 @@ public class BookingActivityMapActivity extends Activity {
     private String normalizeCode(String value) {
         if (value == null) return "";
 
-        return value
-                .trim()
+        return value.trim()
                 .toLowerCase(Locale.ROOT)
                 .replaceAll("[^a-z0-9]", "");
     }
@@ -992,7 +922,6 @@ public class BookingActivityMapActivity extends Activity {
                 return true;
             }
         }
-
         return false;
     }
 
@@ -1001,101 +930,39 @@ public class BookingActivityMapActivity extends Activity {
 
         for (int i = 0; i < values.size(); i++) {
             String value = values.get(i);
-
             if (value != null && value.equalsIgnoreCase(target.trim())) {
                 return i;
             }
         }
-
         return 0;
     }
 
     private List<String> defaultPhilippineProvinces() {
         List<String> result = new ArrayList<>();
 
-        Collections.addAll(
-                result,
-                "Abra",
-                "Agusan del Norte",
-                "Agusan del Sur",
-                "Aklan",
-                "Albay",
-                "Antique",
-                "Apayao",
-                "Aurora",
-                "Basilan",
-                "Bataan",
-                "Batanes",
-                "Batangas",
-                "Benguet",
-                "Biliran",
-                "Bohol",
-                "Bukidnon",
-                "Bulacan",
-                "Cagayan",
-                "Camarines Norte",
-                "Camarines Sur",
-                "Camiguin",
-                "Capiz",
-                "Catanduanes",
-                "Cavite",
-                "Cebu",
-                "Cotabato",
-                "Davao de Oro",
-                "Davao del Norte",
-                "Davao del Sur",
-                "Davao Occidental",
-                "Davao Oriental",
-                "Dinagat Islands",
-                "Eastern Samar",
-                "Guimaras",
-                "Ifugao",
-                "Ilocos Norte",
-                "Ilocos Sur",
-                "Iloilo",
-                "Isabela",
-                "Kalinga",
-                "La Union",
-                "Laguna",
-                "Lanao del Norte",
-                "Lanao del Sur",
-                "Leyte",
-                "Maguindanao del Norte",
-                "Maguindanao del Sur",
-                "Marinduque",
-                "Masbate",
-                "Misamis Occidental",
-                "Misamis Oriental",
-                "Mountain Province",
-                "Negros Occidental",
-                "Negros Oriental",
-                "Northern Samar",
-                "Nueva Ecija",
-                "Nueva Vizcaya",
-                "Occidental Mindoro",
-                "Oriental Mindoro",
-                "Palawan",
-                "Pampanga",
-                "Pangasinan",
-                "Quezon",
-                "Quirino",
-                "Rizal",
-                "Romblon",
-                "Samar",
-                "Sarangani",
-                "Siquijor",
-                "Sorsogon",
-                "South Cotabato",
-                "Southern Leyte",
-                "Sultan Kudarat",
-                "Sulu",
-                "Surigao del Norte",
-                "Surigao del Sur",
-                "Tarlac",
-                "Tawi-Tawi",
-                "Zambales",
-                "Zamboanga del Norte",
-                "Zamboanga del Sur",
+        Collections.addAll(result,
+                "Abra", "Agusan del Norte", "Agusan del Sur", "Aklan",
+                "Albay", "Antique", "Apayao", "Aurora", "Basilan",
+                "Bataan", "Batanes", "Batangas", "Benguet", "Biliran",
+                "Bohol", "Bukidnon", "Bulacan", "Cagayan",
+                "Camarines Norte", "Camarines Sur", "Camiguin",
+                "Capiz", "Catanduanes", "Cavite", "Cebu", "Cotabato",
+                "Davao de Oro", "Davao del Norte", "Davao del Sur",
+                "Davao Occidental", "Davao Oriental", "Dinagat Islands",
+                "Eastern Samar", "Guimaras", "Ifugao", "Ilocos Norte",
+                "Ilocos Sur", "Iloilo", "Isabela", "Kalinga",
+                "La Union", "Laguna", "Lanao del Norte", "Lanao del Sur",
+                "Leyte", "Maguindanao del Norte", "Maguindanao del Sur",
+                "Marinduque", "Masbate", "Misamis Occidental",
+                "Misamis Oriental", "Mountain Province", "Negros Occidental",
+                "Negros Oriental", "Northern Samar", "Nueva Ecija",
+                "Nueva Vizcaya", "Occidental Mindoro", "Oriental Mindoro",
+                "Palawan", "Pampanga", "Pangasinan", "Quezon", "Quirino",
+                "Rizal", "Romblon", "Samar", "Sarangani", "Siquijor",
+                "Sorsogon", "South Cotabato", "Southern Leyte",
+                "Sultan Kudarat", "Sulu", "Surigao del Norte",
+                "Surigao del Sur", "Tarlac", "Tawi-Tawi", "Zambales",
+                "Zamboanga del Norte", "Zamboanga del Sur",
                 "Zamboanga Sibugay"
         );
 
@@ -1115,7 +982,680 @@ public class BookingActivityMapActivity extends Activity {
                     safe(ride.destination)
             ).toLowerCase(Locale.ROOT);
 
+            AreaPlace bestPlace = null;
+
             for (AreaPlace place : areaPlaces) {
                 if (place == null || place.name == null) continue;
 
-                if (combined.contains(place.name.toLower
+                String placeName = place.name.trim().toLowerCase(Locale.ROOT);
+                if (placeName.isEmpty()) continue;
+
+                if (combined.contains(placeName)) {
+                    if (bestPlace == null ||
+                            placeName.length() >
+                            bestPlace.name.trim().length()) {
+                        bestPlace = place;
+                    }
+                }
+            }
+
+            if (bestPlace != null) {
+                if (ride.town.isEmpty()) {
+                    ride.town = bestPlace.name;
+                }
+                if (ride.province.isEmpty()) {
+                    ride.province = safe(bestPlace.province);
+                }
+            }
+        }
+    }
+
+    private void refreshTownSpinner() {
+        if (townSpinner == null) return;
+
+        String selectedProvince = selectedItem(provinceSpinner);
+        String previousTown = selectedItem(townSpinner);
+
+        List<String> towns = new ArrayList<>();
+        towns.add(ALL_TOWNS);
+
+        for (AreaPlace place : areaPlaces) {
+            if (place == null || place.name == null) continue;
+
+            if (!ALL_PROVINCES.equals(selectedProvince) &&
+                    !safe(place.province).equalsIgnoreCase(selectedProvince)) {
+                continue;
+            }
+
+            if (!containsIgnoreCase(towns, place.name)) {
+                towns.add(place.name);
+            }
+        }
+
+        for (RideItem ride : rides) {
+            if (ride == null || safe(ride.town).isEmpty()) continue;
+
+            if (!ALL_PROVINCES.equals(selectedProvince) &&
+                    !safe(ride.province).equalsIgnoreCase(selectedProvince)) {
+                continue;
+            }
+
+            if (!containsIgnoreCase(towns, ride.town)) {
+                towns.add(ride.town);
+            }
+        }
+
+        if (towns.size() > 1) {
+            Collections.sort(
+                    towns.subList(1, towns.size()),
+                    String.CASE_INSENSITIVE_ORDER
+            );
+        }
+
+        updatingSpinners = true;
+        townSpinner.setAdapter(adapter(towns));
+        townSpinner.setSelection(findIgnoreCase(towns, previousTown));
+        updatingSpinners = false;
+    }
+
+    private String selectedItem(Spinner spinner) {
+        if (spinner == null || spinner.getSelectedItem() == null) {
+            return "";
+        }
+        return String.valueOf(spinner.getSelectedItem());
+    }
+
+    private void showDatePicker(boolean isStart) {
+        Calendar c = Calendar.getInstance();
+        c.setTimeInMillis(isStart ? selectedStart : selectedEnd);
+
+        DatePickerDialog dialog = new DatePickerDialog(
+                this,
+                (view, year, month, day) -> {
+                    Calendar chosen = Calendar.getInstance();
+                    chosen.set(year, month, day);
+
+                    if (isStart) {
+                        setStartOfDay(chosen);
+                        selectedStart = chosen.getTimeInMillis();
+
+                        if (selectedStart > selectedEnd) {
+                            Calendar end = (Calendar) chosen.clone();
+                            setEndOfDay(end);
+                            selectedEnd = end.getTimeInMillis();
+                        }
+                    } else {
+                        setEndOfDay(chosen);
+                        selectedEnd = chosen.getTimeInMillis();
+
+                        if (selectedEnd < selectedStart) {
+                            Calendar start = (Calendar) chosen.clone();
+                            setStartOfDay(start);
+                            selectedStart = start.getTimeInMillis();
+                        }
+                    }
+
+                    updateDateText();
+                    renderMap();
+                },
+                c.get(Calendar.YEAR),
+                c.get(Calendar.MONTH),
+                c.get(Calendar.DAY_OF_MONTH)
+        );
+
+        dialog.show();
+    }
+
+    private void updateDateText() {
+        SimpleDateFormat fmt =
+                new SimpleDateFormat("MMM dd, yyyy", Locale.getDefault());
+
+        if (startDateButton != null) {
+            startDateButton.setText(fmt.format(new Date(selectedStart)));
+        }
+
+        if (endDateButton != null) {
+            endDateButton.setText(fmt.format(new Date(selectedEnd)));
+        }
+
+        if (dateText != null) {
+            dateText.setText(
+                    "Showing bookings from " +
+                    fmt.format(new Date(selectedStart)) +
+                    " to " +
+                    fmt.format(new Date(selectedEnd))
+            );
+        }
+    }
+
+    private void listenForBookings() {
+        statusText.setText("Connecting to live bookings...");
+
+        ridesListener = db.collection("rides")
+                .addSnapshotListener((snapshots, error) -> {
+                    if (activityDestroyed || isFinishing()) return;
+
+                    if (error != null) {
+                        Log.e(TAG, "Live rides listener failed", error);
+                        statusText.setText(
+                                "Unable to load live bookings: " +
+                                safe(error.getMessage())
+                        );
+                        return;
+                    }
+
+                    if (snapshots == null) return;
+
+                    rides.clear();
+
+                    for (DocumentSnapshot doc : snapshots.getDocuments()) {
+                        RideItem ride = parseRide(doc);
+                        if (ride != null) rides.add(ride);
+                    }
+
+                    inferRideAreasFromText();
+                    refreshProvinceSpinnerWithRideAreas();
+                    refreshTownSpinner();
+                    resolveMissingCoordinates();
+                    renderMap();
+
+                    statusText.setText(
+                            "Live bookings connected • " +
+                            rides.size() + " booking records loaded"
+                    );
+                });
+    }
+
+    private void refreshProvinceSpinnerWithRideAreas() {
+        String previous = selectedItem(provinceSpinner);
+
+        List<String> values = new ArrayList<>();
+        values.add(ALL_PROVINCES);
+
+        for (String province : provinceNames) {
+            if (!ALL_PROVINCES.equals(province) &&
+                    !containsIgnoreCase(values, province)) {
+                values.add(province);
+            }
+        }
+
+        for (RideItem ride : rides) {
+            if (ride == null || safe(ride.province).isEmpty()) continue;
+            if (!containsIgnoreCase(values, ride.province)) {
+                values.add(ride.province);
+            }
+        }
+
+        if (values.size() > 1) {
+            Collections.sort(
+                    values.subList(1, values.size()),
+                    String.CASE_INSENSITIVE_ORDER
+            );
+        }
+
+        updatingSpinners = true;
+        provinceNames.clear();
+        provinceNames.addAll(values);
+        provinceSpinner.setAdapter(adapter(provinceNames));
+        provinceSpinner.setSelection(findIgnoreCase(provinceNames, previous));
+        updatingSpinners = false;
+    }
+
+    private RideItem parseRide(DocumentSnapshot doc) {
+        if (doc == null || !doc.exists()) return null;
+
+        RideItem ride = new RideItem(doc.getId());
+
+        ride.passengerId = firstString(
+                doc, "passengerId", "userId", "customerId", "riderId"
+        );
+
+        ride.status = firstString(
+                doc, "status", "rideStatus", "bookingStatus"
+        );
+
+        ride.pickup = firstString(
+                doc, "pickup", "pickupAddress", "pickupLocation",
+                "origin", "fromAddress", "from"
+        );
+
+        ride.destination = firstString(
+                doc, "destination", "destinationAddress",
+                "dropoff", "dropoffAddress", "toAddress", "to"
+        );
+
+        ride.paymentMethod = firstString(
+                doc, "paymentMethod", "payment", "paymentType"
+        );
+
+        ride.paymentStatus = firstString(
+                doc, "paymentStatus", "payment_state"
+        );
+
+        ride.province = firstString(
+                doc, "province", "pickupProvince", "townProvince"
+        );
+
+        ride.town = firstString(
+                doc, "town", "city", "municipality",
+                "pickupTown", "pickupCity"
+        );
+
+        ride.createdAt = readTime(
+                doc.get("createdAt"),
+                doc.get("timestamp"),
+                doc.get("bookingTime"),
+                doc.get("requestedAt")
+        );
+
+        ride.pickupLat = firstDouble(
+                doc, "pickupLat", "pickupLatitude", "fromLat", "originLat"
+        );
+        ride.pickupLng = firstDouble(
+                doc, "pickupLng", "pickupLongitude", "fromLng", "originLng"
+        );
+
+        ride.destinationLat = firstDouble(
+                doc, "destinationLat", "destinationLatitude",
+                "dropoffLat", "toLat"
+        );
+
+        ride.destinationLng = firstDouble(
+                doc, "destinationLng", "destinationLongitude",
+                "dropoffLng", "toLng"
+        );
+
+        readNestedCoordinates(doc, ride);
+
+        ride.hasPickupCoordinates =
+                validCoordinates(ride.pickupLat, ride.pickupLng);
+
+        ride.hasDestinationCoordinates =
+                validCoordinates(ride.destinationLat, ride.destinationLng);
+
+        return ride;
+    }
+
+    private void readNestedCoordinates(
+            DocumentSnapshot doc,
+            RideItem ride
+    ) {
+        Map<String, Object> pickupMap = doc.get("pickupLocation") instanceof Map
+                ? (Map<String, Object>) doc.get("pickupLocation")
+                : null;
+
+        Map<String, Object> destinationMap =
+                doc.get("destinationLocation") instanceof Map
+                        ? (Map<String, Object>) doc.get("destinationLocation")
+                        : null;
+
+        if (pickupMap != null) {
+            if (!ride.hasPickupCoordinates) {
+                ride.pickupLat = mapDouble(
+                        pickupMap, "latitude", "lat"
+                );
+                ride.pickupLng = mapDouble(
+                        pickupMap, "longitude", "lng", "lon"
+                );
+            }
+        }
+
+        if (destinationMap != null) {
+            if (!ride.hasDestinationCoordinates) {
+                ride.destinationLat = mapDouble(
+                        destinationMap, "latitude", "lat"
+                );
+                ride.destinationLng = mapDouble(
+                        destinationMap, "longitude", "lng", "lon"
+                );
+            }
+        }
+    }
+
+    private double mapDouble(
+            Map<String, Object> map,
+            String... keys
+    ) {
+        for (String key : keys) {
+            Object value = map.get(key);
+            Double result = asDouble(value);
+            if (result != null) return result;
+        }
+        return 0;
+    }
+
+    private String firstString(
+            DocumentSnapshot doc,
+            String... keys
+    ) {
+        for (String key : keys) {
+            Object value = doc.get(key);
+
+            if (value instanceof Map) {
+                Map<?, ?> map = (Map<?, ?>) value;
+
+                for (String nestedKey :
+                        new String[]{"address", "name", "label", "description"}) {
+                    Object nested = map.get(nestedKey);
+                    if (nested != null &&
+                            !String.valueOf(nested).trim().isEmpty()) {
+                        return String.valueOf(nested).trim();
+                    }
+                }
+            }
+
+            if (value != null && !(value instanceof Map)) {
+                String text = String.valueOf(value).trim();
+
+                if (!text.isEmpty() &&
+                        !"null".equalsIgnoreCase(text)) {
+                    return text;
+                }
+            }
+        }
+
+        return "";
+    }
+
+    private double firstDouble(
+            DocumentSnapshot doc,
+            String... keys
+    ) {
+        for (String key : keys) {
+            Double value = asDouble(doc.get(key));
+            if (value != null) return value;
+        }
+        return 0;
+    }
+
+    private Double asDouble(Object value) {
+        if (value instanceof Number) {
+            return ((Number) value).doubleValue();
+        }
+
+        if (value instanceof String) {
+            try {
+                return Double.parseDouble(((String) value).trim());
+            } catch (Exception ignored) {
+            }
+        }
+
+        return null;
+    }
+
+    private long readTime(Object... values) {
+        for (Object value : values) {
+            if (value instanceof Timestamp) {
+                return ((Timestamp) value).toDate().getTime();
+            }
+
+            if (value instanceof Date) {
+                return ((Date) value).getTime();
+            }
+
+            if (value instanceof Number) {
+                long number = ((Number) value).longValue();
+
+                // Treat shorter numeric timestamps as seconds.
+                if (number > 0 && number < 100000000000L) {
+                    number *= 1000L;
+                }
+
+                if (number > 0) return number;
+            }
+        }
+
+        return 0;
+    }
+
+    private boolean validCoordinates(double lat, double lng) {
+        return lat >= -90 && lat <= 90 &&
+                lng >= -180 && lng <= 180 &&
+                !(lat == 0 && lng == 0);
+    }
+
+    private void resolveMissingCoordinates() {
+        for (RideItem ride : rides) {
+            if (ride == null || ride.locationResolutionStarted) continue;
+
+            boolean pickupMissing = !ride.hasPickupCoordinates &&
+                    !safe(ride.pickup).isEmpty();
+
+            boolean destinationMissing = !ride.hasDestinationCoordinates &&
+                    !safe(ride.destination).isEmpty();
+
+            if (!pickupMissing && !destinationMissing) continue;
+
+            ride.locationResolutionStarted = true;
+            resolveRideLocations(ride, pickupMissing, destinationMissing);
+        }
+    }
+
+    private void resolveRideLocations(
+            RideItem ride,
+            boolean resolvePickup,
+            boolean resolveDestination
+    ) {
+        try {
+            background.execute(() -> {
+                double pLat = ride.pickupLat;
+                double pLng = ride.pickupLng;
+                double dLat = ride.destinationLat;
+                double dLng = ride.destinationLng;
+
+                boolean pFound = ride.hasPickupCoordinates;
+                boolean dFound = ride.hasDestinationCoordinates;
+
+                if (!Geocoder.isPresent()) return;
+
+                Geocoder geocoder = new Geocoder(
+                        getApplicationContext(),
+                        Locale.getDefault()
+                );
+
+                if (resolvePickup) {
+                    double[] coords = geocode(geocoder, ride.pickup);
+                    if (coords != null) {
+                        pLat = coords[0];
+                        pLng = coords[1];
+                        pFound = true;
+                    }
+                }
+
+                if (resolveDestination) {
+                    double[] coords = geocode(geocoder, ride.destination);
+                    if (coords != null) {
+                        dLat = coords[0];
+                        dLng = coords[1];
+                        dFound = true;
+                    }
+                }
+
+                final double finalPLat = pLat;
+                final double finalPLng = pLng;
+                final double finalDLat = dLat;
+                final double finalDLng = dLng;
+                final boolean finalPFound = pFound;
+                final boolean finalDFound = dFound;
+
+                runOnUiThread(() -> {
+                    if (activityDestroyed) return;
+
+                    RideItem current = findRide(ride.id);
+                    if (current == null) return;
+
+                    if (finalPFound) {
+                        current.pickupLat = finalPLat;
+                        current.pickupLng = finalPLng;
+                        current.hasPickupCoordinates = true;
+                    }
+
+                    if (finalDFound) {
+                        current.destinationLat = finalDLat;
+                        current.destinationLng = finalDLng;
+                        current.hasDestinationCoordinates = true;
+                    }
+
+                    renderMap();
+                });
+            });
+        } catch (Exception e) {
+            Log.e(TAG, "Could not start location lookup", e);
+        }
+    }
+
+    private double[] geocode(Geocoder geocoder, String address) {
+        if (address == null || address.trim().isEmpty()) return null;
+
+        try {
+            List<Address> results = geocoder.getFromLocationName(
+                    address + ", Philippines",
+                    1
+            );
+
+            if (results != null && !results.isEmpty()) {
+                Address a = results.get(0);
+                double lat = a.getLatitude();
+                double lng = a.getLongitude();
+
+                if (validCoordinates(lat, lng)) {
+                    return new double[]{lat, lng};
+                }
+            }
+        } catch (IOException | IllegalArgumentException e) {
+            Log.w(TAG, "Geocoding failed for: " + address, e);
+        } catch (Exception e) {
+            Log.w(TAG, "Location lookup error for: " + address, e);
+        }
+
+        return null;
+    }
+
+    private RideItem findRide(String id) {
+        for (RideItem ride : rides) {
+            if (ride != null && ride.id.equals(id)) return ride;
+        }
+        return null;
+    }
+
+    private void renderMap() {
+        if (activityDestroyed || mapView == null || !mapPageReady) return;
+
+        String province = selectedItem(provinceSpinner);
+        String town = selectedItem(townSpinner);
+
+        JSONArray data = new JSONArray();
+
+        for (RideItem ride : rides) {
+            if (ride == null) continue;
+
+            if (ride.createdAt > 0 &&
+                    (ride.createdAt < selectedStart ||
+                            ride.createdAt > selectedEnd)) {
+                continue;
+            }
+
+            if (!ALL_PROVINCES.equals(province) &&
+                    !safe(ride.province).equalsIgnoreCase(province)) {
+                continue;
+            }
+
+            if (!ALL_TOWNS.equals(town) &&
+                    !safe(ride.town).equalsIgnoreCase(town)) {
+                continue;
+            }
+
+            if (!ride.hasPickupCoordinates ||
+                    !ride.hasDestinationCoordinates) {
+                continue;
+            }
+
+            try {
+                JSONObject item = new JSONObject();
+                item.put("id", ride.id);
+                item.put("pickup", safe(ride.pickup));
+                item.put("destination", safe(ride.destination));
+                item.put("status", safe(ride.status));
+                item.put("plat", ride.pickupLat);
+                item.put("plng", ride.pickupLng);
+                item.put("dlat", ride.destinationLat);
+                item.put("dlng", ride.destinationLng);
+                data.put(item);
+            } catch (Exception e) {
+                Log.w(TAG, "Could not prepare map booking", e);
+            }
+        }
+
+        String script = "addBookingMarkers(" + data.toString() + ");";
+
+        mapView.evaluateJavascript(script, null);
+
+        if (detailsText != null) {
+            detailsText.setText(
+                    "Bookings shown on map: " + data.length() +
+                    "\nTap a pickup or destination marker to see its details."
+            );
+        }
+    }
+
+    private void showBookingDetails(String id) {
+        RideItem ride = findRide(id);
+
+        if (ride == null) {
+            Toast.makeText(
+                    this,
+                    "Booking details are no longer available.",
+                    Toast.LENGTH_SHORT
+            ).show();
+            return;
+        }
+
+        SimpleDateFormat fmt = new SimpleDateFormat(
+                "MMM dd, yyyy hh:mm a",
+                Locale.getDefault()
+        );
+
+        String time = ride.createdAt > 0
+                ? fmt.format(new Date(ride.createdAt))
+                : "Date unavailable";
+
+        String details =
+                "BOOKING ID\n" + safe(ride.id) +
+                "\n\nPASSENGER ID\n" + safe(ride.passengerId) +
+                "\n\nSTATUS\n" + safe(ride.status) +
+                "\n\nPICKUP\n" + safe(ride.pickup) +
+                "\n\nDESTINATION\n" + safe(ride.destination) +
+                "\n\nPROVINCE\n" + safe(ride.province) +
+                "\n\nTOWN / CITY\n" + safe(ride.town) +
+                "\n\nPAYMENT METHOD\n" + safe(ride.paymentMethod) +
+                "\n\nPAYMENT STATUS\n" + safe(ride.paymentStatus) +
+                "\n\nBOOKING DATE\n" + time;
+
+        detailsText.setText(details);
+    }
+
+    private String safe(String value) {
+        return value == null ? "" : value.trim();
+    }
+
+    @Override
+    protected void onDestroy() {
+        activityDestroyed = true;
+
+        if (ridesListener != null) {
+            ridesListener.remove();
+            ridesListener = null;
+        }
+
+        if (mapView != null) {
+            mapView.stopLoading();
+            mapView.setWebViewClient(null);
+            mapView.destroy();
+            mapView = null;
+        }
+
+        background.shutdownNow();
+
+        super.onDestroy();
+    }
+}
